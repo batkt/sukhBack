@@ -8,14 +8,17 @@
     "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "update": "git pull && pm2 reload amarSukhBack",
-    "addpack": "npm install --registry http://103.143.40.90:4873 zevback"
+    "addpack": "npm install --registry http://103.143.40.90:4873 zevbackv2"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^6.0.0",
     "express": "^5.1.0",
-    "zevback": "^1.1.43",
+    "express-useragent": "^1.0.15",
+    "redis": "^5.5.6",
+    "sharp": "^0.30.7",
+    "zevbackv2": "^1.1.50",
     "zuragpack": "^1.0.17"
   }
 }
