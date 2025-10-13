@@ -64,8 +64,39 @@ app.use(gereeRoute);
 
 app.use(aldaaBarigch);
 
-mongoose.connection.on("connected", () => {
+mongoose.connection.on("connected", async () => {
   console.log("✅ MongoDB connected:", process.env.BAAZ);
+  
+  // Insert minimal test data
+  try {
+    const Baiguullaga = require("./models/baiguullaga");
+    const Ajiltan = require("./models/ajiltan");
+    
+    const existing = await Baiguullaga(db.erunkhiiKholbolt).findOne({ register: "6688845" });
+    if (!existing) {
+      const baiguullaga = new Baiguullaga(db.erunkhiiKholbolt)({
+        ner: "Амарсөх ХХК",
+        register: "6688845",
+        khayag: "amarsukh.mn"
+      });
+      await baiguullaga.save();
+      
+      const ajiltan = new Ajiltan(db.erunkhiiKholbolt)({
+        ner: "Админ",
+        nevtrekhNer: "admin",
+        nuutsUg: "admin123",
+        register: "6688845",
+        erkh: "Admin",
+        baiguullagiinId: baiguullaga._id,
+        baiguullagiinNer: baiguullaga.ner
+      });
+      await ajiltan.save();
+      
+      console.log("✅ Test data: admin/admin123");
+    }
+  } catch (error) {
+    console.error("❌ Test data error:", error);
+  }
 });
 mongoose.connection.on("error", (err) => {
   console.error("❌ MongoDB connection error:", err);
