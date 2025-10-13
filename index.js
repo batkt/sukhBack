@@ -54,7 +54,7 @@ db.kholboltUusgey(
 );
 
 const dbUri =
-  "mongodb://admin:Br1stelback1@127.0.0.1:27017/testiinbaaz?authSource=admin";
+  "mongodb://admin:Br1stelback1@127.0.0.1:27017/hhhohoho?authSource=admin";
 mongoose.connect(dbUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
