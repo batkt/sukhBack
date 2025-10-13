@@ -15,6 +15,7 @@ dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 
 const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
+const gereeRoute = require("./routes/gereeRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
 const PORT = process.env.PORT || 8084;
@@ -59,6 +60,7 @@ db.kholboltUusgey(
 
 app.use(ajiltanRoute);
 app.use(baiguullagaRoute);
+app.use(gereeRoute);
 
 app.use(aldaaBarigch);
 
