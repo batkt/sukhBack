@@ -13,6 +13,7 @@ const io = require("socket.io")(server, {
 const dotenv = require("dotenv");
 dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 
+const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
@@ -37,7 +38,7 @@ app.get("/debug", (req, res) => {
     hasAppSecret: !!process.env.APP_SECRET,
     appSecretLength: process.env.APP_SECRET ? process.env.APP_SECRET.length : 0,
     nodeEnv: process.env.NODE_ENV,
-    port: PORT
+    port: PORT,
   });
 });
 
@@ -57,6 +58,7 @@ db.kholboltUusgey(
 );
 
 app.use(ajiltanRoute);
+app.use(baiguullagaRoute);
 
 app.use(aldaaBarigch);
 
