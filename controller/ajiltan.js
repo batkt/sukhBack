@@ -85,9 +85,6 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
       try {
         if (khariu.success) {
           if (!!khariu.salbaruud) {
-            console.log("------>khariu.salbaruud", khariu.salbaruud);
-            console.log("------>khariu.salbaruud length:", khariu.salbaruud?.length);
-            console.log("------>khariu object keys:", Object.keys(khariu));
             var butsaakhSalbaruud = [];
             butsaakhSalbaruud.push({
               salbariinId: baiguullaga?.barilguud?.[0]?._id,
@@ -95,34 +92,11 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
             });
             console.log("------>duusahOgnoo" + khariu.duusakhOgnoo);
             for await (const salbar of khariu.salbaruud) {
-              console.log("🔍 Processing salbar:", salbar);
-              console.log("🔍 Looking for licenseRegister:", salbar.register);
-              console.log(
-                "🔍 Available barilguud:",
-                baiguullaga?.barilguud?.map((b) => ({
-                  ner: b.ner,
-                  licenseRegister: b.licenseRegister,
-                }))
-              );
-
               var tukhainSalbar = baiguullaga?.barilguud?.find((x) => {
-                console.log(
-                  "🔍 Checking barilguu:",
-                  x.ner,
-                  "licenseRegister:",
-                  x.licenseRegister,
-                  "matches:",
-                  x.licenseRegister == salbar.register
-                );
                 return (
                   !!x.licenseRegister && x.licenseRegister == salbar.register
                 );
               });
-
-              console.log(
-                "--------------------------->tukhainSalbar",
-                tukhainSalbar
-              );
 
               if (!!tukhainSalbar) {
                 butsaakhSalbaruud.push({
