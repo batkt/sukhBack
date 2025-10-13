@@ -32,7 +32,7 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
           req.body.baaziinNer,
           "127.0.0.1:27017",
           "admin",
-          "anzaidev"
+          "Br1stelback1"
         );
         if (req.body.ajiltan) {
           let ajiltan = new Ajiltan(db.erunkhiiKholbolt)(req.body.ajiltan);
