@@ -11,7 +11,15 @@ const io = require("socket.io")(server, {
   pingInterval: 10000,
 });
 const dotenv = require("dotenv");
-dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
+const path = require("path");
+const result = dotenv.config({ path: path.join(__dirname, "tokhirgoo", "tokhirgoo.env") });
+
+if (result.error) {
+  console.error("❌ Error loading .env file:", result.error);
+} else {
+  console.log("✅ Environment variables loaded");
+  console.log("APP_SECRET loaded:", !!process.env.APP_SECRET);
+}
 
 const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
@@ -40,6 +48,7 @@ app.get("/debug", (req, res) => {
     appSecretLength: process.env.APP_SECRET ? process.env.APP_SECRET.length : 0,
     nodeEnv: process.env.NODE_ENV,
     port: PORT,
+    envPath: "./tokhirgoo/tokhirgoo.env"
   });
 });
 
