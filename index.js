@@ -2,8 +2,6 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const app = express();
-
-const mongoose = require("mongoose");
 const server = http.Server(app);
 
 const dotenv = require("dotenv");
