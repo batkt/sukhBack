@@ -3,7 +3,6 @@ const router = express.Router();
 const Baiguullaga = require("../models/baiguullaga");
 const Ajiltan = require("../models/ajiltan");
 //const { crudWithFile, crud } = require("../components/crud");
-//const { tokenShalgakh } = require("../middlewares/tokenShalgakh");
 //const UstsanBarimt = require("../models/ustsanBarimt");
 const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
 const axios = require("axios");
