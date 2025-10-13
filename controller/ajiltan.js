@@ -85,7 +85,9 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
       try {
         if (khariu.success) {
           if (!!khariu.salbaruud) {
-            console.log("------>khariu.salbaruud" + khariu.salbaruud);
+            console.log("------>khariu.salbaruud", khariu.salbaruud);
+            console.log("------>khariu.salbaruud length:", khariu.salbaruud?.length);
+            console.log("------>khariu object keys:", Object.keys(khariu));
             var butsaakhSalbaruud = [];
             butsaakhSalbaruud.push({
               salbariinId: baiguullaga?.barilguud?.[0]?._id,
