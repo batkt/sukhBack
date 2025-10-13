@@ -29,7 +29,7 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
         db.kholboltNemye(
           baiguullaga._id,
           req.body.baaziinNer,
-          "103.143.40.46:27017",
+          "127.0.0.1:27017",
           "admin",
           "Br1stelback1"
         );
