@@ -34,7 +34,7 @@ module.exports.backAvya = async function backAvya() {
             form.append("file", fs.createReadStream("dump.tar"));
             axios({
               method: "post",
-              url: "http://103.236.194.50:8282/backAvya", // Assuming 'url' is defined elsewhere
+              url: "http://103.236.194.50:8282/backAvya",
               data: form,
               maxContentLength: Infinity,
               maxBodyLength: Infinity,

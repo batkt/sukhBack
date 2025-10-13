@@ -19,6 +19,7 @@ const PORT = process.env.PORT || 8084;
 const ajiltanRoute = require("./routes/ajiltanRoute");
 const licenseRoute = require("./routes/licenseRoute");
 const baiguullagaRoute = require("./routes/baiguullagaRoute");
+const orshinSuugchRoute = require("./routes/orshinSuugchRoute");
 // const redisClient = require("./routes/redisClient");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
@@ -59,6 +60,7 @@ db.kholboltUusgey(
 app.use(ajiltanRoute);
 app.use(licenseRoute);
 app.use(baiguullagaRoute);
+app.use(orshinSuugchRoute);
 // app.use(redisClient);
 // zuragPack(app);
 
