@@ -14,10 +14,12 @@ const dotenv = require("dotenv");
 dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 
 const ajiltanRoute = require("./routes/ajiltanRoute");
+const aldaaBarigch = require("./middleware/aldaaBarigch");
+
+const PORT = process.env.PORT || 8084;
 
 process.setMaxListeners(0);
 process.env.UV_THREADPOOL_SIZE = 20;
-server.listen(8084);
 
 app.get("/", (req, res) => {
   res.send("Server is running ✅");
@@ -27,6 +29,15 @@ app.get("/status", (req, res) => {
   res.json({
     status: "running",
     timestamp: new Date(),
+  });
+});
+
+app.get("/debug", (req, res) => {
+  res.json({
+    hasAppSecret: !!process.env.APP_SECRET,
+    appSecretLength: process.env.APP_SECRET ? process.env.APP_SECRET.length : 0,
+    nodeEnv: process.env.NODE_ENV,
+    port: PORT
   });
 });
 
@@ -46,3 +57,16 @@ db.kholboltUusgey(
 );
 
 app.use(ajiltanRoute);
+
+app.use(aldaaBarigch);
+
+mongoose.connection.on("connected", () => {
+  console.log("✅ MongoDB connected:", process.env.BAAZ);
+});
+mongoose.connection.on("error", (err) => {
+  console.error("❌ MongoDB connection error:", err);
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
