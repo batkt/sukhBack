@@ -55,7 +55,11 @@ app.use(
 
 db.kholboltUusgey(
   app,
-  "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
+  "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin",
+  {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+  }
 );
 
 app.use(ajiltanRoute);
