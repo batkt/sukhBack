@@ -15,7 +15,6 @@ dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 
 const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
-const gereeRoute = require("./routes/gereeRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
 const PORT = process.env.PORT || 8084;
@@ -55,45 +54,16 @@ app.use(
 
 db.kholboltUusgey(
   app,
-  "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin",
-  {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  }
+  "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
 );
 
 app.use(ajiltanRoute);
 app.use(baiguullagaRoute);
-app.use(gereeRoute);
 
 app.use(aldaaBarigch);
 
-mongoose.connection.on("connected", async () => {
+mongoose.connection.on("connected", () => {
   console.log("✅ MongoDB connected:", process.env.BAAZ);
-  
-  // Create empty collections to initialize the amarSukhTest database
-  try {
-    const Baiguullaga = require("./models/baiguullaga");
-    const Ajiltan = require("./models/ajiltan");
-    const OrshinSuugch = require("./models/orshinSuugch");
-    
-    console.log("🌱 Creating amarSukhTest database structure...");
-    
-    // Create empty collections (this will create the database and collections)
-    await Baiguullaga(db.erunkhiiKholbolt).createCollection();
-    console.log("✅ Baiguullaga collection created");
-    
-    await Ajiltan(db.erunkhiiKholbolt).createCollection();
-    console.log("✅ Ajiltan collection created");
-    
-    await OrshinSuugch(db.erunkhiiKholbolt).createCollection();
-    console.log("✅ OrshinSuugch collection created");
-    
-    console.log("🎉 amarSukhTest database created with empty collections!");
-    console.log("📊 Database structure ready for data");
-  } catch (error) {
-    console.error("❌ Error creating database structure:", error);
-  }
 });
 mongoose.connection.on("error", (err) => {
   console.error("❌ MongoDB connection error:", err);
