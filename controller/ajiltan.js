@@ -93,7 +93,9 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
             console.log("------>duusahOgnoo" + khariu.duusakhOgnoo);
             for await (const salbar of khariu.salbaruud) {
               var tukhainSalbar = baiguullaga?.barilguud?.find((x) => {
-                console.log("tukhainSalbar" + tukhainSalbar);
+                console.log(
+                  "--------------------------->tukhainSalbar" + tukhainSalbar
+                );
 
                 return (
                   !!x.licenseRegister && x.licenseRegister == salbar.register
