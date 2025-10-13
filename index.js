@@ -1,20 +1,26 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const http = require("http");
 const cors = require("cors");
 const app = express();
 const server = http.Server(app);
 
-const dotenv = require("dotenv");
-dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 const { db } = require("zevbackv2");
 const io = require("socket.io")(server, {
   pingTimeout: 20000,
   pingInterval: 10000,
 });
+const dotenv = require("dotenv");
+dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 
 const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
+
+const PORT = process.env.PORT || 8084;
+
+process.setMaxListeners(0);
+process.env.UV_THREADPOOL_SIZE = 20;
 
 app.get("/", (req, res) => {
   res.send("Server is running ✅");
@@ -55,3 +61,7 @@ app.use(ajiltanRoute);
 app.use(baiguullagaRoute);
 
 app.use(aldaaBarigch);
+
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});
