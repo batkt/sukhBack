@@ -92,7 +92,12 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
             });
             console.log("------>duusahOgnoo" + khariu.duusakhOgnoo);
             for await (const salbar of khariu.salbaruud) {
+              console.log("🔍 Processing salbar:", salbar);
+              console.log("🔍 Looking for licenseRegister:", salbar.register);
+              console.log("🔍 Available barilguud:", baiguullaga?.barilguud?.map(b => ({ ner: b.ner, licenseRegister: b.licenseRegister })));
+              
               var tukhainSalbar = baiguullaga?.barilguud?.find((x) => {
+                console.log("🔍 Checking barilguu:", x.ner, "licenseRegister:", x.licenseRegister, "matches:", x.licenseRegister == salbar.register);
                 return (
                   !!x.licenseRegister && x.licenseRegister == salbar.register
                 );
