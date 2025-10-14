@@ -5,7 +5,6 @@ const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 const BackTuukh = require("../models/backTuukh");
 const Baiguullaga = require("../models/baiguullaga");
 const request = require("request");
-const UstsanBarimt = require("../models/ustsanBarimt");
 const { crudWithFile, crud, UstsanBarimt } = require("zevbackv2");
 const { ajiltanNevtrey } = require("../controller/ajiltan");
 
