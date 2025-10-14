@@ -20,7 +20,6 @@ crudWithFile(
   UstsanBarimt,
   async (req, res, next) => {
     try {
-      // Only run validation for POST and PUT requests, not GET requests
       if (req.method === 'GET') {
         return next();
       }

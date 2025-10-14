@@ -1,7 +1,9 @@
 // Load environment variables first
 const dotenv = require("dotenv");
 const path = require("path");
-const result = dotenv.config({ path: path.join(__dirname, "tokhirgoo", "tokhirgoo.env") });
+const result = dotenv.config({
+  path: path.join(__dirname, "tokhirgoo", "tokhirgoo.env"),
+});
 
 if (result.error) {
   console.error("❌ Error loading .env file:", result.error);
@@ -31,6 +33,7 @@ const io = require("socket.io")(server, {
 
 const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
+const orshinSuugchRoute = require("./routes/orshinSuugchRoute");
 const gereeRoute = require("./routes/gereeRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
@@ -56,7 +59,7 @@ app.get("/debug", (req, res) => {
     appSecretLength: process.env.APP_SECRET ? process.env.APP_SECRET.length : 0,
     nodeEnv: process.env.NODE_ENV,
     port: PORT,
-    envPath: "./tokhirgoo/tokhirgoo.env"
+    envPath: "./tokhirgoo/tokhirgoo.env",
   });
 });
 
@@ -70,13 +73,18 @@ app.use(
   })
 );
 
+console.log("=== DATABASE CONNECTION DEBUG ===");
+console.log("Attempting to connect to MongoDB...");
 db.kholboltUusgey(
   app,
   "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
 );
+console.log("Database connection setup completed");
+console.log("=== END DATABASE CONNECTION DEBUG ===");
 
 app.use(ajiltanRoute);
 app.use(baiguullagaRoute);
+app.use(orshinSuugchRoute);
 app.use(gereeRoute);
 
 app.use(aldaaBarigch);
