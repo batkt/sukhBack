@@ -74,15 +74,18 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     const existingUser = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
-      nevtrekhNer: req.body.nevtrekhNer,
-      register: req.body.register,
-      utas: req.body.utas,
-
+      $or: [
+        { nevtrekhNer: req.body.nevtrekhNer },
+        { register: req.body.register },
+        { utas: req.body.utas },
+      ],
     });
+    
 
-    if (existingUser) {
-      throw new aldaa("Нэвтрэх нэр давхардаж байна!");
-    }
+  if (existingUser) {
+  throw new aldaa("Нэвтрэх нэр, регистр эсвэл утас давхардаж байна!");
+}
+
 
     const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
       ...req.body,
