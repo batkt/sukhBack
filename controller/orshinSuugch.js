@@ -64,7 +64,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    const existingUser = await OrshinSuugch(req.body.tukhainBaaziinKholbolt).findOne({
+    // Get the tenant database connection
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболтын мэдээлэл олдсонгүй!");
+    }
+
+    const existingUser = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
       nevtrekhNer: req.body.nevtrekhNer,
     });
 
@@ -72,7 +81,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Нэвтрэх нэр давхардаж байна!");
     }
 
-    const orshinSuugch = new OrshinSuugch(req.body.tukhainBaaziinKholbolt)({
+    const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
       ...req.body,
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
