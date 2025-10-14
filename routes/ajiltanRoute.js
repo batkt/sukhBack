@@ -5,7 +5,7 @@ const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 const BackTuukh = require("../models/backTuukh");
 const Baiguullaga = require("../models/baiguullaga");
 const request = require("request");
-//const UstsanBarimt = require("../models/ustsanBarimt");
+const UstsanBarimt = require("../models/ustsanBarimt");
 const { crudWithFile, crud, UstsanBarimt } = require("zevbackv2");
 const { ajiltanNevtrey } = require("../controller/ajiltan");
 
@@ -20,10 +20,10 @@ crudWithFile(
   UstsanBarimt,
   async (req, res, next) => {
     try {
-      if (req.method === 'GET') {
+      if (req.method === "GET") {
         return next();
       }
-      
+
       const { db } = require("zevbackv2");
       var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
       console.log("ajiltan model" + JSON.stringify(req.params.id));
@@ -53,6 +53,8 @@ crudWithFile(
     }
   }
 );
+
+crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 
 router.route("/ajiltanNevtrey").post(ajiltanNevtrey);
 
