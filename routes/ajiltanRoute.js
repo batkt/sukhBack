@@ -19,10 +19,6 @@ crudWithFile(
   UstsanBarimt,
   async (req, res, next) => {
     try {
-      if (req.method === "GET") {
-        return next();
-      }
-
       const { db } = require("zevbackv2");
       var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
       console.log("ajiltan model" + JSON.stringify(req.params.id));
