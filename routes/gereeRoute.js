@@ -2,13 +2,88 @@ const express = require("express");
 const router = express.Router();
 const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
-const { crud, tokenShalgakh } = require("zevbackv2");
+const OrshinSuugch = require("../models/orshinSuugch");
+const { crud, tokenShalgakh, Dugaarlalt, UstsanBarimt } = require("zevbackv2");
 const multer = require("multer");
+const {
+  gereeZasakhShalguur,
+  gereeSungakhShalguur,
+  gereeSergeekhShalguur,
+  gereeTsutslakhShalguur,
+  guilgeeUstgakhShalguur,
+} = require("../components/shalguur");
 
 const storage = multer.memoryStorage();
 const uploadFile = multer({ storage: storage });
 
-crud(router, "geree", Geree);
+crud(
+  router,
+  "geree",
+  Geree,
+  UstsanBarimt,
+  async (req, res, next) => {
+    try {
+      const { db } = require("zevbackv2");
+      // Get tenant database connection
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
+      );
+
+      if (!tukhainBaaziinKholbolt) {
+        return next(new Error("Холболтын мэдээлэл олдсонгүй!"));
+      }
+
+      const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)(req.body);
+      orshinSuugch.id = orshinSuugch.register;
+      
+      var unuudur = new Date();
+      unuudur = new Date(
+        unuudur.getFullYear(),
+        unuudur.getMonth(),
+        unuudur.getDate()
+      );
+      
+      var maxDugaar = 1;
+      const dugaarlaltResult = await Dugaarlalt(tukhainBaaziinKholbolt)
+        .find({
+          baiguullagiinId: req.body.baiguullagiinId,
+          barilgiinId: req.body.barilgiinId,
+          turul: "geree",
+          ognoo: unuudur,
+        })
+        .sort({
+          dugaar: -1,
+        })
+        .limit(1);
+      
+      if (dugaarlaltResult && dugaarlaltResult.length > 0) {
+        maxDugaar = dugaarlaltResult[0].dugaar + 1;
+      }
+      
+      var dugaarlalt = new Dugaarlalt(tukhainBaaziinKholbolt)({
+        baiguullagiinId: req.body.baiguullagiinId,
+        barilgiinId: req.body.barilgiinId,
+        dugaar: maxDugaar,
+        turul: "geree",
+        ognoo: unuudur,
+        isNew: true,
+      });
+      
+      req.body.gereeniiDugaar = req.body.gereeniiDugaar + maxDugaar;
+      
+      try {
+        await orshinSuugch.save();
+        await dugaarlalt.save();
+        next();
+      } catch (err) {
+        next(err);
+      }
+    } catch (error) {
+      next(error);
+    }
+  },
+  gereeZasakhShalguur
+);
 
 router.get("/gereeAvya", tokenShalgakh, async (req, res, next) => {
   try {
