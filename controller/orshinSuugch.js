@@ -64,7 +64,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+    const existingUser = await OrshinSuugch(req.body.tukhainBaaziinKholbolt).findOne({
       nevtrekhNer: req.body.nevtrekhNer,
     });
 
@@ -72,7 +72,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Нэвтрэх нэр давхардаж байна!");
     }
 
-    const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)({
+    const orshinSuugch = new OrshinSuugch(req.body.tukhainBaaziinKholbolt)({
       ...req.body,
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
