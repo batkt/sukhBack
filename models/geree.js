@@ -112,7 +112,6 @@ const gereeSchema = new Schema(
     baritsaaAvakhEsekh: Boolean,
     baiguullagiinId: String,
     baiguullagiinNer: String,
-    aktiinZagvariinId: String,
     barilgiinId: String,
     gereeniiZagvariinId: String,
     tulukhUdur: [String],
