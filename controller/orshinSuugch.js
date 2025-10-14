@@ -52,12 +52,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
-      khayag: req.body.khayag,
-    });
+    // Check if baiguullagiinId is provided
+    if (!req.body.baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+    }
+
+    // Verify that the organization exists
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
 
     if (!baiguullaga) {
-      throw new aldaa("Байгууллагын хаяг олдсонгүй!");
+      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
