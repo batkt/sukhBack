@@ -35,6 +35,7 @@ const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
 const orshinSuugchRoute = require("./routes/orshinSuugchRoute");
 const gereeRoute = require("./routes/gereeRoute");
+const gereeniiZagwarRoute = require("./routes/gereeniiZagwarRoute");
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 
 const PORT = process.env.PORT || 8084;
@@ -86,6 +87,7 @@ app.use(ajiltanRoute);
 app.use(baiguullagaRoute);
 app.use(orshinSuugchRoute);
 app.use(gereeRoute);
+app.use(gereeniiZagwarRoute);
 
 app.use(aldaaBarigch);
 
