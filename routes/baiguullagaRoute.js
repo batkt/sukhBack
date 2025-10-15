@@ -56,4 +56,19 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
   }
 });
 
+
+router.post("/baiguullagaAvya", (req, res, next) => {
+  const { db } = require("zevbackv2");
+  Baiguullaga(db.erunkhiiKholbolt)
+    .findOne({
+      register: req.body.register,
+    })
+    .then((result) => {
+      res.send(result);
+    })
+    .catch((err) => {
+      next(err);
+    });
+});
+
 module.exports = router;

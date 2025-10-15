@@ -20,7 +20,7 @@ crudWithFile(
   async (req, res, next) => {
     try {
       const { db } = require("zevbackv2");
-      var ajiltanModel = Ajiltan(req.body.tukhainBaaziinKholbolt);
+      var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
       if (req.params.id) {
         var ObjectId = require("mongodb").ObjectId;
         var ajiltan = await ajiltanModel.findOne({
