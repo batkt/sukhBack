@@ -15,6 +15,9 @@ console.log("Router:", !!router);
 console.log("Ajiltan model:", !!Ajiltan);
 console.log("UstsanBarimt:", !!UstsanBarimt);
 
+console.log("=== BEFORE crudWithFile CALL ===");
+console.log("Router stack before:", router.stack.length);
+
 crudWithFile(
   router,
   "ajiltan",
@@ -81,6 +84,18 @@ crudWithFile(
     }
   }
 );
+
+console.log("=== AFTER crudWithFile CALL ===");
+console.log("Router stack after:", router.stack.length);
+console.log("Router stack details:");
+router.stack.forEach((layer, index) => {
+  console.log(`Layer ${index}:`, {
+    name: layer.name,
+    regexp: layer.regexp.toString(),
+    path: layer.path,
+    methods: layer.methods
+  });
+});
 
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 
