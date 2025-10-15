@@ -1,9 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const Ajiltan = require("../models/ajiltan");
 const Baiguullaga = require("../models/baiguullaga");
-const BankniiGuilgee = require("../models/bankniiGuilgee");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
-const MsgTuukh = require("../models/msgTuukh");
 const IpTuukh = require("../models/ipTuukh");
 const BackTuukh = require("../models/backTuukh");
 const Geree = require("../models/geree");
@@ -14,11 +12,9 @@ const axios = require("axios");
 const fs = require("fs");
 const moment = require("moment");
 const useragent = require("express-useragent");
-const { Uilchluulegch, ZurchilteiMashin } = require("parking-v1");
 const http = require("http");
 const lodash = require("lodash");
 const { formatNumber, tokenShalgakh } = require("zevbackv2");
-const TogloomiinTuv = require("../models/togloomiinTuv");
 const session = require("../models/session");
 
 function duusakhOgnooAvya(ugugdul, onFinish, next) {
