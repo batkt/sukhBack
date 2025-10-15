@@ -46,12 +46,14 @@ db.kholboltUusgey(
 app.use(
   express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 })
 );
-
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(baiguullagaRoute);
 app.use(ajiltanRoute);
 app.use(licenseRoute);
 app.use(orshinSuugchRoute);
 app.use(gereeRoute);
 app.use(gereeniiZagvarRoute);
+
 
 app.use(aldaaBarigch);

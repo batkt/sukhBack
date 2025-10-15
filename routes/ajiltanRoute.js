@@ -16,7 +16,16 @@ const {
 
 // Wrapper middleware to ensure req.body exists
 const tokenShalgakh = (req, res, next) => {
-  if (!req.body) req.body = {};
+  // Initialize req.body if it doesn't exist
+  if (!req.body) {
+    req.body = {};
+  }
+  
+  // For GET requests, also initialize req.query if needed
+  if (req.method === 'GET' && !req.query) {
+    req.query = {};
+  }
+  
   return originalTokenShalgakh(req, res, next);
 };
 const {
@@ -104,7 +113,10 @@ router.get("/ajiltniiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   });
 });
 
-router.get("/ustsanBarimt", tokenShalgakh, async (req, res, next) => {
+router.get("/ustsanBarimt", (req, res, next) => {
+  if (!req.body) req.body = {};
+  next();
+}, tokenShalgakh, async (req, res, next) => {
   try {
     const body = req.query;
     const {
@@ -296,7 +308,10 @@ router.post("/erkhteiEsekh", tokenShalgakh, async (req, res, next) => {
 
 router.post("/backAvya", tokenShalgakh, backAvya);
 
-router.get("/ustsanBarimtTurees", tokenShalgakh, async (req, res, next) => {
+router.get("/ustsanBarimtTurees", (req, res, next) => {
+  if (!req.body) req.body = {};
+  next();
+}, tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const body = req.query;
@@ -347,7 +362,10 @@ router.get("/ustsanBarimtTurees", tokenShalgakh, async (req, res, next) => {
   }
 });
 
-router.get("/licenseOgnooAvya", tokenShalgakh, async (req, res, next) => {
+router.get("/licenseOgnooAvya", (req, res, next) => {
+  if (!req.body) req.body = {};
+  next();
+}, tokenShalgakh, async (req, res, next) => {
   try {
     request.get(
       "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
