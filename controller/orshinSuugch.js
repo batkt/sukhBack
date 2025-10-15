@@ -52,19 +52,18 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
-    // Check if baiguullagiinId is provided
     if (!req.body.baiguullagiinId) {
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
     }
 
-    // Verify that the organization exists
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      req.body.baiguullagiinId
+    );
 
     if (!baiguullaga) {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    // Get the tenant database connection
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
       (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
     );
@@ -80,12 +79,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         { utas: req.body.utas },
       ],
     });
-    
 
-  if (existingUser) {
-  throw new aldaa("Нэвтрэх нэр, регистр эсвэл утас давхардаж байна!");
-}
-
+    if (existingUser) {
+      throw new aldaa("Нэвтрэх нэр, регистр эсвэл утас давхардаж байна!");
+    }
 
     const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
       ...req.body,
