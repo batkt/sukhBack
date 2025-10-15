@@ -46,8 +46,15 @@ db.kholboltUusgey(
 app.use(
   express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Global middleware to ensure req.body exists (Node.js v18 compatibility)
+app.use((req, res, next) => {
+  if (!req.body) {
+    req.body = {};
+  }
+  next();
+});
+
 app.use(baiguullagaRoute);
 app.use(ajiltanRoute);
 app.use(licenseRoute);

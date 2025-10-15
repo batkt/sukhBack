@@ -14,19 +14,25 @@ const {
   db,
 } = require("zevbackv2");
 
-// Wrapper middleware to ensure req.body exists
+// Wrapper middleware to ensure req.body exists and handle Node.js v18 compatibility
 const tokenShalgakh = (req, res, next) => {
-  // Initialize req.body if it doesn't exist
+  // Always ensure req.body exists
   if (!req.body) {
     req.body = {};
   }
   
-  // For GET requests, also initialize req.query if needed
+  // Ensure req.query exists for GET requests
   if (req.method === 'GET' && !req.query) {
     req.query = {};
   }
   
-  return originalTokenShalgakh(req, res, next);
+  // Add error handling for the original middleware
+  try {
+    return originalTokenShalgakh(req, res, next);
+  } catch (error) {
+    console.error('TokenShalgakh error:', error);
+    return next(error);
+  }
 };
 const {
   ajiltanNevtrey,
