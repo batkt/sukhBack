@@ -14,26 +14,6 @@ const {
   db,
 } = require("zevbackv2");
 
-// Wrapper middleware to ensure req.body exists and handle Node.js v18 compatibility
-const tokenShalgakh = (req, res, next) => {
-  // Always ensure req.body exists
-  if (!req.body) {
-    req.body = {};
-  }
-  
-  // Ensure req.query exists for GET requests
-  if (req.method === 'GET' && !req.query) {
-    req.query = {};
-  }
-  
-  // Add error handling for the original middleware
-  try {
-    return originalTokenShalgakh(req, res, next);
-  } catch (error) {
-    console.error('TokenShalgakh error:', error);
-    return next(error);
-  }
-};
 const {
   ajiltanNevtrey,
   backAvya,
@@ -119,83 +99,63 @@ router.get("/ajiltniiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   });
 });
 
-router.get("/ustsanBarimt", (req, res, next) => {
-  if (!req.body) req.body = {};
-  next();
-}, tokenShalgakh, async (req, res, next) => {
-  try {
-    const body = req.query;
-    const {
-      query = {},
-      order,
-      khuudasniiDugaar = 1,
-      khuudasniiKhemjee = 10,
-      search,
-      collation = {},
-      select = {},
-    } = body;
-    if (!!body?.query) {
-      try {
-        body.query = JSON.parse(body.query);
-      } catch (err) {
-        body.query = {};
+router.get(
+  "/ustsanBarimt",
+  (req, res, next) => {
+    if (!req.body) req.body = {};
+    next();
+  },
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      const body = req.query;
+      const {
+        query = {},
+        order,
+        khuudasniiDugaar = 1,
+        khuudasniiKhemjee = 10,
+        search,
+        collation = {},
+        select = {},
+      } = body;
+      if (!!body?.query) body.query = JSON.parse(body.query);
+      if (req.body.baiguullagiinId) {
+        if (!body.query) body.query = {};
+        body.query["baiguullagiinId"] = req.body.baiguullagiinId;
       }
+      if (!!body?.order) body.order = JSON.parse(body.order);
+      if (!!body?.select) body.select = JSON.parse(body.select);
+      if (!!body?.collation) body.collation = JSON.parse(body.collation);
+      if (!!body?.khuudasniiDugaar)
+        body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+      if (!!body?.khuudasniiKhemjee)
+        body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+      let jagsaalt = await UstsanBarimt(req.body.tukhainBaaziinKholbolt)
+        .find(body.query)
+        .sort(body.order)
+        .collation(body.collation ? body.collation : {})
+        .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
+        .limit(body.khuudasniiKhemjee);
+      let niitMur = await UstsanBarimt(
+        req.body.tukhainBaaziinKholbolt
+      ).countDocuments(body.query);
+      let niitKhuudas =
+        niitMur % khuudasniiKhemjee == 0
+          ? Math.floor(niitMur / khuudasniiKhemjee)
+          : Math.floor(niitMur / khuudasniiKhemjee) + 1;
+      if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
+      res.send({
+        khuudasniiDugaar,
+        khuudasniiKhemjee,
+        jagsaalt,
+        niitMur,
+        niitKhuudas,
+      });
+    } catch (error) {
+      next(error);
     }
-    if (req.body.baiguullagiinId) {
-      if (!body.query) body.query = {};
-      body.query["baiguullagiinId"] = req.body.baiguullagiinId;
-    }
-    if (!!body?.order) {
-      try {
-        body.order = JSON.parse(body.order);
-      } catch (err) {
-        body.order = {};
-      }
-    }
-    if (!!body?.select) {
-      try {
-        body.select = JSON.parse(body.select);
-      } catch (err) {
-        body.select = {};
-      }
-    }
-    if (!!body?.collation) {
-      try {
-        body.collation = JSON.parse(body.collation);
-      } catch (err) {
-        body.collation = {};
-      }
-    }
-    
-    if (!!body?.khuudasniiDugaar)
-      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
-    if (!!body?.khuudasniiKhemjee)
-      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
-    let jagsaalt = await UstsanBarimt(req.body.tukhainBaaziinKholbolt)
-      .find(body.query)
-      .sort(body.order)
-      .collation(body.collation ? body.collation : {})
-      .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
-      .limit(body.khuudasniiKhemjee);
-    let niitMur = await UstsanBarimt(
-      req.body.tukhainBaaziinKholbolt
-    ).countDocuments(body.query);
-    let niitKhuudas =
-      niitMur % khuudasniiKhemjee == 0
-        ? Math.floor(niitMur / khuudasniiKhemjee)
-        : Math.floor(niitMur / khuudasniiKhemjee) + 1;
-    if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
-    res.send({
-      khuudasniiDugaar,
-      khuudasniiKhemjee,
-      jagsaalt,
-      niitMur,
-      niitKhuudas,
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 router.post(
   "/tsonkhniiErkhiinTooAvya",
@@ -339,101 +299,87 @@ router.post("/erkhteiEsekh", tokenShalgakh, async (req, res, next) => {
 
 router.post("/backAvya", tokenShalgakh, backAvya);
 
-router.get("/ustsanBarimtTurees", (req, res, next) => {
-  if (!req.body) req.body = {};
-  next();
-}, tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    const body = req.query;
-    const {
-      query = {},
-      order,
-      khuudasniiDugaar = 1,
-      khuudasniiKhemjee = 10,
-      search,
-      collation = {},
-      select = {},
-    } = body;
-    if (!!body?.query) {
-      try {
-        body.query = JSON.parse(body.query);
-      } catch (err) {
-        body.query = {};
+router.get(
+  "/ustsanBarimtTurees",
+  (req, res, next) => {
+    if (!req.body) req.body = {};
+    next();
+  },
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      const { db } = require("zevbackv2");
+      const body = req.query;
+      const {
+        query = {},
+        order,
+        khuudasniiDugaar = 1,
+        khuudasniiKhemjee = 10,
+        search,
+        collation = {},
+        select = {},
+      } = body;
+      if (!!body?.query) body.query = JSON.parse(body.query);
+      if (req.body.baiguullagiinId) {
+        if (!body.query) body.query = {};
+        body.query["baiguullagiinId"] = req.body.baiguullagiinId;
       }
+      if (!!body?.order) body.order = JSON.parse(body.order);
+      if (!!body?.select) body.select = JSON.parse(body.select);
+      if (!!body?.collation) body.collation = JSON.parse(body.collation);
+      if (!!body?.khuudasniiDugaar)
+        body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+      if (!!body?.khuudasniiKhemjee)
+        body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+      let jagsaalt = await UstsanBarimt(db.erunkhiiKholbolt)
+        .find(body.query)
+        .sort(body.order)
+        .collation(body.collation ? body.collation : {})
+        .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
+        .limit(body.khuudasniiKhemjee);
+      let niitMur = await UstsanBarimt(db.erunkhiiKholbolt).countDocuments(
+        body.query
+      );
+      let niitKhuudas =
+        niitMur % khuudasniiKhemjee == 0
+          ? Math.floor(niitMur / khuudasniiKhemjee)
+          : Math.floor(niitMur / khuudasniiKhemjee) + 1;
+      if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
+      res.send({
+        khuudasniiDugaar,
+        khuudasniiKhemjee,
+        jagsaalt,
+        niitMur,
+        niitKhuudas,
+      });
+    } catch (error) {
+      next(error);
     }
-    if (req.body.baiguullagiinId) {
-      if (!body.query) body.query = {};
-      body.query["baiguullagiinId"] = req.body.baiguullagiinId;
-    }
-    if (!!body?.order) {
-      try {
-        body.order = JSON.parse(body.order);
-      } catch (err) {
-        body.order = {};
-      }
-    }
-    if (!!body?.select) {
-      try {
-        body.select = JSON.parse(body.select);
-      } catch (err) {
-        body.select = {};
-      }
-    }
-    if (!!body?.collation) {
-      try {
-        body.collation = JSON.parse(body.collation);
-      } catch (err) {
-        body.collation = {};
-      }
-    }
-    if (!!body?.khuudasniiDugaar)
-      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
-    if (!!body?.khuudasniiKhemjee)
-      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
-    let jagsaalt = await UstsanBarimt(db.erunkhiiKholbolt)
-      .find(body.query)
-      .sort(body.order)
-      .collation(body.collation ? body.collation : {})
-      .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
-      .limit(body.khuudasniiKhemjee);
-    let niitMur = await UstsanBarimt(db.erunkhiiKholbolt).countDocuments(
-      body.query
-    );
-    let niitKhuudas =
-      niitMur % khuudasniiKhemjee == 0
-        ? Math.floor(niitMur / khuudasniiKhemjee)
-        : Math.floor(niitMur / khuudasniiKhemjee) + 1;
-    if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
-    res.send({
-      khuudasniiDugaar,
-      khuudasniiKhemjee,
-      jagsaalt,
-      niitMur,
-      niitKhuudas,
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
-router.get("/licenseOgnooAvya", (req, res, next) => {
-  if (!req.body) req.body = {};
-  next();
-}, tokenShalgakh, async (req, res, next) => {
-  try {
-    request.get(
-      "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
-      { json: true, body: { register: req.body.register, system: "Turees" } },
-      (err, res1, body) => {
-        if (err) next(err);
-        else {
-          res.send(body);
+router.get(
+  "/licenseOgnooAvya",
+  (req, res, next) => {
+    if (!req.body) req.body = {};
+    next();
+  },
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      request.get(
+        "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
+        { json: true, body: { register: req.body.register, system: "Turees" } },
+        (err, res1, body) => {
+          if (err) next(err);
+          else {
+            res.send(body);
+          }
         }
-      }
-    );
-  } catch (error) {
-    next(error);
+      );
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 module.exports = router;
