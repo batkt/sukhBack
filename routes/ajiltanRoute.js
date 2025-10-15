@@ -7,12 +7,18 @@ const Baiguullaga = require("../models/baiguullaga");
 const request = require("request");
 //const UstsanBarimt = require("../models/ustsanBarimt");
 const {
-  tokenShalgakh,
+  tokenShalgakh: originalTokenShalgakh,
   crudWithFile,
   crud,
   UstsanBarimt,
   db,
 } = require("zevbackv2");
+
+// Wrapper middleware to ensure req.body exists
+const tokenShalgakh = (req, res, next) => {
+  if (!req.body) req.body = {};
+  return originalTokenShalgakh(req, res, next);
+};
 const {
   ajiltanNevtrey,
   backAvya,
