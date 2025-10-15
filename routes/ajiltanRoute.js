@@ -91,7 +91,7 @@ console.log("Router stack details:");
 router.stack.forEach((layer, index) => {
   console.log(`Layer ${index}:`, {
     name: layer.name,
-    regexp: layer.regexp.toString(),
+    regexp: layer.regexp ? layer.regexp.toString() : 'undefined',
     path: layer.path,
     methods: layer.methods
   });
