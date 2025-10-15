@@ -99,6 +99,14 @@ router.stack.forEach((layer, index) => {
       methods: layer.route.methods
     } : 'no route'
   });
+  
+  // Check if this layer has a route and if it matches /ajiltan
+  if (layer.route && layer.route.path) {
+    console.log(`  -> Route path: ${layer.route.path}`);
+    if (layer.route.path.includes('ajiltan')) {
+      console.log(`  -> *** FOUND AJILTAN ROUTE ***`);
+    }
+  }
 });
 
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
