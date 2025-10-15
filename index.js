@@ -1,4 +1,9 @@
-// Load environment variables first
+const express = require("express");
+const mongoose = require("mongoose");
+const http = require("http");
+const cors = require("cors");
+const app = express();
+const server = http.Server(app);
 const dotenv = require("dotenv");
 const path = require("path");
 const result = dotenv.config({
@@ -12,18 +17,10 @@ if (result.error) {
   console.log("APP_SECRET loaded:", !!process.env.APP_SECRET);
 }
 
-// Ensure APP_SECRET is available globally
 if (!process.env.APP_SECRET) {
   console.error("❌ APP_SECRET not found in environment variables");
   process.exit(1);
 }
-
-const express = require("express");
-const mongoose = require("mongoose");
-const http = require("http");
-const cors = require("cors");
-const app = express();
-const server = http.Server(app);
 
 const { db } = require("zevbackv2");
 const io = require("socket.io")(server, {
