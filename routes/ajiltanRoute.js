@@ -19,31 +19,25 @@ crudWithFile(
   UstsanBarimt,
   async (req, res, next) => {
     try {
-      const { db } = require("zevbackv2");
-      var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
-      console.log("ajiltan model" + JSON.stringify(req.params.id));
-      if (req.params.id) {
-        var ObjectId = require("mongodb").ObjectId;
-        var ajiltan = await ajiltanModel.findOne({
-          nevtrekhNer: req.body.nevtrekhNer,
-          _id: { $ne: ObjectId(req.params.id) },
-        });
-        if (ajiltan) throw new Error("Нэвтрэх нэр давхардаж байна!");
-      } else {
-        console.log(
-          "req.body.nevtrekhNer ----" + JSON.stringify(req.body.nevtrekhNer)
-        );
-        if (req.body.nevtrekhNer) {
-          var ajiltan = await ajiltanModel.findOne({
-            nevtrekhNer: req.body.nevtrekhNer,
-          });
-          if (ajiltan) throw new Error("Нэвтрэх нэр давхардаж байна!");
-          console.log("ajiltan ----" + JSON.stringify(ajiltan));
-        }
-      }
+      // const { db } = require("zevbackv2");
+      // var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
+      // if (req.params.id) {
+      //   var ObjectId = require("mongodb").ObjectId;
+      //   var ajiltan = await ajiltanModel.findOne({
+      //     nevtrekhNer: req.body.nevtrekhNer,
+      //     _id: { $ne: ObjectId(req.params.id) },
+      //   });
+      //   if (ajiltan) throw new Error("Нэвтрэх нэр давхардаж байна!");
+      // } else {
+      //   if (req.body.nevtrekhNer) {
+      //     var ajiltan = await ajiltanModel.findOne({
+      //       nevtrekhNer: req.body.nevtrekhNer,
+      //     });
+      //     if (ajiltan) throw new Error("Нэвтрэх нэр давхардаж байна!");
+      //   }
+      // }
       next();
     } catch (error) {
-      console.log("error") + error;
       next(error);
     }
   }
