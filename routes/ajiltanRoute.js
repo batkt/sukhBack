@@ -111,10 +111,10 @@ router.stack.forEach((layer, index) => {
 
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 
-// Custom GET route for debugging
+// Custom GET route for debugging - this should work
 router.get("/ajiltan", async (req, res, next) => {
   try {
-    console.log("=== CUSTOM GET /ajiltan ROUTE ===");
+    console.log("=== CUSTOM GET /ajiltan ROUTE HIT ===");
     console.log("Request Method:", req.method);
     console.log("Request URL:", req.url);
     console.log("Request Params:", JSON.stringify(req.params));
