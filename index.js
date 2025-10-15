@@ -14,6 +14,8 @@ dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
 const orshinSuugchRoute = require("./routes/orshinSuugchRoute");
+const licenseRoute = require("./routes/licenseRoute");
+
 const gereeRoute = require("./routes/gereeRoute");
 const gereeniiZagvarRoute = require("./routes/gereeniiZagvarRoute");
 
@@ -45,8 +47,9 @@ app.use(
   express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 })
 );
 
-app.use(ajiltanRoute);
 app.use(baiguullagaRoute);
+app.use(ajiltanRoute);
+app.use(licenseRoute);
 app.use(orshinSuugchRoute);
 app.use(gereeRoute);
 app.use(gereeniiZagvarRoute);
