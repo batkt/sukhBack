@@ -43,6 +43,21 @@ crudWithFile(
   }
 );
 
+// Custom GET route for ajiltan that bypasses crudWithFile
+router.get("/ajiltan", UstsanBarimt, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
+    const ajiltanList = await ajiltanModel.find({});
+    res.json({
+      success: true,
+      data: ajiltanList
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 
 router.route("/ajiltanNevtrey").post(ajiltanNevtrey);
