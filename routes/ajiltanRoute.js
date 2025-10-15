@@ -7,7 +7,7 @@ const Baiguullaga = require("../models/baiguullaga");
 const request = require("request");
 //const UstsanBarimt = require("../models/ustsanBarimt");
 const {
-  tokenShalgakh: originalTokenShalgakh,
+  tokenShalgakh,
   crudWithFile,
   crud,
   UstsanBarimt,
