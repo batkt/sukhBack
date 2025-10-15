@@ -93,7 +93,11 @@ router.stack.forEach((layer, index) => {
     name: layer.name,
     regexp: layer.regexp ? layer.regexp.toString() : 'undefined',
     path: layer.path,
-    methods: layer.methods
+    methods: layer.methods,
+    route: layer.route ? {
+      path: layer.route.path,
+      methods: layer.route.methods
+    } : 'no route'
   });
 });
 
@@ -150,6 +154,16 @@ router.get("/debug", (req, res) => {
   console.log("Method:", req.method);
   console.log("URL:", req.url);
   res.json({ message: "Debug route working", method: req.method, url: req.url });
+});
+
+// Add a simple catch-all middleware to see what requests are hitting this router
+router.use((req, res, next) => {
+  console.log("=== AJILTAN ROUTER MIDDLEWARE HIT ===");
+  console.log("Method:", req.method);
+  console.log("URL:", req.url);
+  console.log("Path:", req.path);
+  console.log("Original URL:", req.originalUrl);
+  next();
 });
 
 console.log("=== AJILTAN ROUTE MODULE EXPORTED ===");
