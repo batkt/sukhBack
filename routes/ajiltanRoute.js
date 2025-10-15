@@ -77,6 +77,49 @@ crudWithFile(
 
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 
+// Custom GET route for debugging
+router.get("/ajiltan", async (req, res, next) => {
+  try {
+    console.log("=== CUSTOM GET /ajiltan ROUTE ===");
+    console.log("Request Method:", req.method);
+    console.log("Request URL:", req.url);
+    console.log("Request Params:", JSON.stringify(req.params));
+    console.log("Request Query:", JSON.stringify(req.query));
+    console.log("Request Body:", JSON.stringify(req.body));
+    console.log("Request Body Type:", typeof req.body);
+    console.log("Request Headers:", JSON.stringify(req.headers));
+    
+    const { db } = require("zevbackv2");
+    console.log("Database connection:", !!db);
+    console.log("Database erunkhiiKholbolt:", !!db.erunkhiiKholbolt);
+    
+    var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
+    console.log("Ajiltan model created:", !!ajiltanModel);
+    
+    // Get all ajiltan records
+    const allAjiltan = await ajiltanModel.find({});
+    console.log("Found ajiltan records count:", allAjiltan.length);
+    console.log("First few records:", JSON.stringify(allAjiltan.slice(0, 3), null, 2));
+    
+    res.json({
+      success: true,
+      data: allAjiltan,
+      count: allAjiltan.length,
+      message: "Custom GET route working"
+    });
+  } catch (error) {
+    console.log("=== CUSTOM GET /ajiltan ERROR ===");
+    console.log("Error message:", error.message);
+    console.log("Error stack:", error.stack);
+    console.log("Full error object:", JSON.stringify(error, null, 2));
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 router.route("/ajiltanNevtrey").post(ajiltanNevtrey);
 
 module.exports = router;
