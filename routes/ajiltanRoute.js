@@ -129,15 +129,14 @@ router.get("/ajiltan", async (req, res, next) => {
 
 router.route("/ajiltanNevtrey").post(ajiltanNevtrey);
 
-// Catch-all route for debugging
-router.use("*", (req, res, next) => {
+// Catch-all route for debugging (using proper path)
+router.use("/*", (req, res, next) => {
   console.log("=== CATCH-ALL ROUTE HIT ===");
   console.log("Method:", req.method);
   console.log("URL:", req.url);
   console.log("Original URL:", req.originalUrl);
   console.log("Base URL:", req.baseUrl);
   console.log("Path:", req.path);
-  console.log("Route:", req.route);
   next();
 });
 
