@@ -129,15 +129,12 @@ router.get("/ajiltan", async (req, res, next) => {
 
 router.route("/ajiltanNevtrey").post(ajiltanNevtrey);
 
-// Catch-all route for debugging (using proper path)
-router.use("/*", (req, res, next) => {
-  console.log("=== CATCH-ALL ROUTE HIT ===");
+// Debug route to test if ajiltanRoute is working
+router.get("/debug", (req, res) => {
+  console.log("=== DEBUG ROUTE HIT ===");
   console.log("Method:", req.method);
   console.log("URL:", req.url);
-  console.log("Original URL:", req.originalUrl);
-  console.log("Base URL:", req.baseUrl);
-  console.log("Path:", req.path);
-  next();
+  res.json({ message: "Debug route working", method: req.method, url: req.url });
 });
 
 console.log("=== AJILTAN ROUTE MODULE EXPORTED ===");
