@@ -134,14 +134,39 @@ router.get("/ustsanBarimt", (req, res, next) => {
       collation = {},
       select = {},
     } = body;
-    if (!!body?.query) body.query = JSON.parse(body.query);
+    if (!!body?.query) {
+      try {
+        body.query = JSON.parse(body.query);
+      } catch (err) {
+        body.query = {};
+      }
+    }
     if (req.body.baiguullagiinId) {
       if (!body.query) body.query = {};
       body.query["baiguullagiinId"] = req.body.baiguullagiinId;
     }
-    if (!!body?.order) body.order = JSON.parse(body.order);
-    if (!!body?.select) body.select = JSON.parse(body.select);
-    if (!!body?.collation) body.collation = JSON.parse(body.collation);
+    if (!!body?.order) {
+      try {
+        body.order = JSON.parse(body.order);
+      } catch (err) {
+        body.order = {};
+      }
+    }
+    if (!!body?.select) {
+      try {
+        body.select = JSON.parse(body.select);
+      } catch (err) {
+        body.select = {};
+      }
+    }
+    if (!!body?.collation) {
+      try {
+        body.collation = JSON.parse(body.collation);
+      } catch (err) {
+        body.collation = {};
+      }
+    }
+    
     if (!!body?.khuudasniiDugaar)
       body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
     if (!!body?.khuudasniiKhemjee)
@@ -330,14 +355,38 @@ router.get("/ustsanBarimtTurees", (req, res, next) => {
       collation = {},
       select = {},
     } = body;
-    if (!!body?.query) body.query = JSON.parse(body.query);
+    if (!!body?.query) {
+      try {
+        body.query = JSON.parse(body.query);
+      } catch (err) {
+        body.query = {};
+      }
+    }
     if (req.body.baiguullagiinId) {
       if (!body.query) body.query = {};
       body.query["baiguullagiinId"] = req.body.baiguullagiinId;
     }
-    if (!!body?.order) body.order = JSON.parse(body.order);
-    if (!!body?.select) body.select = JSON.parse(body.select);
-    if (!!body?.collation) body.collation = JSON.parse(body.collation);
+    if (!!body?.order) {
+      try {
+        body.order = JSON.parse(body.order);
+      } catch (err) {
+        body.order = {};
+      }
+    }
+    if (!!body?.select) {
+      try {
+        body.select = JSON.parse(body.select);
+      } catch (err) {
+        body.select = {};
+      }
+    }
+    if (!!body?.collation) {
+      try {
+        body.collation = JSON.parse(body.collation);
+      } catch (err) {
+        body.collation = {};
+      }
+    }
     if (!!body?.khuudasniiDugaar)
       body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
     if (!!body?.khuudasniiKhemjee)

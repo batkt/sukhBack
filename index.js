@@ -38,6 +38,15 @@ app.use(
   })
 );
 
+// Error handling middleware for JSON parsing errors
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.message.includes('Unexpected end of JSON input')) {
+    req.body = {};
+    return next();
+  }
+  next(err);
+});
+
 db.kholboltUusgey(
   app,
   "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
