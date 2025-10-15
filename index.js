@@ -66,10 +66,17 @@ app.use(
   express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 })
 );
 
+console.log("=== REGISTERING ROUTES ===");
+console.log("Registering ajiltanRoute");
 app.use(ajiltanRoute);
+console.log("Registering baiguullagaRoute");
 app.use(baiguullagaRoute);
+console.log("Registering orshinSuugchRoute");
 app.use(orshinSuugchRoute);
+console.log("Registering gereeRoute");
 app.use(gereeRoute);
+console.log("Registering gereeniiZagvarRoute");
 app.use(gereeniiZagvarRoute);
+console.log("=== ALL ROUTES REGISTERED ===");
 
 app.use(aldaaBarigch);
