@@ -7,6 +7,7 @@ function aldaagIlgeeye(aldaa, req) {
       aldaa: aldaa,
       aldaaniiMsg: aldaa.message,
       ognoo: new Date(),
+      baiguullagiinId: req.body?.baiguullagiinId,
       burtgesenAjiltaniiId: req.body?.nevtersenAjiltniiToken?.id,
       burtgesenAjiltaniiNer: req.body?.nevtersenAjiltniiToken?.ner,
     })
