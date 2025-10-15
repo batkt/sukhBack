@@ -29,12 +29,33 @@ server.listen(8084);
 process.env.TZ = "Asia/Ulaanbaatar";
 app.set("socketio", io);
 app.use(cors());
+
+// Add request logging middleware
+app.use((req, res, next) => {
+  console.log("=== INCOMING REQUEST ===");
+  console.log("Method:", req.method);
+  console.log("URL:", req.url);
+  console.log("Headers:", JSON.stringify(req.headers, null, 2));
+  console.log("Body before parsing:", req.body);
+  next();
+});
+
 app.use(
   express.json({
     limit: "50mb",
     extended: true,
   })
 );
+
+// Add post-json parsing logging
+app.use((req, res, next) => {
+  console.log("=== AFTER JSON PARSING ===");
+  console.log("Body after parsing:", JSON.stringify(req.body));
+  console.log("Body type:", typeof req.body);
+  console.log("Body is null:", req.body === null);
+  console.log("Body is undefined:", req.body === undefined);
+  next();
+});
 
 db.kholboltUusgey(
   app,
