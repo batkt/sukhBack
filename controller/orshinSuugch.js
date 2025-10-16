@@ -52,6 +52,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
+    // Validate required hierarchy fields
+    if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
+      throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
+    }
+
     if (!req.body.baiguullagiinId) {
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
     }
@@ -89,6 +94,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
       erkh: "OrshinSuugch",
+      // Include hierarchy data
+      duureg: req.body.duureg,
+      horoo: req.body.horoo,
+      soh: req.body.soh,
     });
 
     await orshinSuugch.save();
@@ -97,6 +106,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       success: true,
       message: "Амжилттай бүртгэгдлээ",
       result: orshinSuugch,
+      hierarchy: {
+        duureg: req.body.duureg,
+        horoo: req.body.horoo,
+        soh: req.body.soh,
+      },
     });
   } catch (error) {
     next(error);
@@ -125,6 +139,25 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
     orshinSuugch.baiguullagiinId
   );
+
+  // Check if there's a baiguullaga that has all hierarchy levels matching the customer
+  if (orshinSuugch.duureg && orshinSuugch.horoo && orshinSuugch.soh) {
+    const matchingBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+      $and: [
+        { "tokhirgoo.duuregNer": orshinSuugch.duureg },
+        { "tokhirgoo.districtCode": orshinSuugch.horoo },
+        { "tokhirgoo.sohCode": orshinSuugch.soh }
+      ]
+    });
+
+    if (matchingBaiguullaga) {
+      // Update customer's baiguullaga if a better match is found
+      orshinSuugch.baiguullagiinId = matchingBaiguullaga._id;
+      orshinSuugch.baiguullagiinNer = matchingBaiguullaga.ner;
+      await orshinSuugch.save();
+      baiguullaga = matchingBaiguullaga;
+    }
+  }
 
   var butsaakhObject = {
     result: orshinSuugch,
@@ -252,15 +285,35 @@ exports.nuutsUgShalgakhOrshinSuugch = asyncHandler(async (req, res, next) => {
   }
 });
 
-// exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
-//   try {
-//     const { db } = require("zevbackv2");
-//     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
-//       khayag: req.params.khayag,
-//     });
-//     if (!baiguullaga) throw new Error("Байгууллагын мэдээлэл олдсонгүй!");
-//     res.send(baiguullaga);
-//   } catch (error) {
-//     next(error);
-//   }
-// });
+// New endpoint to get baiguullaga by hierarchy
+exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { duureg, horoo, soh } = req.params;
+    
+    if (!duureg || !horoo || !soh) {
+      throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
+    }
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+      $and: [
+        { "tokhirgoo.duuregNer": duureg },
+        { "tokhirgoo.districtCode": horoo },
+        { "tokhirgoo.sohCode": soh }
+      ]
+    });
+
+    if (!baiguullaga) {
+      throw new aldaa("Тухайн дүүрэг, хороо, СӨХ-д тохирох байгууллагын мэдээлэл олдсонгүй!");
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Байгууллагын мэдээлэл олдлоо",
+      result: baiguullaga,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+

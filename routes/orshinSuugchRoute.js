@@ -17,7 +17,7 @@ const {
   orshinSuugchNevtrey,
   tokenoorOrshinSuugchAvya,
   nuutsUgShalgakhOrshinSuugch,
-  // khayagaarBaiguullagaAvya,
+  khayagaarBaiguullagaAvya,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
@@ -72,7 +72,7 @@ router.route("/orshinSuugchBurtgey").post(orshinSuugchBurtgey);
 router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);
-// router.route("/khayagaarBaiguullagaAvya/:khayag").get(khayagaarBaiguullagaAvya);
+router.route("/khayagaarBaiguullagaAvya/:duureg/:horoo/:soh").get(khayagaarBaiguullagaAvya);
 
 router.get("/orshinSuugchiiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   const fileName = req.params.ner;

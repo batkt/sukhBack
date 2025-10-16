@@ -23,6 +23,10 @@ const orshinSuugchSchema = new Schema(
     firebaseToken: String,
     zurgiinId: String,
     nevtrekhNer: String,
+    // Administrative hierarchy fields
+    duureg: String, // Дүүрэг
+    horoo: String,  // Хороо
+    soh: String,    // СӨХ
   },
   {
     timestamps: true,
