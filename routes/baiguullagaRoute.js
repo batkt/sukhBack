@@ -11,6 +11,7 @@ const request = require("request");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 
 crud(router, "baiguullaga", Baiguullaga, UstsanBarimt);
+
 router.post("/baiguullagaBurtgekh", async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");

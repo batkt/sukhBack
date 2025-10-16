@@ -52,7 +52,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
-    // Validate required hierarchy fields
     if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
       throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
     }
@@ -94,7 +93,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
       erkh: "OrshinSuugch",
-      // Include hierarchy data
       duureg: req.body.duureg,
       horoo: req.body.horoo,
       soh: req.body.soh,
@@ -121,7 +119,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
 
-  // Search for customer across all organization databases
   let orshinSuugch = null;
   let tukhainBaaziinKholbolt = null;
 
@@ -132,14 +129,13 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         .select("+nuutsUg")
         .where("nevtrekhNer")
         .equals(req.body.nevtrekhNer);
-      
+
       if (customer) {
         orshinSuugch = customer;
         tukhainBaaziinKholbolt = kholbolt;
         break;
       }
     } catch (err) {
-      // Continue searching in other databases
       continue;
     }
   }
@@ -154,18 +150,16 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     orshinSuugch.baiguullagiinId
   );
 
-  // Check if there's a baiguullaga that has all hierarchy levels matching the customer
   if (orshinSuugch.duureg && orshinSuugch.horoo && orshinSuugch.soh) {
     const matchingBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
       $and: [
         { "tokhirgoo.duuregNer": orshinSuugch.duureg },
         { "tokhirgoo.districtCode": orshinSuugch.horoo },
-        { "tokhirgoo.sohCode": orshinSuugch.soh }
-      ]
+        { "tokhirgoo.sohCode": orshinSuugch.soh },
+      ],
     });
 
     if (matchingBaiguullaga) {
-      // Update customer's baiguullaga if a better match is found
       orshinSuugch.baiguullagiinId = matchingBaiguullaga._id;
       orshinSuugch.baiguullagiinNer = matchingBaiguullaga.ner;
       await orshinSuugch.save();
@@ -265,7 +259,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
     const tokenObject = jwt.verify(token, process.env.APP_SECRET, 401);
     if (tokenObject.id == "zochin")
       next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
-    OrshinSuugch(db.erunkhiiKholbolt)
+    OrshinSuugch(db.tukhainBaaziinKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
         var urdunJson = urDun.toJSON();
@@ -284,7 +278,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
 exports.nuutsUgShalgakhOrshinSuugch = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+    const orshinSuugch = await OrshinSuugch(db.tukhainBaaziinKholbolt)
       .findById(req.body.id)
       .select("+nuutsUg");
     const ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
@@ -299,12 +293,11 @@ exports.nuutsUgShalgakhOrshinSuugch = asyncHandler(async (req, res, next) => {
   }
 });
 
-// New endpoint to get baiguullaga by hierarchy
 exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const { duureg, horoo, soh } = req.params;
-    
+
     if (!duureg || !horoo || !soh) {
       throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
     }
@@ -313,12 +306,14 @@ exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
       $and: [
         { "tokhirgoo.duuregNer": duureg },
         { "tokhirgoo.districtCode": horoo },
-        { "tokhirgoo.sohCode": soh }
-      ]
+        { "tokhirgoo.sohCode": soh },
+      ],
     });
 
     if (!baiguullaga) {
-      throw new aldaa("Тухайн дүүрэг, хороо, СӨХ-д тохирох байгууллагын мэдээлэл олдсонгүй!");
+      throw new aldaa(
+        "Тухайн дүүрэг, хороо, СӨХ-д тохирох байгууллагын мэдээлэл олдсонгүй!"
+      );
     }
 
     res.status(200).json({
@@ -330,4 +325,3 @@ exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
     next(error);
   }
 });
-
