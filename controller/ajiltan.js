@@ -83,7 +83,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     });
   }
   duusakhOgnooAvya(
-    { register: baiguullaga.register, system: "Turees" },
+    { register: baiguullaga.register, system: "sukh" },
     async (khariu) => {
       try {
         if (khariu.success) {
