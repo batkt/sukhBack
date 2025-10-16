@@ -259,7 +259,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
     const tokenObject = jwt.verify(token, process.env.APP_SECRET, 401);
     if (tokenObject.id == "zochin")
       next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
-    OrshinSuugch(db.tukhainBaaziinKholbolt)
+    OrshinSuugch(db.erunkhiiKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
         var urdunJson = urDun.toJSON();
@@ -278,7 +278,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
 exports.nuutsUgShalgakhOrshinSuugch = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const orshinSuugch = await OrshinSuugch(db.tukhainBaaziinKholbolt)
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
       .findById(req.body.id)
       .select("+nuutsUg");
     const ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
