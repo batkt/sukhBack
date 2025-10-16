@@ -6,7 +6,10 @@ const BackTuukh = require("../models/backTuukh");
 const Baiguullaga = require("../models/baiguullaga");
 const request = require("request");
 const { crudWithFile, crud, UstsanBarimt } = require("zevbackv2");
-const { ajiltanNevtrey } = require("../controller/ajiltan");
+const {
+  ajiltanNevtrey,
+  erkhiinMedeelelAvya,
+} = require("../controller/ajiltan");
 
 crudWithFile(
   router,
@@ -46,5 +49,6 @@ crudWithFile(
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 
 router.route("/ajiltanNevtrey").post(ajiltanNevtrey);
+router.route("/erkhiinMedeelelAvya").post(erkhiinMedeelelAvya);
 
 module.exports = router;
