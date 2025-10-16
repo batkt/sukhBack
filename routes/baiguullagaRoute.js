@@ -72,6 +72,7 @@ router.post("/baiguullagaAvya", (req, res, next) => {
 });
 
 router.get("/tatvariinAlba", tokenShalgakh, async (req, res, next) => {
+  const { db } = require("zevbackv2");
   try {
     const body = req.query;
     if (!!body?.query) body.query = JSON.parse(body.query);
@@ -97,6 +98,7 @@ router.post(
   "/tatvariinAlbaOlnoorNemye",
   tokenShalgakh,
   async (req, res, next) => {
+    const { db } = require("zevbackv2");
     try {
       const jagsaalt = req.body.jagsaalt;
       TatvariinAlba(db.erunkhiiKholbolt)
