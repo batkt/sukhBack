@@ -15,13 +15,14 @@ const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
 const orshinSuugchRoute = require("./routes/orshinSuugchRoute");
 const licenseRoute = require("./routes/licenseRoute");
-
+const nekhemjlekhiinZagvarRoute = require("./routes/nekhemjlekhiinZagvarRoute");
 const gereeRoute = require("./routes/gereeRoute");
 const gereeniiZagvarRoute = require("./routes/gereeniiZagvarRoute");
 
 const { db } = require("zevbackv2");
 
 const aldaaBarigch = require("./middleware/aldaaBarigch");
+const nekhemjlekhiinZagvar = require("./models/nekhemjlekhiinZagvar");
 
 process.setMaxListeners(0);
 process.env.UV_THREADPOOL_SIZE = 20;
@@ -60,5 +61,6 @@ app.use(licenseRoute);
 app.use(orshinSuugchRoute);
 app.use(gereeRoute);
 app.use(gereeniiZagvarRoute);
+app.use(nekhemjlekhiinZagvarRoute);
 
 app.use(aldaaBarigch);
