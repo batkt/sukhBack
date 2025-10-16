@@ -16,6 +16,16 @@ const ajiltanSchema = new Schema(
       select: false,
     },
     register: String,
+    tsonkhniiErkhuud: [String],
+    barilguud: [String],
+    zogsoolKhaalga: [String],
+    tuukh: [
+      {
+        barilgiinId: String,
+        ekhelsenOgnoo: Date,
+        duussanOgnoo: Date,
+      },
+    ],
     khayag: String,
     ajildOrsonOgnoo: Date,
     baiguullagiinId: String,

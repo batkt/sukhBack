@@ -808,7 +808,7 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
                 },
               },
             ]);
-            var turees = await Geree(kholbolt, true).aggregate([
+            var sukh = await Geree(kholbolt, true).aggregate([
               {
                 $match: {
                   baiguullagiinId: baiguullaga._id.toString(),
@@ -864,7 +864,7 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
             if (
               (togloom && togloom.length > 0) ||
               (zogsool && zogsool.length > 0) ||
-              (turees && turees.length > 0) ||
+              (sukh && sukh.length > 0) ||
               (zurchiluud && zurchiluud.length > 0)
             ) {
               text = moment(ekhlekhOgnoo).format("MM/DD") + " udur ";
@@ -882,12 +882,9 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
                   (await formatNumber(zogsool[0].niitDun)) +
                   ",";
               }
-              if (turees && turees.length > 0) {
+              if (sukh && sukh.length > 0) {
                 text =
-                  text +
-                  "Turees-" +
-                  (await formatNumber(turees[0].niitDun)) +
-                  ",";
+                  text + "sukh-" + (await formatNumber(sukh[0].niitDun)) + ",";
               }
               text = text + " orlogo orson baina.";
               if (
