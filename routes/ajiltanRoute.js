@@ -5,7 +5,12 @@ const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 const BackTuukh = require("../models/backTuukh");
 const Baiguullaga = require("../models/baiguullaga");
 const request = require("request");
-const { crudWithFile, crud, UstsanBarimt } = require("zevbackv2");
+const {
+  crudWithFile,
+  crud,
+  UstsanBarimt,
+  tokenShalgakh,
+} = require("zevbackv2");
 const {
   ajiltanNevtrey,
   erkhiinMedeelelAvya,
