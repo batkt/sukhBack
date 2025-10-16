@@ -5,6 +5,7 @@ const Ajiltan = require("../models/ajiltan");
 //const { crudWithFile, crud } = require("../components/crud");
 //const UstsanBarimt = require("../models/ustsanBarimt");
 const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
+const TatvariinAlba = require("../models/tatvariinAlba");
 const axios = require("axios");
 const request = require("request");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
@@ -69,5 +70,47 @@ router.post("/baiguullagaAvya", (req, res, next) => {
       next(err);
     });
 });
+
+router.get("/tatvariinAlba", tokenShalgakh, async (req, res, next) => {
+  try {
+    const body = req.query;
+    if (!!body?.query) body.query = JSON.parse(body.query);
+    if (!!body?.order) body.order = JSON.parse(body.order);
+    if (!!body?.khuudasniiDugaar)
+      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+    if (!!body?.khuudasniiKhemjee)
+      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+    if (!!body?.search) body.search = String(body.search);
+    khuudaslalt(TatvariinAlba(db.erunkhiiKholbolt), body)
+      .then((result) => {
+        res.send(result);
+      })
+      .catch((err) => {
+        next(err);
+      });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post(
+  "/tatvariinAlbaOlnoorNemye",
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      const jagsaalt = req.body.jagsaalt;
+      TatvariinAlba(db.erunkhiiKholbolt)
+        .insertMany(jagsaalt)
+        .then((x) => {
+          res.send(x);
+        })
+        .catch((a) => {
+          next(a);
+        });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 module.exports = router;
