@@ -336,7 +336,7 @@ exports.erkhiinMedeelelAvya = asyncHandler(async (req, res, next) => {
       "http://103.143.40.123:8282/erkhiinMedeelelAvya",
       {
         json: true,
-        body: { system: "Turees", register: baiguullaga.register },
+        body: { system: "sukh", register: baiguullaga.register },
       },
       (err, res1, body) => {
         if (err) next(err);
