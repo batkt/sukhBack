@@ -398,16 +398,25 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       verified: false
     };
     
-    // Send SMS using msgIlgeeye function
-    msgIlgeeye(
-      ilgeexList,
-      msgIlgeekhKey,
-      msgIlgeekhDugaar,
-      [],
-      0,
-      db.erunkhiiKholbolt,
-      baiguullagiinId
-    );
+    // Send SMS directly
+    try {
+      const url = process.env.MSG_SERVER + 
+        "/send" +
+        "?key=" + msgIlgeekhKey +
+        "&from=" + msgIlgeekhDugaar +
+        "&to=" + utas +
+        "&text=" + encodeURIComponent(text);
+      
+      request(url, { json: true }, (err, res, body) => {
+        if (err) {
+          console.error("SMS sending error:", err);
+        } else {
+          console.log("SMS sent successfully:", body);
+        }
+      });
+    } catch (smsError) {
+      console.error("SMS sending error:", smsError);
+    }
     
     res.json({
       success: true,
