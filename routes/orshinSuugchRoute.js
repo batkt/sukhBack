@@ -18,6 +18,8 @@ const {
   tokenoorOrshinSuugchAvya,
   nuutsUgShalgakhOrshinSuugch,
   khayagaarBaiguullagaAvya,
+  dugaarBatalgaajuulya,
+  dugaarBatalgaajuulakh,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
@@ -69,6 +71,8 @@ crud(router, "backTuukh", BackTuukh, UstsanBarimt);
 crud(router, "session", session, UstsanBarimt);
 
 router.route("/orshinSuugchBurtgey").post(orshinSuugchBurtgey);
+router.post("/dugaarBatalgaajuulya", dugaarBatalgaajuulya);
+router.post("/dugaarBatalgaajuulakh", dugaarBatalgaajuulakh);
 router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);

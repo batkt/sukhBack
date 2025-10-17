@@ -8,6 +8,7 @@ const orshinSuugchSchema = new Schema(
   {
     id: String,
     ner: String,
+    toot : String,
     ovog: String,
     utas: String,
     mail: String,
@@ -16,17 +17,15 @@ const orshinSuugchSchema = new Schema(
       select: false,
     },
     register: String,
-    khayag: String,
     baiguullagiinId: String,
     baiguullagiinNer: String,
     erkh: String,
     firebaseToken: String,
     zurgiinId: String,
     nevtrekhNer: String,
-    // Administrative hierarchy fields
-    duureg: String, // Дүүрэг
-    horoo: String,  // Хороо
-    soh: String,    // СӨХ
+    duureg: String, 
+    horoo: String,  
+    soh: String,    
   },
   {
     timestamps: true,
