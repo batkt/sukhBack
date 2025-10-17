@@ -20,50 +20,11 @@ const {
   khayagaarBaiguullagaAvya,
   dugaarBatalgaajuulya,
   dugaarBatalgaajuulakh,
+  orshinSuugchBatalgaajuulya,
+  nuutsUgSergeeye,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
-
-// crudWithFile(
-//   router,
-//   "orshinSuugch",
-//   OrshinSuugch,
-//   {
-//     fileZam: "./zurag/orshinSuugch",
-//     fileName: "zurag",
-//   },
-//   UstsanBarimt,
-//   async (req, res, next) => {
-//     try {
-//       const { db } = require("zevbackv2");
-//       var orshinSuugchModel = OrshinSuugch(req.body.tukhainBaaziinKholbolt);
-//       console.log("orshinSuugch model" + JSON.stringify(req.params.id));
-//       if (req.params.id) {
-//         var ObjectId = require("mongodb").ObjectId;
-//         var orshinSuugch = await orshinSuugchModel.findOne({
-//           nevtrekhNer: req.body.nevtrekhNer,
-//           _id: { $ne: ObjectId(req.params.id) },
-//         });
-//         if (orshinSuugch) throw new Error("Нэвтрэх нэр давхардаж байна!");
-//       } else {
-//         console.log(
-//           "req.body.nevtrekhNer ----" + JSON.stringify(req.body.nevtrekhNer)
-//         );
-//         if (req.body.nevtrekhNer) {
-//           var orshinSuugch = await orshinSuugchModel.findOne({
-//             nevtrekhNer: req.body.nevtrekhNer,
-//           });
-//           if (orshinSuugch) throw new Error("Нэвтрэх нэр давхардаж байна!");
-//           console.log("orshinSuugch ----" + JSON.stringify(orshinSuugch));
-//         }
-//       }
-//       next();
-//     } catch (error) {
-//       console.log("error") + error;
-//       next(error);
-//     }
-//   }
-// );
 
 crud(router, "orshinSuugch", OrshinSuugch, UstsanBarimt);
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
@@ -77,6 +38,10 @@ router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);
 router.route("/khayagaarBaiguullagaAvya/:duureg/:horoo/:soh").get(khayagaarBaiguullagaAvya);
+
+// Password reset endpoints
+router.post("/orshinSuugchBatalgaajuulya", orshinSuugchBatalgaajuulya);
+router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
 
 router.get("/orshinSuugchiiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   const fileName = req.params.ner;
