@@ -8,6 +8,7 @@ const gereeniiZagvarSchema = new Schema(
   {
     id: String,
     ner: String,
+    tailbar: String,
     baiguullagiinId: String,
     baiguullagiinNer: String,
     barilgiinId: String,
