@@ -404,6 +404,7 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
 
 exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
   try {
+    const { db } = require("zevbackv2");
     const { utas, code, shineNuutsUg } = req.body;
 
     // Log the incoming request
@@ -452,8 +453,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
     console.log("Code verification passed - code is valid and not expired");
-
-    const { db } = require("zevbackv2");
 
     console.log("Searching for user with phone:", utas);
     console.log("Available connections:", db.kholboltuud.length);
@@ -707,6 +706,7 @@ exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
 // Cleanup expired verification codes
 exports.cleanupExpiredCodes = asyncHandler(async (req, res, next) => {
   try {
+    const { db } = require("zevbackv2");
     const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
     const deletedCount = await BatalgaajuulahCodeModel.cleanupExpired();
 
@@ -724,6 +724,7 @@ exports.cleanupExpiredCodes = asyncHandler(async (req, res, next) => {
 
 exports.getVerificationCodeStatus = asyncHandler(async (req, res, next) => {
   try {
+    const { db } = require("zevbackv2");
     const { phone } = req.params;
 
     const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
