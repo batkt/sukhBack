@@ -409,6 +409,9 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
 
     await exports.dugaarBatalgaajuulakh(req, res, next);
 
+    // Restore original res.json method
+    res.json = originalJson;
+
     if (!verificationSuccess) {
       return;
     }
@@ -618,123 +621,6 @@ exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
       success: true,
       message: "Байгууллагын мэдээлэл олдлоо",
       result: baiguullaga,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    const { utas } = req.body;
-
-    if (!utas) {
-      return res.status(400).json({
-        success: false,
-        message: "Утасны дугаар заавал бөглөх шаардлагатай!",
-      });
-    }
-
-    let orshinSuugch = null;
-    let tukhainBaaziinKholbolt = null;
-
-    for (const kholbolt of db.kholboltuud) {
-      try {
-        const customer = await OrshinSuugch(kholbolt)
-          .findOne()
-          .where("utas")
-          .equals(utas);
-
-        if (customer) {
-          orshinSuugch = customer;
-          tukhainBaaziinKholbolt = kholbolt;
-          break;
-        }
-      } catch (err) {
-        continue;
-      }
-    }
-
-    if (!orshinSuugch) {
-      return res.status(404).json({
-        success: false,
-        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
-      });
-    }
-
-    req.body.baiguullagiinId = orshinSuugch.baiguullagiinId;
-
-    await exports.dugaarBatalgaajuulya(req, res, next);
-  } catch (error) {
-    next(error);
-  }
-});
-
-exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
-  try {
-    const { utas, code, shineNuutsUg } = req.body;
-
-    if (!utas || !code || !shineNuutsUg) {
-      return res.status(400).json({
-        success: false,
-        message: "Бүх талбарыг бөглөх шаардлагатай!",
-      });
-    }
-
-    req.body.baiguullagiinId = "password_reset";
-
-    let verificationSuccess = false;
-    const originalJson = res.json;
-    res.json = function (data) {
-      verificationSuccess = data.success;
-      return originalJson.call(this, data);
-    };
-
-    await exports.dugaarBatalgaajuulakh(req, res, next);
-
-    if (!verificationSuccess) {
-      return;
-    }
-
-    const { db } = require("zevbackv2");
-
-    let orshinSuugch = null;
-    let tukhainBaaziinKholbolt = null;
-
-    for (const kholbolt of db.kholboltuud) {
-      try {
-        const customer = await OrshinSuugch(kholbolt)
-          .findOne()
-          .where("utas")
-          .equals(utas);
-
-        if (customer) {
-          orshinSuugch = customer;
-          tukhainBaaziinKholbolt = kholbolt;
-          break;
-        }
-      } catch (err) {
-        continue;
-      }
-    }
-
-    if (!orshinSuugch) {
-      return res.status(404).json({
-        success: false,
-        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
-      });
-    }
-
-    orshinSuugch.nuutsUg = shineNuutsUg;
-    await orshinSuugch.save();
-
-    res.json({
-      success: true,
-      message: "Нууц үг амжилттай сэргээгдлээ",
-      data: {
-        step: 3,
-      },
     });
   } catch (error) {
     next(error);
