@@ -4,8 +4,8 @@ const Baiguullaga = require("../models/baiguullaga");
 const Ajiltan = require("../models/ajiltan");
 //const { crudWithFile, crud } = require("../components/crud");
 //const UstsanBarimt = require("../models/ustsanBarimt");
-const { tokenShalgakh, crud, UstsanBarimt, khuudaslalt } = require("zevbackv2");
 const TatvariinAlba = require("../models/tatvariinAlba");
+const { tokenShalgakh, crud, UstsanBarimt, khuudaslalt } = require("zevbackv2");
 const axios = require("axios");
 const request = require("request");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
@@ -31,7 +31,7 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
         db.kholboltNemye(
           baiguullaga._id,
           req.body.baaziinNer,
-          "localhost:27017",
+          "127.0.0.1:27017",
           "admin",
           "Br1stelback1"
         );
@@ -58,6 +58,7 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
   }
 });
 
+
 router.post("/baiguullagaAvya", (req, res, next) => {
   const { db } = require("zevbackv2");
   Baiguullaga(db.erunkhiiKholbolt)
@@ -72,9 +73,47 @@ router.post("/baiguullagaAvya", (req, res, next) => {
     });
 });
 
-router.get("/tatvariinAlba", tokenShalgakh, async (req, res, next) => {
+router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
   const { db } = require("zevbackv2");
+  const { duureg, horoo, soh } = req.query;
+  
+  if (!duureg || !horoo || !soh) {
+    return res.status(400).json({
+      success: false,
+      message: "Дүүрэг, хороо болон СӨХ заавал бөглөх шаардлагатай!"
+    });
+  }
+  
+  Baiguullaga(db.erunkhiiKholbolt)
+    .findOne({
+      "tokhirgoo.duuregNer": duureg,
+      "tokhirgoo.districtCode": horoo,
+      "tokhirgoo.sohCode": soh,
+    })
+    .then((result) => {
+      if (!result) {
+        return res.status(404).json({
+          success: false,
+          message: "Тухайн дүүрэг, хороонд тохирох байгууллагын мэдээлэл олдсонгүй!"
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: "Байгууллагын мэдээлэл олдлоо",
+        baiguullagiinId: result._id,
+        result: result
+      });
+    })
+    .catch((err) => {
+      next(err);
+    });
+});
+
+router.get("/tatvariinAlba", tokenShalgakh, async (req, res, next) => {
   try {
+    const { db } = require("zevbackv2");
+
     const body = req.query;
     if (!!body?.query) body.query = JSON.parse(body.query);
     if (!!body?.order) body.order = JSON.parse(body.order);
@@ -100,6 +139,7 @@ router.post(
   tokenShalgakh,
   async (req, res, next) => {
     const { db } = require("zevbackv2");
+
     try {
       const jagsaalt = req.body.jagsaalt;
       TatvariinAlba(db.erunkhiiKholbolt)
