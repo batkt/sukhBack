@@ -357,7 +357,6 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
     
-    // Find baiguullaga
     var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
     if (!baiguullaga) {
       return res.status(404).json({
@@ -378,8 +377,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
     
-    // Generate verification code
-    var verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+      var verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
     
     var text = `AmarSukh: Tany batalgaajuulax code: ${verificationCode}.`;
     
@@ -388,17 +386,15 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       text: text
     }];
     
-    // Store verification code in database with expiration (5 minutes)
     var verificationRecord = {
       baiguullagiinId: baiguullagiinId,
       utas: utas,
       code: verificationCode,
       createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minut
       verified: false
     };
     
-    // Send SMS directly
     try {
       const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
       console.log("MSG_SERVER from env:", process.env.MSG_SERVER);
@@ -449,12 +445,12 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
     
     // In a real implementation, you would check the stored verification code
     // For now, we'll do a simple validation
-    if (code.length !== 6 || !/^\d+$/.test(code)) {
-      return res.status(400).json({
-        success: false,
-        message: "Код буруу байна!"
-      });
-    }
+      if (code.length !== 4 || !/^\d+$/.test(code)) {
+        return res.status(400).json({
+          success: false,
+          message: "Код буруу байна!"
+        });
+      }
     
     // Here you would check against stored verification codes
     // and verify expiration time
