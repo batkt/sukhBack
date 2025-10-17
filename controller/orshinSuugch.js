@@ -306,6 +306,10 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     }
 
     // Create verification code and store in database
+    console.log(
+      "Using connection for code creation:",
+      kholbolt.baiguullagiinId
+    );
     const BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
     const batalgaajuulkhCodeDoc =
       await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
@@ -431,12 +435,54 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     }
 
     // Check against stored verification codes
-    const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
-    const verificationResult = await BatalgaajuulahCodeModel.verifyCode(
-      utas,
-      code,
-      "password_reset"
-    );
+    // We need to find the same connection used for code creation
+    let verificationResult = null;
+    let BatalgaajuulahCodeModel = null;
+
+    for (const kholbolt of db.kholboltuud) {
+      try {
+        console.log(
+          "Checking verification code in connection:",
+          kholbolt.baiguullagiinId
+        );
+        BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
+        verificationResult = await BatalgaajuulahCodeModel.verifyCode(
+          utas,
+          code,
+          "password_reset"
+        );
+
+        console.log(
+          "Verification result for connection",
+          kholbolt.baiguullagiinId,
+          ":",
+          verificationResult
+        );
+
+        // If we found a successful result, break out of the loop
+        if (verificationResult.success) {
+          console.log(
+            "Found successful verification in connection:",
+            kholbolt.baiguullagiinId
+          );
+          break;
+        }
+      } catch (err) {
+        console.log(
+          "Error checking connection:",
+          kholbolt.baiguullagiinId,
+          err.message
+        );
+        continue;
+      }
+    }
+
+    if (!verificationResult) {
+      return res.status(500).json({
+        success: false,
+        message: "Database connection error",
+      });
+    }
 
     if (!verificationResult.success) {
       console.log("Code verification failed:", verificationResult.message);
