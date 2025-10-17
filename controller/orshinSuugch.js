@@ -54,7 +54,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
 
     // Debug logging
-    console.log("orshinSuugchBurtgey request body:", JSON.stringify(req.body, null, 2));
+    console.log(
+      "orshinSuugchBurtgey request body:",
+      JSON.stringify(req.body, null, 2)
+    );
 
     // Validate required fields
     if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
@@ -94,10 +97,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     const existingUser = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
-      $or: [
-        { utas: req.body.utas },
-        { register: req.body.register },
-      ],
+      $or: [{ utas: req.body.utas }, { register: req.body.register }],
     });
 
     if (existingUser) {
@@ -116,31 +116,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     });
 
     await orshinSuugch.save();
-
-    // Send welcome SMS using msgIlgeeye
-    var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
-    var msgIlgeekhDugaar = "72002002";
-    
-    var welcomeText = `AmarSukh: Тавтай морил! ${req.body.ner}, та амжилттай бүртгэгдлээ.`;
-    
-    var ilgeexList = [{
-      to: req.body.utas,
-      text: welcomeText,
-      gereeniiId: "registration" // Identifier for registration
-    }];
-    
-    var khariu = [];
-    
-    // Use msgIlgeeye function to send welcome SMS
-    msgIlgeeye(
-      ilgeexList,
-      msgIlgeekhKey,
-      msgIlgeekhDugaar,
-      khariu,
-      0,
-      tukhainBaaziinKholbolt,
-      baiguullaga._id
-    );
 
     res.status(201).json({
       success: true,
@@ -297,49 +272,53 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
     var msgIlgeekhDugaar = "72002002";
-    
+
     const { baiguullagiinId, utas, duureg, horoo, soh } = req.body;
-    
+
     if (!baiguullagiinId || !utas) {
       return res.status(400).json({
         success: false,
-        message: "Байгууллагын ID болон утас заавал бөглөх шаардлагатай!"
+        message: "Байгууллагын ID болон утас заавал бөглөх шаардлагатай!",
       });
     }
-    
-    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+
+    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      baiguullagiinId
+    );
     if (!baiguullaga) {
       return res.status(404).json({
         success: false,
-        message: "Байгууллагын мэдээлэл олдсонгүй!"
+        message: "Байгууллагын мэдээлэл олдсонгүй!",
       });
     }
-    
+
     var kholboltuud = db.kholboltuud;
     var kholbolt = kholboltuud.find(
       (a) => a.baiguullagiinId == baiguullaga._id.toString()
     );
-    
+
     if (!kholbolt) {
       return res.status(404).json({
         success: false,
-        message: "Холболтын мэдээлэл олдсонгүй!"
+        message: "Холболтын мэдээлэл олдсонгүй!",
       });
     }
-    
-      var verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
-    
+
+    var verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
+
     var text = `AmarSukh: Tany batalgaajuulax code: ${verificationCode}.`;
-    
+
     // Prepare message list for msgIlgeeye
-    var ilgeexList = [{
-      to: utas,
-      text: text,
-      gereeniiId: "password_reset" // Identifier for password reset
-    }];
-    
+    var ilgeexList = [
+      {
+        to: utas,
+        text: text,
+        gereeniiId: "password_reset", // Identifier for password reset
+      },
+    ];
+
     var khariu = [];
-    
+
     // Use msgIlgeeye function to send SMS
     msgIlgeeye(
       ilgeexList,
@@ -350,13 +329,12 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       kholbolt,
       baiguullagiinId
     );
-    
+
     res.json({
       success: true,
       message: "Баталгаажуулах код илгээгдлээ",
-      verificationCode: verificationCode // Remove this in production
+      verificationCode: verificationCode, // Remove this in production
     });
-    
   } catch (error) {
     next(error);
   }
@@ -366,24 +344,24 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const { utas } = req.body;
-    
+
     if (!utas) {
       return res.status(400).json({
         success: false,
-        message: "Утасны дугаар заавал бөглөх шаардлагатай!"
+        message: "Утасны дугаар заавал бөглөх шаардлагатай!",
       });
     }
-    
+
     let orshinSuugch = null;
     let tukhainBaaziinKholbolt = null;
-    
+
     for (const kholbolt of db.kholboltuud) {
       try {
         const customer = await OrshinSuugch(kholbolt)
           .findOne()
           .where("utas")
           .equals(utas);
-        
+
         if (customer) {
           orshinSuugch = customer;
           tukhainBaaziinKholbolt = kholbolt;
@@ -393,18 +371,17 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
         continue;
       }
     }
-    
+
     if (!orshinSuugch) {
       return res.status(404).json({
         success: false,
-        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!"
+        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
       });
     }
-    
+
     req.body.baiguullagiinId = orshinSuugch.baiguullagiinId;
-    
-    await dugaarBatalgaajuulya(req, res, next);
-    
+
+    await exports.dugaarBatalgaajuulya(req, res, next);
   } catch (error) {
     next(error);
   }
@@ -413,41 +390,41 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
 exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
   try {
     const { utas, code, shineNuutsUg } = req.body;
-    
+
     if (!utas || !code || !shineNuutsUg) {
       return res.status(400).json({
         success: false,
-        message: "Бүх талбарыг бөглөх шаардлагатай!"
+        message: "Бүх талбарыг бөглөх шаардлагатай!",
       });
     }
-    
+
     req.body.baiguullagiinId = "password_reset";
-    
+
     let verificationSuccess = false;
     const originalJson = res.json;
-    res.json = function(data) {
+    res.json = function (data) {
       verificationSuccess = data.success;
       return originalJson.call(this, data);
     };
-    
-    await dugaarBatalgaajuulakh(req, res, next);
-    
+
+    await exports.dugaarBatalgaajuulakh(req, res, next);
+
     if (!verificationSuccess) {
       return;
     }
-    
+
     const { db } = require("zevbackv2");
-    
+
     let orshinSuugch = null;
     let tukhainBaaziinKholbolt = null;
-    
+
     for (const kholbolt of db.kholboltuud) {
       try {
         const customer = await OrshinSuugch(kholbolt)
           .findOne()
           .where("utas")
           .equals(utas);
-        
+
         if (customer) {
           orshinSuugch = customer;
           tukhainBaaziinKholbolt = kholbolt;
@@ -457,25 +434,24 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
         continue;
       }
     }
-    
+
     if (!orshinSuugch) {
       return res.status(404).json({
         success: false,
-        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!"
+        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
       });
     }
-    
+
     orshinSuugch.nuutsUg = shineNuutsUg;
     await orshinSuugch.save();
-    
+
     res.json({
       success: true,
       message: "Нууц үг амжилттай сэргээгдлээ",
       data: {
-        step: 3
-      }
+        step: 3,
+      },
     });
-    
   } catch (error) {
     next(error);
   }
@@ -507,7 +483,6 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
   }
 });
 
-
 function msgIlgeeye(
   jagsaalt,
   key,
@@ -519,7 +494,8 @@ function msgIlgeeye(
 ) {
   try {
     const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
-    let url = msgServer +
+    let url =
+      msgServer +
       "/send" +
       "?key=" +
       key +
@@ -529,7 +505,7 @@ function msgIlgeeye(
       jagsaalt[index].to.toString() +
       "&text=" +
       jagsaalt[index].text.toString();
-    
+
     url = encodeURI(url);
     request(url, { json: true }, (err1, res1, body) => {
       if (err1) {
@@ -564,36 +540,34 @@ function msgIlgeeye(
   }
 }
 
-
 // Verification endpoint to check the entered code
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
-    
+
     if (!baiguullagiinId || !utas || !code) {
       return res.status(400).json({
         success: false,
-        message: "Бүх талбарыг бөглөх шаардлагатай!"
+        message: "Бүх талбарыг бөглөх шаардлагатай!",
       });
     }
-    
+
     // In a real implementation, you would check the stored verification code
     // For now, we'll do a simple validation
-      if (code.length !== 4 || !/^\d+$/.test(code)) {
-        return res.status(400).json({
-          success: false,
-          message: "Код буруу байна!"
-        });
-      }
-    
+    if (code.length !== 4 || !/^\d+$/.test(code)) {
+      return res.status(400).json({
+        success: false,
+        message: "Код буруу байна!",
+      });
+    }
+
     // Here you would check against stored verification codes
     // and verify expiration time
-    
+
     res.json({
       success: true,
-      message: "Дугаар амжилттай баталгаажлаа!"
+      message: "Дугаар амжилттай баталгаажлаа!",
     });
-    
   } catch (error) {
     next(error);
   }
@@ -654,24 +628,24 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const { utas } = req.body;
-    
+
     if (!utas) {
       return res.status(400).json({
         success: false,
-        message: "Утасны дугаар заавал бөглөх шаардлагатай!"
+        message: "Утасны дугаар заавал бөглөх шаардлагатай!",
       });
     }
-    
+
     let orshinSuugch = null;
     let tukhainBaaziinKholbolt = null;
-    
+
     for (const kholbolt of db.kholboltuud) {
       try {
         const customer = await OrshinSuugch(kholbolt)
           .findOne()
           .where("utas")
           .equals(utas);
-        
+
         if (customer) {
           orshinSuugch = customer;
           tukhainBaaziinKholbolt = kholbolt;
@@ -681,18 +655,17 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
         continue;
       }
     }
-    
+
     if (!orshinSuugch) {
       return res.status(404).json({
         success: false,
-        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!"
+        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
       });
     }
-    
+
     req.body.baiguullagiinId = orshinSuugch.baiguullagiinId;
-    
-    await dugaarBatalgaajuulya(req, res, next);
-    
+
+    await exports.dugaarBatalgaajuulya(req, res, next);
   } catch (error) {
     next(error);
   }
@@ -701,41 +674,41 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
 exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
   try {
     const { utas, code, shineNuutsUg } = req.body;
-    
+
     if (!utas || !code || !shineNuutsUg) {
       return res.status(400).json({
         success: false,
-        message: "Бүх талбарыг бөглөх шаардлагатай!"
+        message: "Бүх талбарыг бөглөх шаардлагатай!",
       });
     }
-    
+
     req.body.baiguullagiinId = "password_reset";
-    
+
     let verificationSuccess = false;
     const originalJson = res.json;
-    res.json = function(data) {
+    res.json = function (data) {
       verificationSuccess = data.success;
       return originalJson.call(this, data);
     };
-    
-    await dugaarBatalgaajuulakh(req, res, next);
-    
+
+    await exports.dugaarBatalgaajuulakh(req, res, next);
+
     if (!verificationSuccess) {
       return;
     }
-    
+
     const { db } = require("zevbackv2");
-    
+
     let orshinSuugch = null;
     let tukhainBaaziinKholbolt = null;
-    
+
     for (const kholbolt of db.kholboltuud) {
       try {
         const customer = await OrshinSuugch(kholbolt)
           .findOne()
           .where("utas")
           .equals(utas);
-        
+
         if (customer) {
           orshinSuugch = customer;
           tukhainBaaziinKholbolt = kholbolt;
@@ -745,25 +718,24 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
         continue;
       }
     }
-    
+
     if (!orshinSuugch) {
       return res.status(404).json({
         success: false,
-        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!"
+        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
       });
     }
-    
+
     orshinSuugch.nuutsUg = shineNuutsUg;
     await orshinSuugch.save();
-    
+
     res.json({
       success: true,
       message: "Нууц үг амжилттай сэргээгдлээ",
       data: {
-        step: 3
-      }
+        step: 3,
+      },
     });
-    
   } catch (error) {
     next(error);
   }
