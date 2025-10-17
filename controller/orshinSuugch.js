@@ -400,12 +400,18 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     
     // Send SMS directly
     try {
-      const url = process.env.MSG_SERVER + 
+      const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
+      console.log("MSG_SERVER from env:", process.env.MSG_SERVER);
+      console.log("Using msgServer:", msgServer);
+      
+      const url = msgServer + 
         "/send" +
         "?key=" + msgIlgeekhKey +
         "&from=" + msgIlgeekhDugaar +
         "&to=" + utas +
         "&text=" + encodeURIComponent(text);
+      
+      console.log("SMS URL:", url);
       
       request(url, { json: true }, (err, res, body) => {
         if (err) {
