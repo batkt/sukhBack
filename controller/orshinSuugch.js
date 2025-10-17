@@ -2,6 +2,7 @@ const asyncHandler = require("express-async-handler");
 const OrshinSuugch = require("../models/orshinSuugch");
 const Baiguullaga = require("../models/baiguullaga");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
+const MsgTuukh = require("../models/msgTuukh");
 const IpTuukh = require("../models/ipTuukh");
 const aldaa = require("../components/aldaa");
 const request = require("request");
