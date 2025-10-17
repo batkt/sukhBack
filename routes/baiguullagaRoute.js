@@ -75,34 +75,27 @@ router.post("/baiguullagaAvya", (req, res, next) => {
 
 router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
   const { db } = require("zevbackv2");
-  const { duureg, horoo, soh } = req.query;
-  
-  if (!duureg || !horoo || !soh) {
-    return res.status(400).json({
-      success: false,
-      message: "Дүүрэг, хороо болон СӨХ заавал бөглөх шаардлагатай!"
-    });
-  }
   
   Baiguullaga(db.erunkhiiKholbolt)
-    .findOne({
-      "tokhirgoo.duuregNer": duureg,
-      "tokhirgoo.districtCode": horoo,
-      "tokhirgoo.sohCode": soh,
+    .find({}, {
+      _id: 1,
+      "tokhirgoo.duuregNer": 1,
+      "tokhirgoo.districtCode": 1,
+      "tokhirgoo.sohCode": 1
     })
     .then((result) => {
-      if (!result) {
-        return res.status(404).json({
-          success: false,
-          message: "Тухайн дүүрэг, хороонд тохирох байгууллагын мэдээлэл олдсонгүй!"
-        });
-      }
+      // Transform the data to have cleaner field names
+      const transformedResult = result.map(item => ({
+        baiguullagiinId: item._id,
+        duureg: item.tokhirgoo?.duuregNer || "",
+        districtCode: item.tokhirgoo?.districtCode || "",
+        sohCode: item.tokhirgoo?.sohCode || ""
+      }));
       
       res.json({
         success: true,
-        message: "Байгууллагын мэдээлэл олдлоо",
-        baiguullagiinId: result._id,
-        result: result
+        message: "Бүх байгууллагын мэдээлэл олдлоо",
+        result: transformedResult
       });
     })
     .catch((err) => {
