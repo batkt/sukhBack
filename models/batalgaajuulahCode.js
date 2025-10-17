@@ -47,7 +47,7 @@ const batalgaajuulkhCodeSchema = new mongoose.Schema(
 batalgaajuulkhCodeSchema.index({ utas: 1, purpose: 1, khereglesenEsekh: 1 });
 batalgaajuulkhCodeSchema.index({ expiresAt: 1 });
 
-batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye = function (
+batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye = async function (
   utas,
   purpose = "password_reset",
   expirationMinutes = 10
@@ -55,12 +55,18 @@ batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye = function (
   const code = Math.floor(1000 + Math.random() * 9000).toString();
   const expiresAt = new Date(Date.now() + expirationMinutes * 60 * 1000);
 
-  return this.create({
+  console.log("=== Creating Verification Code ===");
+  console.log("Data to save:", { utas, code, purpose, expiresAt });
+
+  const result = await this.create({
     utas,
     code,
     purpose,
     expiresAt,
   });
+
+  console.log("Code saved successfully:", result);
+  return result;
 };
 
 // Alias for the controller
