@@ -116,4 +116,9 @@ batalgaajuulkhCodeSchema.statics.cleanupExpired = async function () {
   return result.deletedCount;
 };
 
-module.exports = batalgaajuulkhCodeSchema;
+// Create and export the model
+const BatalgaajuulahCode = mongoose.model(
+  "BatalgaajuulahCode",
+  batalgaajuulkhCodeSchema
+);
+module.exports = BatalgaajuulahCode;
