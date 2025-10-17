@@ -306,8 +306,9 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     }
 
     // Create verification code and store in database
+    const BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
     const batalgaajuulkhCodeDoc =
-      await BatalgaajuulahCode.batalgaajuulkhCodeUusgeye(
+      await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
         utas,
         "password_reset",
         10 // 10 minutes expiration
@@ -315,11 +316,11 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
 
     console.log("=== Verification Code Created ===");
     console.log("Phone:", utas);
-    console.log("Code:", verificationCodeDoc.code);
-    console.log("Expires at:", verificationCodeDoc.expiresAt);
-    console.log("Purpose:", verificationCodeDoc.purpose);
+    console.log("Code:", batalgaajuulkhCodeDoc.code);
+    console.log("Expires at:", batalgaajuulkhCodeDoc.expiresAt);
+    console.log("Purpose:", batalgaajuulkhCodeDoc.purpose);
 
-    var text = `AmarSukh: Tany batalgaajuulax code: ${verificationCodeDoc.code}.`;
+    var text = `AmarSukh: Tany batalgaajuulax code: ${batalgaajuulkhCodeDoc.code}.`;
 
     // Prepare message list for msgIlgeeye
     var ilgeexList = [
@@ -429,7 +430,8 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     }
 
     // Check against stored verification codes
-    const verificationResult = await BatalgaajuulahCode.verifyCode(
+    const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
+    const verificationResult = await BatalgaajuulahCodeModel.verifyCode(
       utas,
       code,
       "password_reset"
@@ -438,7 +440,11 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     if (!verificationResult.success) {
       console.log("Code verification failed:", verificationResult.message);
 
-      await BatalgaajuulahCode.incrementAttempts(utas, code, "password_reset");
+      await BatalgaajuulahCodeModel.incrementAttempts(
+        utas,
+        code,
+        "password_reset"
+      );
 
       return res.status(400).json({
         success: false,
@@ -701,7 +707,8 @@ exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
 // Cleanup expired verification codes
 exports.cleanupExpiredCodes = asyncHandler(async (req, res, next) => {
   try {
-    const deletedCount = await BatalgaajuulahCode.cleanupExpired();
+    const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
+    const deletedCount = await BatalgaajuulahCodeModel.cleanupExpired();
 
     console.log(`Cleaned up ${deletedCount} expired verification codes`);
 
@@ -719,7 +726,8 @@ exports.getVerificationCodeStatus = asyncHandler(async (req, res, next) => {
   try {
     const { phone } = req.params;
 
-    const codes = await BatalgaajuulahCode.find({ utas: phone })
+    const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
+    const codes = await BatalgaajuulahCodeModel.find({ utas: phone })
       .sort({ createdAt: -1 })
       .limit(5);
 

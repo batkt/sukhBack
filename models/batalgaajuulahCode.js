@@ -120,9 +120,10 @@ batalgaajuulkhCodeSchema.statics.cleanupExpired = async function () {
   return result.deletedCount;
 };
 
-// Create and export the model
-const BatalgaajuulahCode = mongoose.model(
-  "BatalgaajuulahCode",
-  batalgaajuulkhCodeSchema
-);
-module.exports = BatalgaajuulahCode;
+module.exports = function (conn) {
+  if (!conn) {
+    throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
+  }
+  conn = conn.kholbolt;
+  return conn.model("batalgaajuulahCode", batalgaajuulkhCodeSchema);
+};
