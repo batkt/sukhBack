@@ -4,6 +4,7 @@ const Baiguullaga = require("../models/baiguullaga");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 const MsgTuukh = require("../models/msgTuukh");
 const IpTuukh = require("../models/ipTuukh");
+const BatalgaajuulahCode = require("../models/batalgaajuulahCode");
 const aldaa = require("../components/aldaa");
 const request = require("request");
 const axios = require("axios");
@@ -304,9 +305,22 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    var verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
+    // Create verification code and store in database
+    const BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
+    const batalgaajuulkhCodeDoc =
+      await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
+        utas,
+        "password_reset",
+        10 // 10 minutes expiration
+      );
 
-    var text = `AmarSukh: Tany batalgaajuulax code: ${verificationCode}.`;
+    console.log("=== Verification Code Created ===");
+    console.log("Phone:", utas);
+    console.log("Code:", batalgaajuulkhCodeDoc.code);
+    console.log("Expires at:", batalgaajuulkhCodeDoc.expiresAt);
+    console.log("Purpose:", batalgaajuulkhCodeDoc.purpose);
+
+    var text = `AmarSukh: Tany batalgaajuulax code: ${batalgaajuulkhCodeDoc.code}.`;
 
     // Prepare message list for msgIlgeeye
     var ilgeexList = [
@@ -333,7 +347,8 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     res.json({
       success: true,
       message: "Баталгаажуулах код илгээгдлээ",
-      verificationCode: verificationCode, // Remove this in production
+      verificationCode: batalgaajuulkhCodeDoc.code, // Remove this in production
+      expiresIn: 10, // minutes
     });
   } catch (error) {
     next(error);
@@ -404,7 +419,7 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Verify the code first (inline verification logic)
+    // Verify the code using stored verification codes
     console.log("Verifying code:", code);
     if (code.length !== 4 || !/^\d+$/.test(code)) {
       console.log("Code verification failed - invalid format");
@@ -413,11 +428,30 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
         message: "Код буруу байна!",
       });
     }
-    console.log("Code verification passed");
 
-    // Here you would check against stored verification codes
-    // and verify expiration time
-    // For now, we'll accept any 4-digit code
+    // Check against stored verification codes
+    const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
+    const verificationResult = await BatalgaajuulahCodeModel.verifyCode(
+      utas,
+      code,
+      "password_reset"
+    );
+
+    if (!verificationResult.success) {
+      console.log("Code verification failed:", verificationResult.message);
+
+      await BatalgaajuulahCodeModel.incrementAttempts(
+        utas,
+        code,
+        "password_reset"
+      );
+
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message,
+      });
+    }
+    console.log("Code verification passed - code is valid and not expired");
 
     const { db } = require("zevbackv2");
 
@@ -664,6 +698,51 @@ exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
       success: true,
       message: "Байгууллагын мэдээлэл олдлоо",
       result: baiguullaga,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Cleanup expired verification codes
+exports.cleanupExpiredCodes = asyncHandler(async (req, res, next) => {
+  try {
+    const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
+    const deletedCount = await BatalgaajuulahCodeModel.cleanupExpired();
+
+    console.log(`Cleaned up ${deletedCount} expired verification codes`);
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${deletedCount} expired verification codes`,
+      deletedCount,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+exports.getVerificationCodeStatus = asyncHandler(async (req, res, next) => {
+  try {
+    const { phone } = req.params;
+
+    const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
+    const codes = await BatalgaajuulahCodeModel.find({ utas: phone })
+      .sort({ createdAt: -1 })
+      .limit(5);
+
+    res.json({
+      success: true,
+      message: "Verification codes retrieved",
+      codes: codes.map((code) => ({
+        code: code.code,
+        purpose: code.purpose,
+        used: code.khereglesenEsekh,
+        attempts: code.oroldlogo,
+        expiresAt: code.expiresAt,
+        createdAt: code.createdAt,
+        isExpired: code.expiresAt < new Date(),
+      })),
     });
   } catch (error) {
     next(error);
