@@ -391,7 +391,13 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
   try {
     const { utas, code, shineNuutsUg } = req.body;
 
+    // Log the incoming request
+    console.log("=== Password Reset Request ===");
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
+    console.log("Timestamp:", new Date().toISOString());
+
     if (!utas || !code || !shineNuutsUg) {
+      console.log("Missing required fields - request rejected");
       return res.status(400).json({
         success: false,
         message: "Бүх талбарыг бөглөх шаардлагатай!",
@@ -399,12 +405,15 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     }
 
     // Verify the code first (inline verification logic)
+    console.log("Verifying code:", code);
     if (code.length !== 4 || !/^\d+$/.test(code)) {
+      console.log("Code verification failed - invalid format");
       return res.status(400).json({
         success: false,
         message: "Код буруу байна!",
       });
     }
+    console.log("Code verification passed");
 
     // Here you would check against stored verification codes
     // and verify expiration time
@@ -412,22 +421,32 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
 
     const { db } = require("zevbackv2");
 
+    console.log("Searching for user with phone:", utas);
+    console.log("Available connections:", db.kholboltuud.length);
+
     let orshinSuugch = null;
     let tukhainBaaziinKholbolt = null;
 
     for (const kholbolt of db.kholboltuud) {
       try {
+        console.log("Checking connection:", kholbolt.baiguullagiinId);
         const customer = await OrshinSuugch(kholbolt)
           .findOne()
           .where("utas")
           .equals(utas);
 
         if (customer) {
+          console.log("User found in connection:", kholbolt.baiguullagiinId);
           orshinSuugch = customer;
           tukhainBaaziinKholbolt = kholbolt;
           break;
         }
       } catch (err) {
+        console.log(
+          "Error checking connection:",
+          kholbolt.baiguullagiinId,
+          err.message
+        );
         continue;
       }
     }
@@ -439,14 +458,44 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // Log the password change process
+    console.log("=== Password Reset Process ===");
+    console.log("Phone number:", utas);
+    console.log("User found:", orshinSuugch.ner);
+    console.log("User ID:", orshinSuugch._id);
+    console.log("Old password hash:", orshinSuugch.nuutsUg);
+    console.log("New password:", shineNuutsUg);
+    console.log("Verification code:", code);
+
+    // Store the old password hash for comparison
+    const oldPasswordHash = orshinSuugch.nuutsUg;
+
+    // Update the password
     orshinSuugch.nuutsUg = shineNuutsUg;
     await orshinSuugch.save();
+
+    // Verify the password was actually changed
+    const updatedUser = await OrshinSuugch(tukhainBaaziinKholbolt)
+      .findById(orshinSuugch._id)
+      .select("+nuutsUg");
+
+    console.log("Password change verification:");
+    console.log("Old hash:", oldPasswordHash);
+    console.log("New hash:", updatedUser.nuutsUg);
+    console.log(
+      "Password changed successfully:",
+      oldPasswordHash !== updatedUser.nuutsUg
+    );
+    console.log("=== End Password Reset Process ===");
 
     res.json({
       success: true,
       message: "Нууц үг амжилттай сэргээгдлээ",
       data: {
         step: 3,
+        passwordChanged: oldPasswordHash !== updatedUser.nuutsUg,
+        userId: orshinSuugch._id,
+        userName: orshinSuugch.ner,
       },
     });
   } catch (error) {
