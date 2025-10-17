@@ -79,14 +79,13 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     const existingUser = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
       $or: [
-        { nevtrekhNer: req.body.nevtrekhNer },
-        { register: req.body.register },
         { utas: req.body.utas },
+        { register: req.body.register },
       ],
     });
 
     if (existingUser) {
-      throw new aldaa("Нэвтрэх нэр, регистр эсвэл утас давхардаж байна!");
+      throw new aldaa("Утасны дугаар эсвэл регистр давхардаж байна!");
     }
 
     const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
@@ -97,6 +96,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       duureg: req.body.duureg,
       horoo: req.body.horoo,
       soh: req.body.soh,
+      nevtrekhNer: req.body.utas, // Set nevtrekhNer to phone number
     });
 
     await orshinSuugch.save();
@@ -128,8 +128,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       const customer = await OrshinSuugch(kholbolt)
         .findOne()
         .select("+nuutsUg")
-        .where("nevtrekhNer")
-        .equals(req.body.nevtrekhNer);
+        .where("utas")
+        .equals(req.body.utas);
 
       if (customer) {
         orshinSuugch = customer;
@@ -142,10 +142,10 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   }
 
   if (!orshinSuugch)
-    throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+    throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
 
   var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
-  if (!ok) throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+  if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
 
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
     orshinSuugch.baiguullagiinId
