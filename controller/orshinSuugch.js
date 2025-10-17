@@ -117,6 +117,31 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     await orshinSuugch.save();
 
+    // Send welcome SMS using msgIlgeeye
+    var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
+    var msgIlgeekhDugaar = "72002002";
+    
+    var welcomeText = `AmarSukh: Тавтай морил! ${req.body.ner}, та амжилттай бүртгэгдлээ.`;
+    
+    var ilgeexList = [{
+      to: req.body.utas,
+      text: welcomeText,
+      gereeniiId: "registration" // Identifier for registration
+    }];
+    
+    var khariu = [];
+    
+    // Use msgIlgeeye function to send welcome SMS
+    msgIlgeeye(
+      ilgeexList,
+      msgIlgeekhKey,
+      msgIlgeekhDugaar,
+      khariu,
+      0,
+      tukhainBaaziinKholbolt,
+      baiguullaga._id
+    );
+
     res.status(201).json({
       success: true,
       message: "Амжилттай бүртгэгдлээ",
@@ -306,51 +331,25 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     
     var text = `AmarSukh: Tany batalgaajuulax code: ${verificationCode}.`;
     
+    // Prepare message list for msgIlgeeye
     var ilgeexList = [{
       to: utas,
-      text: text
+      text: text,
+      gereeniiId: "password_reset" // Identifier for password reset
     }];
     
-    // Store verification code in MsgTuukh database
-    var verificationRecord = {
-      baiguullagiinId: baiguullagiinId,
-      barilgiinId: "",
-      gereeniiId: "",
-      mashiniiDugaar: "",
-      turul: "verification",
-      dugaar: [utas],
-      msg: text,
-      msgIlgeekhKey: msgIlgeekhKey,
-      msgIlgeekhDugaar: msgIlgeekhDugaar
-    };
+    var khariu = [];
     
-    const msgTuukh = new MsgTuukh(kholbolt)(verificationRecord);
-    await msgTuukh.save();
-    
-    try {
-      const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
-      console.log("MSG_SERVER from env:", process.env.MSG_SERVER);
-      console.log("Using msgServer:", msgServer);
-      
-      const url = msgServer + 
-        "/send" +
-        "?key=" + msgIlgeekhKey +
-        "&from=" + msgIlgeekhDugaar +
-        "&to=" + utas +
-        "&text=" + encodeURIComponent(text);
-      
-      console.log("SMS URL:", url);
-      
-      request(url, { json: true }, (err, res, body) => {
-        if (err) {
-          console.error("SMS sending error:", err);
-        } else {
-          console.log("SMS sent successfully:", body);
-        }
-      });
-    } catch (smsError) {
-      console.error("SMS sending error:", smsError);
-    }
+    // Use msgIlgeeye function to send SMS
+    msgIlgeeye(
+      ilgeexList,
+      msgIlgeekhKey,
+      msgIlgeekhDugaar,
+      khariu,
+      0,
+      kholbolt,
+      baiguullagiinId
+    );
     
     res.json({
       success: true,
@@ -519,8 +518,8 @@ function msgIlgeeye(
   baiguullagiinId
 ) {
   try {
-    url =
-      process.env.MSG_SERVER +
+    const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
+    let url = msgServer +
       "/send" +
       "?key=" +
       key +
@@ -530,26 +529,16 @@ function msgIlgeeye(
       jagsaalt[index].to.toString() +
       "&text=" +
       jagsaalt[index].text.toString();
-    url =
-      process.env.MSG_SERVER +
-      "/send" +
-      "?key=" +
-      key +
-      "&from=" +
-      dugaar +
-      "&to=" +
-      jagsaalt[index].to.toString() +
-      "&text=" +
-      jagsaalt[index].text.toString();
+    
     url = encodeURI(url);
     request(url, { json: true }, (err1, res1, body) => {
       if (err1) {
-        next(err1);
+        console.error("SMS sending error:", err1);
       } else {
         var msg = new MsgTuukh(tukhainBaaziinKholbolt)();
         msg.baiguullagiinId = baiguullagiinId;
         msg.dugaar = jagsaalt[index].to;
-        msg.gereeniiId = jagsaalt[index].gereeniiId;
+        msg.gereeniiId = jagsaalt[index].gereeniiId || "";
         msg.msg = jagsaalt[index].text;
         msg.msgIlgeekhKey = key;
         msg.msgIlgeekhDugaar = dugaar;
@@ -571,7 +560,7 @@ function msgIlgeeye(
       }
     });
   } catch (err) {
-    next(err);
+    console.error("msgIlgeeye error:", err);
   }
 }
 
@@ -656,6 +645,125 @@ exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
       message: "Байгууллагын мэдээлэл олдлоо",
       result: baiguullaga,
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { utas } = req.body;
+    
+    if (!utas) {
+      return res.status(400).json({
+        success: false,
+        message: "Утасны дугаар заавал бөглөх шаардлагатай!"
+      });
+    }
+    
+    let orshinSuugch = null;
+    let tukhainBaaziinKholbolt = null;
+    
+    for (const kholbolt of db.kholboltuud) {
+      try {
+        const customer = await OrshinSuugch(kholbolt)
+          .findOne()
+          .where("utas")
+          .equals(utas);
+        
+        if (customer) {
+          orshinSuugch = customer;
+          tukhainBaaziinKholbolt = kholbolt;
+          break;
+        }
+      } catch (err) {
+        continue;
+      }
+    }
+    
+    if (!orshinSuugch) {
+      return res.status(404).json({
+        success: false,
+        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!"
+      });
+    }
+    
+    req.body.baiguullagiinId = orshinSuugch.baiguullagiinId;
+    
+    await dugaarBatalgaajuulya(req, res, next);
+    
+  } catch (error) {
+    next(error);
+  }
+});
+
+exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
+  try {
+    const { utas, code, shineNuutsUg } = req.body;
+    
+    if (!utas || !code || !shineNuutsUg) {
+      return res.status(400).json({
+        success: false,
+        message: "Бүх талбарыг бөглөх шаардлагатай!"
+      });
+    }
+    
+    req.body.baiguullagiinId = "password_reset";
+    
+    let verificationSuccess = false;
+    const originalJson = res.json;
+    res.json = function(data) {
+      verificationSuccess = data.success;
+      return originalJson.call(this, data);
+    };
+    
+    await dugaarBatalgaajuulakh(req, res, next);
+    
+    if (!verificationSuccess) {
+      return;
+    }
+    
+    const { db } = require("zevbackv2");
+    
+    let orshinSuugch = null;
+    let tukhainBaaziinKholbolt = null;
+    
+    for (const kholbolt of db.kholboltuud) {
+      try {
+        const customer = await OrshinSuugch(kholbolt)
+          .findOne()
+          .where("utas")
+          .equals(utas);
+        
+        if (customer) {
+          orshinSuugch = customer;
+          tukhainBaaziinKholbolt = kholbolt;
+          break;
+        }
+      } catch (err) {
+        continue;
+      }
+    }
+    
+    if (!orshinSuugch) {
+      return res.status(404).json({
+        success: false,
+        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!"
+      });
+    }
+    
+    orshinSuugch.nuutsUg = shineNuutsUg;
+    await orshinSuugch.save();
+    
+    res.json({
+      success: true,
+      message: "Нууц үг амжилттай сэргээгдлээ",
+      data: {
+        step: 3
+      }
+    });
+    
   } catch (error) {
     next(error);
   }
