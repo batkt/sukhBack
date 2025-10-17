@@ -79,17 +79,17 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
   Baiguullaga(db.erunkhiiKholbolt)
     .find({}, {
       _id: 1,
-      "tokhirgoo.duuregNer": 1,
-      "tokhirgoo.districtCode": 1,
-      "tokhirgoo.sohCode": 1
+      "barilguud.tokhirgoo.duuregNer": 1,
+      "barilguud.tokhirgoo.districtCode": 1,
+      "barilguud.tokhirgoo.sohCode": 1
     })
     .then((result) => {
       // Transform the data to have cleaner field names
       const transformedResult = result.map(item => ({
         baiguullagiinId: item._id,
-        duureg: item.tokhirgoo?.duuregNer || "",
-        districtCode: item.tokhirgoo?.districtCode || "",
-        sohCode: item.tokhirgoo?.sohCode || ""
+        duureg: item.barilguud?.[0]?.tokhirgoo?.duuregNer || "",
+        districtCode: item.barilguud?.[0]?.tokhirgoo?.districtCode || "",
+        sohCode: item.barilguud?.[0]?.tokhirgoo?.sohCode || ""
       }));
       
       res.json({
