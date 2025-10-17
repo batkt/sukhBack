@@ -267,6 +267,102 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   );
 });
 
+exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
+    var msgIlgeekhDugaar = "72002002";
+    
+    const { baiguullagiinId, utas, duureg, horoo, soh } = req.body;
+    
+    if (!baiguullagiinId || !utas) {
+      return res.status(400).json({
+        success: false,
+        message: "Байгууллагын ID болон утас заавал бөглөх шаардлагатай!"
+      });
+    }
+    
+    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын мэдээлэл олдсонгүй!"
+      });
+    }
+    
+    var kholboltuud = db.kholboltuud;
+    var kholbolt = kholboltuud.find(
+      (a) => a.baiguullagiinId == baiguullaga._id.toString()
+    );
+    
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй!"
+      });
+    }
+    
+      var verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
+    
+    var text = `AmarSukh: Tany batalgaajuulax code: ${verificationCode}.`;
+    
+    var ilgeexList = [{
+      to: utas,
+      text: text
+    }];
+    
+    // Store verification code in MsgTuukh database
+    var verificationRecord = {
+      baiguullagiinId: baiguullagiinId,
+      barilgiinId: "",
+      gereeniiId: "",
+      mashiniiDugaar: "",
+      turul: "verification",
+      dugaar: [utas],
+      msg: text,
+      msgIlgeekhKey: msgIlgeekhKey,
+      msgIlgeekhDugaar: msgIlgeekhDugaar
+    };
+    
+    const msgTuukh = new MsgTuukh(kholbolt)(verificationRecord);
+    await msgTuukh.save();
+    
+    try {
+      const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
+      console.log("MSG_SERVER from env:", process.env.MSG_SERVER);
+      console.log("Using msgServer:", msgServer);
+      
+      const url = msgServer + 
+        "/send" +
+        "?key=" + msgIlgeekhKey +
+        "&from=" + msgIlgeekhDugaar +
+        "&to=" + utas +
+        "&text=" + encodeURIComponent(text);
+      
+      console.log("SMS URL:", url);
+      
+      request(url, { json: true }, (err, res, body) => {
+        if (err) {
+          console.error("SMS sending error:", err);
+        } else {
+          console.log("SMS sent successfully:", body);
+        }
+      });
+    } catch (smsError) {
+      console.error("SMS sending error:", smsError);
+    }
+    
+    res.json({
+      success: true,
+      message: "Баталгаажуулах код илгээгдлээ",
+      verificationCode: verificationCode // Remove this in production
+    });
+    
+  } catch (error) {
+    next(error);
+  }
+});
+
 exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
@@ -479,94 +575,6 @@ function msgIlgeeye(
   }
 }
 
-exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
-    var msgIlgeekhDugaar = "72002002";
-    
-    const { baiguullagiinId, utas, duureg, horoo, soh } = req.body;
-    
-    if (!baiguullagiinId || !utas) {
-      return res.status(400).json({
-        success: false,
-        message: "Байгууллагын ID болон утас заавал бөглөх шаардлагатай!"
-      });
-    }
-    
-    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
-    if (!baiguullaga) {
-      return res.status(404).json({
-        success: false,
-        message: "Байгууллагын мэдээлэл олдсонгүй!"
-      });
-    }
-    
-    var kholboltuud = db.kholboltuud;
-    var kholbolt = kholboltuud.find(
-      (a) => a.baiguullagiinId == baiguullaga._id.toString()
-    );
-    
-    if (!kholbolt) {
-      return res.status(404).json({
-        success: false,
-        message: "Холболтын мэдээлэл олдсонгүй!"
-      });
-    }
-    
-      var verificationCode = Math.floor(1000 + Math.random() * 9000).toString();
-    
-    var text = `AmarSukh: Tany batalgaajuulax code: ${verificationCode}.`;
-    
-    var ilgeexList = [{
-      to: utas,
-      text: text
-    }];
-    
-    var verificationRecord = {
-      baiguullagiinId: baiguullagiinId,
-      utas: utas,
-      code: verificationCode,
-      createdAt: new Date(),
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minut
-      verified: false
-    };
-    
-    try {
-      const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
-      console.log("MSG_SERVER from env:", process.env.MSG_SERVER);
-      console.log("Using msgServer:", msgServer);
-      
-      const url = msgServer + 
-        "/send" +
-        "?key=" + msgIlgeekhKey +
-        "&from=" + msgIlgeekhDugaar +
-        "&to=" + utas +
-        "&text=" + encodeURIComponent(text);
-      
-      console.log("SMS URL:", url);
-      
-      request(url, { json: true }, (err, res, body) => {
-        if (err) {
-          console.error("SMS sending error:", err);
-        } else {
-          console.log("SMS sent successfully:", body);
-        }
-      });
-    } catch (smsError) {
-      console.error("SMS sending error:", smsError);
-    }
-    
-    res.json({
-      success: true,
-      message: "Баталгаажуулах код илгээгдлээ",
-      verificationCode: verificationCode // Remove this in production
-    });
-    
-  } catch (error) {
-    next(error);
-  }
-});
 
 // Verification endpoint to check the entered code
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
