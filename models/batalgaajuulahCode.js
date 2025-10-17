@@ -63,6 +63,10 @@ batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye = function (
   });
 };
 
+// Alias for the controller
+batalgaajuulkhCodeSchema.statics.createVerificationCode =
+  batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye;
+
 batalgaajuulkhCodeSchema.statics.verifyCode = async function (
   utas,
   code,
