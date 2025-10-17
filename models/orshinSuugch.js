@@ -93,15 +93,22 @@ orshinSuugchSchema.methods.zochinTokenUusgye = function (
 };
 orshinSuugchSchema.pre("save", async function () {
   this.indexTalbar = this.register + this.nevtrekhNer;
-  const salt = await bcrypt.genSalt(12);
-  this.nuutsUg = await bcrypt.hash(this.nuutsUg, salt);
+  
+  // Only hash password if it exists and is not already hashed
+  if (this.nuutsUg && !this.nuutsUg.startsWith('$2b$')) {
+    const salt = await bcrypt.genSalt(12);
+    this.nuutsUg = await bcrypt.hash(this.nuutsUg, salt);
+  }
 });
 
 orshinSuugchSchema.pre("updateOne", async function () {
   this.indexTalbar = this._update.register + this._update.nevtrekhNer;
-  const salt = await bcrypt.genSalt(12);
-  if (this._update.nuutsUg)
+  
+  // Only hash password if it exists and is not already hashed
+  if (this._update.nuutsUg && !this._update.nuutsUg.startsWith('$2b$')) {
+    const salt = await bcrypt.genSalt(12);
     this._update.nuutsUg = await bcrypt.hash(this._update.nuutsUg, salt);
+  }
 });
 
 orshinSuugchSchema.methods.passwordShalgaya = async function (pass) {

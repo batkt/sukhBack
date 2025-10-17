@@ -53,12 +53,28 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
+    // Debug logging
+    console.log("orshinSuugchBurtgey request body:", JSON.stringify(req.body, null, 2));
+
+    // Validate required fields
     if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
       throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
     }
 
     if (!req.body.baiguullagiinId) {
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+    }
+
+    if (!req.body.utas) {
+      throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
+    }
+
+    if (!req.body.nuutsUg) {
+      throw new aldaa("Нууц үг заавал бөглөх шаардлагатай!");
+    }
+
+    if (!req.body.ner) {
+      throw new aldaa("Нэр заавал бөглөх шаардлагатай!");
     }
 
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
@@ -112,6 +128,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       },
     });
   } catch (error) {
+    console.error("orshinSuugchBurtgey error:", error);
     next(error);
   }
 });
