@@ -97,6 +97,14 @@ crud(
   gereeZasakhShalguur
 );
 
+router.post("/uilchilgeeniiZardluud", (req, res, next) => {
+  console.log("=== DEBUG REQUEST ===");
+  console.log("Body:", JSON.stringify(req.body, null, 2));
+  console.log("Headers:", req.headers);
+  console.log("=========================");
+  next();
+});
+
 router.get("/gereeAvya", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
