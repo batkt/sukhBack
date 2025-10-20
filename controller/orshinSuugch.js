@@ -12,6 +12,50 @@ const jwt = require("jsonwebtoken");
 
 const useragent = require("express-useragent");
 
+// Helper function to verify code using dugaarBatalgaajuulakh logic
+async function verifyCodeHelper(baiguullagiinId, utas, code) {
+  const { db } = require("zevbackv2");
+  
+  // Validate code format
+  if (code.length !== 4 || !/^\d+$/.test(code)) {
+    return {
+      success: false,
+      message: "Код буруу байна!",
+    };
+  }
+
+  // Find the correct database connection
+  const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId
+  );
+
+  if (!tukhainBaaziinKholbolt) {
+    return {
+      success: false,
+      message: "Холболтын мэдээлэл олдсонгүй!",
+    };
+  }
+
+  // Verify code against database
+  const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
+  const verificationResult = await BatalgaajuulahCodeModel.verifyCode(
+    utas,
+    code,
+    "password_reset"
+  );
+
+  if (!verificationResult.success) {
+    // Increment failed attempts
+    await BatalgaajuulahCodeModel.incrementAttempts(
+      utas,
+      code,
+      "password_reset"
+    );
+  }
+
+  return verificationResult;
+}
+
 function duusakhOgnooAvya(ugugdul, onFinish, next) {
   request.get(
     "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
@@ -305,7 +349,6 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Create verification code and store in database
     console.log(
       "Using connection for code creation:",
       kholbolt.baiguullagiinId
@@ -315,7 +358,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
         utas,
         "password_reset",
-        10 // 10 minutes expiration
+        10
       );
 
     console.log("=== Verification Code Created ===");
@@ -326,18 +369,16 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
 
     var text = `AmarSukh: Tany batalgaajuulax code: ${batalgaajuulkhCodeDoc.code}.`;
 
-    // Prepare message list for msgIlgeeye
     var ilgeexList = [
       {
         to: utas,
         text: text,
-        gereeniiId: "password_reset", // Identifier for password reset
+        gereeniiId: "password_reset",
       },
     ];
 
     var khariu = [];
 
-    // Use msgIlgeeye function to send SMS
     msgIlgeeye(
       ilgeexList,
       msgIlgeekhKey,
@@ -351,8 +392,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     res.json({
       success: true,
       message: "Баталгаажуулах код илгээгдлээ",
-      verificationCode: batalgaajuulkhCodeDoc.code, // Remove this in production
-      expiresIn: 10, // minutes
+      expiresIn: 10,
     });
   } catch (error) {
     next(error);
@@ -411,7 +451,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     const { utas, code, shineNuutsUg } = req.body;
 
-    // Log the incoming request
     console.log("=== Password Reset Request ===");
     console.log("Request body:", JSON.stringify(req.body, null, 2));
     console.log("Timestamp:", new Date().toISOString());
@@ -424,85 +463,7 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Verify the code using stored verification codes
-    console.log("Verifying code:", code);
-    if (code.length !== 4 || !/^\d+$/.test(code)) {
-      console.log("Code verification failed - invalid format");
-      return res.status(400).json({
-        success: false,
-        message: "Код буруу байна!",
-      });
-    }
-
-    // Check against stored verification codes
-    // We need to find the same connection used for code creation
-    let verificationResult = null;
-    let BatalgaajuulahCodeModel = null;
-
-    for (const kholbolt of db.kholboltuud) {
-      try {
-        console.log(
-          "Checking verification code in connection:",
-          kholbolt.baiguullagiinId
-        );
-        BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
-        verificationResult = await BatalgaajuulahCodeModel.verifyCode(
-          utas,
-          code,
-          "password_reset"
-        );
-
-        console.log(
-          "Verification result for connection",
-          kholbolt.baiguullagiinId,
-          ":",
-          verificationResult
-        );
-
-        // If we found a successful result, break out of the loop
-        if (verificationResult.success) {
-          console.log(
-            "Found successful verification in connection:",
-            kholbolt.baiguullagiinId
-          );
-          break;
-        }
-      } catch (err) {
-        console.log(
-          "Error checking connection:",
-          kholbolt.baiguullagiinId,
-          err.message
-        );
-        continue;
-      }
-    }
-
-    if (!verificationResult) {
-      return res.status(500).json({
-        success: false,
-        message: "Database connection error",
-      });
-    }
-
-    if (!verificationResult.success) {
-      console.log("Code verification failed:", verificationResult.message);
-
-      await BatalgaajuulahCodeModel.incrementAttempts(
-        utas,
-        code,
-        "password_reset"
-      );
-
-      return res.status(400).json({
-        success: false,
-        message: verificationResult.message,
-      });
-    }
-    console.log("Code verification passed - code is valid and not expired");
-
-    console.log("Searching for user with phone:", utas);
-    console.log("Available connections:", db.kholboltuud.length);
-
+    // Find user first to get baiguullagiinId
     let orshinSuugch = null;
     let tukhainBaaziinKholbolt = null;
 
@@ -537,7 +498,23 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Log the password change process
+    // Use helper function for code verification
+    const verificationResult = await verifyCodeHelper(
+      orshinSuugch.baiguullagiinId, 
+      utas, 
+      code
+    );
+
+    if (!verificationResult.success) {
+      console.log("Code verification failed:", verificationResult.message);
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message,
+      });
+    }
+    
+    console.log("Code verification passed - code is valid and not expired");
+
     console.log("=== Password Reset Process ===");
     console.log("Phone number:", utas);
     console.log("User found:", orshinSuugch.ner);
@@ -546,14 +523,11 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     console.log("New password:", shineNuutsUg);
     console.log("Verification code:", code);
 
-    // Store the old password hash for comparison
     const oldPasswordHash = orshinSuugch.nuutsUg;
 
-    // Update the password
     orshinSuugch.nuutsUg = shineNuutsUg;
     await orshinSuugch.save();
 
-    // Verify the password was actually changed
     const updatedUser = await OrshinSuugch(tukhainBaaziinKholbolt)
       .findById(orshinSuugch._id)
       .select("+nuutsUg");
@@ -665,7 +639,6 @@ function msgIlgeeye(
   }
 }
 
-// Verification endpoint to check the entered code
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
@@ -677,21 +650,24 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // In a real implementation, you would check the stored verification code
-    // For now, we'll do a simple validation
-    if (code.length !== 4 || !/^\d+$/.test(code)) {
+    // Use helper function for verification
+    const verificationResult = await verifyCodeHelper(baiguullagiinId, utas, code);
+
+    if (!verificationResult.success) {
       return res.status(400).json({
         success: false,
-        message: "Код буруу байна!",
+        message: verificationResult.message,
       });
     }
-
-    // Here you would check against stored verification codes
-    // and verify expiration time
 
     res.json({
       success: true,
       message: "Дугаар амжилттай баталгаажлаа!",
+      data: {
+        verified: true,
+        phone: utas,
+        code: code,
+      },
     });
   } catch (error) {
     next(error);
@@ -749,7 +725,6 @@ exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Cleanup expired verification codes
 exports.cleanupExpiredCodes = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");

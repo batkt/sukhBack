@@ -37,9 +37,10 @@ router.post("/dugaarBatalgaajuulakh", dugaarBatalgaajuulakh);
 router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);
-router.route("/khayagaarBaiguullagaAvya/:duureg/:horoo/:soh").get(khayagaarBaiguullagaAvya);
+router
+  .route("/khayagaarBaiguullagaAvya/:duureg/:horoo/:soh")
+  .get(khayagaarBaiguullagaAvya);
 
-// Password reset endpoints
 router.post("/orshinSuugchBatalgaajuulya", orshinSuugchBatalgaajuulya);
 router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
 

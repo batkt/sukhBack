@@ -20,7 +20,7 @@ const batalgaajuulkhCodeSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       required: true,
-      index: { expireAfterSeconds: 0 }, // MongoDB TTL index
+      index: { expireAfterSeconds: 0 },
     },
     khereglesenEsekh: {
       type: Boolean,
@@ -69,7 +69,6 @@ batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye = async function (
   return result;
 };
 
-// Alias for the controller
 batalgaajuulkhCodeSchema.statics.createVerificationCode =
   batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye;
 
@@ -93,7 +92,6 @@ batalgaajuulkhCodeSchema.statics.verifyCode = async function (
   console.log("Found verification code:", verificationCode);
 
   if (!verificationCode) {
-    // Let's also check what codes exist for this phone
     const allCodes = await this.find({ utas, purpose })
       .sort({ createdAt: -1 })
       .limit(3);
