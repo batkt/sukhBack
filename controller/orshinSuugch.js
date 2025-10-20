@@ -540,7 +540,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
     const tokenObject = jwt.verify(token, process.env.APP_SECRET, 401);
     if (tokenObject.id == "zochin")
       next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
-    OrshinSuugch(db.erunkhiiKholbolt)
+    OrshinSuugch(req.body.tukhainBaaziinKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
         var urdunJson = urDun.toJSON();
