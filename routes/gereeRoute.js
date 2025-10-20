@@ -4,7 +4,7 @@ const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const OrshinSuugch = require("../models/orshinSuugch");
 const ashiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
-
+const uilchilgeeniiZardluud = require("../models/uilchilgeeniiZardluud");
 const { crud, tokenShalgakh, Dugaarlalt, UstsanBarimt } = require("zevbackv2");
 const multer = require("multer");
 const {
@@ -30,6 +30,8 @@ router
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiExcelTatya);
 
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
+crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
+
 
 crud(
   router,
