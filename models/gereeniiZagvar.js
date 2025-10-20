@@ -9,6 +9,7 @@ const gereeniiZagvarSchema = new Schema(
     id: String,
     ner: String,
     tailbar: String,
+    aguulga: String,
     turul: String,
     baiguullagiinId: String,
     baiguullagiinNer: String,
@@ -33,4 +34,4 @@ module.exports = function a(conn) {
   conn = conn.kholbolt;
   return conn.model("gereeniiZagvar", gereeniiZagvarSchema);
 };
-//module.exports = mongoose.model("gereeniiZagvar", gereeniiZagvarSchema);
+
