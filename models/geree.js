@@ -103,20 +103,10 @@ const gereeSchema = new Schema(
     bairNer: String,
     orts: String,
     toot: Number,
-    talbainKhemjee: String,
-    zoriulalt: String,
     davkhar: String,
     burtgesenAjiltan: String,
     temdeglel: String,
-    actOgnoo: Date,
-    tooluuriinDugaar: String, // odooxondoo gantsaar awchixya tsaashid olshirwol yaaxaa shiidne
-    davkhar: String,
-    baritsaaAvakhDun: Number,
-    baritsaaniiUldegdel: {
-      type: Number,
-      default: 0,
-    },
-    zurguud: [String],
+    actOgnoo: Date,   
     zardluud: [
       {
         ner: String,
