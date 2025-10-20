@@ -277,82 +277,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     result: orshinSuugch,
     success: true,
   };
-
-  duusakhOgnooAvya(
-    { register: baiguullaga.register, system: "sukh" },
-    async (khariu) => {
-      try {
-        if (khariu.success) {
-          if (!!khariu.salbaruud) {
-            var butsaakhSalbaruud = [];
-            butsaakhSalbaruud.push({
-              salbariinId: baiguullaga?.barilguud?.[0]?._id,
-              duusakhOgnoo: khariu.duusakhOgnoo,
-            });
-
-            for await (const salbar of khariu.salbaruud) {
-              var tukhainSalbar = baiguullaga?.barilguud?.find((x) => {
-                return (
-                  !!x.licenseRegister && x.licenseRegister == salbar.register
-                );
-              });
-              if (!!tukhainSalbar) {
-                butsaakhSalbaruud.push({
-                  salbariinId: tukhainSalbar._id,
-                  duusakhOgnoo: salbar.license?.duusakhOgnoo,
-                });
-              }
-            }
-            butsaakhObject.salbaruud = butsaakhSalbaruud;
-          }
-
-          const jwt = await orshinSuugch.tokenUusgeye(
-            khariu.duusakhOgnoo,
-            butsaakhObject.salbaruud
-          );
-
-          butsaakhObject.duusakhOgnoo = khariu.duusakhOgnoo;
-          if (!!butsaakhObject.result) {
-            butsaakhObject.result = JSON.parse(
-              JSON.stringify(butsaakhObject.result)
-            );
-            butsaakhObject.result.salbaruud = butsaakhObject.salbaruud;
-            butsaakhObject.result.duusakhOgnoo = khariu.duusakhOgnoo;
-          }
-          butsaakhObject.token = jwt;
-          if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
-            butsaakhObject.result.zogsoolNer =
-              baiguullaga?.tokhirgoo?.zogsoolNer;
-          else butsaakhObject.result.zogsoolNer = baiguullaga.ner;
-
-          var source = req.headers["user-agent"];
-          var ua = useragent.parse(source);
-          var tuukh = new NevtreltiinTuukh(db.erunkhiiKholbolt)();
-          tuukh.ajiltniiId = orshinSuugch._id;
-          tuukh.ajiltniiNer = orshinSuugch.ner;
-          tuukh.ognoo = new Date();
-          tuukh.uildliinSystem = ua.os;
-          tuukh.ip = req.headers["x-real-ip"];
-          if (tuukh.ip && tuukh.ip.substr(0, 7) == "::ffff:") {
-            tuukh.ip = tuukh.ip.substr(7);
-          }
-          ua = Object.keys(ua).reduce(function (r, e) {
-            if (ua[e]) r[e] = ua[e];
-            return r;
-          }, {});
-          tuukh.browser = ua.browser;
-          tuukh.useragent = ua;
-          tuukh.baiguullagiinId = orshinSuugch.baiguullagiinId;
-          tuukh.baiguullagiinRegister = baiguullaga.register;
-          await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
-          res.status(200).json(butsaakhObject);
-        } else throw new Error(khariu.msg);
-      } catch (err) {
-        next(err);
-      }
-    },
-    next
-  );
 });
 
 exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
@@ -609,7 +533,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
     const tokenObject = jwt.verify(token, process.env.APP_SECRET, 401);
     if (tokenObject.id == "zochin")
       next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
-    OrshinSuugch(db.erunkhiiKholbolt)
+    OrshinSuugch(req.body.tukhainBaaziinKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
         var urdunJson = urDun.toJSON();
