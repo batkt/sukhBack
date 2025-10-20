@@ -535,23 +535,17 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
       next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
     
     // Find the correct database connection based on baiguullagiinId from token
-    console.log("Token object:", tokenObject);
-    console.log("Available connections:", db.kholboltuud.map(k => k.baiguullagiinId));
-    
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
       (kholbolt) => kholbolt.baiguullagiinId === tokenObject.baiguullagiinId
     );
 
     if (!tukhainBaaziinKholbolt) {
-      return next(new Error(`Холболтын мэдээлэл олдсонгүй! Token baiguullagiinId: ${tokenObject.baiguullagiinId}`));
+      return next(new Error("Холболтын мэдээлэл олдсонгүй!"));
     }
 
     OrshinSuugch(tukhainBaaziinKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
-        if (!urDun) {
-          return next(new Error("Хэрэглэгч олдсонгүй!"));
-        }
         var urdunJson = urDun.toJSON();
         urdunJson.duusakhOgnoo = tokenObject.duusakhOgnoo;
         urdunJson.salbaruud = tokenObject.salbaruud;
