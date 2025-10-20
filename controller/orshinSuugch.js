@@ -280,7 +280,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     success: true,
   };
   
-  const token = await khariltsagch.tokenUusgeye();
+  const token = await orshinSuugch.tokenUusgeye();
   butsaakhObject.token = token;
 
   res.status(200).json(butsaakhObject);
