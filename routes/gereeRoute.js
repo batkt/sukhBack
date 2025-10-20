@@ -3,7 +3,7 @@ const router = express.Router();
 const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const OrshinSuugch = require("../models/orshinSuugch");
-const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
+const ashiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
 
 const { crud, tokenShalgakh, Dugaarlalt, UstsanBarimt } = require("zevbackv2");
 const multer = require("multer");
@@ -29,7 +29,7 @@ router
   .route("/gereeniiExcelTatya")
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiExcelTatya);
 
-crud(router, "ashiglaltiinZardluud", AshiglaltiinZardluud, UstsanBarimt);
+crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
 
 crud(
   router,
