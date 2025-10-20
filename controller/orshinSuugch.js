@@ -133,22 +133,23 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      $or: [{ utas: req.body.utas }, { register: req.body.register }],
+      $or: [{ utas: req.body.utas }, { register: req.body.register }, {mail : req.body.mail}],
     });
 
     if (existingUser) {
-      throw new aldaa("Утасны дугаар эсвэл регистр давхардаж байна!");
+      throw new aldaa("Утасны дугаар эсвэл регистр, мэйл давхардаж байна!");
     }
 
     const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)({
       ...req.body,
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
+      mail : req.body.mail,
       erkh: "OrshinSuugch",
       duureg: req.body.duureg,
       horoo: req.body.horoo,
       soh: req.body.soh,
-      nevtrekhNer: req.body.utas, // Set nevtrekhNer to phone number
+      nevtrekhNer: req.body.utas, 
     });
 
     await orshinSuugch.save();
@@ -268,7 +269,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
     var msgIlgeekhDugaar = "72002002";
 
-    const { baiguullagiinId, utas, duureg, horoo, soh } = req.body;
+    const { baiguullagiinId, utas } = req.body;
 
     if (!baiguullagiinId || !utas) {
       return res.status(400).json({
