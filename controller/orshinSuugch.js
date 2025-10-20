@@ -277,6 +277,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     result: orshinSuugch,
     success: true,
   };
+
+  res.json(butsaakhObject);
 });
 
 exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
