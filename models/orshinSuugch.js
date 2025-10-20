@@ -13,6 +13,7 @@ const orshinSuugchSchema = new Schema(
     utas: String,
     mail: String,
     tuluv : String,
+    davkhar : String,
     nuutsUg: {
       type: String,
       select: false,
@@ -95,7 +96,6 @@ orshinSuugchSchema.methods.zochinTokenUusgye = function (
 orshinSuugchSchema.pre("save", async function () {
   this.indexTalbar = this.register + this.nevtrekhNer;
   
-  // Only hash password if it exists and is not already hashed
   if (this.nuutsUg && !this.nuutsUg.startsWith('$2b$')) {
     const salt = await bcrypt.genSalt(12);
     this.nuutsUg = await bcrypt.hash(this.nuutsUg, salt);
@@ -105,7 +105,6 @@ orshinSuugchSchema.pre("save", async function () {
 orshinSuugchSchema.pre("updateOne", async function () {
   this.indexTalbar = this._update.register + this._update.nevtrekhNer;
   
-  // Only hash password if it exists and is not already hashed
   if (this._update.nuutsUg && !this._update.nuutsUg.startsWith('$2b$')) {
     const salt = await bcrypt.genSalt(12);
     this._update.nuutsUg = await bcrypt.hash(this._update.nuutsUg, salt);
