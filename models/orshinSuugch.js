@@ -12,6 +12,7 @@ const orshinSuugchSchema = new Schema(
     ovog: String,
     utas: String,
     mail: String,
+    tuluv : String,
     nuutsUg: {
       type: String,
       select: false,
@@ -52,7 +53,7 @@ orshinSuugchSchema.methods.tokenUusgeye = function (
     process.env.APP_SECRET,
     {
       expiresIn:
-        this.baiguullagiinId == "68e4e2bff3ff09acb5705a93" ? "7d" : "12h",
+        this.baiguullagiinId == "68e4e2bff3ff09acb5705a93" ? "7d" : "10m",
     }
   );
   return token;
