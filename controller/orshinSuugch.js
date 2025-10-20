@@ -546,11 +546,15 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
       return next(new Error(`Холболтын мэдээлэл олдсонгүй! Token baiguullagiinId: ${tokenObject.baiguullagiinId}`));
     }
 
+    console.log("Looking for user ID:", tokenObject.id);
+    console.log("Using connection:", tukhainBaaziinKholbolt.baiguullagiinId);
+    
     OrshinSuugch(tukhainBaaziinKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
+        console.log("Query result:", urDun);
         if (!urDun) {
-          return next(new Error("Хэрэглэгч олдсонгүй!"));
+          return next(new Error(`Хэрэглэгч олдсонгүй! ID: ${tokenObject.id}, Connection: ${tukhainBaaziinKholbolt.baiguullagiinId}`));
         }
         var urdunJson = urDun.toJSON();
         urdunJson.duusakhOgnoo = tokenObject.duusakhOgnoo;
@@ -558,6 +562,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
         res.send(urdunJson);
       })
       .catch((err) => {
+        console.log("Database error:", err);
         next(err);
       });
   } catch (error) {
