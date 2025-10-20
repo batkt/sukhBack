@@ -101,128 +101,106 @@ crud(
   gereeZasakhShalguur
 );
 
-router.get("/gereeAvya", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === req.params.baiguullagiinId
-    );
-
-    if (!tukhainBaaziinKholbolt) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй!" });
+router
+  .route("/gereeTsutslaya")
+  .post(tokenShalgakh, gereeTsutslakhShalguur, async (req, res, next) => {
+    try {
+      var geree = await Geree(req.body.tukhainBaaziinKholbolt, true)
+        .findById(req.body.gereeniiId)
+        .select({
+          gereeniiTuukhuud: 1,
+          duusakhOgnoo: 1,
+        });
+      var tuukh = {
+        umnukhDuusakhOgnoo: geree.duusakhOgnoo,
+        tsutslasanShaltgaan: req.body.shaltgaan,
+        khiisenOgnoo: new Date(),
+        turul: "Tsutslakh",
+        ajiltniiNer: req.body.nevtersenAjiltniiToken.ner,
+        ajiltniiId: req.body.nevtersenAjiltniiToken.id,
+      };
+      var avlagaMatch = req.body.udruurBodokhEsekh
+        ? {
+            ognoo: {
+              $gte: new Date(moment(req.body.tsutslakhOgnoo).startOf("month")),
+            },
+            tulsunDun: { $exists: false },
+          }
+        : { ognoo: { $gt: new Date() } };
+      if (geree.gereeniiTuukhuud) {
+        Geree(req.body.tukhainBaaziinKholbolt)
+          .findOneAndUpdate(
+            { _id: req.body.gereeniiId },
+            {
+              $push: {
+                [`gereeniiTuukhuud`]: tuukh,
+              },
+              $set: {
+                tsutsalsanOgnoo: new Date(),
+                tuluv: -1,
+              },
+              $pull: { "avlaga.guilgeenuud": avlagaMatch },
+            }
+          )
+          .then((result) => {
+            talbaiKhariltsagchiinTuluvUurchluy(
+              [geree._id],
+              req.body.tukhainBaaziinKholbolt
+            );
+            res.send("Amjilttai");
+          })
+          .catch((err) => {
+            next(err);
+          });
+      } else {
+        tuukh = [tuukh];
+        Geree(req.body.tukhainBaaziinKholbolt)
+          .findOneAndUpdate(
+            { _id: req.body.gereeniiId },
+            {
+              $set: {
+                gereeniiTuukhuud: tuukh,
+                tsutsalsanOgnoo: new Date(),
+                tuluv: -1,
+              },
+              $pull: { "avlaga.guilgeenuud": avlagaMatch },
+            }
+          )
+          .then((result) => {
+            talbaiKhariltsagchiinTuluvUurchluy(
+              [geree._id],
+              req.body.tukhainBaaziinKholbolt
+            );
+            res.send("Amjilttai");
+          })
+          .catch((err) => {
+            next(err);
+          });
+      }
+      if (
+        req.body.udruurBodokhEsekh &&
+        req.body.suuliinSariinAvlaguud &&
+        req.body.suuliinSariinAvlaguud?.length > 0
+      ) {
+        var suuliinSariinAvlaguud = req.body.suuliinSariinAvlaguud;
+        for (const savlaga of suuliinSariinAvlaguud)
+          savlaga.tailbar = req.body.shaltgaan;
+        Geree(req.body.tukhainBaaziinKholbolt)
+          .findOneAndUpdate(
+            { _id: req.body.gereeniiId },
+            {
+              $push: { "avlaga.guilgeenuud": suuliinSariinAvlaguud },
+            }
+          )
+          .then((result) => {})
+          .catch((err) => {
+            next(err);
+          });
+      }
+    } catch (error) {
+      next(error);
     }
-
-    const contracts = await Geree(tukhainBaaziinKholbolt).find({
-      baiguullagiinId: req.params.baiguullagiinId,
-    });
-
-    res.json({
-      success: true,
-      data: contracts,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post("/gereeUusgey", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
-    );
-
-    if (!tukhainBaaziinKholbolt) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй!" });
-    }
-
-    const contract = new Geree(tukhainBaaziinKholbolt)(req.body);
-    await contract.save();
-
-    res.status(201).json({
-      success: true,
-      message: "Гэрээ амжилттай үүсгэгдлээ",
-      data: contract,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.put("/gereeZasya", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
-    );
-
-    if (!tukhainBaaziinKholbolt) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй!" });
-    }
-
-    const contract = await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-
-    if (!contract) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Гэрээ олдсонгүй!" });
-    }
-
-    res.json({
-      success: true,
-      message: "Гэрээ амжилттай засагдлаа",
-      data: contract,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.delete("/gereeUstgaya", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
-    );
-
-    if (!tukhainBaaziinKholbolt) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй!" });
-    }
-
-    const contract = await Geree(tukhainBaaziinKholbolt).findByIdAndDelete(
-      req.params.id
-    );
-
-    if (!contract) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Гэрээ олдсонгүй!" });
-    }
-
-    res.json({
-      success: true,
-      message: "Гэрээ амжилттай устгагдлаа",
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+  });
 
 router.route("/gereeKhadgalya").post(tokenShalgakh, async (req, res, next) => {
   const { db } = require("zevbackv2");
