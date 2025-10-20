@@ -241,6 +241,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         tukhainBaaziinKholbolt = kholbolt;
         break;
       }
+
+
     } catch (err) {
       continue;
     }
@@ -277,8 +279,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     result: orshinSuugch,
     success: true,
   };
+  
+  const token = await khariltsagch.tokenUusgeye();
+  butsaakhObject.token = token;
 
-  res.json(butsaakhObject);
+  res.status(200).json(butsaakhObject);
 });
 
 exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
