@@ -546,38 +546,18 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
       return next(new Error(`Холболтын мэдээлэл олдсонгүй! Token baiguullagiinId: ${tokenObject.baiguullagiinId}`));
     }
 
-    console.log("Looking for user ID:", tokenObject.id);
-    console.log("Using connection:", tukhainBaaziinKholbolt.baiguullagiinId);
-    
-    // First try to find in orshinSuugch collection
     OrshinSuugch(tukhainBaaziinKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
-        console.log("OrshinSuugch query result:", urDun);
-        if (urDun) {
-          var urdunJson = urDun.toJSON();
-          urdunJson.duusakhOgnoo = tokenObject.duusakhOgnoo;
-          urdunJson.salbaruud = tokenObject.salbaruud;
-          return res.send(urdunJson);
-        }
-        
-        // If not found in orshinSuugch, try ajiltan collection
-        console.log("Not found in orshinSuugch, trying ajiltan...");
-        const Ajiltan = require("../models/ajiltan");
-        return Ajiltan(db.erunkhiiKholbolt).findById(tokenObject.id);
-      })
-      .then((urDun) => {
         if (!urDun) {
-          return next(new Error(`Хэрэглэгч олдсонгүй! ID: ${tokenObject.id}`));
+          return next(new Error("Хэрэглэгч олдсонгүй!"));
         }
-        console.log("Ajiltan query result:", urDun);
         var urdunJson = urDun.toJSON();
         urdunJson.duusakhOgnoo = tokenObject.duusakhOgnoo;
         urdunJson.salbaruud = tokenObject.salbaruud;
         res.send(urdunJson);
       })
       .catch((err) => {
-        console.log("Database error:", err);
         next(err);
       });
   } catch (error) {
