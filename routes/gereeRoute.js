@@ -4,13 +4,16 @@ const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const OrshinSuugch = require("../models/orshinSuugch");
 const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
-const UilchilgeeniiZardluud = require("../models/uilchilgeeniiZardluud");
-
-
 
 const { crud, tokenShalgakh, Dugaarlalt, UstsanBarimt } = require("zevbackv2");
 const multer = require("multer");
-const { gereeZasakhShalguur } = require("../components/shalguur");
+const {
+  gereeZasakhShalguur,
+  gereeSungakhShalguur,
+  gereeSergeekhShalguur,
+  gereeTsutslakhShalguur,
+  guilgeeUstgakhShalguur,
+} = require("../components/shalguur");
 const {
   gereeniiExcelAvya,
   gereeniiExcelTatya,
@@ -27,7 +30,6 @@ router
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiExcelTatya);
 
 crud(router, "ashiglaltiinZardluud", AshiglaltiinZardluud, UstsanBarimt);
-crud(router, "uilchilgeeniiZardluud", UilchilgeeniiZardluud, UstsanBarimt);
 
 crud(
   router,
@@ -378,6 +380,32 @@ router
           var chadalDun = 0;
           var tsekhDun = 0;
           var sekhDemjikhTulburDun = 0;
+          if (baiguullaga?.tokhirgoo?.guidelBuchiltKhonogEsekh) {
+            tsakhilgaanKBTST =
+              zoruuDun *
+              (ashiglaltiinZardal.tsakhilgaanUrjver || 1) *
+              (tukhainZardal.guidliinKoep || 1);
+            chadalDun =
+              baiguullaga?.tokhirgoo?.bichiltKhonog > 0 && tsakhilgaanKBTST > 0
+                ? (tsakhilgaanKBTST /
+                    baiguullaga?.tokhirgoo?.bichiltKhonog /
+                    12) *
+                  (req.body.baiguullagiinId === "679aea9032299b7ba8462a77"
+                    ? 11520
+                    : 15500)
+                : 0;
+            tsekhDun = ashiglaltiinZardal.tariff * tsakhilgaanKBTST;
+            if (baiguullaga?.tokhirgoo?.sekhDemjikhTulburAvakhEsekh) {
+              // URANGAN iknayd
+              sekhDemjikhTulburDun =
+                zoruuDun * (ashiglaltiinZardal.tsakhilgaanUrjver || 1) * 23.79;
+              tsakhilgaanDun = chadalDun + tsekhDun + sekhDemjikhTulburDun;
+            } else tsakhilgaanDun = chadalDun + tsekhDun;
+          } else
+            tsakhilgaanDun =
+              ashiglaltiinZardal.tariff *
+              (ashiglaltiinZardal.tsakhilgaanUrjver || 1) *
+              (zoruuDun || 0);
           var tempDun =
             (ashiglaltiinZardal.ner?.includes("Хүйтэн ус") ||
               ashiglaltiinZardal.ner?.includes("Халуун ус")) &&
