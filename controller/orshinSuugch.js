@@ -36,7 +36,6 @@ async function verifyCodeHelper(baiguullagiinId, utas, code) {
     };
   }
 
-  // Verify code against database
   const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
   const verificationResult = await BatalgaajuulahCodeModel.verifyCode(
     utas,
@@ -69,30 +68,30 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
   );
 }
 
-async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
-  var ipTuukh = await IpTuukh(tukhainBaaziinKholbolt).findOne({ ip: tuukh.ip });
-  if (ipTuukh) {
-    tuukh.bairshilUls = ipTuukh.bairshilUls;
-    tuukh.bairshilKhot = ipTuukh.bairshilKhot;
-  } else if (tuukh.ip) {
-    try {
-      var axiosKhariu = await axios.get(
-        "https://api.ipgeolocation.io/ipgeo?apiKey=8ee349f1c7304c379fdb6b855d1e9df4&ip=" +
-          tuukh.ip.toString()
-      );
-      ipTuukh = new IpTuukh(tukhainBaaziinKholbolt)();
-      ipTuukh.ognoo = new Date();
-      ipTuukh.medeelel = axiosKhariu.data;
-      ipTuukh.bairshilUls = axiosKhariu.data.country_name;
-      ipTuukh.bairshilKhot = axiosKhariu.data.city;
-      ipTuukh.ip = tuukh.ip;
-      tuukh.bairshilUls = ipTuukh.bairshilUls;
-      tuukh.bairshilKhot = ipTuukh.bairshilKhot;
-      await ipTuukh.save();
-    } catch (err) {}
-  }
-  await tuukh.save();
-}
+// async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
+//   var ipTuukh = await IpTuukh(tukhainBaaziinKholbolt).findOne({ ip: tuukh.ip });
+//   if (ipTuukh) {
+//     tuukh.bairshilUls = ipTuukh.bairshilUls;
+//     tuukh.bairshilKhot = ipTuukh.bairshilKhot;
+//   } else if (tuukh.ip) {
+//     try {
+//       var axiosKhariu = await axios.get(
+//         "https://api.ipgeolocation.io/ipgeo?apiKey=8ee349f1c7304c379fdb6b855d1e9df4&ip=" +
+//           tuukh.ip.toString()
+//       );
+//       ipTuukh = new IpTuukh(tukhainBaaziinKholbolt)();
+//       ipTuukh.ognoo = new Date();
+//       ipTuukh.medeelel = axiosKhariu.data;
+//       ipTuukh.bairshilUls = axiosKhariu.data.country_name;
+//       ipTuukh.bairshilKhot = axiosKhariu.data.city;
+//       ipTuukh.ip = tuukh.ip;
+//       tuukh.bairshilUls = ipTuukh.bairshilUls;
+//       tuukh.bairshilKhot = ipTuukh.bairshilKhot;
+//       await ipTuukh.save();
+//     } catch (err) {}
+//   }
+//   await tuukh.save();
+// }
 
 exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
@@ -133,15 +132,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
-    );
-
-    if (!tukhainBaaziinKholbolt) {
-      throw new aldaa("Холболтын мэдээлэл олдсонгүй!");
-    }
-
-    const existingUser = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
+    const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [{ utas: req.body.utas }, { register: req.body.register }],
     });
 
@@ -149,7 +140,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Утасны дугаар эсвэл регистр давхардаж байна!");
     }
 
-    const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
+    const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)({
       ...req.body,
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
@@ -183,11 +174,8 @@ exports.davhardsanOrshinSuugchShalgayy = asyncHandler(async (req, res, next) => 
     const { db } = require("zevbackv2");
     const { utas, register, baiguullagiinId } = req.body;
 
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId
-    );
-
-    const existingUser = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
+    
+    const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       baiguullagiinId: baiguullagiinId,
       $or: [{ utas: utas }, { register: register }]
     });
@@ -222,68 +210,56 @@ exports.davhardsanOrshinSuugchShalgayy = asyncHandler(async (req, res, next) => 
 
 
 exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
-  const io = req.app.get("socketio");
-  const { db } = require("zevbackv2");
+  try {
+    const io = req.app.get("socketio");
+    const { db } = require("zevbackv2");
 
-  let orshinSuugch = null;
-  let tukhainBaaziinKholbolt = null;
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+      .findOne({ utas: req.body.utas })
+      .select("+nuutsUg")
+      .catch((err) => {
+        next(err);
+      });
 
-  for (const kholbolt of db.kholboltuud) {
-    try {
-      const customer = await OrshinSuugch(kholbolt)
-        .findOne()
-        .select("+nuutsUg")
-        .where("utas")
-        .equals(req.body.utas);
+    if (!orshinSuugch)
+      throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
 
-      if (customer) {
-        orshinSuugch = customer;
-        tukhainBaaziinKholbolt = kholbolt;
-        break;
+    var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
+    if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
+
+    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      orshinSuugch.baiguullagiinId
+    );
+
+    if (orshinSuugch.duureg && orshinSuugch.horoo && orshinSuugch.soh) {
+      const matchingBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+        $and: [
+          { "tokhirgoo.duuregNer": orshinSuugch.duureg },
+          { "tokhirgoo.districtCode": orshinSuugch.horoo },
+          { "tokhirgoo.sohCode": orshinSuugch.soh },
+        ],
+      });
+
+      if (matchingBaiguullaga) {
+        orshinSuugch.baiguullagiinId = matchingBaiguullaga._id;
+        orshinSuugch.baiguullagiinNer = matchingBaiguullaga.ner;
+        await orshinSuugch.save();
+        baiguullaga = matchingBaiguullaga;
       }
-
-
-    } catch (err) {
-      continue;
     }
+
+    var butsaakhObject = {
+      result: orshinSuugch,
+      success: true,
+    };
+    
+    const token = await orshinSuugch.tokenUusgeye();
+    butsaakhObject.token = token;
+
+    res.status(200).json(butsaakhObject);
+  } catch (err) {
+    next(err);
   }
-
-  if (!orshinSuugch)
-    throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
-
-  var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
-  if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
-
-  var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-    orshinSuugch.baiguullagiinId
-  );
-
-  if (orshinSuugch.duureg && orshinSuugch.horoo && orshinSuugch.soh) {
-    const matchingBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
-      $and: [
-        { "tokhirgoo.duuregNer": orshinSuugch.duureg },
-        { "tokhirgoo.districtCode": orshinSuugch.horoo },
-        { "tokhirgoo.sohCode": orshinSuugch.soh },
-      ],
-    });
-
-    if (matchingBaiguullaga) {
-      orshinSuugch.baiguullagiinId = matchingBaiguullaga._id;
-      orshinSuugch.baiguullagiinNer = matchingBaiguullaga.ner;
-      await orshinSuugch.save();
-      baiguullaga = matchingBaiguullaga;
-    }
-  }
-
-  var butsaakhObject = {
-    result: orshinSuugch,
-    success: true,
-  };
-  
-  const token = await orshinSuugch.tokenUusgeye();
-  butsaakhObject.token = token;
-
-  res.status(200).json(butsaakhObject);
 });
 
 exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
@@ -385,25 +361,11 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    let orshinSuugch = null;
-    let tukhainBaaziinKholbolt = null;
-
-    for (const kholbolt of db.kholboltuud) {
-      try {
-        const customer = await OrshinSuugch(kholbolt)
-          .findOne()
-          .where("utas")
-          .equals(utas);
-
-        if (customer) {
-          orshinSuugch = customer;
-          tukhainBaaziinKholbolt = kholbolt;
-          break;
-        }
-      } catch (err) {
-        continue;
-      }
-    }
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+      .findOne({ utas: utas })
+      .catch((err) => {
+        next(err);
+      });
 
     if (!orshinSuugch) {
       return res.status(404).json({
@@ -438,32 +400,12 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     }
 
     // Find user first to get baiguullagiinId
-    let orshinSuugch = null;
-    let tukhainBaaziinKholbolt = null;
-
-    for (const kholbolt of db.kholboltuud) {
-      try {
-        console.log("Checking connection:", kholbolt.baiguullagiinId);
-        const customer = await OrshinSuugch(kholbolt)
-          .findOne()
-          .where("utas")
-          .equals(utas);
-
-        if (customer) {
-          console.log("User found in connection:", kholbolt.baiguullagiinId);
-          orshinSuugch = customer;
-          tukhainBaaziinKholbolt = kholbolt;
-          break;
-        }
-      } catch (err) {
-        console.log(
-          "Error checking connection:",
-          kholbolt.baiguullagiinId,
-          err.message
-        );
-        continue;
-      }
-    }
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+      .findOne({ utas: utas })
+      .catch((err) => {
+        console.log("Error finding user:", err.message);
+        next(err);
+      });
 
     if (!orshinSuugch) {
       return res.status(404).json({
@@ -502,7 +444,7 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     orshinSuugch.nuutsUg = shineNuutsUg;
     await orshinSuugch.save();
 
-    const updatedUser = await OrshinSuugch(tukhainBaaziinKholbolt)
+    const updatedUser = await OrshinSuugch(db.erunkhiiKholbolt)
       .findById(orshinSuugch._id)
       .select("+nuutsUg");
 
@@ -540,7 +482,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
     const tokenObject = jwt.verify(token, process.env.APP_SECRET, 401);
     if (tokenObject.id == "zochin")
       next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
-    OrshinSuugch(req.body.tukhainBaaziinKholbolt)
+    OrshinSuugch(db.erunkhiiKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
         var urdunJson = urDun.toJSON();
