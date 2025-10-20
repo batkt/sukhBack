@@ -80,14 +80,14 @@ router.get("/ustsanBarimt", tokenShalgakh, async (req, res, next) => {
       body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
     if (!!body?.khuudasniiKhemjee)
       body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
-    let jagsaalt = await UstsanBarimt(db.erunkhiiKholbolt)
+    let jagsaalt = await UstsanBarimt(req.body.tukhainBaaziinKholbolt)
       .find(body.query)
       .sort(body.order)
       .collation(body.collation ? body.collation : {})
       .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
       .limit(body.khuudasniiKhemjee);
     let niitMur = await UstsanBarimt(
-      req.body.erunkhiiKholbolt
+      req.body.tukhainBaaziinKholbolt
     ).countDocuments(body.query);
     let niitKhuudas =
       niitMur % khuudasniiKhemjee == 0
