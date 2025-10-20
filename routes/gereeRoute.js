@@ -27,7 +27,6 @@ router
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiExcelTatya);
 
 crud(router, "ashiglaltiinZardluud", AshiglaltiinZardluud, UstsanBarimt);
-crud(router, "uilchilgeeniiZardluud", UilchilgeeniiZardluud, UstsanBarimt);
 
 crud(
   router,
