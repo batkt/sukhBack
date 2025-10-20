@@ -192,9 +192,27 @@ exports.davhardsanOrshinSuugchShalgayy = asyncHandler(async (req, res, next) => 
       $or: [{ utas: utas }, { register: register }]
     });
 
+    if (existingUser) {
+      let message = "";
+      if (utas && existingUser.utas === utas) {
+        message = "Утасны дугаар давхардаж байна!";
+      }
+      if (register && existingUser.register === register) {
+        message = "Регистр давхардаж байна!";
+      }
+      if (utas && register && existingUser.utas === utas && existingUser.register === register) {
+        message = "Утасны дугаар болон регистр давхардаж байна!";
+      }
+
+      return res.json({
+        success: false,
+        message: message
+      });
+    }
+
     res.json({
-      success: !existingUser,
-      message: existingUser ? "Давхардаж байна!" : "Ашиглах боломжтой"
+      success: true,
+      message: "Ашиглах боломжтой"
     });
 
   } catch (error) {
