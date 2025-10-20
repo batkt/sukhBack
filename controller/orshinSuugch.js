@@ -533,17 +533,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
     const tokenObject = jwt.verify(token, process.env.APP_SECRET, 401);
     if (tokenObject.id == "zochin")
       next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
-    
-    // Find the correct database connection based on baiguullagiinId from token
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === tokenObject.baiguullagiinId
-    );
-
-    if (!tukhainBaaziinKholbolt) {
-      return next(new Error("Холболтын мэдээлэл олдсонгүй!"));
-    }
-
-    OrshinSuugch(tukhainBaaziinKholbolt)
+    OrshinSuugch(db.erunkhiiKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
         var urdunJson = urDun.toJSON();
