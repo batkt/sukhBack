@@ -19,7 +19,7 @@
     "express-useragent": "^1.0.15",
     "redis": "^5.5.6",
     "sharp": "^0.30.7",
-    "zevbackv2": "^1.1.50",
+    "zevbackv2": "^1.1.52",
     "zuragpack": "^1.0.17"
   }
 }
