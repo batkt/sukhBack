@@ -113,9 +113,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
     }
 
-    if (!req.body.utas) {
-      throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
-    }
+    // if (!req.body.utas) {
+    //   throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
+    // }
 
     if (!req.body.nuutsUg) {
       throw new aldaa("Нууц үг заавал бөглөх шаардлагатай!");
