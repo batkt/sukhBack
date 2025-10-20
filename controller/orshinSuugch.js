@@ -113,9 +113,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
     }
 
-    // if (!req.body.utas) {
-    //   throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
-    // }
+    if (!req.body.utas) {
+      throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
+    }
 
     if (!req.body.nuutsUg) {
       throw new aldaa("Нууц үг заавал бөглөх шаардлагатай!");
@@ -177,6 +177,31 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     next(error);
   }
 });
+
+exports.davhardsanOrshinSuugchShalgayy = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { utas, register, baiguullagiinId } = req.body;
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId
+    );
+
+    const existingUser = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
+      baiguullagiinId: baiguullagiinId,
+      $or: [{ utas: utas }, { register: register }]
+    });
+
+    res.json({
+      success: !existingUser,
+      message: existingUser ? "Давхардаж байна!" : "Ашиглах боломжтой"
+    });
+
+  } catch (error) {
+    next(error);
+  }
+});
+
 
 exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   const io = req.app.get("socketio");

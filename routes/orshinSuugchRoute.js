@@ -22,6 +22,7 @@ const {
   dugaarBatalgaajuulakh,
   orshinSuugchBatalgaajuulya,
   nuutsUgSergeeye,
+  davhardsanOrshinSuugchShalgayy,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
@@ -43,6 +44,7 @@ router
 
 router.post("/orshinSuugchBatalgaajuulya", orshinSuugchBatalgaajuulya);
 router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
+router.post("/davhardsanOrshinSuugchShalgayy", davhardsanOrshinSuugchShalgayy);
 
 router.get("/orshinSuugchiiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   const fileName = req.params.ner;
