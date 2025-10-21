@@ -154,10 +154,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     await orshinSuugch.save();
 
     try {
-      const geree = new Geree(db.erunkhiiKholbolt)({
-        gereeniiDugaar: `GEE-${Date.now()}`,
+      const geree = new Geree(req.body.tukhainBaaziinKholbolt)({
+        gereeniiDugaar: `ГД-${Date.now()}`,
         gereeniiOgnoo: new Date(),
-        turul: "OrshinSuugch", 
+        turul: "Үндсэн", 
         ovog: req.body.ovog || "",
         ner: req.body.ner,
         register: req.body.register || "",
@@ -165,11 +165,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         mail: req.body.mail || "",
         baiguullagiinId: baiguullaga._id,
         baiguullagiinNer: baiguullaga.ner,
-        ekhlekhOgnoo: new Date(),
-        duusakhOgnoo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
         tulukhOgnoo: new Date(),
         ashiglaltiinZardal: 0,
         niitTulbur: 0,
+        toot : 0,
         bairNer: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
         burtgesenAjiltan: orshinSuugch._id,
         temdeglel: "Автоматаар үүссэн гэрээ",
