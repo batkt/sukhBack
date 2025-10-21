@@ -153,20 +153,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
-    console.log("=== ORSHINSUUGCH BURTGEY START ===");
-    console.log("Request body:", JSON.stringify(req.body, null, 2));
-    console.log("Timestamp:", new Date().toISOString());
-
-    // Validation logs
-    console.log("=== VALIDATION CHECKS ===");
-    console.log("duureg:", req.body.duureg);
-    console.log("horoo:", req.body.horoo);
-    console.log("soh:", req.body.soh);
-    console.log("baiguullagiinId:", req.body.baiguullagiinId);
-    console.log("utas:", req.body.utas);
-    console.log("register:", req.body.register);
-    console.log("mail:", req.body.mail);
-    console.log("ner:", req.body.ner);
+    console.log(
+      "orshinSuugchBurtgey request body:",
+      JSON.stringify(req.body, null, 2)
+    );
 
     if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
       console.log("❌ VALIDATION FAILED: Missing location data");
@@ -179,7 +169,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     if (!req.body.utas) {
-      console.log("❌ VALIDATION FAILED: Missing utas");
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
     }
 
@@ -216,18 +205,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     console.log("=== CHECKING FOR EXISTING USER ===");
     console.log("Searching for existing user with:");
     console.log("  - utas:", req.body.utas);
-    console.log("  - register:", req.body.register);
     console.log("  - mail:", req.body.mail);
 
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      $or: [{ utas: req.body.utas }, { register: req.body.register }, {mail : req.body.mail}],
+      $or: [{ utas: req.body.utas },  {mail : req.body.mail}],
     });
 
     if (existingUser) {
       console.log("❌ USER ALREADY EXISTS:");
       console.log("  - ID:", existingUser._id);
       console.log("  - utas:", existingUser.utas);
-      console.log("  - register:", existingUser.register);
       console.log("  - mail:", existingUser.mail);
       throw new aldaa("Утасны дугаар эсвэл регистр, мэйл давхардаж байна!");
     }
@@ -287,7 +274,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         turul: "Үндсэн", 
         ovog: req.body.ovog || "",
         ner: req.body.ner,
-        register: req.body.register || "",
         utas: [req.body.utas],
         mail: req.body.mail || "",
         baiguullagiinId: baiguullaga._id,
@@ -353,12 +339,12 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 exports.davhardsanOrshinSuugchShalgayy = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const { utas, register, baiguullagiinId } = req.body;
+    const { utas,  baiguullagiinId } = req.body;
 
     
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       baiguullagiinId: baiguullagiinId,
-      $or: [{ utas: utas }, { register: register }]
+      $or: [{ utas: utas }]
     });
 
     if (existingUser) {
@@ -366,10 +352,8 @@ exports.davhardsanOrshinSuugchShalgayy = asyncHandler(async (req, res, next) => 
       if (utas && existingUser.utas === utas) {
         message = "Утасны дугаар давхардаж байна!";
       }
-      if (register && existingUser.register === register) {
-        message = "Регистр давхардаж байна!";
-      }
-      if (utas && register && existingUser.utas === utas && existingUser.register === register) {
+      
+      if (utas  && existingUser.utas === utas ) {
         message = "Утасны дугаар болон регистр давхардаж байна!";
       }
 
