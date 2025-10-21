@@ -20,6 +20,7 @@ const ashiglaltiinZardluudSchema = new Schema(
     suuriKhuraamj: Number,
     nuatNemekhEsekh: Boolean,
     togtmolUtga: Number,
+    choloolugdsonDavkhar: String,
     dun: Number,
     ognoonuud: [Date],
     nuatBodokhEsekh: Boolean,
