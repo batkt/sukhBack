@@ -12,6 +12,7 @@ const baiguullagaSchema = new Schema(
     register: String,
     utas: [String],
     zurgiinNer: String,
+    bairniiNer: String,
     barilguud: [
       {
         bairshil: {
