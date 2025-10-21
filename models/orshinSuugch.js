@@ -15,7 +15,10 @@ const orshinSuugchSchema = new Schema(
     tuluv : String,
     davkhar : String,
     bairniiNer : String,
-    taniltsuulgaKharakhEsekh: Boolean,
+    taniltsuulgaKharakhEsekh: {
+      type: Boolean,
+      default: true, 
+    },
     nuutsUg: {
       type: String,
       select: false,
