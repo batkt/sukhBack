@@ -154,7 +154,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     await orshinSuugch.save();
 
     try {
-      const geree = new Geree(req.body.tukhainBaaziinKholbolt)({
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+      );
+
+      if (!tukhainBaaziinKholbolt) {
+        console.error("Байгууллагын холболтын мэдээлэл олдсонгүй:", baiguullaga._id);
+        throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
+      }
+
+      const geree = new Geree(tukhainBaaziinKholbolt)({
         gereeniiDugaar: `ГД-${Date.now()}`,
         gereeniiOgnoo: new Date(),
         turul: "Үндсэн", 
