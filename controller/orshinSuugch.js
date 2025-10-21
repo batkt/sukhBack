@@ -56,6 +56,61 @@ async function verifyCodeHelper(baiguullagiinId, utas, code) {
   return verificationResult;
 }
 
+// Helper function to only validate code without marking as used (for Step 2)
+async function validateCodeOnly(baiguullagiinId, utas, code) {
+  const { db } = require("zevbackv2");
+  
+  // Validate code format
+  if (code.length !== 4 || !/^\d+$/.test(code)) {
+    return {
+      success: false,
+      message: "Код буруу байна!",
+    };
+  }
+
+  // Find the correct database connection
+  const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId
+  );
+
+  if (!tukhainBaaziinKholbolt) {
+    return {
+      success: false,
+      message: "Холболтын мэдээлэл олдсонгүй!",
+    };
+  }
+
+  const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
+  
+  // Only check if code exists and is valid, don't mark as used
+  const verificationCode = await BatalgaajuulahCodeModel.findOne({
+    utas,
+    code,
+    purpose: "password_reset",
+    khereglesenEsekh: false,
+    expiresAt: { $gt: new Date() },
+  });
+
+  if (!verificationCode) {
+    return {
+      success: false,
+      message: "Хүчингүй код байна!",
+    };
+  }
+
+  if (verificationCode.oroldlogo >= verificationCode.niitOroldokhErkh) {
+    return {
+      success: false,
+      message: "Хэт их оролдлого хийгдсэн байна!",
+    };
+  }
+
+  return {
+    success: true,
+    message: "Код зөв байна",
+  };
+}
+
 function duusakhOgnooAvya(ugugdul, onFinish, next) {
   request.get(
     "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
@@ -635,7 +690,8 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
       });
     }
 
-    const verificationResult = await verifyCodeHelper(baiguullagiinId, utas, code);
+    // Use validateCodeOnly for Step 2 - don't mark code as used yet
+    const verificationResult = await validateCodeOnly(baiguullagiinId, utas, code);
 
     if (!verificationResult.success) {
       return res.status(400).json({
