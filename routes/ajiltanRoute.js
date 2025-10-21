@@ -63,8 +63,15 @@ crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
 // Custom liftShalgaya routes with proper tukhainBaaziinKholbolt
 router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
   try {
+    console.log("=== LiftShalgaya POST Debug ===");
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
+    console.log("tukhainBaaziinKholbolt:", req.body.tukhainBaaziinKholbolt ? "EXISTS" : "MISSING");
+    
     const liftShalgaya = new LiftShalgaya(req.body.tukhainBaaziinKholbolt)(req.body);
+    console.log("Created liftShalgaya object:", liftShalgaya);
+    
     await liftShalgaya.save();
+    console.log("Saved liftShalgaya:", liftShalgaya);
     
     res.status(201).json({
       success: true,
@@ -79,6 +86,9 @@ router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
 
 router.get("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
   try {
+    console.log("=== LiftShalgaya GET Debug ===");
+    console.log("tukhainBaaziinKholbolt:", req.body.tukhainBaaziinKholbolt ? "EXISTS" : "MISSING");
+    
     const { db } = require("zevbackv2");
     const {
       query = {},
@@ -97,12 +107,17 @@ router.get("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
     if (!!khuudasniiDugaar) khuudasniiDugaar = Number(khuudasniiDugaar);
     if (!!khuudasniiKhemjee) khuudasniiKhemjee = Number(khuudasniiKhemjee);
     
+    console.log("Query:", query);
+    
     let jagsaalt = await LiftShalgaya(req.body.tukhainBaaziinKholbolt)
       .find(query)
       .sort(order)
       .collation(collation ? collation : {})
       .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
       .limit(khuudasniiKhemjee);
+      
+    console.log("Found records:", jagsaalt.length);
+    console.log("Sample record:", jagsaalt[0]);
       
     let niitMur = await LiftShalgaya(req.body.tukhainBaaziinKholbolt).countDocuments(query);
     let niitKhuudas =
