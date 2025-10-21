@@ -91,7 +91,6 @@ const gereeSchema = new Schema(
     tulukhOgnoo: Date,
     tsutsalsanOgnoo: Date,
     khungulukhKhugatsaa: Number,
-    gereeniiKhugatsaa: Number,
     suhTulbur: String,
     suhTulburUsgeer: String,
     suhKhugatsaa: Number,
@@ -105,8 +104,8 @@ const gereeSchema = new Schema(
     toot: Number,
     davkhar: String,
     burtgesenAjiltan: String,
+    orshinSuugchId: String, // ID of the user who created this contract
     temdeglel: String,
-    actOgnoo: Date,
     baritsaaniiUldegdel: {
       type: Number,
       default: 0,

@@ -235,6 +235,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         toot : 0,
         bairNer: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
         burtgesenAjiltan: orshinSuugch._id,
+        orshinSuugchId: orshinSuugch._id.toString(), // Add user ID for filtering
         temdeglel: "Автоматаар үүссэн гэрээ",
         actOgnoo: new Date(),
         baritsaaniiUldegdel: 0,
