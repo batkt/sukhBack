@@ -153,48 +153,90 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
-    console.log(
-      "orshinSuugchBurtgey request body:",
-      JSON.stringify(req.body, null, 2)
-    );
+    console.log("=== ORSHINSUUGCH BURTGEY START ===");
+    console.log("Request body:", JSON.stringify(req.body, null, 2));
+    console.log("Timestamp:", new Date().toISOString());
+
+    // Validation logs
+    console.log("=== VALIDATION CHECKS ===");
+    console.log("duureg:", req.body.duureg);
+    console.log("horoo:", req.body.horoo);
+    console.log("soh:", req.body.soh);
+    console.log("baiguullagiinId:", req.body.baiguullagiinId);
+    console.log("utas:", req.body.utas);
+    console.log("register:", req.body.register);
+    console.log("mail:", req.body.mail);
+    console.log("ner:", req.body.ner);
 
     if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
+      console.log("❌ VALIDATION FAILED: Missing location data");
       throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
     }
 
     if (!req.body.baiguullagiinId) {
+      console.log("❌ VALIDATION FAILED: Missing baiguullagiinId");
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
     }
 
     if (!req.body.utas) {
+      console.log("❌ VALIDATION FAILED: Missing utas");
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
     }
 
     if (!req.body.nuutsUg) {
+      console.log("❌ VALIDATION FAILED: Missing nuutsUg");
       throw new aldaa("Нууц үг заавал бөглөх шаардлагатай!");
     }
 
     if (!req.body.ner) {
+      console.log("❌ VALIDATION FAILED: Missing ner");
       throw new aldaa("Нэр заавал бөглөх шаардлагатай!");
     }
 
+    console.log("✅ All validations passed");
+
+    // Find organization
+    console.log("=== FINDING ORGANIZATION ===");
+    console.log("Looking for baiguullaga with ID:", req.body.baiguullagiinId);
+    
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       req.body.baiguullagiinId
     );
 
     if (!baiguullaga) {
+      console.log("❌ ORGANIZATION NOT FOUND:", req.body.baiguullagiinId);
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
+
+    console.log("✅ Organization found:");
+    console.log("  - ID:", baiguullaga._id);
+    console.log("  - Name:", baiguullaga.ner);
+
+    // Check for existing user
+    console.log("=== CHECKING FOR EXISTING USER ===");
+    console.log("Searching for existing user with:");
+    console.log("  - utas:", req.body.utas);
+    console.log("  - register:", req.body.register);
+    console.log("  - mail:", req.body.mail);
 
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [{ utas: req.body.utas }, { register: req.body.register }, {mail : req.body.mail}],
     });
 
     if (existingUser) {
+      console.log("❌ USER ALREADY EXISTS:");
+      console.log("  - ID:", existingUser._id);
+      console.log("  - utas:", existingUser.utas);
+      console.log("  - register:", existingUser.register);
+      console.log("  - mail:", existingUser.mail);
       throw new aldaa("Утасны дугаар эсвэл регистр, мэйл давхардаж байна!");
     }
 
-    const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)({
+    console.log("✅ No existing user found, proceeding with registration");
+
+    // Create user
+    console.log("=== CREATING USER ===");
+    const userData = {
       ...req.body,
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
@@ -204,21 +246,42 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       horoo: req.body.horoo,
       soh: req.body.soh,
       nevtrekhNer: req.body.utas, 
-    });
+    };
 
+    console.log("User data to create:", JSON.stringify(userData, null, 2));
+
+    const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+
+    console.log("Saving user to database...");
     await orshinSuugch.save();
+    console.log("✅ User saved successfully:");
+    console.log("  - User ID:", orshinSuugch._id);
+    console.log("  - Name:", orshinSuugch.ner);
+    console.log("  - Organization ID:", orshinSuugch.baiguullagiinId);
+    console.log("  - Organization Name:", orshinSuugch.baiguullagiinNer);
 
+    // Create contract
+    console.log("=== CREATING CONTRACT ===");
     try {
+      console.log("Looking for organization connection for baiguullagiinId:", baiguullaga._id.toString());
+      console.log("Available connections:", db.kholboltuud.map(k => ({ id: k.baiguullagiinId, name: k.baiguullagiinNer })));
+      
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
         (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
       );
 
       if (!tukhainBaaziinKholbolt) {
-        console.error("Байгууллагын холболтын мэдээлэл олдсонгүй:", baiguullaga._id);
+        console.error("❌ ORGANIZATION CONNECTION NOT FOUND:");
+        console.error("  - Looking for:", baiguullaga._id.toString());
+        console.error("  - Available connections:", db.kholboltuud.map(k => k.baiguullagiinId));
         throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
       }
 
-      const geree = new Geree(tukhainBaaziinKholbolt)({
+      console.log("✅ Organization connection found:");
+      console.log("  - Connection ID:", tukhainBaaziinKholbolt.baiguullagiinId);
+      console.log("  - Connection Name:", tukhainBaaziinKholbolt.baiguullagiinNer);
+
+      const contractData = {
         gereeniiDugaar: `ГД-${Date.now()}`,
         gereeniiOgnoo: new Date(),
         turul: "Үндсэн", 
@@ -242,14 +305,28 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         zardluud: [],
         segmentuud: [],
         khungulultuud: []
-      });
+      };
 
+      console.log("Contract data to create:", JSON.stringify(contractData, null, 2));
+
+      const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+
+      console.log("Saving contract to database...");
       await geree.save();
+      console.log("✅ Contract saved successfully:");
+      console.log("  - Contract ID:", geree._id);
+      console.log("  - Contract Number:", geree.gereeniiDugaar);
+      console.log("  - User ID:", geree.orshinSuugchId);
+      console.log("  - Organization ID:", geree.baiguullagiinId);
     } catch (contractError) {
-      console.error("Error creating contract:", contractError);
+      console.error("❌ ERROR CREATING CONTRACT:");
+      console.error("  - Error:", contractError.message);
+      console.error("  - Stack:", contractError.stack);
     }
 
-    res.status(201).json({
+    // Send response
+    console.log("=== SENDING RESPONSE ===");
+    const response = {
       success: true,
       message: "Амжилттай бүртгэгдлээ",
       result: orshinSuugch,
@@ -258,9 +335,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         horoo: req.body.horoo,
         soh: req.body.soh,
       },
-    });
+    };
+
+    console.log("Response data:", JSON.stringify(response, null, 2));
+    console.log("=== ORSHINSUUGCH BURTGEY COMPLETED SUCCESSFULLY ===");
+
+    res.status(201).json(response);
   } catch (error) {
-    console.error("orshinSuugchBurtgey error:", error);
+    console.error("=== ORSHINSUUGCH BURTGEY ERROR ===");
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+    console.error("Request body that caused error:", JSON.stringify(req.body, null, 2));
     next(error);
   }
 });
