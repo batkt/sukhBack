@@ -60,6 +60,71 @@ crudWithFile(
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
 
+// Custom liftShalgaya routes with proper tukhainBaaziinKholbolt
+router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
+  try {
+    const liftShalgaya = new LiftShalgaya(req.body.tukhainBaaziinKholbolt)(req.body);
+    await liftShalgaya.save();
+    
+    res.status(201).json({
+      success: true,
+      message: "Амжилттай үүсгэгдлээ",
+      result: liftShalgaya,
+    });
+  } catch (error) {
+    console.error("LiftShalgaya create error:", error);
+    next(error);
+  }
+});
+
+router.get("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const {
+      query = {},
+      order,
+      khuudasniiDugaar = 1,
+      khuudasniiKhemjee = 10,
+      search,
+      collation = {},
+      select = {},
+    } = req.query;
+    
+    if (!!query) query = JSON.parse(query);
+    if (!!order) order = JSON.parse(order);
+    if (!!select) select = JSON.parse(select);
+    if (!!collation) collation = JSON.parse(collation);
+    if (!!khuudasniiDugaar) khuudasniiDugaar = Number(khuudasniiDugaar);
+    if (!!khuudasniiKhemjee) khuudasniiKhemjee = Number(khuudasniiKhemjee);
+    
+    let jagsaalt = await LiftShalgaya(req.body.tukhainBaaziinKholbolt)
+      .find(query)
+      .sort(order)
+      .collation(collation ? collation : {})
+      .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
+      .limit(khuudasniiKhemjee);
+      
+    let niitMur = await LiftShalgaya(req.body.tukhainBaaziinKholbolt).countDocuments(query);
+    let niitKhuudas =
+      niitMur % khuudasniiKhemjee == 0
+        ? Math.floor(niitMur / khuudasniiKhemjee)
+        : Math.floor(niitMur / khuudasniiKhemjee) + 1;
+        
+    if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
+    
+    res.json({
+      khuudasniiDugaar,
+      khuudasniiKhemjee,
+      jagsaalt,
+      niitMur,
+      niitKhuudas,
+    });
+  } catch (error) {
+    console.error("LiftShalgaya get error:", error);
+    next(error);
+  }
+});
+
 
 router.get("/sessionAvya/:sessionId", async (req, res, next) => {
   try {
