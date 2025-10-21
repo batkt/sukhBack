@@ -442,6 +442,15 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // Validate password strength
+    if (shineNuutsUg.length < 4) {
+      console.log("Password too short - request rejected");
+      return res.status(400).json({
+        success: false,
+        message: "Нууц үг хамгийн багадаа 4 тэмдэгт байх ёстой!",
+      });
+    }
+
     // Find user first to get baiguullagiinId
     const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
       .findOne({ utas: utas })
@@ -484,21 +493,38 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
 
     const oldPasswordHash = orshinSuugch.nuutsUg;
 
-    orshinSuugch.nuutsUg = shineNuutsUg;
-    await orshinSuugch.save();
+    try {
+      orshinSuugch.nuutsUg = shineNuutsUg;
+      await orshinSuugch.save();
+      console.log("Password saved successfully");
+    } catch (saveError) {
+      console.error("Error saving password:", saveError);
+      return res.status(400).json({
+        success: false,
+        message: "Нууц үг хадгалахад алдаа гарлаа!",
+      });
+    }
 
-    const updatedUser = await OrshinSuugch(db.erunkhiiKholbolt)
-      .findById(orshinSuugch._id)
-      .select("+nuutsUg");
+    try {
+      const updatedUser = await OrshinSuugch(db.erunkhiiKholbolt)
+        .findById(orshinSuugch._id)
+        .select("+nuutsUg");
 
-    console.log("Password change verification:");
-    console.log("Old hash:", oldPasswordHash);
-    console.log("New hash:", updatedUser.nuutsUg);
-    console.log(
-      "Password changed successfully:",
-      oldPasswordHash !== updatedUser.nuutsUg
-    );
-    console.log("=== End Password Reset Process ===");
+      console.log("Password change verification:");
+      console.log("Old hash:", oldPasswordHash);
+      console.log("New hash:", updatedUser.nuutsUg);
+      console.log(
+        "Password changed successfully:",
+        oldPasswordHash !== updatedUser.nuutsUg
+      );
+      console.log("=== End Password Reset Process ===");
+    } catch (fetchError) {
+      console.error("Error fetching updated user:", fetchError);
+      return res.status(400).json({
+        success: false,
+        message: "Хэрэглэгчийн мэдээлэл авахад алдаа гарлаа!",
+      });
+    }
 
     res.json({
       success: true,
@@ -609,7 +635,6 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Use helper function for verification
     const verificationResult = await verifyCodeHelper(baiguullagiinId, utas, code);
 
     if (!verificationResult.success) {
