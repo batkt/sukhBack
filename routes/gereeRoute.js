@@ -5,6 +5,7 @@ const Baiguullaga = require("../models/baiguullaga");
 const OrshinSuugch = require("../models/orshinSuugch");
 const ashiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
 const uilchilgeeniiZardluud = require("../models/uilchilgeeniiZardluud");
+const LiftShalgaya = require("../models/liftShalgaya");
 const { crud, tokenShalgakh, Dugaarlalt, UstsanBarimt } = require("zevbackv2");
 const multer = require("multer");
 const {
@@ -31,6 +32,8 @@ router
 
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
+crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
+
 
 
 crud(
@@ -273,6 +276,8 @@ router.route("/gereeKhadgalya").post(tokenShalgakh, async (req, res, next) => {
   });
   res.send("Amjilttai");
 });
+
+
 
 router
   .route("/zaaltOlnoorOruulya")

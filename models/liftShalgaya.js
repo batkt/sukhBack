@@ -10,10 +10,10 @@ const liftShalgayaSchema = new Schema(
   { timestamps: true }
 );
 
-module.exports = function a(conn, read = false) {
+module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
-  conn = read && !!conn.kholboltRead ? conn.kholboltRead : conn.kholbolt;
+  conn = conn.kholbolt;
   return conn.model("liftShalgaya", liftShalgayaSchema);
 };
 //module.exports = mongoose.model("license", licenseSchema);
