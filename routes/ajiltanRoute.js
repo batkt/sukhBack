@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Ajiltan = require("../models/ajiltan");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
+const LiftShalgaya = require("../models/liftShalgaya");
 const BackTuukh = require("../models/backTuukh");
 const Baiguullaga = require("../models/baiguullaga");
 const request = require("request");
