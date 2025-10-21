@@ -17,6 +17,7 @@ const ashiglaltiinZardluudSchema = new Schema(
     tsakhilgaanDemjikh: Number,
     tariff: Number,
     tariffUsgeer: String,
+    choloolulukhDavkhar : [String],
     suuriKhuraamj: Number,
     nuatNemekhEsekh: Boolean,
     togtmolUtga: Number,
