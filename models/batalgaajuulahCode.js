@@ -55,9 +55,6 @@ batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye = async function (
   const code = Math.floor(1000 + Math.random() * 9000).toString();
   const expiresAt = new Date(Date.now() + expirationMinutes * 60 * 1000);
 
-  console.log("=== Creating Verification Code ===");
-  console.log("Data to save:", { utas, code, purpose, expiresAt });
-
   const result = await this.create({
     utas,
     code,
@@ -65,7 +62,6 @@ batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye = async function (
     expiresAt,
   });
 
-  console.log("Code saved successfully:", result);
   return result;
 };
 
@@ -77,10 +73,6 @@ batalgaajuulkhCodeSchema.statics.verifyCode = async function (
   code,
   purpose = "password_reset"
 ) {
-  console.log("=== Verification Code Debug ===");
-  console.log("Searching for:", { utas, code, purpose });
-  console.log("Current time:", new Date());
-
   const verificationCode = await this.findOne({
     utas,
     code,
@@ -89,23 +81,7 @@ batalgaajuulkhCodeSchema.statics.verifyCode = async function (
     expiresAt: { $gt: new Date() },
   });
 
-  console.log("Found verification code:", verificationCode);
-
   if (!verificationCode) {
-    const allCodes = await this.find({ utas, purpose })
-      .sort({ createdAt: -1 })
-      .limit(3);
-    console.log(
-      "All codes for this phone:",
-      allCodes.map((c) => ({
-        code: c.code,
-        used: c.khereglesenEsekh,
-        expiresAt: c.expiresAt,
-        createdAt: c.createdAt,
-        isExpired: c.expiresAt < new Date(),
-      }))
-    );
-
     return { success: false, message: "Хүчингүй код байна!" };
   }
 

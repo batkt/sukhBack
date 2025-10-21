@@ -244,11 +244,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       });
 
       await geree.save();
-      
-      console.log(`Contract created for user: ${orshinSuugch.ner} with ID: ${geree._id}`);
     } catch (contractError) {
       console.error("Error creating contract:", contractError);
-      
     }
 
     res.status(201).json({
@@ -397,10 +394,6 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    console.log(
-      "Using connection for code creation:",
-      kholbolt.baiguullagiinId
-    );
     const BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
     const batalgaajuulkhCodeDoc =
       await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
@@ -408,12 +401,6 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
         "password_reset",
         10
       );
-
-    console.log("=== Verification Code Created ===");
-    console.log("Phone:", utas);
-    console.log("Code:", batalgaajuulkhCodeDoc.code);
-    console.log("Expires at:", batalgaajuulkhCodeDoc.expiresAt);
-    console.log("Purpose:", batalgaajuulkhCodeDoc.purpose);
 
     var text = `AmarSukh: Tany batalgaajuulax code: ${batalgaajuulkhCodeDoc.code}.`;
 
@@ -485,12 +472,8 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     const { utas, code, shineNuutsUg } = req.body;
 
-    console.log("=== Password Reset Request ===");
-    console.log("Request body:", JSON.stringify(req.body, null, 2));
-    console.log("Timestamp:", new Date().toISOString());
 
     if (!utas || !code || !shineNuutsUg) {
-      console.log("Missing required fields - request rejected");
       return res.status(400).json({
         success: false,
         message: "Бүх талбарыг бөглөх шаардлагатай!",
@@ -499,7 +482,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
 
     // Validate password strength
     if (shineNuutsUg.length < 4) {
-      console.log("Password too short - request rejected");
       return res.status(400).json({
         success: false,
         message: "Нууц үг хамгийн багадаа 4 тэмдэгт байх ёстой!",
@@ -510,7 +492,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
       .findOne({ utas: utas })
       .catch((err) => {
-        console.log("Error finding user:", err.message);
         next(err);
       });
 
@@ -529,22 +510,11 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     );
 
     if (!verificationResult.success) {
-      console.log("Code verification failed:", verificationResult.message);
       return res.status(400).json({
         success: false,
         message: verificationResult.message,
       });
     }
-    
-    console.log("Code verification passed - code is valid and not expired");
-
-    console.log("=== Password Reset Process ===");
-    console.log("Phone number:", utas);
-    console.log("User found:", orshinSuugch.ner);
-    console.log("User ID:", orshinSuugch._id);
-    console.log("Old password hash:", orshinSuugch.nuutsUg);
-    console.log("New password:", shineNuutsUg);
-    console.log("Verification code:", code);
 
     const oldPasswordHash = orshinSuugch.nuutsUg || null;
     let passwordChanged = false;
@@ -552,7 +522,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     try {
       orshinSuugch.nuutsUg = shineNuutsUg;
       await orshinSuugch.save();
-      console.log("Password saved successfully");
     } catch (saveError) {
       console.error("Error saving password:", saveError);
       return res.status(400).json({
@@ -566,12 +535,7 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
         .findById(orshinSuugch._id)
         .select("+nuutsUg");
 
-      console.log("Password change verification:");
-      console.log("Old hash:", oldPasswordHash);
-      console.log("New hash:", updatedUser.nuutsUg);
       passwordChanged = oldPasswordHash ? (oldPasswordHash !== updatedUser.nuutsUg) : true;
-      console.log("Password changed successfully:", passwordChanged);
-      console.log("=== End Password Reset Process ===");
     } catch (fetchError) {
       console.error("Error fetching updated user:", fetchError);
       return res.status(400).json({
@@ -580,26 +544,16 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    try {
-      res.json({
-        success: true,
-        message: "Нууц үг амжилттай сэргээгдлээ",
-        data: {
-          step: 3,
-          passwordChanged: passwordChanged,
-          userId: orshinSuugch._id.toString(),
-          userName: orshinSuugch.ner,
-        },
-      });
-      console.log("Response sent successfully");
-    } catch (responseError) {
-      console.error("Error sending response:", responseError);
-      return res.status(500).json({
-        success: false,
-        message: "Хариу илгээхэд алдаа гарлаа",
-        error: responseError.message
-      });
-    }
+    res.json({
+      success: true,
+      message: "Нууц үг амжилттай сэргээгдлээ",
+      data: {
+        step: 3,
+        passwordChanged: passwordChanged,
+        userId: orshinSuugch._id.toString(),
+        userName: orshinSuugch.ner,
+      },
+    });
   } catch (error) {
     console.error("Password reset error:", error);
     console.error("Error stack:", error.stack);
