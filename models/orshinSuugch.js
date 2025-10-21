@@ -14,6 +14,7 @@ const orshinSuugchSchema = new Schema(
     mail: String,
     tuluv : String,
     davkhar : String,
+    bairniiNer : String,
     nuutsUg: {
       type: String,
       select: false,
