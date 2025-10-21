@@ -106,17 +106,6 @@ crud(
     if (req.method === 'GET') {
       try {
         const { db } = require("zevbackv2");
-        const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
-        );
-
-        if (!tukhainBaaziinKholbolt) {
-          return res.status(400).json({
-            success: false,
-            aldaa: "Холболтын мэдээлэл олдсонгүй!"
-          });
-        }
-
         const body = req.query;
         const {
           query = {},
@@ -136,31 +125,59 @@ crud(
         if (!!body?.khuudasniiKhemjee) body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
         
         console.log("=== Geree GET Debug ===");
-        console.log("tukhainBaaziinKholbolt:", tukhainBaaziinKholbolt ? "EXISTS" : "MISSING");
         console.log("query:", body.query);
         
-        let jagsaalt = await Geree(tukhainBaaziinKholbolt)
-          .find(body.query)
-          .sort(body.order)
-          .collation(body.collation ? body.collation : {})
-          .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
-          .limit(body.khuudasniiKhemjee);
-          
-        let niitMur = await Geree(tukhainBaaziinKholbolt).countDocuments(body.query);
-        let niitKhuudas =
-          niitMur % body.khuudasniiKhemjee == 0
-            ? Math.floor(niitMur / body.khuudasniiKhemjee)
-            : Math.floor(niitMur / body.khuudasniiKhemjee) + 1;
-            
-        if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
+        let allJagsaalt = [];
+        let totalCount = 0;
         
-        console.log("Found contracts:", jagsaalt.length);
+        // Search across all organization databases
+        for (const kholbolt of db.kholboltuud) {
+          try {
+            console.log(`Searching in organization: ${kholbolt.baiguullagiinId}`);
+            
+            const orgJagsaalt = await Geree(kholbolt)
+              .find(body.query)
+              .sort(body.order)
+              .collation(body.collation ? body.collation : {});
+              
+            const orgCount = await Geree(kholbolt).countDocuments(body.query);
+            
+            console.log(`Found ${orgJagsaalt.length} contracts in org ${kholbolt.baiguullagiinId}`);
+            
+            // Add organization info to each contract
+            orgJagsaalt.forEach(contract => {
+              contract.baiguullagiinId = kholbolt.baiguullagiinId;
+              contract.baiguullagiinNer = kholbolt.baiguullagiinNer;
+            });
+            
+            allJagsaalt = allJagsaalt.concat(orgJagsaalt);
+            totalCount += orgCount;
+          } catch (orgError) {
+            console.error(`Error searching in org ${kholbolt.baiguullagiinId}:`, orgError);
+            // Continue with other organizations
+          }
+        }
+        
+        // Apply pagination to combined results
+        const startIndex = (body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee;
+        const endIndex = startIndex + body.khuudasniiKhemjee;
+        const paginatedJagsaalt = allJagsaalt.slice(startIndex, endIndex);
+        
+        let niitKhuudas =
+          totalCount % body.khuudasniiKhemjee == 0
+            ? Math.floor(totalCount / body.khuudasniiKhemjee)
+            : Math.floor(totalCount / body.khuudasniiKhemjee) + 1;
+            
+        if (paginatedJagsaalt != null) paginatedJagsaalt.forEach((mur) => (mur.key = mur._id));
+        
+        console.log("Total found contracts:", totalCount);
+        console.log("Paginated results:", paginatedJagsaalt.length);
         
         res.json({
           khuudasniiDugaar: body.khuudasniiDugaar,
           khuudasniiKhemjee: body.khuudasniiKhemjee,
-          jagsaalt,
-          niitMur,
+          jagsaalt: paginatedJagsaalt,
+          niitMur: totalCount,
           niitKhuudas,
         });
         return;
