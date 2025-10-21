@@ -101,7 +101,77 @@ crud(
       next(error);
     }
   },
-  
+  async (req, res, next) => {
+    // Custom GET handler for geree
+    if (req.method === 'GET') {
+      try {
+        const { db } = require("zevbackv2");
+        const tukhainBaaziinKholbolt = db.kholboltuud.find(
+          (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
+        );
+
+        if (!tukhainBaaziinKholbolt) {
+          return res.status(400).json({
+            success: false,
+            aldaa: "Холболтын мэдээлэл олдсонгүй!"
+          });
+        }
+
+        const body = req.query;
+        const {
+          query = {},
+          order,
+          khuudasniiDugaar = 1,
+          khuudasniiKhemjee = 10,
+          search,
+          collation = {},
+          select = {},
+        } = body;
+        
+        if (!!body?.query) body.query = JSON.parse(body.query);
+        if (!!body?.order) body.order = JSON.parse(body.order);
+        if (!!body?.select) body.select = JSON.parse(body.select);
+        if (!!body?.collation) body.collation = JSON.parse(body.collation);
+        if (!!body?.khuudasniiDugaar) body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+        if (!!body?.khuudasniiKhemjee) body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+        
+        console.log("=== Geree GET Debug ===");
+        console.log("tukhainBaaziinKholbolt:", tukhainBaaziinKholbolt ? "EXISTS" : "MISSING");
+        console.log("query:", body.query);
+        
+        let jagsaalt = await Geree(tukhainBaaziinKholbolt)
+          .find(body.query)
+          .sort(body.order)
+          .collation(body.collation ? body.collation : {})
+          .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
+          .limit(body.khuudasniiKhemjee);
+          
+        let niitMur = await Geree(tukhainBaaziinKholbolt).countDocuments(body.query);
+        let niitKhuudas =
+          niitMur % body.khuudasniiKhemjee == 0
+            ? Math.floor(niitMur / body.khuudasniiKhemjee)
+            : Math.floor(niitMur / body.khuudasniiKhemjee) + 1;
+            
+        if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
+        
+        console.log("Found contracts:", jagsaalt.length);
+        
+        res.json({
+          khuudasniiDugaar: body.khuudasniiDugaar,
+          khuudasniiKhemjee: body.khuudasniiKhemjee,
+          jagsaalt,
+          niitMur,
+          niitKhuudas,
+        });
+        return;
+      } catch (error) {
+        console.error("Geree GET error:", error);
+        next(error);
+        return;
+      }
+    }
+    next();
+  }
 );
 
 // router
