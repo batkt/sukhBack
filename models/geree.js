@@ -81,9 +81,9 @@ const gereeSchema = new Schema(
     suhGariinUseg: String,
     suhTamga: String,
     register: String,
+    aimag : String,
     utas: [String],
     mail: String,
-    khayag: String,
     baingiinKhayag: String,
     khugatsaa: Number,
     ekhlekhOgnoo: Date,
@@ -103,20 +103,14 @@ const gereeSchema = new Schema(
     bairNer: String,
     orts: String,
     toot: Number,
-    talbainKhemjee: String,
-    zoriulalt: String,
     davkhar: String,
     burtgesenAjiltan: String,
     temdeglel: String,
     actOgnoo: Date,
-    tooluuriinDugaar: String, // odooxondoo gantsaar awchixya tsaashid olshirwol yaaxaa shiidne
-    davkhar: String,
-    baritsaaAvakhDun: Number,
     baritsaaniiUldegdel: {
       type: Number,
       default: 0,
     },
-    zurguud: [String],
     zardluud: [
       {
         ner: String,

@@ -5,6 +5,7 @@ const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 const MsgTuukh = require("../models/msgTuukh");
 const IpTuukh = require("../models/ipTuukh");
 const BatalgaajuulahCode = require("../models/batalgaajuulahCode");
+const Geree = require("../models/geree");
 const aldaa = require("../components/aldaa");
 const request = require("request");
 const axios = require("axios");
@@ -97,13 +98,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
-    // Debug logging
     console.log(
       "orshinSuugchBurtgey request body:",
       JSON.stringify(req.body, null, 2)
     );
 
-    // Validate required fields
     if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
       throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
     }
@@ -153,6 +152,41 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     });
 
     await orshinSuugch.save();
+
+    try {
+      const geree = new Geree(db.erunkhiiKholbolt)({
+        gereeniiDugaar: `GEE-${Date.now()}`,
+        gereeniiOgnoo: new Date(),
+        turul: "OrshinSuugch", 
+        ovog: req.body.ovog || "",
+        ner: req.body.ner,
+        register: req.body.register || "",
+        utas: [req.body.utas],
+        mail: req.body.mail || "",
+        baiguullagiinId: baiguullaga._id,
+        baiguullagiinNer: baiguullaga.ner,
+        ekhlekhOgnoo: new Date(),
+        duusakhOgnoo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        tulukhOgnoo: new Date(),
+        ashiglaltiinZardal: 0,
+        niitTulbur: 0,
+        bairNer: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
+        burtgesenAjiltan: orshinSuugch._id,
+        temdeglel: "Автоматаар үүссэн гэрээ",
+        actOgnoo: new Date(),
+        baritsaaniiUldegdel: 0,
+        zardluud: [],
+        segmentuud: [],
+        khungulultuud: []
+      });
+
+      await geree.save();
+      
+      console.log(`Contract created for user: ${orshinSuugch.ner} with ID: ${geree._id}`);
+    } catch (contractError) {
+      console.error("Error creating contract:", contractError);
+      
+    }
 
     res.status(201).json({
       success: true,
