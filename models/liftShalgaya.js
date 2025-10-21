@@ -4,8 +4,8 @@ const Schema = mongoose.Schema;
 mongoose.pluralize(null);
 const liftShalgayaSchema = new Schema(
   {
+    baiguullagiinId: String,
     choloolugdokhDavkhar: [String],
-
   },
   { timestamps: true }
 );
