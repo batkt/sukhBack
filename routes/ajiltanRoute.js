@@ -57,6 +57,8 @@ crudWithFile(
   }
 );
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
+crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
+
 
 router.get("/sessionAvya/:sessionId", async (req, res, next) => {
   try {
@@ -300,5 +302,7 @@ router.get("/licenseOgnooAvya", tokenShalgakh, async (req, res, next) => {
     next(error);
   }
 });
+
+
 
 module.exports = router;
