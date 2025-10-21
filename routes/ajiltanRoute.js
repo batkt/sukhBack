@@ -58,10 +58,10 @@ crudWithFile(
   }
 );
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
-crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
 
-// Custom liftShalgaya routes with proper tukhainBaaziinKholbolt
+// Custom liftShalgaya routes with proper tukhainBaaziinKholbolt (MUST be before generic CRUD)
 router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
+  console.log("🚀🚀🚀 POST /liftShalgaya CUSTOM ROUTE HIT! 🚀🚀🚀");
   try {
     console.log("=== LiftShalgaya POST Debug ===");
     console.log("Request body:", JSON.stringify(req.body, null, 2));
@@ -85,6 +85,7 @@ router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
 });
 
 router.get("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
+  console.log("🚀🚀🚀 GET /liftShalgaya CUSTOM ROUTE HIT! 🚀🚀🚀");
   try {
     console.log("=== LiftShalgaya GET Debug ===");
     console.log("tukhainBaaziinKholbolt:", req.body.tukhainBaaziinKholbolt ? "EXISTS" : "MISSING");
@@ -140,6 +141,8 @@ router.get("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
   }
 });
 
+// Generic CRUD routes (after custom routes)
+crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
 
 router.get("/sessionAvya/:sessionId", async (req, res, next) => {
   try {
