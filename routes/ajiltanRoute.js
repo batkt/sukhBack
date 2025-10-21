@@ -68,10 +68,10 @@ router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
     console.log("tukhainBaaziinKholbolt:", req.body.tukhainBaaziinKholbolt ? "EXISTS" : "MISSING");
     
     const liftShalgaya = new LiftShalgaya(req.body.tukhainBaaziinKholbolt)(req.body);
-    console.log("Created liftShalgaya object:", liftShalgaya);
+    console.log("Created liftShalgaya object - choloolugdokhDavkhar:", liftShalgaya.choloolugdokhDavkhar);
     
     await liftShalgaya.save();
-    console.log("Saved liftShalgaya:", liftShalgaya);
+    console.log("Saved liftShalgaya - choloolugdokhDavkhar:", liftShalgaya.choloolugdokhDavkhar);
     
     res.status(201).json({
       success: true,
@@ -118,7 +118,9 @@ router.get("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
       .limit(khuudasniiKhemjee);
       
     console.log("Found records:", jagsaalt.length);
-    console.log("Sample record:", jagsaalt[0]);
+    if (jagsaalt.length > 0) {
+      console.log("Sample record choloolugdokhDavkhar:", jagsaalt[0].choloolugdokhDavkhar);
+    }
       
     let niitMur = await LiftShalgaya(req.body.tukhainBaaziinKholbolt).countDocuments(query);
     let niitKhuudas =
