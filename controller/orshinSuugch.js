@@ -546,7 +546,8 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
     console.log("New password:", shineNuutsUg);
     console.log("Verification code:", code);
 
-    const oldPasswordHash = orshinSuugch.nuutsUg;
+    const oldPasswordHash = orshinSuugch.nuutsUg || null;
+    let passwordChanged = false;
 
     try {
       orshinSuugch.nuutsUg = shineNuutsUg;
@@ -568,10 +569,8 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       console.log("Password change verification:");
       console.log("Old hash:", oldPasswordHash);
       console.log("New hash:", updatedUser.nuutsUg);
-      console.log(
-        "Password changed successfully:",
-        oldPasswordHash !== updatedUser.nuutsUg
-      );
+      passwordChanged = oldPasswordHash ? (oldPasswordHash !== updatedUser.nuutsUg) : true;
+      console.log("Password changed successfully:", passwordChanged);
       console.log("=== End Password Reset Process ===");
     } catch (fetchError) {
       console.error("Error fetching updated user:", fetchError);
@@ -581,18 +580,34 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    res.json({
-      success: true,
-      message: "Нууц үг амжилттай сэргээгдлээ",
-      data: {
-        step: 3,
-        passwordChanged: oldPasswordHash !== updatedUser.nuutsUg,
-        userId: orshinSuugch._id,
-        userName: orshinSuugch.ner,
-      },
-    });
+    try {
+      res.json({
+        success: true,
+        message: "Нууц үг амжилттай сэргээгдлээ",
+        data: {
+          step: 3,
+          passwordChanged: passwordChanged,
+          userId: orshinSuugch._id.toString(),
+          userName: orshinSuugch.ner,
+        },
+      });
+      console.log("Response sent successfully");
+    } catch (responseError) {
+      console.error("Error sending response:", responseError);
+      return res.status(500).json({
+        success: false,
+        message: "Хариу илгээхэд алдаа гарлаа",
+        error: responseError.message
+      });
+    }
   } catch (error) {
-    next(error);
+    console.error("Password reset error:", error);
+    console.error("Error stack:", error.stack);
+    return res.status(500).json({
+      success: false,
+      message: "Нууц үг солиход алдаа гарлаа",
+      error: error.message
+    });
   }
 });
 
