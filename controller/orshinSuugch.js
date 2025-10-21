@@ -327,22 +327,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       orshinSuugch.baiguullagiinId
     );
 
-    if (orshinSuugch.duureg && orshinSuugch.horoo && orshinSuugch.soh) {
-      const matchingBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
-        $and: [
-          { "tokhirgoo.duuregNer": orshinSuugch.duureg },
-          { "tokhirgoo.districtCode": orshinSuugch.horoo },
-          { "tokhirgoo.sohCode": orshinSuugch.soh },
-        ],
-      });
-
-      if (matchingBaiguullaga) {
-        orshinSuugch.baiguullagiinId = matchingBaiguullaga._id;
-        orshinSuugch.baiguullagiinNer = matchingBaiguullaga.ner;
-        await orshinSuugch.save();
-        baiguullaga = matchingBaiguullaga;
-      }
-    }
+    // REMOVED: Organization reassignment logic
+    // Users should stay in their original organization to maintain data access
+    // The organization reassignment was causing users to lose access to their contracts
+    
+    // Keep the original organization assignment
+    console.log("User stays in original organization:", orshinSuugch.baiguullagiinId);
 
     var butsaakhObject = {
       result: orshinSuugch,
