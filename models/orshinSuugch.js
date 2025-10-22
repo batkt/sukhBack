@@ -23,7 +23,6 @@ const orshinSuugchSchema = new Schema(
       type: String,
       select: false,
     },
-    register: String,
     baiguullagiinId: String,
     baiguullagiinNer: String,
     erkh: String,
@@ -59,7 +58,7 @@ orshinSuugchSchema.methods.tokenUusgeye = function (
     process.env.APP_SECRET,
     {
       expiresIn:
-        this.baiguullagiinId == "68e4e2bff3ff09acb5705a93" ? "7d" : "10m",
+        this.baiguullagiinId == "68e4e2bff3ff09acb5705a93" ? "7d" : "12h",
     }
   );
   return token;
@@ -99,7 +98,7 @@ orshinSuugchSchema.methods.zochinTokenUusgye = function (
   return token;
 };
 orshinSuugchSchema.pre("save", async function () {
-  this.indexTalbar = this.register + this.nevtrekhNer;
+  this.indexTalbar =  this.nevtrekhNer;
   
   if (this.nuutsUg && !this.nuutsUg.startsWith('$2b$')) {
     const salt = await bcrypt.genSalt(12);
@@ -108,7 +107,7 @@ orshinSuugchSchema.pre("save", async function () {
 });
 
 orshinSuugchSchema.pre("updateOne", async function () {
-  this.indexTalbar = this._update.register + this._update.nevtrekhNer;
+  this.indexTalbar =  this._update.nevtrekhNer;
   
   if (this._update.nuutsUg && !this._update.nuutsUg.startsWith('$2b$')) {
     const salt = await bcrypt.genSalt(12);
