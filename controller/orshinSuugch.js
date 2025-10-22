@@ -293,6 +293,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       const zardluudArray = ashiglaltiinZardluudData.map(zardal => ({
         ner: zardal.ner,
         turul: zardal.turul,
+        zardliinTurul: zardal.zardliinTurul,
         tariff: zardal.tariff,
         tariffUsgeer: zardal.tariffUsgeer || "",
         tulukhDun: 0, // Default value
