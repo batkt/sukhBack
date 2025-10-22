@@ -300,6 +300,14 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       console.log("Mapped zardluud array:", JSON.stringify(zardluudArray, null, 2));
 
+      // Calculate niitTulbur by summing all tariff values
+      const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+        return total + (zardal.tariff || 0);
+      }, 0);
+
+      console.log("Calculated niitTulbur:", niitTulbur);
+      console.log("Tariff breakdown:", ashiglaltiinZardluudData.map(z => ({ ner: z.ner, tariff: z.tariff })));
+
       const contractData = {
         gereeniiDugaar: `ГД-${Date.now()}`,
         gereeniiOgnoo: new Date(),
@@ -312,7 +320,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         baiguullagiinNer: baiguullaga.ner,
         tulukhOgnoo: new Date(),
         ashiglaltiinZardal: 0,
-        niitTulbur: 0,
+        niitTulbur: niitTulbur, // Use calculated total from tariff values
         toot: orshinSuugch.toot || 0, // Get toot from user data
         davkhar: orshinSuugch.davkhar || "", // Get davkhar from user data
         bairNer: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
