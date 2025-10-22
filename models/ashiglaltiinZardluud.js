@@ -21,6 +21,7 @@ const ashiglaltiinZardluudSchema = new Schema(
     nuatNemekhEsekh: Boolean,
     togtmolUtga: Number,
     choloolugdsonDavkhar: Boolean,
+    zardliinTurul : String,
     dun: Number,
     ognoonuud: [Date],
     nuatBodokhEsekh: Boolean,

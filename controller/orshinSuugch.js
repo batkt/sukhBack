@@ -278,6 +278,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       console.log("Found ashiglaltiinZardluud records:", ashiglaltiinZardluudData.length);
       console.log("Zardluud data:", JSON.stringify(ashiglaltiinZardluudData, null, 2));
 
+      // Fetch liftShalgaya data to get excluded departments for lift items
+      console.log("=== FETCHING LIFT SHALGAYA DATA ===");
+      const LiftShalgaya = require("../models/liftShalgaya");
+      const liftShalgayaData = await LiftShalgaya(tukhainBaaziinKholbolt).findOne({
+        baiguullagiinId: baiguullaga._id.toString()
+      });
+      
+      console.log("LiftShalgaya data:", JSON.stringify(liftShalgayaData, null, 2));
+      const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+      console.log("Excluded departments for lift:", choloolugdokhDavkhar);
+
       // Map ashiglaltiinZardluud data to zardluud array format
       const zardluudArray = ashiglaltiinZardluudData.map(zardal => ({
         ner: zardal.ner,
@@ -300,13 +311,31 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       console.log("Mapped zardluud array:", JSON.stringify(zardluudArray, null, 2));
 
-      // Calculate niitTulbur by summing all tariff values
+      // Calculate niitTulbur by summing all tariff values, excluding departments for lift items
       const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
-        return total + (zardal.tariff || 0);
+        const tariff = zardal.tariff || 0;
+        
+        // Check if this is a lift-related item (by zardliinTurul field)
+        const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === 'Лифт';
+        
+        // If it's a lift item and user's department is in excluded list, don't count it
+        if (isLiftItem && orshinSuugch.davkhar && choloolugdokhDavkhar.includes(orshinSuugch.davkhar)) {
+          console.log(`Excluding lift item "${zardal.ner}" (tariff: ${tariff}) for department "${orshinSuugch.davkhar}"`);
+          return total; // Don't add this tariff
+        }
+        
+        console.log(`Including item "${zardal.ner}" (tariff: ${tariff})`);
+        return total + tariff;
       }, 0);
 
       console.log("Calculated niitTulbur:", niitTulbur);
-      console.log("Tariff breakdown:", ashiglaltiinZardluudData.map(z => ({ ner: z.ner, tariff: z.tariff })));
+      console.log("Tariff breakdown:", ashiglaltiinZardluudData.map(z => ({ 
+        ner: z.ner, 
+        turul: z.turul,
+        zardliinTurul: z.zardliinTurul,
+        tariff: z.tariff,
+        isLift: z.zardliinTurul && z.zardliinTurul === 'Лифт'
+      })));
 
       const contractData = {
         gereeniiDugaar: `ГД-${Date.now()}`,
