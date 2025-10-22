@@ -3,10 +3,9 @@ const router = express.Router();
 //const { crud } = require('../components/crud');
 //const UstsanBarimt = require("../models/ustsanBarimt");
 const { crud, UstsanBarimt } = require("zevbackv2");
-const License = require("../models/license.js");
-const si = require("systeminformation");
+const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
 
-crud(router, "nekhemjlekhiinTuukh", NekhemjlekhiinTuukh, UstsanBarimt);
+crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
 
 
