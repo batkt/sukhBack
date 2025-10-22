@@ -18,6 +18,7 @@ const licenseRoute = require("./routes/licenseRoute");
 const nekhemjlekhiinZagvarRoute = require("./routes/nekhemjlekhiinZagvarRoute");
 const gereeRoute = require("./routes/gereeRoute");
 const gereeniiZagvarRoute = require("./routes/gereeniiZagvarRoute");
+const nekhemjlekhRoute = require("./routes/nekhemjlekhRoute");
 
 const { db } = require("zevbackv2");
 
@@ -62,5 +63,6 @@ app.use(orshinSuugchRoute);
 app.use(gereeRoute);
 app.use(gereeniiZagvarRoute);
 app.use(nekhemjlekhiinZagvarRoute);
+app.use(nekhemjlekhRoute);
 
 app.use(aldaaBarigch);
