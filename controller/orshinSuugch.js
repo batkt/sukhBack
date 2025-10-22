@@ -268,6 +268,38 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       console.log("  - Connection ID:", tukhainBaaziinKholbolt.baiguullagiinId);
       console.log("  - Connection Name:", tukhainBaaziinKholbolt.baiguullagiinNer);
 
+      // Fetch ashiglaltiinZardluud data for this organization
+      console.log("=== FETCHING ASHIGLALTIIN ZARDLUUD DATA ===");
+      const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
+      const ashiglaltiinZardluudData = await AshiglaltiinZardluud(tukhainBaaziinKholbolt).find({
+        baiguullagiinId: baiguullaga._id.toString()
+      });
+      
+      console.log("Found ashiglaltiinZardluud records:", ashiglaltiinZardluudData.length);
+      console.log("Zardluud data:", JSON.stringify(ashiglaltiinZardluudData, null, 2));
+
+      // Map ashiglaltiinZardluud data to zardluud array format
+      const zardluudArray = ashiglaltiinZardluudData.map(zardal => ({
+        ner: zardal.ner,
+        turul: zardal.turul,
+        tariff: zardal.tariff,
+        tariffUsgeer: zardal.tariffUsgeer || "",
+        tulukhDun: 0, // Default value
+        dun: zardal.dun || 0,
+        bodokhArga: zardal.bodokhArga || "",
+        tseverUsDun: zardal.tseverUsDun || 0,
+        bokhirUsDun: zardal.bokhirUsDun || 0,
+        usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+        tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+        tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+        tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+        suuriKhuraamj: zardal.suuriKhuraamj || 0,
+        nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+        ognoonuud: zardal.ognoonuud || []
+      }));
+
+      console.log("Mapped zardluud array:", JSON.stringify(zardluudArray, null, 2));
+
       const contractData = {
         gereeniiDugaar: `ГД-${Date.now()}`,
         gereeniiOgnoo: new Date(),
@@ -289,7 +321,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         temdeglel: "Автоматаар үүссэн гэрээ",
         actOgnoo: new Date(),
         baritsaaniiUldegdel: 0,
-        zardluud: [],
+        zardluud: zardluudArray, // Use populated zardluud data
         segmentuud: [],
         khungulultuud: []
       };
