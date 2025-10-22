@@ -116,6 +116,7 @@ const gereeSchema = new Schema(
         turul: String,
         tariff: Number,
         tariffUsgeer: String,
+        zardliinTurul: String,
         tulukhDun: Number, // Менежментийн зардал
         dun: Number, //dung n zuwxun munguur tootsoj awax togtmol ued buglunu
         bodokhArga: String, //togtmol tomyotoi baidag arguud
