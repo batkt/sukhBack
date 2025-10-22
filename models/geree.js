@@ -104,7 +104,7 @@ const gereeSchema = new Schema(
     toot: Number,
     davkhar: String,
     burtgesenAjiltan: String,
-    orshinSuugchId: String, // ID of the user who created this contract
+    orshinSuugchId: String, 
     temdeglel: String,
     baritsaaniiUldegdel: {
       type: Number,

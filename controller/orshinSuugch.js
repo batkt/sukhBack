@@ -281,7 +281,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         tulukhOgnoo: new Date(),
         ashiglaltiinZardal: 0,
         niitTulbur: 0,
-        toot : 0,
+        toot: orshinSuugch.toot || 0, // Get toot from user data
+        davkhar: orshinSuugch.davkhar || "", // Get davkhar from user data
         bairNer: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
         burtgesenAjiltan: orshinSuugch._id,
         orshinSuugchId: orshinSuugch._id.toString(), // Add user ID for filtering
