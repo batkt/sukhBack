@@ -1,12 +1,11 @@
 const express = require("express");
 const router = express.Router();
-//const { crud } = require('../components/crud');
-//const UstsanBarimt = require("../models/ustsanBarimt");
-const { crud, UstsanBarimt } = require("zevbackv2");
+const { crud, UstsanBarimt, tokenShalgakh } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
+const nekhemjlekhController = require("../controller/nekhemjlekhController");
 
 crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
-
+router.post("/NekhemjlekhAvya", tokenShalgakh, nekhemjlekhController.nekhemjlekhAvya);
 
 module.exports = router;
