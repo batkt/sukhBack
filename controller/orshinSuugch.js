@@ -288,6 +288,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       console.log("LiftShalgaya data:", JSON.stringify(liftShalgayaData, null, 2));
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
       console.log("Excluded departments for lift:", choloolugdokhDavkhar);
+      console.log("User's department:", orshinSuugch.davkhar);
+      console.log("Is user's department excluded?", choloolugdokhDavkhar.includes(orshinSuugch.davkhar));
 
       // Map ashiglaltiinZardluud data to zardluud array format
       const zardluudArray = ashiglaltiinZardluudData.map(zardal => ({
@@ -319,13 +321,21 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         // Check if this is a lift-related item (by zardliinTurul field)
         const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === 'Лифт';
         
+        console.log(`Processing item: "${zardal.ner}"`);
+        console.log(`  - zardliinTurul: "${zardal.zardliinTurul}"`);
+        console.log(`  - isLiftItem: ${isLiftItem}`);
+        console.log(`  - tariff: ${tariff}`);
+        console.log(`  - user department: "${orshinSuugch.davkhar}"`);
+        console.log(`  - excluded departments: [${choloolugdokhDavkhar.join(', ')}]`);
+        console.log(`  - is user department excluded: ${choloolugdokhDavkhar.includes(orshinSuugch.davkhar)}`);
+        
         // If it's a lift item and user's department is in excluded list, don't count it
         if (isLiftItem && orshinSuugch.davkhar && choloolugdokhDavkhar.includes(orshinSuugch.davkhar)) {
-          console.log(`Excluding lift item "${zardal.ner}" (tariff: ${tariff}) for department "${orshinSuugch.davkhar}"`);
+          console.log(`❌ EXCLUDING lift item "${zardal.ner}" (tariff: ${tariff}) for department "${orshinSuugch.davkhar}"`);
           return total; // Don't add this tariff
         }
         
-        console.log(`Including item "${zardal.ner}" (tariff: ${tariff})`);
+        console.log(`✅ INCLUDING item "${zardal.ner}" (tariff: ${tariff})`);
         return total + tariff;
       }, 0);
 
