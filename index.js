@@ -85,8 +85,11 @@ async function autoCreateInvoices() {
       try {
         console.log(`Processing organization: ${org.ner} (${org._id})`);
         
+        // Get tenant connection for this organization
+        const tukhainBaaziinKholbolt = { kholbolt: await db.kholboltAvya(org._id) };
+        
         // Get all active contracts for this organization that don't have invoices yet
-        const contracts = await Geree(org.kholbolt).find({
+        const contracts = await Geree(tukhainBaaziinKholbolt).find({
           baiguullagiinId: org._id.toString(),
           nekhemjlekhiinOgnoo: { $exists: false } // Only contracts without invoices
         });
@@ -99,7 +102,7 @@ async function autoCreateInvoices() {
         console.log(`Found ${contracts.length} contracts to process for ${org.ner}`);
         
         for (const contract of contracts) {
-          const result = await nekhemjlekhController.createInvoiceFromContract(contract, org, org.kholbolt, "cron_job");
+          const result = await nekhemjlekhController.createInvoiceFromContract(contract, org, tukhainBaaziinKholbolt, "cron_job");
           
           if (result.success) {
             console.log(`✅ Invoice created for contract ${result.contractNumber} - Amount: ${result.amount}₮`);
