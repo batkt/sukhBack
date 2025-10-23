@@ -19,7 +19,9 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
     console.log("req.body.idevkhitei:", req.body.idevkhitei);
     console.log("=== END RAW REQUEST DEBUG ===");
     
-    const { baiguullagiinId, sarinUdur, idevkhitei = true } = req.body;
+    // Use the organization ID from the authenticated user (set by tokenShalgakh middleware)
+    const baiguullagiinId = req.body.baiguullagiinId;
+    const { sarinUdur, idevkhitei = true } = req.body;
 
     console.log("=== REQUEST DEBUG ===");
     console.log("Extracted baiguullagiinId:", baiguullagiinId);
@@ -43,6 +45,9 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
     // First, let's see what organizations exist
     const allOrgs = await Baiguullaga(db.erunkhiiKholbolt).find({}).limit(5);
     console.log("Sample organizations in database:", allOrgs.map(org => ({ id: org._id, name: org.ner })));
+    
+    // Check if the authenticated user's organization exists
+    console.log("Checking if authenticated user's organization exists...");
     
     let baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
     console.log("Found organization by findById:", baiguullaga ? "Yes" : "No");
