@@ -50,6 +50,7 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     tuukh.nekhemjlekhiinBank = tempData.nekhemjlekhiinBank || "";
     tuukh.nekhemjlekhiinIbanDugaar = tempData.nekhemjlekhiinIbanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
+    tuukh.niitTulbur = tempData.niitTulbur || 0;
     
     // Нэхэмжлэхийн дугаар үүсгэх
     const suuliinNekhemjlekh = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)

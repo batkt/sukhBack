@@ -38,6 +38,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     nekhemjlekhiinIbanDugaar: String,
     nekhemjlekhiinOgnoo: Date,
     dugaalaltDugaar: Number,
+    niitTulbur: Number,
   },
   {
     timestamps: true,
