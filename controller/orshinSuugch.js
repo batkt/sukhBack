@@ -793,7 +793,7 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {
     const { utas, code } = req.body;
 
-    if (!baiguullagiinId || !utas || !code) {
+    if (!utas || !code) {
       return res.status(400).json({
         success: false,
         message: "Бүх талбарыг бөглөх шаардлагатай!",
