@@ -600,9 +600,12 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // Set baiguullagiinId for the next step
     req.body.baiguullagiinId = orshinSuugch.baiguullagiinId;
 
+    // Call the next function to continue the flow
     await exports.dugaarBatalgaajuulya(req, res, next);
+
   } catch (error) {
     next(error);
   }
