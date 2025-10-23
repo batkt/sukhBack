@@ -25,7 +25,7 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
     const allOrgs = await Baiguullaga(db.erunkhiiKholbolt).find({}).limit(5);
     console.log("Sample organizations in database:", allOrgs.map(org => ({ id: org._id, name: org.ner })));
     
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    let baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
     console.log("Found organization by findById:", baiguullaga ? "Yes" : "No");
     
     if (!baiguullaga) {
@@ -39,7 +39,11 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
           message: "Байгууллагын мэдээлэл олдсонгүй!"
         });
       }
+      // Use the found organization
+      baiguullaga = baiguullagaByString;
     }
+    
+    console.log("Using organization:", baiguullaga.ner, "ID:", baiguullaga._id);
 
     // Get tenant database connection
     console.log("Available connections:", db.kholboltuud.map(k => k.baiguullagiinId));
