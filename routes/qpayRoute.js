@@ -21,8 +21,9 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Энэ нэхэмжлэх аль хэдийн төлөгдсөн байна!" });
     }
 
-    // Get organization
-    const baiguullaga = await Baiguullaga(req.body.tukhainBaaziinKholbolt).findById(baiguullagiinId);
+    // Get organization from main database
+    const { db } = require("zevbackv2");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
     if (!baiguullaga) {
       return res.status(404).json({ success: false, message: "Байгууллагын мэдээлэл олдсонгүй!" });
     }
