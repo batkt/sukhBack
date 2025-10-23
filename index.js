@@ -90,20 +90,37 @@ async function automataarNekhemjlekhUusgekh() {
     // Өнөөдрийн хувьд идэвхтэй тохиргоонуудыг авах
     console.log("Хайлтын нөхцөл:", { sarinUdur: sarinUdur, idevkhitei: true });
     
-    const tovchoonuud = await NekhemjlekhCron(db.tukhainBaaziinKholbolt).find({
-      sarinUdur: sarinUdur,
-      idevkhitei: true
-    });
+    // Get all organizations first
+    const baiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
+    console.log(`Олдсон байгууллагын тоо: ${baiguullaguud.length}`);
+    
+    const tovchoonuud = [];
+    
+    // Check each organization for schedules
+    for (const baiguullaga of baiguullaguud) {
+      try {
+        const tukhainBaaziinKholbolt = { kholbolt: await db.kholboltAvya(baiguullaga._id) };
+        const schedules = await NekhemjlekhCron(tukhainBaaziinKholbolt).find({
+          sarinUdur: sarinUdur,
+          idevkhitei: true
+        });
+        
+        for (const schedule of schedules) {
+          tovchoonuud.push({
+            ...schedule.toObject(),
+            baiguullaga: baiguullaga
+          });
+        }
+      } catch (error) {
+        console.log(`Байгууллага ${baiguullaga._id} шалгах алдаа:`, error.message);
+      }
+    }
     
     console.log(`Олдсон тохиргоонуудын тоо: ${tovchoonuud.length}`);
     console.log("Тохиргоонууд:", JSON.stringify(tovchoonuud, null, 2));
     
     if (tovchoonuud.length === 0) {
       console.log(`Сарын ${sarinUdur} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`);
-      
-      // Debug: Check all schedules
-      const allSchedules = await NekhemjlekhCron(db.tukhainBaaziinKholbolt).find({});
-      console.log("Бүх тохиргоонууд:", JSON.stringify(allSchedules, null, 2));
       return;
     }
     
@@ -111,12 +128,7 @@ async function automataarNekhemjlekhUusgekh() {
     
     for (const tovchoo of tovchoonuud) {
       try {
-        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(tovchoo.baiguullagiinId);
-        if (!baiguullaga) {
-          console.log(`Байгууллага ${tovchoo.baiguullagiinId} олдсонгүй, алгасах...`);
-          continue;
-        }
-        
+        const baiguullaga = tovchoo.baiguullaga;
         console.log(`Байгууллага боловсруулах: ${baiguullaga.ner} (${baiguullaga._id})`);
         
         const tukhainBaaziinKholbolt = { kholbolt: await db.kholboltAvya(baiguullaga._id) };
@@ -144,7 +156,7 @@ async function automataarNekhemjlekhUusgekh() {
         }
         
         // Сүүлийн ажилласан огноо шинэчлэх
-        await NekhemjlekhCron(db.tukhainBaaziinKholbolt).findByIdAndUpdate(tovchoo._id, {
+        await NekhemjlekhCron(tukhainBaaziinKholbolt).findByIdAndUpdate(tovchoo._id, {
           suuldAjillasanOgnoo: new Date()
         });
         
@@ -162,7 +174,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "27 10 * * *", // Өдөр бүр 10:10 цагт
+  "29 10 * * *", // Өдөр бүр 10:10 цагт
   function () {
     automataarNekhemjlekhUusgekh();
   },
