@@ -70,7 +70,7 @@ app.use(gereeniiZagvarRoute);
 app.use(nekhemjlekhiinZagvarRoute);
 app.use(nekhemjlekhRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
-app.use("/qpay", qpayRoute);
+app.use( qpayRoute);
 
 app.use(aldaaBarigch);
 
