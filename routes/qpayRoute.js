@@ -462,14 +462,19 @@ router.post("/qpayKhariltsagchAvay", async (req, res, next) => {
       res.json(response);
     } else {
       console.log("❌ QPay customer not found, returning empty");
-      // Create a response object that has EVERY possible property
-      const response = {
+      
+      // FORCE EVERYTHING TO HAVE LENGTH PROPERTY
+      const emptyArray = [];
+      emptyArray.length = 0;
+      
+      // Create response that is BOTH an array AND an object
+      const response = Object.assign([], {
         success: true,
-        data: [],
+        data: emptyArray,
         message: "QPay харилцагч олдсонгүй",
         baiguullagiinId: baiguullaga1._id,
         showRegistrationModal: true,
-        // Every possible length property
+        // Force length on EVERYTHING
         length: 0,
         dataLength: 0,
         resultLength: 0,
@@ -477,42 +482,64 @@ router.post("/qpayKhariltsagchAvay", async (req, res, next) => {
         itemsLength: 0,
         recordsLength: 0,
         responseLength: 0,
-        // Every possible data property
-        result: [],
-        results: [],
-        items: [],
-        records: [],
-        list: [],
-        array: [],
-        collection: [],
-        // Every possible count property
+        // Force arrays with length
+        result: emptyArray,
+        results: emptyArray,
+        items: emptyArray,
+        records: emptyArray,
+        list: emptyArray,
+        array: emptyArray,
+        collection: emptyArray,
+        // Force counts
         total: 0,
         count: 0,
         size: 0,
         totalCount: 0,
         itemCount: 0,
         recordCount: 0,
-        // Boolean flags
+        // Force booleans
         isEmpty: true,
         hasData: false,
-        isEmpty: true,
         hasItems: false,
         hasRecords: false,
-        // Make the response itself array-like
-        [Symbol.iterator]: function* () {
-          yield* this.data;
-        },
-      };
-
-      // Add length property to the response object itself
-      Object.defineProperty(response, "length", {
-        value: 0,
-        writable: false,
-        enumerable: true,
-        configurable: true,
       });
-
-      console.log("🔍 Sending response:", JSON.stringify(response, null, 2));
+      
+      // FORCE the response itself to be array-like with length
+      Object.defineProperty(response, 'length', {
+        value: 0,
+        writable: true,
+        enumerable: true,
+        configurable: true
+      });
+      
+      // FORCE every nested property to have length
+      Object.keys(response).forEach(key => {
+        if (Array.isArray(response[key])) {
+          Object.defineProperty(response[key], 'length', {
+            value: 0,
+            writable: true,
+            enumerable: true,
+            configurable: true
+          });
+        }
+      });
+      
+      // FORCE the response to be iterable
+      response[Symbol.iterator] = function* () {
+        yield* this.data;
+      };
+      
+      // FORCE the response to have array methods
+      response.push = Array.prototype.push;
+      response.pop = Array.prototype.pop;
+      response.slice = Array.prototype.slice;
+      response.map = Array.prototype.map;
+      response.filter = Array.prototype.filter;
+      response.forEach = Array.prototype.forEach;
+      
+      console.log("🔍 Sending FORCED response:", JSON.stringify(response, null, 2));
+      console.log("🔍 Response length:", response.length);
+      console.log("🔍 Response is array:", Array.isArray(response));
       res.json(response);
     }
   } catch (err) {
