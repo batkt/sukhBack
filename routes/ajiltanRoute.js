@@ -302,6 +302,57 @@ router.get("/licenseOgnooAvya", tokenShalgakh, async (req, res, next) => {
   }
 });
 
+// Test endpoint to check token generation
+router.post("/testTokenGeneration", async (req, res, next) => {
+  try {
+    const jwt = require("jsonwebtoken");
+
+    // Test token generation with the same secret
+    const testToken = jwt.sign(
+      {
+        id: "test123",
+        ner: "test",
+        baiguullagiinId: "test456",
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60, // 12 hours
+      },
+      process.env.APP_SECRET,
+      { expiresIn: "12h" }
+    );
+
+    console.log("🔍 Generated test token:", testToken.substring(0, 50) + "...");
+    console.log("🔍 APP_SECRET:", process.env.APP_SECRET);
+
+    // Test verification
+    try {
+      const decoded = jwt.verify(testToken, process.env.APP_SECRET);
+      console.log("✅ Test token verification successful:", decoded);
+
+      res.json({
+        success: true,
+        message: "Token generation and verification test successful",
+        testToken: testToken,
+        decoded: decoded,
+        appSecret: process.env.APP_SECRET,
+      });
+    } catch (verifyError) {
+      console.error("❌ Test token verification failed:", verifyError);
+      res.status(500).json({
+        success: false,
+        message: "Test token verification failed",
+        error: verifyError.message,
+      });
+    }
+  } catch (error) {
+    console.error("❌ Test token generation error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Test token generation failed",
+      message: error.message,
+    });
+  }
+});
+
 // Simple debug endpoint without authentication
 router.post("/debugJWTSimple", async (req, res, next) => {
   try {
@@ -370,6 +421,28 @@ router.post("/debugJWTSimple", async (req, res, next) => {
     });
   }
 });
+
+// Test endpoint with middleware
+router.post(
+  "/testWithMiddleware",
+  localTokenShalgakh,
+  async (req, res, next) => {
+    try {
+      res.json({
+        success: true,
+        message: "Middleware test successful",
+        token: req.body.nevtersenAjiltniiToken,
+        body: req.body,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: "Middleware test failed",
+        error: error.message,
+      });
+    }
+  }
+);
 
 // Debug endpoint to test JWT verification
 router.post("/debugJWT", localTokenShalgakh, async (req, res, next) => {

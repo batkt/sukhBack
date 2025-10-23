@@ -365,6 +365,7 @@ router.post(
   async (req, res, next) => {
     try {
       console.log("🔍 qpayKhariltsagchAvay called with:", req.body);
+      console.log("🔍 Token from middleware:", req.body.nevtersenAjiltniiToken);
 
       const { db } = require("zevbackv2");
 

@@ -21,6 +21,8 @@ const localTokenShalgakh = async (req, res, next) => {
     }
 
     console.log("🔍 Verifying token with APP_SECRET:", process.env.APP_SECRET);
+    console.log("🔍 Token length:", token.length);
+    console.log("🔍 Token first 50 chars:", token.substring(0, 50));
 
     let decoded;
     try {
@@ -28,6 +30,8 @@ const localTokenShalgakh = async (req, res, next) => {
       console.log("✅ Token verified successfully:", decoded);
     } catch (jwtError) {
       console.error("❌ JWT Verification Error:", jwtError.message);
+      console.error("❌ JWT Error name:", jwtError.name);
+      console.error("❌ Full JWT Error:", jwtError);
       return res.status(401).json({
         success: false,
         message: "Invalid token",
