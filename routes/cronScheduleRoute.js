@@ -21,8 +21,12 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
     console.log("Looking for organization:", baiguullagiinId);
     console.log("Database connection:", db.erunkhiiKholbolt ? "Connected" : "Not connected");
     
+    // First, let's see what organizations exist
+    const allOrgs = await Baiguullaga(db.erunkhiiKholbolt).find({}).limit(5);
+    console.log("Sample organizations in database:", allOrgs.map(org => ({ id: org._id, name: org.ner })));
+    
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
-    console.log("Found organization:", baiguullaga ? "Yes" : "No");
+    console.log("Found organization by findById:", baiguullaga ? "Yes" : "No");
     
     if (!baiguullaga) {
       // Try to find by string ID
