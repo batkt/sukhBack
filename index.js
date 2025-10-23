@@ -90,7 +90,7 @@ async function automataarNekhemjlekhUusgekh() {
     // Өнөөдрийн хувьд идэвхтэй тохиргоонуудыг авах
     console.log("Хайлтын нөхцөл:", { sarinUdur: sarinUdur, idevkhitei: true });
     
-    const tovchoonuud = await NekhemjlekhCron(db.erunkhiiKholbolt).find({
+    const tovchoonuud = await NekhemjlekhCron(db.tukhainBaaziinKholbolt).find({
       sarinUdur: sarinUdur,
       idevkhitei: true
     });
@@ -102,7 +102,7 @@ async function automataarNekhemjlekhUusgekh() {
       console.log(`Сарын ${sarinUdur} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`);
       
       // Debug: Check all schedules
-      const allSchedules = await NekhemjlekhCron(db.erunkhiiKholbolt).find({});
+      const allSchedules = await NekhemjlekhCron(db.tukhainBaaziinKholbolt).find({});
       console.log("Бүх тохиргоонууд:", JSON.stringify(allSchedules, null, 2));
       return;
     }
@@ -144,7 +144,7 @@ async function automataarNekhemjlekhUusgekh() {
         }
         
         // Сүүлийн ажилласан огноо шинэчлэх
-        await NekhemjlekhCron(db.erunkhiiKholbolt).findByIdAndUpdate(tovchoo._id, {
+        await NekhemjlekhCron(db.tukhainBaaziinKholbolt).findByIdAndUpdate(tovchoo._id, {
           suuldAjillasanOgnoo: new Date()
         });
         
