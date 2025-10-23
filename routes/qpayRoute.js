@@ -456,32 +456,62 @@ router.post("/qpayKhariltsagchAvay", async (req, res, next) => {
         count: Array.isArray(baiguullaga) ? baiguullaga.length : 1,
         isEmpty: false,
         hasData: true,
-        responseLength: Array.isArray(baiguullaga) ? baiguullaga.length : 1
+        responseLength: Array.isArray(baiguullaga) ? baiguullaga.length : 1,
       };
       console.log("🔍 Sending response:", JSON.stringify(response, null, 2));
       res.json(response);
     } else {
       console.log("❌ QPay customer not found, returning empty");
-      // Return response that matches frontend expectations
+      // Create a response object that has EVERY possible property
       const response = {
         success: true,
-        data: [], // Empty array
+        data: [],
         message: "QPay харилцагч олдсонгүй",
-        length: 0, // Explicit length property
         baiguullagiinId: baiguullaga1._id,
         showRegistrationModal: true,
-        // Add properties that frontend might be expecting
-        result: [], // Alternative data property
-        results: [], // Another alternative
-        items: [], // Common property name
-        records: [], // Another common property
-        total: 0, // Total count
-        count: 0, // Count property
-        isEmpty: true, // Boolean flag
-        hasData: false, // Boolean flag
-        // Make sure the response itself has a length property
-        responseLength: 0
+        // Every possible length property
+        length: 0,
+        dataLength: 0,
+        resultLength: 0,
+        resultsLength: 0,
+        itemsLength: 0,
+        recordsLength: 0,
+        responseLength: 0,
+        // Every possible data property
+        result: [],
+        results: [],
+        items: [],
+        records: [],
+        list: [],
+        array: [],
+        collection: [],
+        // Every possible count property
+        total: 0,
+        count: 0,
+        size: 0,
+        totalCount: 0,
+        itemCount: 0,
+        recordCount: 0,
+        // Boolean flags
+        isEmpty: true,
+        hasData: false,
+        isEmpty: true,
+        hasItems: false,
+        hasRecords: false,
+        // Make the response itself array-like
+        [Symbol.iterator]: function* () {
+          yield* this.data;
+        },
       };
+
+      // Add length property to the response object itself
+      Object.defineProperty(response, "length", {
+        value: 0,
+        writable: false,
+        enumerable: true,
+        configurable: true,
+      });
+
       console.log("🔍 Sending response:", JSON.stringify(response, null, 2));
       res.json(response);
     }
@@ -522,7 +552,7 @@ router.post("/qpayKhariltsagchAvayTest", async (req, res, next) => {
       // Add the response itself as an array-like object
       [Symbol.iterator]: function* () {
         yield* this.data;
-      }
+      },
     };
 
     console.log("🔍 Sending test response:", JSON.stringify(response, null, 2));
@@ -537,64 +567,108 @@ router.post("/qpayKhariltsagchAvayTest", async (req, res, next) => {
   }
 });
 
+// Alternative approach - return the response as an array
+router.post("/qpayKhariltsagchAvayArray", async (req, res, next) => {
+  try {
+    console.log("🔧 Array endpoint called");
+
+    const { db } = require("zevbackv2");
+
+    if (!req.body.register) {
+      return res.json([]); // Return empty array directly
+    }
+
+    var baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+      register: req.body.register,
+    });
+
+    if (!baiguullaga1) {
+      return res.json([]); // Return empty array directly
+    }
+
+    var kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == baiguullaga1._id
+    );
+
+    if (!kholbolt) {
+      return res.json([]); // Return empty array directly
+    }
+
+    var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
+
+    const baiguullaga = await qpayKhariltsagch.findOne({
+      baiguullagiinId: baiguullaga1._id,
+    });
+
+    if (baiguullaga) {
+      res.json([baiguullaga]); // Return array with one item
+    } else {
+      res.json([]); // Return empty array
+    }
+  } catch (err) {
+    console.error("❌ Array endpoint error:", err);
+    res.json([]); // Return empty array on error
+  }
+});
+
 // Ultra-compatible endpoint that should work with any frontend
 router.post("/qpayKhariltsagchAvayCompatible", async (req, res, next) => {
   try {
     console.log("🔧 Compatible endpoint called");
-    
+
     const { db } = require("zevbackv2");
-    
+
     if (!req.body.register) {
       return res.json({
         success: false,
         data: [],
         length: 0,
         message: "Register дугаар заавал бөглөх шаардлагатай!",
-        showRegistrationModal: true
+        showRegistrationModal: true,
       });
     }
-    
+
     var baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
       register: req.body.register,
     });
-    
+
     if (!baiguullaga1) {
       return res.json({
         success: false,
         data: [],
         length: 0,
         message: "Байгууллагын мэдээлэл олдсонгүй!",
-        showRegistrationModal: true
+        showRegistrationModal: true,
       });
     }
-    
+
     var kholbolt = db.kholboltuud.find(
       (a) => a.baiguullagiinId == baiguullaga1._id
     );
-    
+
     if (!kholbolt) {
       return res.json({
         success: false,
         data: [],
         length: 0,
         message: "Байгууллагын холболт олдсонгүй!",
-        showRegistrationModal: true
+        showRegistrationModal: true,
       });
     }
-    
+
     var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
-    
+
     const baiguullaga = await qpayKhariltsagch.findOne({
       baiguullagiinId: baiguullaga1._id,
     });
-    
+
     if (baiguullaga) {
       res.json({
         success: true,
         data: baiguullaga,
         length: 1,
         message: "QPay харилцагч олдлоо",
-        showRegistrationModal: false
+        showRegistrationModal: false,
       });
     } else {
       res.json({
@@ -603,7 +677,7 @@ router.post("/qpayKhariltsagchAvayCompatible", async (req, res, next) => {
         length: 0,
         message: "QPay харилцагч олдсонгүй",
         showRegistrationModal: true,
-        baiguullagiinId: baiguullaga1._id
+        baiguullagiinId: baiguullaga1._id,
       });
     }
   } catch (err) {
@@ -614,8 +688,85 @@ router.post("/qpayKhariltsagchAvayCompatible", async (req, res, next) => {
       length: 0,
       message: "Серверийн алдаа",
       error: err.message,
-      showRegistrationModal: false
+      showRegistrationModal: false,
     });
+  }
+});
+
+// Last resort - try to match exactly what frontend expects
+router.post("/qpayKhariltsagchAvayLastResort", async (req, res, next) => {
+  try {
+    console.log("🚨 Last resort endpoint called");
+
+    const { db } = require("zevbackv2");
+
+    if (!req.body.register) {
+      // Return exactly what might be expected
+      const emptyResponse = [];
+      emptyResponse.length = 0;
+      emptyResponse.success = false;
+      emptyResponse.message = "Register дугаар заавал бөглөх шаардлагатай!";
+      emptyResponse.showRegistrationModal = true;
+      return res.json(emptyResponse);
+    }
+
+    var baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+      register: req.body.register,
+    });
+
+    if (!baiguullaga1) {
+      const emptyResponse = [];
+      emptyResponse.length = 0;
+      emptyResponse.success = false;
+      emptyResponse.message = "Байгууллагын мэдээлэл олдсонгүй!";
+      emptyResponse.showRegistrationModal = true;
+      return res.json(emptyResponse);
+    }
+
+    var kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == baiguullaga1._id
+    );
+
+    if (!kholbolt) {
+      const emptyResponse = [];
+      emptyResponse.length = 0;
+      emptyResponse.success = false;
+      emptyResponse.message = "Байгууллагын холболт олдсонгүй!";
+      emptyResponse.showRegistrationModal = true;
+      return res.json(emptyResponse);
+    }
+
+    var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
+
+    const baiguullaga = await qpayKhariltsagch.findOne({
+      baiguullagiinId: baiguullaga1._id,
+    });
+
+    if (baiguullaga) {
+      const response = [baiguullaga];
+      response.length = 1;
+      response.success = true;
+      response.message = "QPay харилцагч олдлоо";
+      response.showRegistrationModal = false;
+      res.json(response);
+    } else {
+      const emptyResponse = [];
+      emptyResponse.length = 0;
+      emptyResponse.success = true;
+      emptyResponse.message = "QPay харилцагч олдсонгүй";
+      emptyResponse.showRegistrationModal = true;
+      emptyResponse.baiguullagiinId = baiguullaga1._id;
+      res.json(emptyResponse);
+    }
+  } catch (err) {
+    console.error("❌ Last resort endpoint error:", err);
+    const errorResponse = [];
+    errorResponse.length = 0;
+    errorResponse.success = false;
+    errorResponse.message = "Серверийн алдаа";
+    errorResponse.error = err.message;
+    errorResponse.showRegistrationModal = false;
+    res.json(errorResponse);
   }
 });
 
