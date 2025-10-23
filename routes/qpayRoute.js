@@ -362,6 +362,8 @@ router.post(
 router.post("/qpayKhariltsagchAvay", async (req, res, next) => {
   try {
     console.log("🔍 qpayKhariltsagchAvay called with:", req.body);
+    console.log("🔍 Request URL:", req.url);
+    console.log("🔍 Request method:", req.method);
 
     // Log the authorization header for debugging
     console.log(
@@ -445,8 +447,11 @@ router.post("/qpayKhariltsagchAvay", async (req, res, next) => {
       console.log("❌ QPay customer not found, returning empty");
       res.json({
         success: true,
-        data: null,
+        data: [], // Return empty array instead of null
         message: "QPay харилцагч олдсонгүй",
+        length: 0, // Explicitly provide length property
+        baiguullagiinId: baiguullaga1._id, // Provide organization ID for registration
+        showRegistrationModal: true // Flag to trigger modal
       });
     }
   } catch (err) {
