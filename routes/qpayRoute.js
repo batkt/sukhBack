@@ -1,7 +1,7 @@
 const express = require("express");
 const { tokenShalgakh, Dugaarlalt } = require("zevbackv2");
 const router = express.Router();
-const { qpayGargaya, qpayShalgay, QuickQpayObject, qpayKhariltsagchUusgey } = require("quickqpaypackv2");
+const { qpayGargaya, qpayShalgay, QuickQpayObject, qpayKhariltsagchUusgey,QpayKhariltsagch } = require("quickqpaypackv2");
 const Nekhemjlekh = require("../models/nekhemjlekhiinTuukh");
 const Baiguullaga = require("../models/baiguullaga");
 const { qpayGuilgeeUtgaAvya, qpayTulye } = require("../controller/qpayController");
