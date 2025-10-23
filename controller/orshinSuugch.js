@@ -569,6 +569,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       success: true,
       message: "Баталгаажуулах код илгээгдлээ",
       expiresIn: 10,
+      baiguullagiinId: baiguullagiinId,
     });
   } catch (error) {
     next(error);
