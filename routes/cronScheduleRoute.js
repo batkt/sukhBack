@@ -9,6 +9,12 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
     const { db } = require("zevbackv2");
     const { baiguullagiinId, sarinUdur, idevkhitei = true } = req.body;
 
+    console.log("=== REQUEST DEBUG ===");
+    console.log("Full request body:", JSON.stringify(req.body, null, 2));
+    console.log("Extracted baiguullagiinId:", baiguullagiinId);
+    console.log("Type of baiguullagiinId:", typeof baiguullagiinId);
+    console.log("=== END REQUEST DEBUG ===");
+
     if (!baiguullagiinId || !sarinUdur) {
       return res.status(400).json({
         success: false,
