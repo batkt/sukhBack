@@ -1,7 +1,7 @@
 const express = require("express");
 const { tokenShalgakh, Dugaarlalt } = require("zevbackv2");
 const router = express.Router();
-const { qpayGargaya, qpayShalgay, QuickQpayObject } = require("quickqpaypackv2");
+const { qpayGargaya, qpayShalgay, QuickQpayObject, qpayKhariltsagchUusgey } = require("quickqpaypackv2");
 const Nekhemjlekh = require("../models/nekhemjlekhiinTuukh");
 const Baiguullaga = require("../models/baiguullaga");
 const { qpayGuilgeeUtgaAvya, qpayTulye } = require("../controller/qpayController");
@@ -28,6 +28,18 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Байгууллагын мэдээлэл олдсонгүй!" });
     }
 
+    // Check if organization has required QPay data
+    if (!baiguullaga.dans || !baiguullaga.register) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Байгууллагад QPay-д шаардлагатай мэдээлэл дутуу байна!",
+        missing: {
+          dans: !baiguullaga.dans,
+          register: !baiguullaga.register
+        }
+      });
+    }
+
     // Generate invoice number
     const lastInvoice = await Nekhemjlekh(req.body.tukhainBaaziinKholbolt)
       .findOne({ baiguullagiinId })
@@ -37,13 +49,13 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
     // Create QPay payment
     const qpayData = {
       baiguullagiinId,
-      barilgiinId: barilgiinId || "",
+      barilgiinId: barilgiinId || "DEFAULT_BRANCH",
       dun: nekhemjlekh.niitTulbur,
-      tailbar: `Нэхэмжлэх ${nekhemjlekh.dugaalaltDugaar} - ${nekhemjlekh.ner}`,
+      tailbar: `Нэхэмжлэх ${nekhemjlekh.dugaalaltDugaar || maxDugaar} - ${nekhemjlekh.ner || 'Invoice'}`,
       zakhialgiinDugaar: maxDugaar.toString(),
-      gereeniiId: nekhemjlekh.gereeniiId,
-      dansniiDugaar: baiguullaga.dans || "TEST_DANS",
-      burtgeliinDugaar: baiguullaga.register || "TEST_REGISTER"
+      gereeniiId: nekhemjlekh.gereeniiId || nekhemjlekhId,
+      dansniiDugaar: baiguullaga.dans,
+      burtgeliinDugaar: baiguullaga.register
     };
 
     console.log("🔍 QPay Data:", qpayData);
@@ -51,6 +63,12 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
       dans: baiguullaga.dans,
       register: baiguullaga.register,
       ner: baiguullaga.ner
+    });
+    console.log("🔍 Invoice Data:", {
+      dugaalaltDugaar: nekhemjlekh.dugaalaltDugaar,
+      ner: nekhemjlekh.ner,
+      gereeniiId: nekhemjlekh.gereeniiId,
+      niitTulbur: nekhemjlekh.niitTulbur
     });
 
     const callbackUrl = `${process.env.UNDSEN_SERVER}/qpayInvoiceCallback/${baiguullagiinId}/${nekhemjlekhId}`;
@@ -254,5 +272,55 @@ router.post("/qpayGuilgeeUtgaAvya", tokenShalgakh, qpayGuilgeeUtgaAvya);
 
 // QPay callback for general payments (not just invoices)
 router.get("/qpayTulye/:baiguullagiinId/:barilgiinId/:dugaar", qpayTulye);
+
+router.post(
+  "/qpayKhariltsagchUusgey",
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      const { db } = require("zevbackv2");
+      var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+        register: req.body.register,
+      });
+      var kholbolt = db.kholboltuud.find(
+        (a) => a.baiguullagiinId == baiguullaga._id
+      );
+      req.body.baiguullagiinId = baiguullaga._id;
+      delete req.body.tukhainBaaziinKholbolt;
+      delete req.body.erunkhiiKholbolt;
+      var khariu = await qpayKhariltsagchUusgey(req.body, kholbolt);
+      if (khariu === "Amjilttai") {
+        res.send(khariu);
+      } else throw new Error(khariu);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+
+
+router.post("/qpayKhariltsagchAvay", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    var baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+      register: req.body.register,
+    });
+    var kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == baiguullaga1._id
+    );
+    var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
+
+    req.body.baiguullagiinId = baiguullaga1._id;
+    const baiguullaga = await qpayKhariltsagch.findOne({
+      baiguullagiinId: req.body.baiguullagiinId,
+    });
+    if (baiguullaga) res.send(baiguullaga);
+    else res.send(undefined);
+  } catch (err) {
+    next(err);
+  }
+});
+
 
 module.exports = router;
