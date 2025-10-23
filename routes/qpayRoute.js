@@ -364,6 +364,7 @@ router.post("/qpayKhariltsagchAvay", async (req, res, next) => {
     console.log("🔍 qpayKhariltsagchAvay called with:", req.body);
     console.log("🔍 Request URL:", req.url);
     console.log("🔍 Request method:", req.method);
+    console.log("🔍 Full request body:", JSON.stringify(req.body, null, 2));
 
     // Log the authorization header for debugging
     console.log(
@@ -439,26 +440,58 @@ router.post("/qpayKhariltsagchAvay", async (req, res, next) => {
 
     if (baiguullaga) {
       console.log("✅ Returning QPay customer data");
-      res.json({
+      const response = {
         success: true,
         data: baiguullaga,
-      });
+        length: Array.isArray(baiguullaga) ? baiguullaga.length : 1,
+      };
+      console.log("🔍 Sending response:", JSON.stringify(response, null, 2));
+      res.json(response);
     } else {
       console.log("❌ QPay customer not found, returning empty");
-      res.json({
+      const response = {
         success: true,
         data: [], // Return empty array instead of null
         message: "QPay харилцагч олдсонгүй",
         length: 0, // Explicitly provide length property
         baiguullagiinId: baiguullaga1._id, // Provide organization ID for registration
-        showRegistrationModal: true // Flag to trigger modal
-      });
+        showRegistrationModal: true, // Flag to trigger modal
+      };
+      console.log("🔍 Sending response:", JSON.stringify(response, null, 2));
+      res.json(response);
     }
   } catch (err) {
     console.error("❌ qpayKhariltsagchAvay error:", err);
     res.status(500).json({
       success: false,
       message: "Серверийн алдаа",
+      error: err.message,
+    });
+  }
+});
+
+// Test endpoint to debug frontend expectations
+router.post("/qpayKhariltsagchAvayTest", async (req, res, next) => {
+  try {
+    console.log("🧪 Test endpoint called");
+    console.log("🔍 Request body:", req.body);
+
+    // Return a simple response that should work
+    const response = {
+      success: true,
+      data: [],
+      length: 0,
+      message: "Test response",
+      baiguullagiinId: "68f9a24a4bfc2380347f78ec",
+    };
+
+    console.log("🔍 Sending test response:", JSON.stringify(response, null, 2));
+    res.json(response);
+  } catch (err) {
+    console.error("❌ Test endpoint error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Test error",
       error: err.message,
     });
   }
