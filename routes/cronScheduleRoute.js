@@ -29,15 +29,26 @@ router.post("/create", tokenShalgakh, async (req, res, next) => {
     }
 
     // Get tenant database connection
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    let tukhainBaaziinKholbolt = db.kholboltuud.find(
       k => k.baiguullagiinId === baiguullagiinId
     );
 
     if (!tukhainBaaziinKholbolt) {
-      return res.status(404).json({
-        success: false,
-        message: "Байгууллагын холболт олдсонгүй!"
-      });
+      console.log("Available connections:", db.kholboltuud.map(k => k.baiguullagiinId));
+      console.log("Looking for:", baiguullagiinId);
+      
+      // Try to create connection if it doesn't exist
+      try {
+        const connection = await db.kholboltAvya(baiguullagiinId);
+        tukhainBaaziinKholbolt = { kholbolt: connection };
+        console.log("Created new connection for:", baiguullagiinId);
+      } catch (connectionError) {
+        console.error("Failed to create connection:", connectionError);
+        return res.status(404).json({
+          success: false,
+          message: "Байгууллагын холболт үүсгэх боломжгүй!"
+        });
+      }
     }
 
     // Create or update cron schedule
