@@ -88,7 +88,7 @@ async function automataarNekhemjlekhUusgekh() {
     console.log(`Өнөөдөр сарын ${sarinUdur} өдөр`);
     
     // Өнөөдрийн хувьд идэвхтэй тохиргоонуудыг авах
-    const tovchoonuud = await NekhemjlekhCron({ kholbolt: db.erunkhiiKholbolt }).find({
+    const tovchoonuud = await NekhemjlekhCron({ kholbolt: db.tukhainBaaziinKholbolt }).find({
       sarinUdur: sarinUdur,
       idevkhitei: true
     });
@@ -135,7 +135,7 @@ async function automataarNekhemjlekhUusgekh() {
         }
         
         // Сүүлийн ажилласан огноо шинэчлэх
-        await NekhemjlekhCron({ kholbolt: db.erunkhiiKholbolt }).findByIdAndUpdate(tovchoo._id, {
+        await NekhemjlekhCron({ kholbolt: db.tukhainBaaziinKholbolt }).findByIdAndUpdate(tovchoo._id, {
           suuldAjillasanOgnoo: new Date()
         });
         
@@ -153,7 +153,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "16 10 * * *", // Өдөр бүр 10:10 цагт
+  "17 10 * * *", // Өдөр бүр 10:10 цагт
   function () {
     automataarNekhemjlekhUusgekh();
   },
