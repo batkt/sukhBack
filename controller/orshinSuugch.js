@@ -791,7 +791,7 @@ function msgIlgeeye(
 
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {
-    const { baiguullagiinId, utas, code } = req.body;
+    const { utas, code } = req.body;
 
     if (!baiguullagiinId || !utas || !code) {
       return res.status(400).json({
@@ -801,7 +801,7 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
     }
 
     // Use validateCodeOnly for Step 2 - don't mark code as used yet
-    const verificationResult = await validateCodeOnly(baiguullagiinId, utas, code);
+    const verificationResult = await validateCodeOnly( utas, code);
 
     if (!verificationResult.success) {
       return res.status(400).json({
