@@ -99,7 +99,15 @@ async function automataarNekhemjlekhUusgekh() {
     // Check each organization for schedules
     for (const baiguullaga of baiguullaguud) {
       try {
-        const tukhainBaaziinKholbolt = { kholbolt: await db.kholboltAvya(baiguullaga._id) };
+        const tukhainBaaziinKholbolt = db.kholboltuud.find(
+          k => k.baiguullagiinId === baiguullaga._id.toString()
+        );
+        
+        if (!tukhainBaaziinKholbolt) {
+          console.log(`Байгууллага ${baiguullaga._id} холболт олдсонгүй`);
+          continue;
+        }
+        
         const schedules = await NekhemjlekhCron(tukhainBaaziinKholbolt).find({
           sarinUdur: sarinUdur,
           idevkhitei: true
@@ -131,7 +139,9 @@ async function automataarNekhemjlekhUusgekh() {
         const baiguullaga = tovchoo.baiguullaga;
         console.log(`Байгууллага боловсруулах: ${baiguullaga.ner} (${baiguullaga._id})`);
         
-        const tukhainBaaziinKholbolt = { kholbolt: await db.kholboltAvya(baiguullaga._id) };
+        const tukhainBaaziinKholbolt = db.kholboltuud.find(
+          k => k.baiguullagiinId === baiguullaga._id.toString()
+        );
         
         const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
           baiguullagiinId: baiguullaga._id.toString(),
@@ -174,7 +184,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "29 10 * * *", // Өдөр бүр 10:10 цагт
+  "31 10 * * *", // Өдөр бүр 10:10 цагт
   function () {
     automataarNekhemjlekhUusgekh();
   },
