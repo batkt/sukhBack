@@ -68,7 +68,7 @@ app.use(gereeRoute);
 app.use(gereeniiZagvarRoute);
 app.use(nekhemjlekhiinZagvarRoute);
 app.use(nekhemjlekhRoute);
-app.use(nekhemjlekhCronRoute);
+app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
 
 app.use(aldaaBarigch);
 
