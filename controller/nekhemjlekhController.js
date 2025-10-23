@@ -55,7 +55,9 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     const suuliinNekhemjlekh = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
       .findOne()
       .sort({ dugaalaltDugaar: -1 });
-    tuukh.dugaalaltDugaar = suuliinNekhemjlekh ? suuliinNekhemjlekh.dugaalaltDugaar + 1 : 1;
+    
+    const suuliinDugaar = suuliinNekhemjlekh?.dugaalaltDugaar;
+    tuukh.dugaalaltDugaar = (suuliinDugaar && !isNaN(suuliinDugaar)) ? suuliinDugaar + 1 : 1;
 
     // Нэхэмжлэх хадгалах
     await tuukh.save();
