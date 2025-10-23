@@ -58,6 +58,22 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
     dugaarlalt.dugaar = maxDugaar;
     await dugaarlalt.save();
 
+    // Save QPay payment object
+    const qpayObject = new QuickQpayObject(req.body.tukhainBaaziinKholbolt)();
+    qpayObject.zakhialgiinDugaar = nekhemjlekhId;
+    qpayObject.gereeniiId = nekhemjlekhId;
+    qpayObject.baiguullagiinId = baiguullagiinId;
+    qpayObject.barilgiinId = barilgiinId;
+    qpayObject.amount = nekhemjlekh.niitTulbur;
+    qpayObject.currency = "MNT";
+    qpayObject.status = "pending";
+    qpayObject.description = qpayData.tailbar;
+    qpayObject.qpay = qpayResponse;
+    qpayObject.invoice_id = qpayResponse.invoice_id;
+    qpayObject.callback_url = callbackUrl;
+    qpayObject.tulsunEsekh = false;
+    await qpayObject.save();
+
     // Update invoice
     nekhemjlekh.qpayPaymentId = qpayResponse.invoice_id;
     await nekhemjlekh.save();
