@@ -11,6 +11,14 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
     console.log("=== END ROUTE HIT ===");
     
     const { db } = require("zevbackv2");
+    
+    console.log("=== RAW REQUEST DEBUG ===");
+    console.log("req.body keys:", Object.keys(req.body));
+    console.log("req.body.baiguullagiinId:", req.body.baiguullagiinId);
+    console.log("req.body.sarinUdur:", req.body.sarinUdur);
+    console.log("req.body.idevkhitei:", req.body.idevkhitei);
+    console.log("=== END RAW REQUEST DEBUG ===");
+    
     const { baiguullagiinId, sarinUdur, idevkhitei = true } = req.body;
 
     console.log("=== REQUEST DEBUG ===");
