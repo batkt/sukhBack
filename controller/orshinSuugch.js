@@ -717,7 +717,7 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
       next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
     }
     const token = req.headers.authorization.split(" ")[1];
-    const tokenObject = jwt.verify(token, process.env.APP_SECRET, 401);
+    const tokenObject = jwt.verify(token, process.env.APP_SECRET);
     if (tokenObject.id == "zochin")
       next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
     OrshinSuugch(db.erunkhiiKholbolt)
