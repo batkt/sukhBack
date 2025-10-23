@@ -2,13 +2,13 @@ const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 
-// Reusable function to create invoice from contract (used by both endpoint and cron)
-const createInvoiceFromContract = async (tempData, org, tukhainBaaziinKholbolt, generatedFor = "manual") => {
+// Гэрээнээс нэхэмжлэх үүсгэх функц
+const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt, uusgegsenEsekh = "garan") => {
   try {
-    // Create invoice record
+    // Нэхэмжлэхийн бичлэг үүсгэх
     const tuukh = new nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)();
     
-    // Map contract data to invoice (only using model fields)
+    // Гэрээний мэдээллийг нэхэмжлэх рүү хуулах
     tuukh.baiguullagiinNer = tempData.baiguullagiinNer || org.ner;
     tuukh.baiguullagiinId = tempData.baiguullagiinId;
     tuukh.barilgiinId = tempData.barilgiinId || "";
@@ -39,10 +39,10 @@ const createInvoiceFromContract = async (tempData, org, tukhainBaaziinKholbolt, 
       khungulultuud: tempData.khungulultuud || [],
       toot: tempData.toot,
       temdeglel: tempData.temdeglel,
-      generatedFor: generatedFor,
-      generationDate: new Date()
+      uusgegsenEsekh: uusgegsenEsekh,
+      uusgegsenOgnoo: new Date()
     };
-    tuukh.nekhemjlekh = tempData.nekhemjlekh || (generatedFor === "cron_job" ? "Автоматаар үүссэн нэхэмжлэх" : "Мобайл апп-д зориулсан нэхэмжлэх");
+    tuukh.nekhemjlekh = tempData.nekhemjlekh || (uusgegsenEsekh === "automataar" ? "Автоматаар үүссэн нэхэмжлэх" : "Гаран үүссэн нэхэмжлэх");
     tuukh.zagvariinNer = tempData.zagvariinNer || org.ner;
     tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${tempData.niitTulbur}₮`;
     tuukh.nekhemjlekhiinDans = tempData.nekhemjlekhiinDans || "";
@@ -51,126 +51,118 @@ const createInvoiceFromContract = async (tempData, org, tukhainBaaziinKholbolt, 
     tuukh.nekhemjlekhiinIbanDugaar = tempData.nekhemjlekhiinIbanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
     
-    // Generate invoice number
-    const lastInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+    // Нэхэмжлэхийн дугаар үүсгэх
+    const suuliinNekhemjlekh = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
       .findOne()
       .sort({ dugaalaltDugaar: -1 });
-    tuukh.dugaalaltDugaar = lastInvoice ? lastInvoice.dugaalaltDugaar + 1 : 1;
+    tuukh.dugaalaltDugaar = suuliinNekhemjlekh ? suuliinNekhemjlekh.dugaalaltDugaar + 1 : 1;
 
-    // Save invoice
+    // Нэхэмжлэх хадгалах
     await tuukh.save();
     
-    // Update contract with invoice date
+    // Гэрээг нэхэмжлэхийн огноогоор шинэчлэх
     await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(tempData._id, {
       nekhemjlekhiinOgnoo: new Date()
     });
     
     return {
       success: true,
-      invoice: tuukh,
-      contractId: tempData._id,
-      contractNumber: tempData.gereeniiDugaar,
-      amount: tempData.niitTulbur
+      nekhemjlekh: tuukh,
+      gereeniiId: tempData._id,
+      gereeniiDugaar: tempData.gereeniiDugaar,
+      tulbur: tempData.niitTulbur
     };
     
   } catch (error) {
     return {
       success: false,
       error: error.message,
-      contractId: tempData._id,
-      contractNumber: tempData.gereeniiDugaar
+      gereeniiId: tempData._id,
+      gereeniiDugaar: tempData.gereeniiDugaar
     };
   }
 };
 
-// Controller for creating invoices from contracts (mobile app endpoint)
-const nekhemjlekhAvya = async (req, res, next) => {
+// Мобайл апп-д зориулсан нэхэмжлэх авах
+const mubailApdNekhemjlekhAvya = async (req, res, next) => {
   try {
-    const { db } = require("zevbackv2");
-    
-    // Get organization info
-    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+    const { baiguullagiinId } = req.params;
+    const { huudas = 1, hadgalakh = 10, ehelsenOgnoo, duusakhOgnoo } = req.query;
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "Байгууллагын ID заавал бөглөх шаардлагатай!"
+      });
+    }
+
+    // Байгууллагын мэдээлэл авах
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
     if (!baiguullaga) {
-      throw new Error("Байгууллагын мэдээлэл олдсонгүй!");
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын мэдээлэл олдсонгүй!"
+      });
     }
 
-    console.log("=== CREATING INVOICES FOR MOBILE APP ===");
-    console.log("Organization:", baiguullaga.ner);
-    console.log("Contracts to process:", req.body.gereenuud?.length || 0);
+    // Түхайн баазын холболт авах
+    const tukhainBaaziinKholbolt = { kholbolt: await db.kholboltAvya(baiguullagiinId) };
 
-    const createdInvoices = [];
-    const errors = [];
-
-    if (req.body.gereenuud && req.body.gereenuud.length > 0) {
-      for await (const tempData of req.body.gereenuud) {
-        try {
-          console.log(`Processing contract: ${tempData.gereeniiDugaar}`);
-          
-          const result = await createInvoiceFromContract(tempData, baiguullaga, req.body.tukhainBaaziinKholbolt, "mobile_app");
-          
-          if (result.success) {
-            console.log(`✅ Invoice created for contract ${result.contractNumber} - Amount: ${result.amount}₮`);
-            
-            createdInvoices.push({
-              invoiceId: result.invoice._id,
-              contractId: result.contractId,
-              contractNumber: result.contractNumber,
-              amount: result.amount,
-              user: {
-                name: tempData.ner,
-                phone: tempData.utas?.[0],
-                email: tempData.mail,
-                department: tempData.davkhar
-              },
-              status: "created"
-            });
-          } else {
-            console.error(`❌ Error processing contract ${result.contractNumber}:`, result.error);
-            errors.push({
-              contractId: result.contractId,
-              contractNumber: result.contractNumber,
-              error: result.error
-            });
-          }
-
-        } catch (contractError) {
-          console.error(`❌ Error processing contract ${tempData.gereeniiDugaar}:`, contractError.message);
-          errors.push({
-            contractId: tempData._id,
-            contractNumber: tempData.gereeniiDugaar,
-            error: contractError.message
-          });
-        }
-      }
+    // Хайлтын нөхцөл бүрдүүлэх
+    const hailt = { baiguullagiinId };
+    
+    if (ehelsenOgnoo || duusakhOgnoo) {
+      hailt.nekhemjlekhiinOgnoo = {};
+      if (ehelsenOgnoo) hailt.nekhemjlekhiinOgnoo.$gte = new Date(ehelsenOgnoo);
+      if (duusakhOgnoo) hailt.nekhemjlekhiinOgnoo.$lte = new Date(duusakhOgnoo);
     }
 
-    console.log(`=== INVOICE CREATION COMPLETED ===`);
-    console.log(`Successfully created: ${createdInvoices.length} invoices`);
-    console.log(`Errors: ${errors.length}`);
+    // Нэхэмжлэхүүдийг хуудаслалттайгаар авах
+    const nekhemjlekhuud = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+      .find(hailt)
+      .sort({ nekhemjlekhiinOgnoo: -1 })
+      .skip((huudas - 1) * hadgalakh)
+      .limit(parseInt(hadgalakh));
+
+    // Нийт тоо авах
+    const niitToo = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).countDocuments(hailt);
+
+    // Мобайл апп-д зориулсан хариу бэлтгэх
+    const mubailApdZorilsonNekhemjlekhuud = nekhemjlekhuud.map(nekhemjlekh => ({
+      nekhemjlekhiinId: nekhemjlekh._id,
+      nekhemjlekhiinDugaar: nekhemjlekh.dugaalaltDugaar,
+      gereeniiDugaar: nekhemjlekh.gereeniiDugaar,
+      hereglegchiinNer: `${nekhemjlekh.ovog} ${nekhemjlekh.ner}`,
+      hereglegchiinUtas: nekhemjlekh.utas?.[0] || "",
+      hereglegchiinMail: nekhemjlekh.mailKhayagTo || "",
+      davkhar: nekhemjlekh.davkhar || "",
+      tulbur: nekhemjlekh.content?.match(/Нийт төлбөр: (\d+)₮/)?.[1] || "0",
+      uusgegsenOgnoo: nekhemjlekh.nekhemjlekhiinOgnoo,
+      tuluv: "uusgegsen",
+      baiguullaga: nekhemjlekh.baiguullagiinNer
+    }));
 
     res.json({
       success: true,
-      message: `Амжилттай ${createdInvoices.length} нэхэмжлэх үүсгэгдлээ`,
       data: {
-        createdInvoices,
-        errors,
-        summary: {
-          totalProcessed: req.body.gereenuud?.length || 0,
-          successful: createdInvoices.length,
-          failed: errors.length
+        nekhemjlekhuud: mubailApdZorilsonNekhemjlekhuud,
+        huudaslalt: {
+          odoogiinHuudas: parseInt(huudas),
+          niitHuudas: Math.ceil(niitToo / hadgalakh),
+          niitToo,
+          daraagiinHuudasBaih: huudas * hadgalakh < niitToo,
+          umnuugiinHuudasBaih: huudas > 1
         }
       }
     });
 
-  } catch (err) {
-    console.error("❌ CRITICAL ERROR in invoice creation:", err);
-    next(err);
+  } catch (error) {
+    console.error("Мобайл апп-д нэхэмжлэх авах алдаа:", error);
+    next(error);
   }
 };
 
-
-
 module.exports = {
-  createInvoiceFromContract,
-  nekhemjlekhAvya
+  gereeNeesNekhemjlekhUusgekh,
+  mubailApdNekhemjlekhAvya
 };

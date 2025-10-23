@@ -20,12 +20,14 @@ const nekhemjlekhiinZagvarRoute = require("./routes/nekhemjlekhiinZagvarRoute");
 const gereeRoute = require("./routes/gereeRoute");
 const gereeniiZagvarRoute = require("./routes/gereeniiZagvarRoute");
 const nekhemjlekhRoute = require("./routes/nekhemjlekhRoute");
+const nekhemjlekhCronRoute = require("./routes/cronScheduleRoute");
 
 const { db } = require("zevbackv2");
 
 const aldaaBarigch = require("./middleware/aldaaBarigch");
 const nekhemjlekhiinZagvar = require("./models/nekhemjlekhiinZagvar");
 const nekhemjlekhController = require("./controller/nekhemjlekhController");
+const NekhemjlekhCron = require("./models/cronSchedule");
 
 process.setMaxListeners(0);
 process.env.UV_THREADPOOL_SIZE = 20;
@@ -66,68 +68,94 @@ app.use(gereeRoute);
 app.use(gereeniiZagvarRoute);
 app.use(nekhemjlekhiinZagvarRoute);
 app.use(nekhemjlekhRoute);
+app.use(nekhemjlekhCronRoute);
 
 app.use(aldaaBarigch);
 
-// Auto create invoices function for cron
-async function autoCreateInvoices() {
+// Автоматаар нэхэмжлэх үүсгэх функц (өдөр бүр шөнийн 12 цагт ажиллана)
+async function automataarNekhemjlekhUusgekh() {
   try {
     const { db } = require("zevbackv2");
     const Baiguullaga = require("./models/baiguullaga");
     const Geree = require("./models/geree");
     
-    console.log("=== AUTO CREATING INVOICES - CRON JOB STARTED ===");
+    console.log("=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ЭХЭЛЛЭЭ ===");
     
-    // Get all organizations
-    const organizations = await Baiguullaga(db.erunkhiiKholbolt).find({});
+    // Одоогийн огноо авах
+    const odoo = new Date();
+    const sarinUdur = odoo.getDate();
     
-    for (const org of organizations) {
+    console.log(`Өнөөдөр сарын ${sarinUdur} өдөр`);
+    
+    // Өнөөдрийн хувьд идэвхтэй тохиргоонуудыг авах
+    const tovchoonuud = await NekhemjlekhCron(db.erunkhiiKholbolt).find({
+      sarinUdur: sarinUdur,
+      idevkhitei: true
+    });
+    
+    if (tovchoonuud.length === 0) {
+      console.log(`Сарын ${sarinUdur} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`);
+      return;
+    }
+    
+    console.log(`Өнөөдрийн хувьд ${tovchoonuud.length} байгууллагын тохиргоо олдлоо`);
+    
+    for (const tovchoo of tovchoonuud) {
       try {
-        console.log(`Processing organization: ${org.ner} (${org._id})`);
-        
-        // Get tenant connection for this organization
-        const tukhainBaaziinKholbolt = { kholbolt: await db.kholboltAvya(org._id) };
-        
-        // Get all active contracts for this organization that don't have invoices yet
-        const contracts = await Geree(tukhainBaaziinKholbolt).find({
-          baiguullagiinId: org._id.toString(),
-          nekhemjlekhiinOgnoo: { $exists: false } // Only contracts without invoices
-        });
-        
-        if (contracts.length === 0) {
-          console.log(`No contracts to process for ${org.ner}`);
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(tovchoo.baiguullagiinId);
+        if (!baiguullaga) {
+          console.log(`Байгууллага ${tovchoo.baiguullagiinId} олдсонгүй, алгасах...`);
           continue;
         }
         
-        console.log(`Found ${contracts.length} contracts to process for ${org.ner}`);
+        console.log(`Байгууллага боловсруулах: ${baiguullaga.ner} (${baiguullaga._id})`);
         
-        for (const contract of contracts) {
-          const result = await nekhemjlekhController.createInvoiceFromContract(contract, org, tukhainBaaziinKholbolt, "cron_job");
+        const tukhainBaaziinKholbolt = { kholbolt: await db.kholboltAvya(baiguullaga._id) };
+        
+        const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
+          baiguullagiinId: baiguullaga._id.toString(),
+          nekhemjlekhiinOgnoo: { $exists: false } // Нэхэмжлэхгүй гэрээнүүд
+        });
+        
+        if (gereenuud.length === 0) {
+          console.log(`${baiguullaga.ner}-д боловсруулах гэрээ олдсонгүй`);
+          continue;
+        }
+        
+        console.log(`${baiguullaga.ner}-д ${gereenuud.length} гэрээ боловсруулах олдлоо`);
+        
+        for (const geree of gereenuud) {
+          const urdun = await nekhemjlekhController.gereeNeesNekhemjlekhUusgekh(geree, baiguullaga, tukhainBaaziinKholbolt, "automataar");
           
-          if (result.success) {
-            console.log(`✅ Invoice created for contract ${result.contractNumber} - Amount: ${result.amount}₮`);
+          if (urdun.success) {
+            console.log(`✅ Гэрээ ${urdun.gereeniiDugaar}-д нэхэмжлэх үүсгэгдлээ - Төлбөр: ${urdun.tulbur}₮`);
           } else {
-            console.error(`❌ Error processing contract ${result.contractNumber}:`, result.error);
+            console.error(`❌ Гэрээ ${urdun.gereeniiDugaar} боловсруулах алдаа:`, urdun.error);
           }
         }
         
-      } catch (orgError) {
-        console.error(`❌ Error processing organization ${org.ner}:`, orgError.message);
+        // Сүүлийн ажилласан огноо шинэчлэх
+        await NekhemjlekhCron(db.erunkhiiKholbolt).findByIdAndUpdate(tovchoo._id, {
+          suuldAjillasanOgnoo: new Date()
+        });
+        
+      } catch (baiguullagiinAldaa) {
+        console.error(`❌ Байгууллага ${tovchoo.baiguullagiinId} боловсруулах алдаа:`, baiguullagiinAldaa.message);
       }
     }
     
-    console.log("=== AUTO CREATING INVOICES - CRON JOB COMPLETED ===");
+    console.log("=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ДУУССАН ===");
     
-  } catch (error) {
-    console.error("❌ CRITICAL ERROR in auto invoice creation:", error);
+  } catch (aldaa) {
+    console.error("❌ АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ КРИТИК АЛДАА:", aldaa);
   }
 }
 
-// Schedule cron job to run every 5 minutes
+// Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "*/5 * * * *",
+  "10 10 * * *", // Өдөр бүр 10:10 цагт
   function () {
-    autoCreateInvoices();
+    automataarNekhemjlekhUusgekh();
   },
   {
     scheduled: true,
@@ -135,4 +163,4 @@ cron.schedule(
   }
 );
 
-console.log("🕐 Cron job scheduled: Auto invoice creation every 5 minutes");
+console.log("🕐 Cron job тохируулагдлаа: Өдөр бүр 10:10 цагт автоматаар нэхэмжлэх үүсгэх");

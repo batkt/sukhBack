@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const { crud, UstsanBarimt } = require("zevbackv2");
-const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
+const nekhemjlekhCron = require("../models/cronSchedule.js");
 
-crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
+crud(router, "nekhemjlekhCron", nekhemjlekhCron, UstsanBarimt);
 
 module.exports = router;
