@@ -314,13 +314,42 @@ exports.backAvya = asyncHandler(async (req, res, next) => {
 exports.tokenoorAjiltanAvya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    
     if (!req.headers.authorization) {
-      next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
+      return res.status(401).json({
+        success: false,
+        message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
+      });
     }
+    
     const token = req.headers.authorization.split(" ")[1];
-    const tokenObject = jwt.verify(token, process.env.APP_SECRET, 401);
-    if (tokenObject.id == "zochin")
-      next(new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401));
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Token is required",
+      });
+    }
+    
+    let tokenObject;
+    try {
+      tokenObject = jwt.verify(token, process.env.APP_SECRET);
+    } catch (jwtError) {
+      console.error("❌ JWT Verification Error:", jwtError.message);
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+        error: jwtError.message,
+      });
+    }
+    
+    if (tokenObject.id == "zochin") {
+      return res.status(401).json({
+        success: false,
+        message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
+      });
+    }
+    
     Ajiltan(db.erunkhiiKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
@@ -368,13 +397,42 @@ exports.zochiniiTokenAvya = asyncHandler(async (req, res, next) => {
 exports.khugatsaaguiTokenAvya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    
     if (!req.headers.authorization) {
-      throw new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401);
+      return res.status(401).json({
+        success: false,
+        message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
+      });
     }
+    
     const token = req.headers.authorization.split(" ")[1];
-    const tokenObject = jwt.verify(token, process.env.APP_SECRET, 401);
-    if (tokenObject.id == "zochin")
-      throw new Error("Энэ үйлдлийг хийх эрх байхгүй байна!", 401);
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Token is required",
+      });
+    }
+    
+    let tokenObject;
+    try {
+      tokenObject = jwt.verify(token, process.env.APP_SECRET);
+    } catch (jwtError) {
+      console.error("❌ JWT Verification Error:", jwtError.message);
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+        error: jwtError.message,
+      });
+    }
+    
+    if (tokenObject.id == "zochin") {
+      return res.status(401).json({
+        success: false,
+        message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
+      });
+    }
+    
     Ajiltan(db.erunkhiiKholbolt)
       .findById(tokenObject.id)
       .then(async (urDun) => {
