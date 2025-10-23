@@ -88,13 +88,22 @@ async function automataarNekhemjlekhUusgekh() {
     console.log(`Өнөөдөр сарын ${sarinUdur} өдөр`);
     
     // Өнөөдрийн хувьд идэвхтэй тохиргоонуудыг авах
+    console.log("Хайлтын нөхцөл:", { sarinUdur: sarinUdur, idevkhitei: true });
+    
     const tovchoonuud = await NekhemjlekhCron(db.erunkhiiKholbolt).find({
       sarinUdur: sarinUdur,
       idevkhitei: true
     });
     
+    console.log(`Олдсон тохиргоонуудын тоо: ${tovchoonuud.length}`);
+    console.log("Тохиргоонууд:", JSON.stringify(tovchoonuud, null, 2));
+    
     if (tovchoonuud.length === 0) {
       console.log(`Сарын ${sarinUdur} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`);
+      
+      // Debug: Check all schedules
+      const allSchedules = await NekhemjlekhCron(db.erunkhiiKholbolt).find({});
+      console.log("Бүх тохиргоонууд:", JSON.stringify(allSchedules, null, 2));
       return;
     }
     
@@ -153,7 +162,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "23 10 * * *", // Өдөр бүр 10:10 цагт
+  "25 10 * * *", // Өдөр бүр 10:10 цагт
   function () {
     automataarNekhemjlekhUusgekh();
   },
