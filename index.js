@@ -54,12 +54,12 @@ app.use(
   express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 })
 );
 
-app.use((req, res, next) => {
-  if (!req.body) {
-    req.body = {};
-  }
-  next();
-});
+// app.use((req, res, next) => {
+//   if (!req.body) {
+//     req.body = {};
+//   }
+//   next();
+// });
 
 app.use(baiguullagaRoute);
 app.use(ajiltanRoute);
@@ -70,7 +70,7 @@ app.use(gereeniiZagvarRoute);
 app.use(nekhemjlekhiinZagvarRoute);
 app.use(nekhemjlekhRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
-app.use( qpayRoute);
+app.use(qpayRoute);
 
 app.use(aldaaBarigch);
 
@@ -80,105 +80,134 @@ async function automataarNekhemjlekhUusgekh() {
     const { db } = require("zevbackv2");
     const Baiguullaga = require("./models/baiguullaga");
     const Geree = require("./models/geree");
-    
-    console.log("=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ЭХЭЛЛЭЭ ===");
-    
+
+    console.log(
+      "=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ЭХЭЛЛЭЭ ==="
+    );
+
     // Одоогийн огноо авах
     const odoo = new Date();
     const sarinUdur = odoo.getDate();
-    
+
     console.log(`Өнөөдөр сарын ${sarinUdur} өдөр`);
-    
+
     // Өнөөдрийн хувьд идэвхтэй тохиргоонуудыг авах
     console.log("Хайлтын нөхцөл:", { sarinUdur: sarinUdur, idevkhitei: true });
-    
+
     // Get all organizations first
     const baiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
     console.log(`Олдсон байгууллагын тоо: ${baiguullaguud.length}`);
-    
+
     const tovchoonuud = [];
-    
+
     // Check each organization for schedules
     for (const baiguullaga of baiguullaguud) {
       try {
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          k => k.baiguullagiinId === baiguullaga._id.toString()
+          (k) => k.baiguullagiinId === baiguullaga._id.toString()
         );
-        
+
         if (!tukhainBaaziinKholbolt) {
           console.log(`Байгууллага ${baiguullaga._id} холболт олдсонгүй`);
           continue;
         }
-        
+
         const schedules = await NekhemjlekhCron(tukhainBaaziinKholbolt).find({
           sarinUdur: sarinUdur,
-          idevkhitei: true
+          idevkhitei: true,
         });
-        
+
         for (const schedule of schedules) {
           tovchoonuud.push({
             ...schedule.toObject(),
-            baiguullaga: baiguullaga
+            baiguullaga: baiguullaga,
           });
         }
       } catch (error) {
-        console.log(`Байгууллага ${baiguullaga._id} шалгах алдаа:`, error.message);
+        console.log(
+          `Байгууллага ${baiguullaga._id} шалгах алдаа:`,
+          error.message
+        );
       }
     }
-    
+
     console.log(`Олдсон тохиргоонуудын тоо: ${tovchoonuud.length}`);
     console.log("Тохиргоонууд:", JSON.stringify(tovchoonuud, null, 2));
-    
+
     if (tovchoonuud.length === 0) {
-      console.log(`Сарын ${sarinUdur} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`);
+      console.log(
+        `Сарын ${sarinUdur} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`
+      );
       return;
     }
-    
-    console.log(`Өнөөдрийн хувьд ${tovchoonuud.length} байгууллагын тохиргоо олдлоо`);
-    
+
+    console.log(
+      `Өнөөдрийн хувьд ${tovchoonuud.length} байгууллагын тохиргоо олдлоо`
+    );
+
     for (const tovchoo of tovchoonuud) {
       try {
         const baiguullaga = tovchoo.baiguullaga;
-        console.log(`Байгууллага боловсруулах: ${baiguullaga.ner} (${baiguullaga._id})`);
-        
-        const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          k => k.baiguullagiinId === baiguullaga._id.toString()
+        console.log(
+          `Байгууллага боловсруулах: ${baiguullaga.ner} (${baiguullaga._id})`
         );
-        
+
+        const tukhainBaaziinKholbolt = db.kholboltuud.find(
+          (k) => k.baiguullagiinId === baiguullaga._id.toString()
+        );
+
         const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
           baiguullagiinId: baiguullaga._id.toString(),
-          nekhemjlekhiinOgnoo: { $exists: false } // Нэхэмжлэхгүй гэрээнүүд
+          nekhemjlekhiinOgnoo: { $exists: false }, // Нэхэмжлэхгүй гэрээнүүд
         });
-        
+
         if (gereenuud.length === 0) {
           console.log(`${baiguullaga.ner}-д боловсруулах гэрээ олдсонгүй`);
           continue;
         }
-        
-        console.log(`${baiguullaga.ner}-д ${gereenuud.length} гэрээ боловсруулах олдлоо`);
-        
+
+        console.log(
+          `${baiguullaga.ner}-д ${gereenuud.length} гэрээ боловсруулах олдлоо`
+        );
+
         for (const geree of gereenuud) {
-          const urdun = await nekhemjlekhController.gereeNeesNekhemjlekhUusgekh(geree, baiguullaga, tukhainBaaziinKholbolt, "automataar");
-          
+          const urdun = await nekhemjlekhController.gereeNeesNekhemjlekhUusgekh(
+            geree,
+            baiguullaga,
+            tukhainBaaziinKholbolt,
+            "automataar"
+          );
+
           if (urdun.success) {
-            console.log(`✅ Гэрээ ${urdun.gereeniiDugaar}-д нэхэмжлэх үүсгэгдлээ - Төлбөр: ${urdun.tulbur}₮`);
+            console.log(
+              `✅ Гэрээ ${urdun.gereeniiDugaar}-д нэхэмжлэх үүсгэгдлээ - Төлбөр: ${urdun.tulbur}₮`
+            );
           } else {
-            console.error(`❌ Гэрээ ${urdun.gereeniiDugaar} боловсруулах алдаа:`, urdun.error);
+            console.error(
+              `❌ Гэрээ ${urdun.gereeniiDugaar} боловсруулах алдаа:`,
+              urdun.error
+            );
           }
         }
-        
+
         // Сүүлийн ажилласан огноо шинэчлэх
-        await NekhemjlekhCron(tukhainBaaziinKholbolt).findByIdAndUpdate(tovchoo._id, {
-          suuldAjillasanOgnoo: new Date()
-        });
-        
+        await NekhemjlekhCron(tukhainBaaziinKholbolt).findByIdAndUpdate(
+          tovchoo._id,
+          {
+            suuldAjillasanOgnoo: new Date(),
+          }
+        );
       } catch (baiguullagiinAldaa) {
-        console.error(`❌ Байгууллага ${tovchoo.baiguullagiinId} боловсруулах алдаа:`, baiguullagiinAldaa.message);
+        console.error(
+          `❌ Байгууллага ${tovchoo.baiguullagiinId} боловсруулах алдаа:`,
+          baiguullagiinAldaa.message
+        );
       }
     }
-    
-    console.log("=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ДУУССАН ===");
-    
+
+    console.log(
+      "=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ДУУССАН ==="
+    );
   } catch (aldaa) {
     console.error("❌ АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ КРИТИК АЛДАА:", aldaa);
   }
@@ -196,4 +225,6 @@ cron.schedule(
   }
 );
 
-console.log("🕐 Cron job тохируулагдлаа: Өдөр бүр 10:10 цагт автоматаар нэхэмжлэх үүсгэх");
+console.log(
+  "🕐 Cron job тохируулагдлаа: Өдөр бүр 10:10 цагт автоматаар нэхэмжлэх үүсгэх"
+);
