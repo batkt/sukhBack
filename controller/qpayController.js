@@ -20,6 +20,43 @@ const instance = got.extend({
   },
 });
 
+
+async function tokenAvya(
+  username,
+  password,
+  next,
+  baiguullagiinId,
+  tukhainBaaziinKholbolt
+) {
+  try {
+    var url = new URL(process.env.QPAY_MERCHANT_SERVER + "v2/auth/token/");
+    url.username = username;
+    url.password = password;
+    const stringBody = JSON.stringify({ terminal_id: "95000059" });
+    const response = await instance
+      .post(url, { body: stringBody })
+      .catch((err) => {
+        throw err;
+      });
+    const khariu = JSON.parse(response.body);
+    Token(tukhainBaaziinKholbolt)
+      .updateOne(
+        { turul: "qpay", baiguullagiinId: baiguullagiinId },
+        {
+          ognoo: new Date(),
+          token: khariu.access_token,
+          refreshToken: khariu.refresh_token,
+        },
+        { upsert: true }
+      )
+      .then((x) => {})
+      .catch((e) => {});
+    return khariu;
+  } catch (error) {
+    next(error);
+  }
+}
+
 // Simple QPay token management
 async function tokenAvya(username, password, next, baiguullagiinId, tukhainBaaziinKholbolt) {
   try {
