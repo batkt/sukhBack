@@ -223,14 +223,13 @@
                 const response = await fetch('/qpayTest/createTestInvoice', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('token') // You'll need to implement auth
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         baiguullagiinId: baiguullagiinId,
                         amount: parseInt(amount),
                         description: description,
-                        tukhainBaaziinKholbolt: 'default' // You'll need to set this properly
+                        tukhainBaaziinKholbolt: 'default'
                     })
                 });
 
@@ -255,11 +254,7 @@
             if (!currentBaiguullagiinId) return;
 
             try {
-                const response = await fetch(`/qpayTest/getTestPayments?baiguullagiinId=${currentBaiguullagiinId}&limit=20`, {
-                    headers: {
-                        'Authorization': 'Bearer ' + localStorage.getItem('token')
-                    }
-                });
+                const response = await fetch(`/qpayTest/getTestPayments?baiguullagiinId=${currentBaiguullagiinId}&limit=20`);
 
                 const result = await response.json();
                 
@@ -322,8 +317,7 @@
                 const response = await fetch('/qpayTest/checkTestPaymentStatus', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         testPaymentId: testPaymentId,
@@ -354,18 +348,41 @@
             }, 10000);
         }
 
+        // Get test organization ID
+        async function getTestOrgId() {
+            try {
+                const response = await fetch('/test/getTestOrgId');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const orgId = result.data.baiguullagiinId;
+                    document.getElementById('baiguullagiinId').value = orgId;
+                    currentBaiguullagiinId = orgId;
+                    addLog(`Test organization loaded: ${result.data.ner} (${orgId})`, 'success');
+                    refreshPayments();
+                } else {
+                    addLog(`Error loading test organization: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Error loading test organization: ${error.message}`, 'error');
+            }
+        }
+
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             initSocket();
             startAutoRefresh();
             
-            // Set default organization ID if available
+            // Check URL for organization ID first
             const urlParams = new URLSearchParams(window.location.search);
             const orgId = urlParams.get('orgId');
             if (orgId) {
                 document.getElementById('baiguullagiinId').value = orgId;
                 currentBaiguullagiinId = orgId;
                 refreshPayments();
+            } else {
+                // Auto-load test organization ID
+                getTestOrgId();
             }
         });
 

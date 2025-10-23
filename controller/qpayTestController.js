@@ -100,6 +100,11 @@ exports.createTestInvoice = asyncHandler(async (req, res) => {
   try {
     const { baiguullagiinId, amount = 1000, description = "QPay Test Payment" } = req.body;
     
+    // Set default database connection if not provided
+    if (!req.body.tukhainBaaziinKholbolt) {
+      req.body.tukhainBaaziinKholbolt = 'default';
+    }
+    
     // Get organization
     const baiguullaga = await Baiguullaga(req.body.tukhainBaaziinKholbolt).findById(baiguullagiinId);
     if (!baiguullaga) {
@@ -174,6 +179,11 @@ exports.checkTestPaymentStatus = asyncHandler(async (req, res) => {
   try {
     const { testPaymentId, baiguullagiinId } = req.body;
     
+    // Set default database connection if not provided
+    if (!req.body.tukhainBaaziinKholbolt) {
+      req.body.tukhainBaaziinKholbolt = 'default';
+    }
+    
     // Get test payment record
     const testPayment = await QuickQpayObject(req.body.tukhainBaaziinKholbolt).findById(testPaymentId);
     if (!testPayment) {
@@ -227,6 +237,11 @@ exports.checkTestPaymentStatus = asyncHandler(async (req, res) => {
 exports.getTestPayments = asyncHandler(async (req, res) => {
   try {
     const { baiguullagiinId, status, limit = 10, page = 1 } = req.query;
+    
+    // Set default database connection if not provided
+    if (!req.body.tukhainBaaziinKholbolt) {
+      req.body.tukhainBaaziinKholbolt = 'default';
+    }
     
     const query = { baiguullagiinId: baiguullagiinId };
     if (status) {
