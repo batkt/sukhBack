@@ -1,6 +1,9 @@
 const mongoose = require("mongoose");
+const Schema = mongoose.Schema;
 
-const nekhemjlekhCronSchema = new mongoose.Schema({
+mongoose.pluralize(null);
+
+const nekhemjlekhCronSchema = new Schema({
   baiguullagiinId: {
     type: String,
     required: true,
@@ -40,4 +43,9 @@ nekhemjlekhCronSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = nekhemjlekhCronSchema;
+module.exports = function a(conn) {
+  if (!conn || !conn.kholbolt)
+    throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
+  conn = conn.kholbolt;
+  return conn.model("nekhemjlekhCron", nekhemjlekhCronSchema);
+};
