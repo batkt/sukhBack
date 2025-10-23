@@ -279,20 +279,62 @@ router.post(
   async (req, res, next) => {
     try {
       const { db } = require("zevbackv2");
-      var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+      
+      // Validate required fields
+      if (!req.body.register) {
+        return res.status(400).json({
+          success: false,
+          message: "Register дугаар заавал бөглөх шаардлагатай!"
+        });
+      }
+
+      // Find organization
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
         register: req.body.register,
       });
-      var kholbolt = db.kholboltuud.find(
+
+      if (!baiguullaga) {
+        return res.status(404).json({
+          success: false,
+          message: "Байгууллагын мэдээлэл олдсонгүй!"
+        });
+      }
+
+      // Find database connection
+      const kholbolt = db.kholboltuud.find(
         (a) => a.baiguullagiinId == baiguullaga._id
       );
+
+      if (!kholbolt) {
+        return res.status(404).json({
+          success: false,
+          message: "Холболтын мэдээлэл олдсонгүй!"
+        });
+      }
+
+      // Prepare data for QPay customer creation
       req.body.baiguullagiinId = baiguullaga._id;
       delete req.body.tukhainBaaziinKholbolt;
       delete req.body.erunkhiiKholbolt;
-      var khariu = await qpayKhariltsagchUusgey(req.body, kholbolt);
+
+      // Create QPay customer
+      const khariu = await qpayKhariltsagchUusgey(req.body, kholbolt);
+      
       if (khariu === "Amjilttai") {
-        res.send(khariu);
-      } else throw new Error(khariu);
+        res.json({
+          success: true,
+          message: "QPay харилцагч амжилттай үүсгэгдлээ!",
+          data: khariu
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: "QPay харилцагч үүсгэхэд алдаа гарлаа!",
+          error: khariu
+        });
+      }
     } catch (err) {
+      console.error("qpayKhariltsagchUusgey error:", err);
       next(err);
     }
   }
@@ -303,21 +345,61 @@ router.post(
 router.post("/qpayKhariltsagchAvay", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    var baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+    
+    // Validate required fields
+    if (!req.body.register) {
+      return res.status(400).json({
+        success: false,
+        message: "Register дугаар заавал бөглөх шаардлагатай!"
+      });
+    }
+
+    // Find organization
+    const baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
       register: req.body.register,
     });
-    var kholbolt = db.kholboltuud.find(
+
+    if (!baiguullaga1) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын мэдээлэл олдсонгүй!"
+      });
+    }
+
+    // Find database connection
+    const kholbolt = db.kholboltuud.find(
       (a) => a.baiguullagiinId == baiguullaga1._id
     );
-    var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
 
-    req.body.baiguullagiinId = baiguullaga1._id;
-    const baiguullaga = await qpayKhariltsagch.findOne({
-      baiguullagiinId: req.body.baiguullagiinId,
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй!"
+      });
+    }
+
+    // Create QPay customer model
+    const qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
+
+    // Find QPay customer
+    const qpayCustomer = await qpayKhariltsagch.findOne({
+      baiguullagiinId: baiguullaga1._id,
     });
-    if (baiguullaga) res.send(baiguullaga);
-    else res.send(undefined);
+
+    if (qpayCustomer) {
+      res.json({
+        success: true,
+        data: qpayCustomer
+      });
+    } else {
+      res.json({
+        success: false,
+        message: "QPay харилцагч олдсонгүй!",
+        data: null
+      });
+    }
   } catch (err) {
+    console.error("qpayKhariltsagchAvay error:", err);
     next(err);
   }
 });
