@@ -278,40 +278,21 @@ router.post(
   tokenShalgakh,
   async (req, res, next) => {
     try {
-      console.log("🔍 qpayKhariltsagchUusgey called with:", req.body);
-      
       const { db } = require("zevbackv2");
       var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
         register: req.body.register,
       });
-      
-      console.log("🔍 Found organization:", baiguullaga ? { id: baiguullaga._id, ner: baiguullaga.ner, register: baiguullaga.register } : "NOT FOUND");
-      
       var kholbolt = db.kholboltuud.find(
         (a) => a.baiguullagiinId == baiguullaga._id
       );
-      
-      console.log("🔍 Found database connection:", kholbolt ? "YES" : "NO");
-      
       req.body.baiguullagiinId = baiguullaga._id;
       delete req.body.tukhainBaaziinKholbolt;
       delete req.body.erunkhiiKholbolt;
-      
-      console.log("🔍 Prepared data for QPay:", req.body);
-      
       var khariu = await qpayKhariltsagchUusgey(req.body, kholbolt);
-      
-      console.log("🔍 QPay response:", khariu);
-      
       if (khariu === "Amjilttai") {
-        console.log("✅ QPay customer created successfully");
         res.send(khariu);
-      } else {
-        console.log("❌ QPay customer creation failed:", khariu);
-        throw new Error(khariu);
-      }
+      } else throw new Error(khariu);
     } catch (err) {
-      console.error("❌ qpayKhariltsagchUusgey error:", err);
       next(err);
     }
   }
