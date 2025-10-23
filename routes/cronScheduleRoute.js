@@ -10,9 +10,10 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
     const { baiguullagiinId, sarinUdur, idevkhitei = true } = req.body;
 
     console.log("=== REQUEST DEBUG ===");
-    console.log("Full request body:", JSON.stringify(req.body, null, 2));
     console.log("Extracted baiguullagiinId:", baiguullagiinId);
     console.log("Type of baiguullagiinId:", typeof baiguullagiinId);
+    console.log("sarinUdur:", sarinUdur);
+    console.log("idevkhitei:", idevkhitei);
     console.log("=== END REQUEST DEBUG ===");
 
     if (!baiguullagiinId || !sarinUdur) {
