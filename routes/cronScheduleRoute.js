@@ -18,28 +18,43 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
 
     // Get organization info
     const Baiguullaga = require("../models/baiguullaga");
+    console.log("Looking for organization:", baiguullagiinId);
+    console.log("Database connection:", db.erunkhiiKholbolt ? "Connected" : "Not connected");
+    
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    console.log("Found organization:", baiguullaga ? "Yes" : "No");
+    
     if (!baiguullaga) {
-      return res.status(404).json({
-        success: false,
-        message: "Байгууллагын мэдээлэл олдсонгүй!"
-      });
+      // Try to find by string ID
+      const baiguullagaByString = await Baiguullaga(db.erunkhiiKholbolt).findOne({ _id: baiguullagiinId });
+      console.log("Found by string ID:", baiguullagaByString ? "Yes" : "No");
+      
+      if (!baiguullagaByString) {
+        return res.status(404).json({
+          success: false,
+          message: "Байгууллагын мэдээлэл олдсонгүй!"
+        });
+      }
     }
 
     // Get tenant database connection
+    console.log("Available connections:", db.kholboltuud.map(k => k.baiguullagiinId));
+    console.log("Looking for tenant connection:", baiguullagiinId);
+    
     let tukhainBaaziinKholbolt = db.kholboltuud.find(
       k => k.baiguullagiinId === baiguullagiinId
     );
 
     if (!tukhainBaaziinKholbolt) {
-      console.log("Available connections:", db.kholboltuud.map(k => k.baiguullagiinId));
-      console.log("Looking for:", baiguullagiinId);
+      console.log("Tenant connection not found!");
       
       return res.status(404).json({
         success: false,
         message: `Байгууллагын холболт олдсонгүй! Олдсон холболтууд: ${db.kholboltuud.map(k => k.baiguullagiinId).join(', ')}`
       });
     }
+    
+    console.log("Tenant connection found:", tukhainBaaziinKholbolt ? "Yes" : "No");
 
     // Create or update cron schedule
     const cronSchedule = await nekhemjlekhCron(tukhainBaaziinKholbolt).findOneAndUpdate(
