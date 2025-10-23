@@ -11,6 +11,7 @@ const {
   UstsanBarimt,
   tokenShalgakh,
 } = require("zevbackv2");
+const { localTokenShalgakh } = require("../middleware/localTokenShalgakh");
 const {
   ajiltanNevtrey,
   backAvya,
@@ -21,8 +22,6 @@ const {
   khugatsaaguiTokenAvya,
   baiguullagaIdgaarAvya,
 } = require("../controller/ajiltan");
-
-
 
 crudWithFile(
   router,
@@ -59,7 +58,6 @@ crudWithFile(
   }
 );
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
-
 
 router.get("/sessionAvya/:sessionId", async (req, res, next) => {
   try {
@@ -304,50 +302,53 @@ router.get("/licenseOgnooAvya", tokenShalgakh, async (req, res, next) => {
   }
 });
 
-// Debug endpoint to test JWT verification
-router.post("/debugJWT", async (req, res, next) => {
+// Simple debug endpoint without authentication
+router.post("/debugJWTSimple", async (req, res, next) => {
   try {
     const jwt = require("jsonwebtoken");
-    
+
     if (!req.headers.authorization) {
       return res.status(401).json({
         success: false,
         error: "No authorization header",
-        message: "Authorization header is required"
+        message: "Authorization header is required",
       });
     }
-    
+
     const token = req.headers.authorization.split(" ")[1];
-    
+
     if (!token) {
       return res.status(401).json({
         success: false,
         error: "No token",
-        message: "Bearer token is required"
+        message: "Bearer token is required",
       });
     }
-    
+
     console.log("🔍 Debug JWT Info:");
     console.log("- Token:", token.substring(0, 20) + "...");
     console.log("- APP_SECRET exists:", !!process.env.APP_SECRET);
-    console.log("- APP_SECRET length:", process.env.APP_SECRET ? process.env.APP_SECRET.length : 0);
-    
+    console.log(
+      "- APP_SECRET length:",
+      process.env.APP_SECRET ? process.env.APP_SECRET.length : 0
+    );
+
     try {
       const decoded = jwt.verify(token, process.env.APP_SECRET);
       console.log("✅ JWT Verification Success:", decoded);
-      
+
       res.json({
         success: true,
         message: "JWT verification successful",
         decoded: decoded,
         tokenInfo: {
           header: jwt.decode(token, { complete: true }).header,
-          payload: jwt.decode(token, { complete: true }).payload
-        }
+          payload: jwt.decode(token, { complete: true }).payload,
+        },
       });
     } catch (jwtError) {
       console.error("❌ JWT Verification Error:", jwtError);
-      
+
       res.status(401).json({
         success: false,
         error: jwtError.name,
@@ -356,8 +357,8 @@ router.post("/debugJWT", async (req, res, next) => {
           name: jwtError.name,
           message: jwtError.message,
           expiredAt: jwtError.expiredAt,
-          token: token.substring(0, 20) + "..."
-        }
+          token: token.substring(0, 20) + "...",
+        },
       });
     }
   } catch (error) {
@@ -365,11 +366,78 @@ router.post("/debugJWT", async (req, res, next) => {
     res.status(500).json({
       success: false,
       error: "Internal server error",
-      message: error.message
+      message: error.message,
     });
   }
 });
 
+// Debug endpoint to test JWT verification
+router.post("/debugJWT", localTokenShalgakh, async (req, res, next) => {
+  try {
+    const jwt = require("jsonwebtoken");
 
+    if (!req.headers.authorization) {
+      return res.status(401).json({
+        success: false,
+        error: "No authorization header",
+        message: "Authorization header is required",
+      });
+    }
+
+    const token = req.headers.authorization.split(" ")[1];
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: "No token",
+        message: "Bearer token is required",
+      });
+    }
+
+    console.log("🔍 Debug JWT Info:");
+    console.log("- Token:", token.substring(0, 20) + "...");
+    console.log("- APP_SECRET exists:", !!process.env.APP_SECRET);
+    console.log(
+      "- APP_SECRET length:",
+      process.env.APP_SECRET ? process.env.APP_SECRET.length : 0
+    );
+
+    try {
+      const decoded = jwt.verify(token, process.env.APP_SECRET);
+      console.log("✅ JWT Verification Success:", decoded);
+
+      res.json({
+        success: true,
+        message: "JWT verification successful",
+        decoded: decoded,
+        tokenInfo: {
+          header: jwt.decode(token, { complete: true }).header,
+          payload: jwt.decode(token, { complete: true }).payload,
+        },
+      });
+    } catch (jwtError) {
+      console.error("❌ JWT Verification Error:", jwtError);
+
+      res.status(401).json({
+        success: false,
+        error: jwtError.name,
+        message: jwtError.message,
+        details: {
+          name: jwtError.name,
+          message: jwtError.message,
+          expiredAt: jwtError.expiredAt,
+          token: token.substring(0, 20) + "...",
+        },
+      });
+    }
+  } catch (error) {
+    console.error("❌ Debug endpoint error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      message: error.message,
+    });
+  }
+});
 
 module.exports = router;

@@ -2,41 +2,62 @@ const express = require("express");
 const Baiguullaga = require("../models/baiguullaga");
 const Nekhemjlekh = require("../models/nekhemjlekhiinTuukh");
 const { tokenShalgakh, Dugaarlalt } = require("zevbackv2");
-const { qpayGuilgeeUtgaAvya, qpayTulye } = require("../controller/qpayController");
-const { qpayGargaya, qpayShalgay, QuickQpayObject, qpayKhariltsagchUusgey,QpayKhariltsagch } = require("quickqpaypackv2");
-const router = express.Router();  
+const { localTokenShalgakh } = require("../middleware/localTokenShalgakh");
+const {
+  qpayGuilgeeUtgaAvya,
+  qpayTulye,
+} = require("../controller/qpayController");
+const {
+  qpayGargaya,
+  qpayShalgay,
+  QuickQpayObject,
+  qpayKhariltsagchUusgey,
+  QpayKhariltsagch,
+} = require("quickqpaypackv2");
+const router = express.Router();
 
 // Create QPay payment for invoice
 router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
   try {
     const { nekhemjlekhId, baiguullagiinId, barilgiinId } = req.body;
-    
+
     // Get invoice
-    const nekhemjlekh = await Nekhemjlekh(req.body.tukhainBaaziinKholbolt).findById(nekhemjlekhId);
+    const nekhemjlekh = await Nekhemjlekh(
+      req.body.tukhainBaaziinKholbolt
+    ).findById(nekhemjlekhId);
     if (!nekhemjlekh) {
-      return res.status(404).json({ success: false, message: "Нэхэмжлэх олдсонгүй!" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Нэхэмжлэх олдсонгүй!" });
     }
 
     if (nekhemjlekh.tuluv === "Төлсөн") {
-      return res.status(400).json({ success: false, message: "Энэ нэхэмжлэх аль хэдийн төлөгдсөн байна!" });
+      return res.status(400).json({
+        success: false,
+        message: "Энэ нэхэмжлэх аль хэдийн төлөгдсөн байна!",
+      });
     }
 
     // Get organization from main database
     const { db } = require("zevbackv2");
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      baiguullagiinId
+    );
     if (!baiguullaga) {
-      return res.status(404).json({ success: false, message: "Байгууллагын мэдээлэл олдсонгүй!" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Байгууллагын мэдээлэл олдсонгүй!" });
     }
 
     // Check if organization has required QPay data
     if (!baiguullaga.dans || !baiguullaga.register) {
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         message: "Байгууллагад QPay-д шаардлагатай мэдээлэл дутуу байна!",
         missing: {
           dans: !baiguullaga.dans,
-          register: !baiguullaga.register
-        }
+          register: !baiguullaga.register,
+        },
       });
     }
 
@@ -51,31 +72,37 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
       baiguullagiinId,
       barilgiinId: barilgiinId || "DEFAULT_BRANCH",
       dun: nekhemjlekh.niitTulbur,
-      tailbar: `Нэхэмжлэх ${nekhemjlekh.dugaalaltDugaar || maxDugaar} - ${nekhemjlekh.ner || 'Invoice'}`,
+      tailbar: `Нэхэмжлэх ${nekhemjlekh.dugaalaltDugaar || maxDugaar} - ${
+        nekhemjlekh.ner || "Invoice"
+      }`,
       zakhialgiinDugaar: maxDugaar.toString(),
       gereeniiId: nekhemjlekh.gereeniiId || nekhemjlekhId,
       dansniiDugaar: baiguullaga.dans,
-      burtgeliinDugaar: baiguullaga.register
+      burtgeliinDugaar: baiguullaga.register,
     };
 
     console.log("🔍 QPay Data:", qpayData);
     console.log("🔍 Organization Data:", {
       dans: baiguullaga.dans,
       register: baiguullaga.register,
-      ner: baiguullaga.ner
+      ner: baiguullaga.ner,
     });
     console.log("🔍 Invoice Data:", {
       dugaalaltDugaar: nekhemjlekh.dugaalaltDugaar,
       ner: nekhemjlekh.ner,
       gereeniiId: nekhemjlekh.gereeniiId,
-      niitTulbur: nekhemjlekh.niitTulbur
+      niitTulbur: nekhemjlekh.niitTulbur,
     });
 
     const callbackUrl = `${process.env.UNDSEN_SERVER}/qpayInvoiceCallback/${baiguullagiinId}/${nekhemjlekhId}`;
-    
+
     let qpayResponse;
     try {
-      qpayResponse = await qpayGargaya(qpayData, callbackUrl, req.body.tukhainBaaziinKholbolt);
+      qpayResponse = await qpayGargaya(
+        qpayData,
+        callbackUrl,
+        req.body.tukhainBaaziinKholbolt
+      );
       console.log("✅ QPay Response:", qpayResponse);
     } catch (qpayError) {
       console.error("❌ QPay Error:", qpayError);
@@ -112,7 +139,10 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
     await nekhemjlekh.save();
 
     // Check if QPay response is valid
-    if (typeof qpayResponse === 'string' && qpayResponse.includes('олдсонгүй')) {
+    if (
+      typeof qpayResponse === "string" &&
+      qpayResponse.includes("олдсонгүй")
+    ) {
       return res.status(400).json({
         success: false,
         message: "QPay төлбөр үүсгэхэд алдаа гарлаа!",
@@ -120,8 +150,8 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
         data: {
           invoiceId: nekhemjlekhId,
           amount: nekhemjlekh.niitTulbur,
-          qpayData: qpayData
-        }
+          qpayData: qpayData,
+        },
       });
     }
 
@@ -132,10 +162,9 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
         qpayUrl: qpayResponse?.urls?.qPay,
         invoiceId: nekhemjlekhId,
         amount: nekhemjlekh.niitTulbur,
-        paymentId: qpayResponse?.invoice_id
-      }
+        paymentId: qpayResponse?.invoice_id,
+      },
     });
-
   } catch (error) {
     console.error("QPay invoice payment creation error:", error);
     next(error);
@@ -147,21 +176,31 @@ router.post("/qpayInvoiceShalgay", tokenShalgakh, async (req, res, next) => {
   try {
     const { nekhemjlekhId, baiguullagiinId, barilgiinId } = req.body;
 
-    const nekhemjlekh = await Nekhemjlekh(req.body.tukhainBaaziinKholbolt).findById(nekhemjlekhId);
+    const nekhemjlekh = await Nekhemjlekh(
+      req.body.tukhainBaaziinKholbolt
+    ).findById(nekhemjlekhId);
     if (!nekhemjlekh) {
-      return res.status(404).json({ success: false, message: "Нэхэмжлэх олдсонгүй!" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Нэхэмжлэх олдсонгүй!" });
     }
 
     if (!nekhemjlekh.qpayPaymentId) {
-      return res.status(400).json({ success: false, message: "QPay төлбөрийн мэдээлэл олдсонгүй!" });
+      return res.status(400).json({
+        success: false,
+        message: "QPay төлбөрийн мэдээлэл олдсонгүй!",
+      });
     }
 
     // Check payment status
-    const paymentStatus = await qpayShalgay({
-      baiguullagiinId,
-      barilgiinId: barilgiinId || "",
-      id: nekhemjlekh.qpayPaymentId
-    }, req.body.tukhainBaaziinKholbolt);
+    const paymentStatus = await qpayShalgay(
+      {
+        baiguullagiinId,
+        barilgiinId: barilgiinId || "",
+        id: nekhemjlekh.qpayPaymentId,
+      },
+      req.body.tukhainBaaziinKholbolt
+    );
 
     res.json({
       success: true,
@@ -169,10 +208,9 @@ router.post("/qpayInvoiceShalgay", tokenShalgakh, async (req, res, next) => {
         invoiceId: nekhemjlekhId,
         tuluv: nekhemjlekh.tuluv,
         amount: nekhemjlekh.niitTulbur,
-        paymentStatus
-      }
+        paymentStatus,
+      },
     });
-
   } catch (error) {
     console.error("QPay invoice payment check error:", error);
     next(error);
@@ -180,90 +218,113 @@ router.post("/qpayInvoiceShalgay", tokenShalgakh, async (req, res, next) => {
 });
 
 // Get invoice payment status
-router.get("/invoicePaymentStatus/:nekhemjlekhId", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { nekhemjlekhId } = req.params;
+router.get(
+  "/invoicePaymentStatus/:nekhemjlekhId",
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      const { nekhemjlekhId } = req.params;
 
-    const nekhemjlekh = await Nekhemjlekh(req.body.tukhainBaaziinKholbolt).findById(nekhemjlekhId);
-    if (!nekhemjlekh) {
-      return res.status(404).json({ success: false, message: "Нэхэмжлэх олдсонгүй!" });
-    }
-
-    // Check if payment is overdue
-    const today = new Date();
-    if (nekhemjlekh.tulukhOgnoo && today > nekhemjlekh.tulukhOgnoo && nekhemjlekh.tuluv !== "Төлсөн") {
-      nekhemjlekh.tuluv = "Хугацаа хэтэрсэн";
-      await nekhemjlekh.save();
-    }
-
-    res.json({
-      success: true,
-      data: {
-        invoiceId: nekhemjlekhId,
-        tuluv: nekhemjlekh.tuluv,
-        amount: nekhemjlekh.niitTulbur,
-        tulukhOgnoo: nekhemjlekh.tulukhOgnoo,
-        tulsunOgnoo: nekhemjlekh.tulsunOgnoo,
-        qpayPaymentId: nekhemjlekh.qpayPaymentId,
-        paymentHistory: nekhemjlekh.paymentHistory
+      const nekhemjlekh = await Nekhemjlekh(
+        req.body.tukhainBaaziinKholbolt
+      ).findById(nekhemjlekhId);
+      if (!nekhemjlekh) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Нэхэмжлэх олдсонгүй!" });
       }
-    });
 
-  } catch (error) {
-    console.error("Invoice payment status error:", error);
-    next(error);
+      // Check if payment is overdue
+      const today = new Date();
+      if (
+        nekhemjlekh.tulukhOgnoo &&
+        today > nekhemjlekh.tulukhOgnoo &&
+        nekhemjlekh.tuluv !== "Төлсөн"
+      ) {
+        nekhemjlekh.tuluv = "Хугацаа хэтэрсэн";
+        await nekhemjlekh.save();
+      }
+
+      res.json({
+        success: true,
+        data: {
+          invoiceId: nekhemjlekhId,
+          tuluv: nekhemjlekh.tuluv,
+          amount: nekhemjlekh.niitTulbur,
+          tulukhOgnoo: nekhemjlekh.tulukhOgnoo,
+          tulsunOgnoo: nekhemjlekh.tulsunOgnoo,
+          qpayPaymentId: nekhemjlekh.qpayPaymentId,
+          paymentHistory: nekhemjlekh.paymentHistory,
+        },
+      });
+    } catch (error) {
+      console.error("Invoice payment status error:", error);
+      next(error);
+    }
   }
-});
+);
 
 // QPay callback for invoice payment
-router.get("/qpayInvoiceCallback/:baiguullagiinId/:nekhemjlekhId", async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    const { baiguullagiinId, nekhemjlekhId } = req.params;
+router.get(
+  "/qpayInvoiceCallback/:baiguullagiinId/:nekhemjlekhId",
+  async (req, res, next) => {
+    try {
+      const { db } = require("zevbackv2");
+      const { baiguullagiinId, nekhemjlekhId } = req.params;
 
-    const kholbolt = db.kholboltuud.find((a) => a.baiguullagiinId == baiguullagiinId);
-    if (!kholbolt) {
-      return res.status(404).json({ success: false, message: "Байгууллагын холболт олдсонгүй!" });
-    }
+      const kholbolt = db.kholboltuud.find(
+        (a) => a.baiguullagiinId == baiguullagiinId
+      );
+      if (!kholbolt) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Байгууллагын холболт олдсонгүй!" });
+      }
 
-    const qpayObject = await QuickQpayObject(kholbolt).findOne({
-      zakhialgiinDugaar: nekhemjlekhId,
-      tulsunEsekh: false,
-    });
-
-    if (!qpayObject) {
-      return res.status(404).json({ success: false, message: "QPay төлбөрийн мэдээлэл олдсонгүй!" });
-    }
-
-    // Mark as paid
-    qpayObject.tulsunEsekh = true;
-    qpayObject.isNew = false;
-    await qpayObject.save();
-
-    // Update invoice payment status
-    const nekhemjlekh = await Nekhemjlekh(kholbolt).findById(nekhemjlekhId);
-    if (nekhemjlekh && nekhemjlekh.tuluv !== "Төлсөн") {
-      nekhemjlekh.tuluv = "Төлсөн";
-      nekhemjlekh.tulsunOgnoo = new Date();
-      nekhemjlekh.paymentHistory.push({
-        ognoo: new Date(),
-        dun: qpayObject.qpay?.amount || nekhemjlekh.niitTulbur,
-        turul: "qpay",
-        guilgeeniiId: qpayObject._id,
-        tailbar: "QPay төлбөр"
+      const qpayObject = await QuickQpayObject(kholbolt).findOne({
+        zakhialgiinDugaar: nekhemjlekhId,
+        tulsunEsekh: false,
       });
-      await nekhemjlekh.save();
+
+      if (!qpayObject) {
+        return res.status(404).json({
+          success: false,
+          message: "QPay төлбөрийн мэдээлэл олдсонгүй!",
+        });
+      }
+
+      // Mark as paid
+      qpayObject.tulsunEsekh = true;
+      qpayObject.isNew = false;
+      await qpayObject.save();
+
+      // Update invoice payment status
+      const nekhemjlekh = await Nekhemjlekh(kholbolt).findById(nekhemjlekhId);
+      if (nekhemjlekh && nekhemjlekh.tuluv !== "Төлсөн") {
+        nekhemjlekh.tuluv = "Төлсөн";
+        nekhemjlekh.tulsunOgnoo = new Date();
+        nekhemjlekh.paymentHistory.push({
+          ognoo: new Date(),
+          dun: qpayObject.qpay?.amount || nekhemjlekh.niitTulbur,
+          turul: "qpay",
+          guilgeeniiId: qpayObject._id,
+          tailbar: "QPay төлбөр",
+        });
+        await nekhemjlekh.save();
+      }
+
+      // Emit socket event
+      req.app
+        .get("socketio")
+        .emit(`qpayInvoice/${baiguullagiinId}/${nekhemjlekhId}`);
+
+      res.sendStatus(200);
+    } catch (err) {
+      console.error("QPay invoice callback error:", err);
+      next(err);
     }
-
-    // Emit socket event
-    req.app.get("socketio").emit(`qpayInvoice/${baiguullagiinId}/${nekhemjlekhId}`);
-
-    res.sendStatus(200);
-  } catch (err) {
-    console.error("QPay invoice callback error:", err);
-    next(err);
   }
-});
+);
 
 // ===== ADDITIONAL QPAY ROUTES FROM SIMILAR PROJECT =====
 
@@ -298,49 +359,96 @@ router.post(
   }
 );
 
+router.post(
+  "/qpayKhariltsagchAvay",
+  localTokenShalgakh,
+  async (req, res, next) => {
+    try {
+      console.log("🔍 qpayKhariltsagchAvay called with:", req.body);
 
+      const { db } = require("zevbackv2");
 
-router.post("/qpayKhariltsagchAvay", tokenShalgakh, async (req, res, next) => {
-  try {
-    console.log("🔍 qpayKhariltsagchAvay called with:", req.body);
-    
-    const { db } = require("zevbackv2");
-    var baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
-      register: req.body.register,
-    });
-    
-    console.log("🔍 Found organization:", baiguullaga1 ? { id: baiguullaga1._id, ner: baiguullaga1.ner, register: baiguullaga1.register } : "NOT FOUND");
-    
-    var kholbolt = db.kholboltuud.find(
-      (a) => a.baiguullagiinId == baiguullaga1._id
-    );
-    
-    console.log("🔍 Found database connection:", kholbolt ? "YES" : "NO");
-    
-    var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
+      // Check if register is provided
+      if (!req.body.register) {
+        return res.status(400).json({
+          success: false,
+          message: "Register дугаар заавал бөглөх шаардлагатай!",
+        });
+      }
 
-    req.body.baiguullagiinId = baiguullaga1._id;
-    
-    console.log("🔍 Searching for QPay customer with baiguullagiinId:", req.body.baiguullagiinId);
-    
-    const baiguullaga = await qpayKhariltsagch.findOne({
-      baiguullagiinId: req.body.baiguullagiinId,
-    });
-    
-    console.log("🔍 Found QPay customer:", baiguullaga ? "YES" : "NO");
-    
-    if (baiguullaga) {
-      console.log("✅ Returning QPay customer data");
-      res.send(baiguullaga);
-    } else {
-      console.log("❌ QPay customer not found, returning undefined");
-      res.send(undefined);
+      var baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+        register: req.body.register,
+      });
+
+      console.log(
+        "🔍 Found organization:",
+        baiguullaga1
+          ? {
+              id: baiguullaga1._id,
+              ner: baiguullaga1.ner,
+              register: baiguullaga1.register,
+            }
+          : "NOT FOUND"
+      );
+
+      if (!baiguullaga1) {
+        return res.status(404).json({
+          success: false,
+          message: "Байгууллагын мэдээлэл олдсонгүй!",
+        });
+      }
+
+      var kholbolt = db.kholboltuud.find(
+        (a) => a.baiguullagiinId == baiguullaga1._id
+      );
+
+      console.log("🔍 Found database connection:", kholbolt ? "YES" : "NO");
+
+      if (!kholbolt) {
+        return res.status(404).json({
+          success: false,
+          message: "Байгууллагын холболт олдсонгүй!",
+        });
+      }
+
+      var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
+
+      req.body.baiguullagiinId = baiguullaga1._id;
+
+      console.log(
+        "🔍 Searching for QPay customer with baiguullagiinId:",
+        req.body.baiguullagiinId
+      );
+
+      const baiguullaga = await qpayKhariltsagch.findOne({
+        baiguullagiinId: req.body.baiguullagiinId,
+      });
+
+      console.log("🔍 Found QPay customer:", baiguullaga ? "YES" : "NO");
+
+      if (baiguullaga) {
+        console.log("✅ Returning QPay customer data");
+        res.json({
+          success: true,
+          data: baiguullaga,
+        });
+      } else {
+        console.log("❌ QPay customer not found, returning empty");
+        res.json({
+          success: true,
+          data: null,
+          message: "QPay харилцагч олдсонгүй",
+        });
+      }
+    } catch (err) {
+      console.error("❌ qpayKhariltsagchAvay error:", err);
+      res.status(500).json({
+        success: false,
+        message: "Серверийн алдаа",
+        error: err.message,
+      });
     }
-  } catch (err) {
-    console.error("❌ qpayKhariltsagchAvay error:", err);
-    next(err);
   }
-});
-
+);
 
 module.exports = router;
