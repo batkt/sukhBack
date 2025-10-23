@@ -6,6 +6,10 @@ const nekhemjlekhCron = require("../models/cronSchedule.js");
 // Custom route to create cron schedule in tenant database
 router.post("/", tokenShalgakh, async (req, res, next) => {
   try {
+    console.log("=== ROUTE HIT ===");
+    console.log("Timestamp:", new Date().toISOString());
+    console.log("=== END ROUTE HIT ===");
+    
     const { db } = require("zevbackv2");
     const { baiguullagiinId, sarinUdur, idevkhitei = true } = req.body;
 
