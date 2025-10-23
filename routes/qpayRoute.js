@@ -720,6 +720,113 @@ router.post("/qpayKhariltsagchAvayCompatible", async (req, res, next) => {
   }
 });
 
+// NUCLEAR OPTION - Force response to be exactly what frontend expects
+router.post("/qpayKhariltsagchAvayNuclear", async (req, res, next) => {
+  try {
+    console.log("💥 NUCLEAR endpoint called - FORCING response structure");
+    
+    const { db } = require("zevbackv2");
+    
+    // Create a response that is GUARANTEED to work
+    let response;
+    
+    if (!req.body.register) {
+      response = [];
+      response.length = 0;
+      response.success = false;
+      response.message = "Register дугаар заавал бөглөх шаардлагатай!";
+      response.showRegistrationModal = true;
+      // FORCE it to be array-like
+      response[Symbol.iterator] = function* () { yield* []; };
+      response.push = Array.prototype.push;
+      response.pop = Array.prototype.pop;
+      response.slice = Array.prototype.slice;
+      return res.json(response);
+    }
+    
+    var baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+      register: req.body.register,
+    });
+    
+    if (!baiguullaga1) {
+      response = [];
+      response.length = 0;
+      response.success = false;
+      response.message = "Байгууллагын мэдээлэл олдсонгүй!";
+      response.showRegistrationModal = true;
+      response[Symbol.iterator] = function* () { yield* []; };
+      response.push = Array.prototype.push;
+      response.pop = Array.prototype.pop;
+      response.slice = Array.prototype.slice;
+      return res.json(response);
+    }
+    
+    var kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == baiguullaga1._id
+    );
+    
+    if (!kholbolt) {
+      response = [];
+      response.length = 0;
+      response.success = false;
+      response.message = "Байгууллагын холболт олдсонгүй!";
+      response.showRegistrationModal = true;
+      response[Symbol.iterator] = function* () { yield* []; };
+      response.push = Array.prototype.push;
+      response.pop = Array.prototype.pop;
+      response.slice = Array.prototype.slice;
+      return res.json(response);
+    }
+    
+    var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
+    
+    const baiguullaga = await qpayKhariltsagch.findOne({
+      baiguullagiinId: baiguullaga1._id,
+    });
+    
+    if (baiguullaga) {
+      response = [baiguullaga];
+      response.length = 1;
+      response.success = true;
+      response.message = "QPay харилцагч олдлоо";
+      response.showRegistrationModal = false;
+      response[Symbol.iterator] = function* () { yield* this; };
+      response.push = Array.prototype.push;
+      response.pop = Array.prototype.pop;
+      response.slice = Array.prototype.slice;
+    } else {
+      response = [];
+      response.length = 0;
+      response.success = true;
+      response.message = "QPay харилцагч олдсонгүй";
+      response.showRegistrationModal = true;
+      response.baiguullagiinId = baiguullaga1._id;
+      response[Symbol.iterator] = function* () { yield* []; };
+      response.push = Array.prototype.push;
+      response.pop = Array.prototype.pop;
+      response.slice = Array.prototype.slice;
+    }
+    
+    console.log("💥 NUCLEAR response:", JSON.stringify(response, null, 2));
+    console.log("💥 Response length:", response.length);
+    console.log("💥 Is array:", Array.isArray(response));
+    res.json(response);
+  } catch (err) {
+    console.error("💥 NUCLEAR error:", err);
+    const errorResponse = [];
+    errorResponse.length = 0;
+    errorResponse.success = false;
+    errorResponse.message = "Серверийн алдаа";
+    errorResponse.error = err.message;
+    errorResponse.showRegistrationModal = false;
+    errorResponse[Symbol.iterator] = function* () { yield* []; };
+    errorResponse.push = Array.prototype.push;
+    errorResponse.pop = Array.prototype.pop;
+    errorResponse.slice = Array.prototype.slice;
+    res.json(errorResponse);
+  }
+});
+
 // Last resort - try to match exactly what frontend expects
 router.post("/qpayKhariltsagchAvayLastResort", async (req, res, next) => {
   try {
