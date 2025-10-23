@@ -791,33 +791,17 @@ function msgIlgeeye(
 
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {
-    const { db } = require("zevbackv2");
-    const { utas, code } = req.body;
+    const { baiguullagiinId, utas, code } = req.body;
 
-    if (!utas || !code) {
+    if (!baiguullagiinId || !utas || !code) {
       return res.status(400).json({
         success: false,
         message: "Бүх талбарыг бөглөх шаардлагатай!",
       });
     }
 
-    // Find the user by phone number to get baiguullagiinId
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
-      .findOne({ utas: utas })
-      .catch((err) => {
-        console.error("Error finding user:", err);
-        return null;
-      });
-
-    if (!orshinSuugch) {
-      return res.status(404).json({
-        success: false,
-        message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
-      });
-    }
-
     // Use validateCodeOnly for Step 2 - don't mark code as used yet
-    const verificationResult = await validateCodeOnly(orshinSuugch.baiguullagiinId, utas, code);
+    const verificationResult = await validateCodeOnly(baiguullagiinId, utas, code);
 
     if (!verificationResult.success) {
       return res.status(400).json({
@@ -833,11 +817,9 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
         verified: true,
         phone: utas,
         code: code,
-        baiguullagiinId: orshinSuugch.baiguullagiinId,
       },
     });
   } catch (error) {
-    console.error("dugaarBatalgaajuulakh error:", error);
     next(error);
   }
 });
