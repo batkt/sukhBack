@@ -42,12 +42,27 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
       tailbar: `Нэхэмжлэх ${nekhemjlekh.dugaalaltDugaar} - ${nekhemjlekh.ner}`,
       zakhialgiinDugaar: maxDugaar.toString(),
       gereeniiId: nekhemjlekh.gereeniiId,
-      dansniiDugaar: baiguullaga.dans,
-      burtgeliinDugaar: baiguullaga.register
+      dansniiDugaar: baiguullaga.dans || "TEST_DANS",
+      burtgeliinDugaar: baiguullaga.register || "TEST_REGISTER"
     };
 
+    console.log("🔍 QPay Data:", qpayData);
+    console.log("🔍 Organization Data:", {
+      dans: baiguullaga.dans,
+      register: baiguullaga.register,
+      ner: baiguullaga.ner
+    });
+
     const callbackUrl = `${process.env.UNDSEN_SERVER}/qpayInvoiceCallback/${baiguullagiinId}/${nekhemjlekhId}`;
-    const qpayResponse = await qpayGargaya(qpayData, callbackUrl, req.body.tukhainBaaziinKholbolt);
+    
+    let qpayResponse;
+    try {
+      qpayResponse = await qpayGargaya(qpayData, callbackUrl, req.body.tukhainBaaziinKholbolt);
+      console.log("✅ QPay Response:", qpayResponse);
+    } catch (qpayError) {
+      console.error("❌ QPay Error:", qpayError);
+      throw qpayError;
+    }
 
     // Save payment record
     const dugaarlalt = new Dugaarlalt(req.body.tukhainBaaziinKholbolt)();
@@ -66,26 +81,40 @@ router.post("/qpayInvoiceGargaya", tokenShalgakh, async (req, res, next) => {
     qpayObject.barilgiinId = barilgiinId;
     qpayObject.amount = nekhemjlekh.niitTulbur;
     qpayObject.currency = "MNT";
-    qpayObject.status = "pending";
+    qpayObject.status = "error"; // Set as error since QPay failed
     qpayObject.description = qpayData.tailbar;
     qpayObject.qpay = qpayResponse;
-    qpayObject.invoice_id = qpayResponse.invoice_id;
+    qpayObject.invoice_id = qpayResponse?.invoice_id || null;
     qpayObject.callback_url = callbackUrl;
     qpayObject.tulsunEsekh = false;
     await qpayObject.save();
 
     // Update invoice
-    nekhemjlekh.qpayPaymentId = qpayResponse.invoice_id;
+    nekhemjlekh.qpayPaymentId = qpayResponse?.invoice_id || null;
     await nekhemjlekh.save();
+
+    // Check if QPay response is valid
+    if (typeof qpayResponse === 'string' && qpayResponse.includes('олдсонгүй')) {
+      return res.status(400).json({
+        success: false,
+        message: "QPay төлбөр үүсгэхэд алдаа гарлаа!",
+        error: qpayResponse,
+        data: {
+          invoiceId: nekhemjlekhId,
+          amount: nekhemjlekh.niitTulbur,
+          qpayData: qpayData
+        }
+      });
+    }
 
     res.json({
       success: true,
       message: "QPay төлбөр амжилттай үүсгэгдлээ!",
       data: {
-        qpayUrl: qpayResponse.urls?.qPay,
+        qpayUrl: qpayResponse?.urls?.qPay,
         invoiceId: nekhemjlekhId,
         amount: nekhemjlekh.niitTulbur,
-        paymentId: qpayResponse.invoice_id
+        paymentId: qpayResponse?.invoice_id
       }
     });
 
