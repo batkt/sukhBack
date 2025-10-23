@@ -21,6 +21,8 @@ const gereeRoute = require("./routes/gereeRoute");
 const gereeniiZagvarRoute = require("./routes/gereeniiZagvarRoute");
 const nekhemjlekhRoute = require("./routes/nekhemjlekhRoute");
 const nekhemjlekhCronRoute = require("./routes/cronScheduleRoute");
+const qpayRoute = require("./routes/qpayRoute");
+const qpayTestRoute = require("./routes/qpayTestRoute");
 
 const { db } = require("zevbackv2");
 
@@ -69,6 +71,8 @@ app.use(gereeniiZagvarRoute);
 app.use(nekhemjlekhiinZagvarRoute);
 app.use(nekhemjlekhRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
+app.use("/qpay", qpayRoute);
+app.use("/qpayTest", qpayTestRoute);
 
 app.use(aldaaBarigch);
 

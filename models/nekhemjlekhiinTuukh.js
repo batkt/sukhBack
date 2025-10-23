@@ -22,7 +22,6 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     dansniiDugaar: String,
     gereeniiZagvariinId: String,
     tulukhUdur: [String],
-    tuluv: Number,
     ognoo: Date,
     mailKhayagTo: String,
     maililgeesenAjiltniiNer: String,
@@ -39,11 +38,52 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     nekhemjlekhiinOgnoo: Date,
     dugaalaltDugaar: Number,
     niitTulbur: Number,
+    // Payment status fields
+    tuluv: {
+      type: String,
+      enum: ["Төлөөгүй", "Төлсөн", "Хугацаа хэтэрсэн"],
+      default: "Төлөөгүй"
+    },
+    qpayPaymentId: String,
+    tulukhOgnoo: Date,
+    tulsunOgnoo: Date,
+    paymentHistory: [{
+      ognoo: Date,
+      dun: Number,
+      turul: String, // "qpay", "bank", "cash"
+      guilgeeniiId: String,
+      tailbar: String
+    }]
   },
   {
     timestamps: true,
   }
 );
+
+nekhemjlekhiinTuukhSchema.virtual('qpayUrl').get(function() {
+  if (this.tuluv === "Төлөөгүй" || this.tuluv === "Хугацаа хэтэрсэн") {
+    return `${process.env.UNDSEN_SERVER}/qpayInvoiceGargaya`;
+  }
+  return null;
+});
+
+// Virtual field for payment capability
+nekhemjlekhiinTuukhSchema.virtual('canPay').get(function() {
+  return this.tuluv !== "Төлсөн";
+});
+
+// Method to check and update overdue status
+nekhemjlekhiinTuukhSchema.methods.checkOverdue = function() {
+  const today = new Date();
+  if (this.tulukhOgnoo && today > this.tulukhOgnoo && this.tuluv !== "Төлсөн") {
+    this.tuluv = "Хугацаа хэтэрсэн";
+    return true; // Status was updated
+  }
+  return false; // No update needed
+};
+
+// Ensure virtual fields are included in JSON output
+nekhemjlekhiinTuukhSchema.set('toJSON', { virtuals: true });
 
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)

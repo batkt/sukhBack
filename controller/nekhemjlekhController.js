@@ -52,6 +52,12 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = tempData.niitTulbur || 0;
     
+    // Set payment due date (30 days from creation)
+    tuukh.tulukhOgnoo = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
+    // Initialize payment status
+    tuukh.tuluv = "Төлөөгүй";
+    
     // Нэхэмжлэхийн дугаар үүсгэх
     const suuliinNekhemjlekh = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
       .findOne()
