@@ -213,7 +213,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
       /*Нэхэмжлэхийн төлбөр callback url*/
       if (req.body.nekhemjlekhiinId) {
         callback_url =
-          process.env.UNDSEN_SERVER +
+          ("http://103.143.40.46:8084") +
           "/qpayNekhemjlekhCallback/" +
           req.body.baiguullagiinId.toString() +
           "/" +
