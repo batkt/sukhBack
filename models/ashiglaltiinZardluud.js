@@ -48,9 +48,14 @@ ashiglaltiinZardluudSchema.post(['save', 'findOneAndUpdate', 'updateOne'], async
     if (!kholbolt) return;
     
     // Find all geree records that use this ashiglaltiinZardal by matching name and other fields
+    // Use $or to match either the same barilgiinId or empty barilgiinId
     const gereenuud = await Geree(kholbolt, true).find({
       baiguullagiinId: doc.baiguullagiinId,
-      barilgiinId: doc.barilgiinId,
+      $or: [
+        { barilgiinId: doc.barilgiinId },
+        { barilgiinId: "" },
+        { barilgiinId: { $exists: false } }
+      ],
       "zardluud.ner": doc.ner,
       "zardluud.turul": doc.turul,
       "zardluud.zardliinTurul": doc.zardliinTurul
@@ -163,9 +168,14 @@ ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async functio
     if (!kholbolt) return;
     
     // Find all geree records that use this ashiglaltiinZardal by matching name and other fields
+    // Use $or to match either the same barilgiinId or empty barilgiinId
     const gereenuud = await Geree(kholbolt, true).find({
       baiguullagiinId: doc.baiguullagiinId,
-      barilgiinId: doc.barilgiinId,
+      $or: [
+        { barilgiinId: doc.barilgiinId },
+        { barilgiinId: "" },
+        { barilgiinId: { $exists: false } }
+      ],
       "zardluud.ner": doc.ner,
       "zardluud.turul": doc.turul,
       "zardluud.zardliinTurul": doc.zardliinTurul
