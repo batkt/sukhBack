@@ -99,15 +99,8 @@ const updateGereeAndNekhemjlekhFromZardluud = async (ashiglaltiinZardal, tukhain
     const Geree = require("../models/geree");
     const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
     
-    // Find all geree records that use this ashiglaltiinZardal by matching name and other fields
-    // Use $or to match either the same barilgiinId or empty barilgiinId
+    // Find all geree records that use this ashiglaltiinZardal by matching zardal fields
     const gereenuud = await Geree(tukhainBaaziinKholbolt, true).find({
-      baiguullagiinId: ashiglaltiinZardal.baiguullagiinId,
-      $or: [
-        { barilgiinId: ashiglaltiinZardal.barilgiinId },
-        { barilgiinId: "" },
-        { barilgiinId: { $exists: false } }
-      ],
       "zardluud.ner": ashiglaltiinZardal.ner,
       "zardluud.turul": ashiglaltiinZardal.turul,
       "zardluud.zardliinTurul": ashiglaltiinZardal.zardliinTurul
