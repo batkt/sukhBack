@@ -112,9 +112,9 @@ async function handleZardluudUpdate(doc) {
           dun: doc.dun
         };
         
-        // Recalculate niitTulbur
+        // Recalculate niitTulbur using tariff instead of dun
         const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
-          return sum + (zardal.dun || 0);
+          return sum + (zardal.tariff || 0);
         }, 0);
         
         geree.niitTulbur = niitTulbur;
@@ -155,9 +155,9 @@ async function handleZardluudUpdate(doc) {
               dun: doc.dun
             };
             
-            // Recalculate nekhemjlekh total
+            // Recalculate nekhemjlekh total using tariff instead of dun
             nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
-              return sum + (zardal.dun || 0);
+              return sum + (zardal.tariff || 0);
             }, 0);
             
             // Update content
@@ -205,9 +205,9 @@ ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async functio
           z.zardliinTurul === doc.zardliinTurul)
       );
       
-      // Recalculate niitTulbur
+      // Recalculate niitTulbur using tariff instead of dun
       const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
-        return sum + (zardal.dun || 0);
+        return sum + (zardal.tariff || 0);
       }, 0);
       
       geree.niitTulbur = niitTulbur;
@@ -229,9 +229,9 @@ ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async functio
             z.zardliinTurul === doc.zardliinTurul)
         );
         
-        // Recalculate nekhemjlekh total
+        // Recalculate nekhemjlekh total using tariff instead of dun
         nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
-          return sum + (zardal.dun || 0);
+          return sum + (zardal.tariff || 0);
         }, 0);
         
         // Update content

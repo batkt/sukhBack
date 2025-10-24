@@ -135,9 +135,9 @@ const updateGereeAndNekhemjlekhFromZardluud = async (ashiglaltiinZardal, tukhain
           dun: ashiglaltiinZardal.dun
         };
         
-        // Recalculate niitTulbur
+        // Recalculate niitTulbur using tariff instead of dun
         const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
-          return sum + (zardal.dun || 0);
+          return sum + (zardal.tariff || 0);
         }, 0);
         
         geree.niitTulbur = niitTulbur;
@@ -178,9 +178,9 @@ const updateGereeAndNekhemjlekhFromZardluud = async (ashiglaltiinZardal, tukhain
               dun: ashiglaltiinZardal.dun
             };
             
-            // Recalculate nekhemjlekh total
+            // Recalculate nekhemjlekh total using tariff instead of dun
             nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
-              return sum + (zardal.dun || 0);
+              return sum + (zardal.tariff || 0);
             }, 0);
             
             // Update content
