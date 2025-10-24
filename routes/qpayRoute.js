@@ -341,7 +341,7 @@ router.post(
       console.log("🔍 qpayKhariltsagchUusgey called with:", req.body);
 
       const { db } = require("zevbackv2");
-      var baiguullaga = await Baiguullaga({ kholbolt: db.erunkhiiKholbolt }).findOne({
+      var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
         register: req.body.register,
       });
 
@@ -390,10 +390,10 @@ router.post("/qpayKhariltsagchAvay", tokenShalgakh, async (req, res, next) => {
   try {
     console.log("🔍 qpayKhariltsagchAvay called with:", req.body);
 
-      const { db } = require("zevbackv2");
-      var baiguullaga1 = await Baiguullaga({ kholbolt: db.erunkhiiKholbolt }).findOne({
-        register: req.body.register,
-      });
+    const { db } = require("zevbackv2");
+    var baiguullaga1 = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+      register: req.body.register,
+    });
 
     console.log(
       "🔍 Found organization:",
