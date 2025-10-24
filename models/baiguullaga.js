@@ -26,17 +26,10 @@ const baiguullagaSchema = new Schema(
             type: [Number],
           },
         },
-        licenseRegister: String,
-        logo: String,
-        gariinUseg: String,
-        gariinUseg1: String,
-        tamga: String,
         ner: String,
         khayag: String,
         register: String,
         niitTalbai: Number,
-        neekhTsag: Date,
-        khaakhTsag: Date,
         tokhirgoo: {
           /**Хоногт бодох алдангийн хувь дээд тал 0.5 байна */
           aldangiinKhuvi: Number,
