@@ -6,6 +6,7 @@ const {
   qpayGuilgeeUtgaAvya,
   qpayTulye,
   qpayGargayaKhuuchin,
+  qpayNekhemjlekhGargaya,
 } = require("../controller/qpayController");
 const router = express.Router();
 const {
@@ -239,6 +240,54 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
 });
 router.post("/qpayGuilgeeUtgaAvya", tokenShalgakh, qpayGuilgeeUtgaAvya);
 
+// Create QPay invoice for nekhemjlekh
+router.post("/qpayNekhemjlekhGargaya", tokenShalgakh, qpayNekhemjlekhGargaya);
+
+// Check nekhemjlekh payment status
+router.get("/nekhemjlekhPaymentStatus/:baiguullagiinId/:nekhemjlekhiinId", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+    
+    const baiguullagiinId = req.params.baiguullagiinId;
+    const nekhemjlekhiinId = req.params.nekhemjlekhiinId;
+    
+    // Find the database connection for this organization
+    const kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == baiguullagiinId
+    );
+    
+    if (!kholbolt) {
+      return res.status(404).send("Organization not found");
+    }
+
+    // Find the nekhemjlekh record
+    const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findById(nekhemjlekhiinId);
+    
+    if (!nekhemjlekh) {
+      return res.status(404).send("Invoice not found");
+    }
+
+    res.send({
+      success: true,
+      nekhemjlekh: {
+        _id: nekhemjlekh._id,
+        dugaalaltDugaar: nekhemjlekh.dugaalaltDugaar,
+        niitTulbur: nekhemjlekh.niitTulbur,
+        tuluv: nekhemjlekh.tuluv,
+        tulsunOgnoo: nekhemjlekh.tulsunOgnoo,
+        qpayPaymentId: nekhemjlekh.qpayPaymentId,
+        qpayInvoiceId: nekhemjlekh.qpayInvoiceId,
+        qpayUrl: nekhemjlekh.qpayUrl,
+        canPay: nekhemjlekh.canPay,
+        paymentHistory: nekhemjlekh.paymentHistory
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post(
   "/qpayKhariltsagchUusgey",
   tokenShalgakh,
@@ -285,5 +334,74 @@ router.post("/qpayKhariltsagchAvay", tokenShalgakh, async (req, res, next) => {
     next(err);
   }
 });
+
+// QPay callback for nekhemjlekh (invoice) payments
+router.get(
+  "/qpayNekhemjlekhCallback/:baiguullagiinId/:nekhemjlekhiinId",
+  async (req, res, next) => {
+    try {
+      const { db } = require("zevbackv2");
+      const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+      
+      const baiguullagiinId = req.params.baiguullagiinId;
+      const nekhemjlekhiinId = req.params.nekhemjlekhiinId;
+      
+      // Find the database connection for this organization
+      const kholbolt = db.kholboltuud.find(
+        (a) => a.baiguullagiinId == baiguullagiinId
+      );
+      
+      if (!kholbolt) {
+        return res.status(404).send("Organization not found");
+      }
+
+      // Find the nekhemjlekh record
+      const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findById(nekhemjlekhiinId);
+      
+      if (!nekhemjlekh) {
+        return res.status(404).send("Invoice not found");
+      }
+
+      // Check if payment is already completed
+      if (nekhemjlekh.tuluv === "Төлсөн") {
+        return res.status(200).send("Payment already completed");
+      }
+
+      // Update payment status
+      nekhemjlekh.tuluv = "Төлсөн";
+      nekhemjlekh.tulsunOgnoo = new Date();
+      
+      // Add QPay payment ID if provided
+      if (req.query.qpay_payment_id) {
+        nekhemjlekh.qpayPaymentId = req.query.qpay_payment_id;
+      }
+
+      // Add payment to history
+      nekhemjlekh.paymentHistory.push({
+        ognoo: new Date(),
+        dun: nekhemjlekh.niitTulbur,
+        turul: "qpay",
+        guilgeeniiId: req.query.qpay_payment_id || "unknown",
+        tailbar: "QPay төлбөр амжилттай хийгдлээ"
+      });
+
+      // Save the updated nekhemjlekh
+      await nekhemjlekh.save();
+
+      // Emit socket event for real-time updates
+      req.app.get("socketio").emit(`nekhemjlekhPayment/${baiguullagiinId}/${nekhemjlekhiinId}`, {
+        status: "success",
+        tuluv: "Төлсөн",
+        tulsunOgnoo: nekhemjlekh.tulsunOgnoo,
+        paymentId: nekhemjlekh.qpayPaymentId
+      });
+
+      res.sendStatus(200);
+    } catch (err) {
+      console.error("QPay nekhemjlekh callback error:", err);
+      next(err);
+    }
+  }
+);
 
 module.exports = router;

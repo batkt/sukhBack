@@ -45,6 +45,8 @@ const nekhemjlekhiinTuukhSchema = new Schema(
       default: "Төлөөгүй"
     },
     qpayPaymentId: String,
+    qpayInvoiceId: String,
+    qpayUrl: String,
     tulukhOgnoo: Date,
     tulsunOgnoo: Date,
     paymentHistory: [{
