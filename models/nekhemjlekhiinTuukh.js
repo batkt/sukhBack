@@ -62,12 +62,6 @@ const nekhemjlekhiinTuukhSchema = new Schema(
   }
 );
 
-nekhemjlekhiinTuukhSchema.virtual('qpayUrl').get(function() {
-  if (this.tuluv === "Төлөөгүй" || this.tuluv === "Хугацаа хэтэрсэн") {
-    return `${process.env.UNDSEN_SERVER}/qpayInvoiceGargaya`;
-  }
-  return null;
-});
 
 // Virtual field for payment capability
 nekhemjlekhiinTuukhSchema.virtual('canPay').get(function() {
