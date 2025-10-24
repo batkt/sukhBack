@@ -47,17 +47,23 @@ ashiglaltiinZardluudSchema.post(['save', 'findOneAndUpdate', 'updateOne'], async
     
     if (!kholbolt) return;
     
-    // Find all geree records that use this ashiglaltiinZardal
+    // Find all geree records that use this ashiglaltiinZardal by matching name and other fields
     const gereenuud = await Geree(kholbolt, true).find({
       baiguullagiinId: doc.baiguullagiinId,
       barilgiinId: doc.barilgiinId,
-      "zardluud._id": doc._id
+      "zardluud.ner": doc.ner,
+      "zardluud.turul": doc.turul,
+      "zardluud.zardliinTurul": doc.zardliinTurul
     });
     
     // Update each geree record
     for (const geree of gereenuud) {
-      // Find the specific zardal in the geree
-      const zardalIndex = geree.zardluud.findIndex(z => z._id.toString() === doc._id.toString());
+      // Find the specific zardal in the geree by matching name and other fields
+      const zardalIndex = geree.zardluud.findIndex(z => 
+        z.ner === doc.ner && 
+        z.turul === doc.turul && 
+        z.zardliinTurul === doc.zardliinTurul
+      );
       
       if (zardalIndex !== -1) {
         // Update the zardal in geree
@@ -96,9 +102,11 @@ ashiglaltiinZardluudSchema.post(['save', 'findOneAndUpdate', 'updateOne'], async
         });
         
         if (nekhemjlekh) {
-          // Update nekhemjlekh zardluud
-          const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(
-            z => z._id.toString() === doc._id.toString()
+          // Update nekhemjlekh zardluud by matching name and other fields
+          const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(z => 
+            z.ner === doc.ner && 
+            z.turul === doc.turul && 
+            z.zardliinTurul === doc.zardliinTurul
           );
           
           if (nekhemjlekhZardalIndex !== -1) {
@@ -154,17 +162,23 @@ ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async functio
     
     if (!kholbolt) return;
     
-    // Find all geree records that use this ashiglaltiinZardal
+    // Find all geree records that use this ashiglaltiinZardal by matching name and other fields
     const gereenuud = await Geree(kholbolt, true).find({
       baiguullagiinId: doc.baiguullagiinId,
       barilgiinId: doc.barilgiinId,
-      "zardluud._id": doc._id
+      "zardluud.ner": doc.ner,
+      "zardluud.turul": doc.turul,
+      "zardluud.zardliinTurul": doc.zardliinTurul
     });
     
     // Update each geree record
     for (const geree of gereenuud) {
-      // Remove the zardal from geree
-      geree.zardluud = geree.zardluud.filter(z => z._id.toString() !== doc._id.toString());
+      // Remove the zardal from geree by matching name and other fields
+      geree.zardluud = geree.zardluud.filter(z => 
+        !(z.ner === doc.ner && 
+          z.turul === doc.turul && 
+          z.zardliinTurul === doc.zardliinTurul)
+      );
       
       // Recalculate niitTulbur
       const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
@@ -183,9 +197,11 @@ ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async functio
       });
       
       if (nekhemjlekh) {
-        // Remove the zardal from nekhemjlekh
-        nekhemjlekh.medeelel.zardluud = nekhemjlekh.medeelel.zardluud.filter(
-          z => z._id.toString() !== doc._id.toString()
+        // Remove the zardal from nekhemjlekh by matching name and other fields
+        nekhemjlekh.medeelel.zardluud = nekhemjlekh.medeelel.zardluud.filter(z => 
+          !(z.ner === doc.ner && 
+            z.turul === doc.turul && 
+            z.zardliinTurul === doc.zardliinTurul)
         );
         
         // Recalculate nekhemjlekh total

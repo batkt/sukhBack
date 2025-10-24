@@ -99,17 +99,23 @@ const updateGereeAndNekhemjlekhFromZardluud = async (ashiglaltiinZardal, tukhain
     const Geree = require("../models/geree");
     const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
     
-    // Find all geree records that use this ashiglaltiinZardal
+    // Find all geree records that use this ashiglaltiinZardal by matching name and other fields
     const gereenuud = await Geree(tukhainBaaziinKholbolt, true).find({
       baiguullagiinId: ashiglaltiinZardal.baiguullagiinId,
       barilgiinId: ashiglaltiinZardal.barilgiinId,
-      "zardluud._id": ashiglaltiinZardal._id
+      "zardluud.ner": ashiglaltiinZardal.ner,
+      "zardluud.turul": ashiglaltiinZardal.turul,
+      "zardluud.zardliinTurul": ashiglaltiinZardal.zardliinTurul
     });
     
     // Update each geree record
     for (const geree of gereenuud) {
-      // Find the specific zardal in the geree
-      const zardalIndex = geree.zardluud.findIndex(z => z._id.toString() === ashiglaltiinZardal._id.toString());
+      // Find the specific zardal in the geree by matching name and other fields
+      const zardalIndex = geree.zardluud.findIndex(z => 
+        z.ner === ashiglaltiinZardal.ner && 
+        z.turul === ashiglaltiinZardal.turul && 
+        z.zardliinTurul === ashiglaltiinZardal.zardliinTurul
+      );
       
       if (zardalIndex !== -1) {
         // Update the zardal in geree
@@ -148,9 +154,11 @@ const updateGereeAndNekhemjlekhFromZardluud = async (ashiglaltiinZardal, tukhain
         });
         
         if (nekhemjlekh) {
-          // Update nekhemjlekh zardluud
-          const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(
-            z => z._id.toString() === ashiglaltiinZardal._id.toString()
+          // Update nekhemjlekh zardluud by matching name and other fields
+          const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(z => 
+            z.ner === ashiglaltiinZardal.ner && 
+            z.turul === ashiglaltiinZardal.turul && 
+            z.zardliinTurul === ashiglaltiinZardal.zardliinTurul
           );
           
           if (nekhemjlekhZardalIndex !== -1) {
