@@ -10,9 +10,9 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
     
     // Use the organization ID from the authenticated user (set by tokenShalgakh middleware)
     const baiguullagiinId = req.body.baiguullagiinId;
-    const { sarinUdur, idevkhitei = true } = req.body;
+    const { nekhemjlekhUusgekhOgnoo, idevkhitei = true } = req.body;
 
-    if (!baiguullagiinId || !sarinUdur) {
+    if (!baiguullagiinId || !nekhemjlekhUusgekhOgnoo) {
       return res.status(400).json({
         success: false,
         message: "Байгууллагын ID болон сарын өдөр заавал бөглөх шаардлагатай!"
@@ -52,7 +52,7 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
       { baiguullagiinId },
       {
         baiguullagiinId,
-        sarinUdur,
+        nekhemjlekhUusgekhOgnoo,
         idevkhitei,
         shinechilsenOgnoo: new Date()
       },
@@ -61,7 +61,7 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
 
     res.json({
       success: true,
-      message: `Амжилттай тохируулагдлаа! Нэхэмжлэх ${sarinUdur} сарын ${sarinUdur} өдөр үүсгэгдэнэ.`,
+      message: `Амжилттай тохируулагдлаа! Нэхэмжлэх ${nekhemjlekhUusgekhOgnoo} сарын ${nekhemjlekhUusgekhOgnoo} өдөр үүсгэгдэнэ.`,
       data: cronSchedule
     });
 
