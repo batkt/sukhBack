@@ -4,8 +4,9 @@ const Geree = require("../models/geree");
 const { tokenShalgakh, Dugaarlalt } = require("zevbackv2");
 const {
   qpayGuilgeeUtgaAvya,
+  qpayTulye,
   qpayGargayaKhuuchin,
-} = require("../controller/qpay");
+} = require("../controller/qpayController");
 const router = express.Router();
 const {
   qpayKhariltsagchUusgey,
