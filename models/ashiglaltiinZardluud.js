@@ -31,6 +31,179 @@ const ashiglaltiinZardluudSchema = new Schema(
   }
 );
 
+// Middleware to update geree and nekhemjlekh when ashiglaltiinZardluud is updated
+ashiglaltiinZardluudSchema.post(['save', 'findOneAndUpdate', 'updateOne'], async function(doc) {
+  try {
+    if (!doc) return;
+    
+    const { db } = require("zevbackv2");
+    const Geree = require("./geree");
+    const nekhemjlekhiinTuukh = require("./nekhemjlekhiinTuukh");
+    
+    // Get the organization connection
+    const kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == doc.baiguullagiinId
+    );
+    
+    if (!kholbolt) return;
+    
+    // Find all geree records that use this ashiglaltiinZardal
+    const gereenuud = await Geree(kholbolt, true).find({
+      baiguullagiinId: doc.baiguullagiinId,
+      barilgiinId: doc.barilgiinId,
+      "zardluud._id": doc._id
+    });
+    
+    // Update each geree record
+    for (const geree of gereenuud) {
+      // Find the specific zardal in the geree
+      const zardalIndex = geree.zardluud.findIndex(z => z._id.toString() === doc._id.toString());
+      
+      if (zardalIndex !== -1) {
+        // Update the zardal in geree
+        geree.zardluud[zardalIndex] = {
+          ...geree.zardluud[zardalIndex].toObject(),
+          ner: doc.ner,
+          turul: doc.turul,
+          tariff: doc.tariff,
+          tariffUsgeer: doc.tariffUsgeer,
+          zardliinTurul: doc.zardliinTurul,
+          tseverUsDun: doc.tseverUsDun,
+          bokhirUsDun: doc.bokhirUsDun,
+          usKhalaasniiDun: doc.usKhalaasniiDun,
+          tsakhilgaanUrjver: doc.tsakhilgaanUrjver,
+          tsakhilgaanChadal: doc.tsakhilgaanChadal,
+          tsakhilgaanDemjikh: doc.tsakhilgaanDemjikh,
+          suuriKhuraamj: doc.suuriKhuraamj,
+          nuatNemekhEsekh: doc.nuatNemekhEsekh,
+          dun: doc.dun
+        };
+        
+        // Recalculate niitTulbur
+        const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
+          return sum + (zardal.dun || 0);
+        }, 0);
+        
+        geree.niitTulbur = niitTulbur;
+        
+        // Save the updated geree
+        await geree.save();
+        
+        // Update corresponding nekhemjlekh if it exists
+        const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findOne({
+          gereeniiId: geree._id,
+          tuluv: { $ne: "Төлсөн" } // Only update unpaid invoices
+        });
+        
+        if (nekhemjlekh) {
+          // Update nekhemjlekh zardluud
+          const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(
+            z => z._id.toString() === doc._id.toString()
+          );
+          
+          if (nekhemjlekhZardalIndex !== -1) {
+            nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex] = {
+              ...nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex],
+              ner: doc.ner,
+              turul: doc.turul,
+              tariff: doc.tariff,
+              tariffUsgeer: doc.tariffUsgeer,
+              zardliinTurul: doc.zardliinTurul,
+              tseverUsDun: doc.tseverUsDun,
+              bokhirUsDun: doc.bokhirUsDun,
+              usKhalaasniiDun: doc.usKhalaasniiDun,
+              tsakhilgaanUrjver: doc.tsakhilgaanUrjver,
+              tsakhilgaanChadal: doc.tsakhilgaanChadal,
+              tsakhilgaanDemjikh: doc.tsakhilgaanDemjikh,
+              suuriKhuraamj: doc.suuriKhuraamj,
+              nuatNemekhEsekh: doc.nuatNemekhEsekh,
+              dun: doc.dun
+            };
+            
+            // Recalculate nekhemjlekh total
+            nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
+              return sum + (zardal.dun || 0);
+            }, 0);
+            
+            // Update content
+            nekhemjlekh.content = `Гэрээний дугаар: ${geree.gereeniiDugaar}, Нийт төлбөр: ${nekhemjlekh.niitTulbur}₮`;
+            
+            await nekhemjlekh.save();
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error updating geree and nekhemjlekh after ashiglaltiinZardluud update:", error);
+  }
+});
+
+// Middleware to handle deletion of ashiglaltiinZardluud
+ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async function(doc) {
+  try {
+    if (!doc) return;
+    
+    const { db } = require("zevbackv2");
+    const Geree = require("./geree");
+    const nekhemjlekhiinTuukh = require("./nekhemjlekhiinTuukh");
+    
+    // Get the organization connection
+    const kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == doc.baiguullagiinId
+    );
+    
+    if (!kholbolt) return;
+    
+    // Find all geree records that use this ashiglaltiinZardal
+    const gereenuud = await Geree(kholbolt, true).find({
+      baiguullagiinId: doc.baiguullagiinId,
+      barilgiinId: doc.barilgiinId,
+      "zardluud._id": doc._id
+    });
+    
+    // Update each geree record
+    for (const geree of gereenuud) {
+      // Remove the zardal from geree
+      geree.zardluud = geree.zardluud.filter(z => z._id.toString() !== doc._id.toString());
+      
+      // Recalculate niitTulbur
+      const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
+        return sum + (zardal.dun || 0);
+      }, 0);
+      
+      geree.niitTulbur = niitTulbur;
+      
+      // Save the updated geree
+      await geree.save();
+      
+      // Update corresponding nekhemjlekh if it exists
+      const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findOne({
+        gereeniiId: geree._id,
+        tuluv: { $ne: "Төлсөн" } // Only update unpaid invoices
+      });
+      
+      if (nekhemjlekh) {
+        // Remove the zardal from nekhemjlekh
+        nekhemjlekh.medeelel.zardluud = nekhemjlekh.medeelel.zardluud.filter(
+          z => z._id.toString() !== doc._id.toString()
+        );
+        
+        // Recalculate nekhemjlekh total
+        nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
+          return sum + (zardal.dun || 0);
+        }, 0);
+        
+        // Update content
+        nekhemjlekh.content = `Гэрээний дугаар: ${geree.gereeniiDugaar}, Нийт төлбөр: ${nekhemjlekh.niitTulbur}₮`;
+        
+        await nekhemjlekh.save();
+      }
+    }
+  } catch (error) {
+    console.error("Error updating geree and nekhemjlekh after ashiglaltiinZardluud deletion:", error);
+  }
+});
+
 //module.exports = mongoose.model("ashiglaltiinZardluud", ashiglaltiinZardluudSchema);
 
 module.exports = function a(conn) {

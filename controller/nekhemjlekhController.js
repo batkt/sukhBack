@@ -93,6 +93,107 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
 };
 
 
+// Function to update geree and nekhemjlekh when ashiglaltiinZardluud changes
+const updateGereeAndNekhemjlekhFromZardluud = async (ashiglaltiinZardal, tukhainBaaziinKholbolt) => {
+  try {
+    const Geree = require("../models/geree");
+    const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+    
+    // Find all geree records that use this ashiglaltiinZardal
+    const gereenuud = await Geree(tukhainBaaziinKholbolt, true).find({
+      baiguullagiinId: ashiglaltiinZardal.baiguullagiinId,
+      barilgiinId: ashiglaltiinZardal.barilgiinId,
+      "zardluud._id": ashiglaltiinZardal._id
+    });
+    
+    // Update each geree record
+    for (const geree of gereenuud) {
+      // Find the specific zardal in the geree
+      const zardalIndex = geree.zardluud.findIndex(z => z._id.toString() === ashiglaltiinZardal._id.toString());
+      
+      if (zardalIndex !== -1) {
+        // Update the zardal in geree
+        geree.zardluud[zardalIndex] = {
+          ...geree.zardluud[zardalIndex].toObject(),
+          ner: ashiglaltiinZardal.ner,
+          turul: ashiglaltiinZardal.turul,
+          tariff: ashiglaltiinZardal.tariff,
+          tariffUsgeer: ashiglaltiinZardal.tariffUsgeer,
+          zardliinTurul: ashiglaltiinZardal.zardliinTurul,
+          tseverUsDun: ashiglaltiinZardal.tseverUsDun,
+          bokhirUsDun: ashiglaltiinZardal.bokhirUsDun,
+          usKhalaasniiDun: ashiglaltiinZardal.usKhalaasniiDun,
+          tsakhilgaanUrjver: ashiglaltiinZardal.tsakhilgaanUrjver,
+          tsakhilgaanChadal: ashiglaltiinZardal.tsakhilgaanChadal,
+          tsakhilgaanDemjikh: ashiglaltiinZardal.tsakhilgaanDemjikh,
+          suuriKhuraamj: ashiglaltiinZardal.suuriKhuraamj,
+          nuatNemekhEsekh: ashiglaltiinZardal.nuatNemekhEsekh,
+          dun: ashiglaltiinZardal.dun
+        };
+        
+        // Recalculate niitTulbur
+        const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
+          return sum + (zardal.dun || 0);
+        }, 0);
+        
+        geree.niitTulbur = niitTulbur;
+        
+        // Save the updated geree
+        await geree.save();
+        
+        // Update corresponding nekhemjlekh if it exists
+        const nekhemjlekh = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).findOne({
+          gereeniiId: geree._id,
+          tuluv: { $ne: "Төлсөн" } // Only update unpaid invoices
+        });
+        
+        if (nekhemjlekh) {
+          // Update nekhemjlekh zardluud
+          const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(
+            z => z._id.toString() === ashiglaltiinZardal._id.toString()
+          );
+          
+          if (nekhemjlekhZardalIndex !== -1) {
+            nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex] = {
+              ...nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex],
+              ner: ashiglaltiinZardal.ner,
+              turul: ashiglaltiinZardal.turul,
+              tariff: ashiglaltiinZardal.tariff,
+              tariffUsgeer: ashiglaltiinZardal.tariffUsgeer,
+              zardliinTurul: ashiglaltiinZardal.zardliinTurul,
+              tseverUsDun: ashiglaltiinZardal.tseverUsDun,
+              bokhirUsDun: ashiglaltiinZardal.bokhirUsDun,
+              usKhalaasniiDun: ashiglaltiinZardal.usKhalaasniiDun,
+              tsakhilgaanUrjver: ashiglaltiinZardal.tsakhilgaanUrjver,
+              tsakhilgaanChadal: ashiglaltiinZardal.tsakhilgaanChadal,
+              tsakhilgaanDemjikh: ashiglaltiinZardal.tsakhilgaanDemjikh,
+              suuriKhuraamj: ashiglaltiinZardal.suuriKhuraamj,
+              nuatNemekhEsekh: ashiglaltiinZardal.nuatNemekhEsekh,
+              dun: ashiglaltiinZardal.dun
+            };
+            
+            // Recalculate nekhemjlekh total
+            nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
+              return sum + (zardal.dun || 0);
+            }, 0);
+            
+            // Update content
+            nekhemjlekh.content = `Гэрээний дугаар: ${geree.gereeniiDugaar}, Нийт төлбөр: ${nekhemjlekh.niitTulbur}₮`;
+            
+            await nekhemjlekh.save();
+          }
+        }
+      }
+    }
+    
+    return { success: true, updatedGereenuud: gereenuud.length };
+  } catch (error) {
+    console.error("Error updating geree and nekhemjlekh from zardluud:", error);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
+  updateGereeAndNekhemjlekhFromZardluud,
 };
