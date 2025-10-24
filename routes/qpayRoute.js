@@ -380,7 +380,7 @@ router.post(
         throw new Error(khariu);
       }
     } catch (err) {
-      console.error("❌ qpayKhariltsagchUusgey error:", err);
+      console.error("❌ qpayKhariltsagchUusgey error:", err.response.body);
       next(err);
     }
   }
