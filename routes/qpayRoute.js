@@ -368,9 +368,29 @@ router.post(
 
       console.log("🔍 Prepared data for QPay:", req.body);
 
-      var khariu = await qpayKhariltsagchUusgey(req.body, kholbolt);
-
-      console.log("🔍 QPay response:", khariu);
+      let khariu;
+      try {
+        khariu = await qpayKhariltsagchUusgey(req.body, kholbolt);
+        console.log("✅ QPay API call successful");
+        console.log("🔍 QPay response:", khariu);
+        console.log("🔍 QPay response type:", typeof khariu);
+        console.log("🔍 QPay response stringified:", JSON.stringify(khariu, null, 2));
+      } catch (qpayError) {
+        console.error("❌ QPay API call failed:");
+        console.error("❌ Error message:", qpayError.message);
+        console.error("❌ Error stack:", qpayError.stack);
+        console.error("❌ Full error object:", JSON.stringify(qpayError, Object.getOwnPropertyNames(qpayError), 2));
+        
+        // Try to extract response from error if it exists
+        if (qpayError.response) {
+          console.error("❌ QPay Error Response:", qpayError.response);
+          console.error("❌ QPay Error Response Body:", qpayError.response.body);
+          console.error("❌ QPay Error Response Status:", qpayError.response.statusCode);
+          console.error("❌ QPay Error Response Headers:", qpayError.response.headers);
+        }
+        
+        throw qpayError;
+      }
 
       if (khariu === "Amjilttai") {
         console.log("✅ QPay customer created successfully");
@@ -381,6 +401,12 @@ router.post(
       }
     } catch (err) {
       console.error("❌ qpayKhariltsagchUusgey error:", err);
+      console.error("❌ Error details:", {
+        message: err.message,
+        stack: err.stack,
+        name: err.name,
+        cause: err.cause
+      });
       next(err);
     }
   }
