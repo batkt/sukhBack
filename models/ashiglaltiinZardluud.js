@@ -32,9 +32,16 @@ const ashiglaltiinZardluudSchema = new Schema(
 );
 
 // Middleware to update geree and nekhemjlekh when ashiglaltiinZardluud is updated
+console.log("🔧 Registering ashiglaltiinZardluud middleware...");
 ashiglaltiinZardluudSchema.post(['save', 'findOneAndUpdate', 'updateOne'], async function(doc) {
   try {
-    if (!doc) return;
+    console.log("🔥 ASHIGLALTIIN ZARDLUUD MIDDLEWARE TRIGGERED!");
+    console.log("Document:", doc);
+    console.log("Document baiguullagiinId:", doc.baiguullagiinId);
+    if (!doc) {
+      console.log("❌ No document found, exiting");
+      return;
+    }
     
     const { db } = require("zevbackv2");
     const Geree = require("./geree");
@@ -222,5 +229,11 @@ module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
   conn = conn.kholbolt;
+  
+  // Check if model already exists to avoid re-registering middleware
+  if (conn.models.ashiglaltiinZardluud) {
+    return conn.model("ashiglaltiinZardluud");
+  }
+  
   return conn.model("ashiglaltiinZardluud", ashiglaltiinZardluudSchema);
 };

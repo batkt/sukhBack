@@ -31,6 +31,41 @@ router
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiExcelTatya);
 
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
+
+// Test route to manually trigger middleware
+router.put("/test-ashiglaltiinZardluud/:id", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(400).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй!"
+      });
+    }
+
+    const AshiglaltiinZardluud = ashiglaltiinZardluud(tukhainBaaziinKholbolt);
+    
+    console.log("🧪 Testing manual update of ashiglaltiinZardluud:", req.params.id);
+    
+    const result = await AshiglaltiinZardluud.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    res.json({
+      success: true,
+      message: "Амжилттай шинэчлэгдлээ",
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
 crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
 
