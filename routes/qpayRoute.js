@@ -6,7 +6,6 @@ const {
   qpayGuilgeeUtgaAvya,
   qpayTulye,
   qpayGargayaKhuuchin,
-  qpayNekhemjlekhGargaya,
 } = require("../controller/qpayController");
 const router = express.Router();
 const {
@@ -211,6 +210,16 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         }
       }
 
+      /*Нэхэмжлэхийн төлбөр callback url*/
+      if (req.body.nekhemjlekhiinId) {
+        callback_url =
+          process.env.UNDSEN_SERVER +
+          "/qpayNekhemjlekhCallback/" +
+          req.body.baiguullagiinId.toString() +
+          "/" +
+          req.body.nekhemjlekhiinId.toString();
+      }
+
       const khariu = await qpayGargaya(
         req.body,
         callback_url,
@@ -240,8 +249,6 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
 });
 router.post("/qpayGuilgeeUtgaAvya", tokenShalgakh, qpayGuilgeeUtgaAvya);
 
-// Create QPay invoice for nekhemjlekh
-router.post("/qpayNekhemjlekhGargaya", tokenShalgakh, qpayNekhemjlekhGargaya);
 
 // Check nekhemjlekh payment status
 router.get("/nekhemjlekhPaymentStatus/:baiguullagiinId/:nekhemjlekhiinId", tokenShalgakh, async (req, res, next) => {
