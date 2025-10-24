@@ -33,7 +33,29 @@ const ashiglaltiinZardluudSchema = new Schema(
 
 // Middleware to update geree and nekhemjlekh when ashiglaltiinZardluud is updated
 console.log("🔧 Registering ashiglaltiinZardluud middleware...");
-ashiglaltiinZardluudSchema.post(['save', 'findOneAndUpdate', 'updateOne'], async function(doc) {
+
+// For save operations
+ashiglaltiinZardluudSchema.post('save', async function(doc) {
+  await handleZardluudUpdate(doc);
+});
+
+// For findOneAndUpdate operations
+ashiglaltiinZardluudSchema.post('findOneAndUpdate', async function(result) {
+  if (result) {
+    await handleZardluudUpdate(result);
+  }
+});
+
+// For updateOne operations - we need to get the document separately
+ashiglaltiinZardluudSchema.post('updateOne', async function() {
+  // Get the document that was updated
+  const doc = await this.model.findOne(this.getQuery());
+  if (doc) {
+    await handleZardluudUpdate(doc);
+  }
+});
+
+async function handleZardluudUpdate(doc) {
   try {
     console.log("🔥 ASHIGLALTIIN ZARDLUUD MIDDLEWARE TRIGGERED!");
     console.log("Document:", doc);
@@ -149,7 +171,7 @@ ashiglaltiinZardluudSchema.post(['save', 'findOneAndUpdate', 'updateOne'], async
   } catch (error) {
     console.error("Error updating geree and nekhemjlekh after ashiglaltiinZardluud update:", error);
   }
-});
+}
 
 // Middleware to handle deletion of ashiglaltiinZardluud
 ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async function(doc) {
