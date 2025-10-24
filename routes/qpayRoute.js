@@ -15,7 +15,6 @@ const {
   QpayKhariltsagch,
   qpayShalgay,
 } = require("quickqpaypackv2");
-const { tulburUridchiljTulukh } = require("../controller/zogsool");
 
 router.get(
   "/qpaycallback/:baiguullagiinId/:zakhialgiinDugaar",
@@ -44,7 +43,6 @@ router.get(
           ajiltniiNer: "zochin",
           zogsooliinId: qpayObject.zogsooliinId,
         };
-        await tulburUridchiljTulukh(body, res, next);
       }
       res.sendStatus(200);
     } catch (err) {
@@ -79,7 +77,6 @@ router.get(
           ajiltniiNer: "qpaySticker",
           zogsooliinId: qpayObject.zogsooliinId,
         };
-        await tulburUridchiljTulukh(body, res, next);
       }
       if (
         !!req.params.mashiniiDugaar &&

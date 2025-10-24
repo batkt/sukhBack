@@ -1,17 +1,13 @@
 const asyncHandler = require("express-async-handler");
 const aldaa = require("../components/aldaa");
 const Baiguullaga = require("../models/baiguullaga");
-const Tulbur = require("./tulbur");
 //const Dugaarlalt = require("../models/dugaarlalt");
 const { Dugaarlalt, Token, Dans, db } = require("zevbackv2");
 const QpayObject = require("../models/qpayObject");
-const { tulultiinMsgIlgeeye } = require("../controller/khariltsagch");
 const Geree = require("../models/geree");
 const got = require("got");
 const { QuickQpayObject } = require("quickqpaypackv2");
-const { tulburUridchiljTulukh } = require("../controller/zogsool");
 const { URL } = require("url");
-const { daraagiinTulukhOgnooZasya } = require("../controller/tulbur");
 const instance = got.extend({
   hooks: {
     beforeRequest: [
@@ -374,7 +370,6 @@ exports.qpayTulye = asyncHandler(async (req, res, next) => {
           ajiltniiNer: "zochin",
           zogsooliinId: qpayBarimt.zogsooliinId,
         };
-        await tulburUridchiljTulukh(body, next);
         qpayBarimt.tulsunEsekh = true;
         qpayBarimt.isNew = false;
         qpayBarimt.save();
