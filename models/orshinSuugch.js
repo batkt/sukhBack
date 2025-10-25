@@ -8,16 +8,16 @@ const orshinSuugchSchema = new Schema(
   {
     id: String,
     ner: String,
-    toot : String,
+    toot: String,
     ovog: String,
     utas: String,
     mail: String,
-    tuluv : String,
-    davkhar : String,
-    bairniiNer : String,
+    tuluv: String,
+    davkhar: String,
+    bairniiNer: String,
     taniltsuulgaKharakhEsekh: {
       type: Boolean,
-      default: true, 
+      default: true,
     },
     nuutsUg: {
       type: String,
@@ -25,13 +25,14 @@ const orshinSuugchSchema = new Schema(
     },
     baiguullagiinId: String,
     baiguullagiinNer: String,
+    barilgiinId: String,
     erkh: String,
     firebaseToken: String,
     zurgiinId: String,
     nevtrekhNer: String,
-    duureg: String, 
-    horoo: String,  
-    soh: String,    
+    duureg: String,
+    horoo: String,
+    soh: String,
   },
   {
     timestamps: true,
@@ -98,18 +99,18 @@ orshinSuugchSchema.methods.zochinTokenUusgye = function (
   return token;
 };
 orshinSuugchSchema.pre("save", async function () {
-  this.indexTalbar =  this.nevtrekhNer;
-  
-  if (this.nuutsUg && !this.nuutsUg.startsWith('$2b$')) {
+  this.indexTalbar = this.nevtrekhNer;
+
+  if (this.nuutsUg && !this.nuutsUg.startsWith("$2b$")) {
     const salt = await bcrypt.genSalt(12);
     this.nuutsUg = await bcrypt.hash(this.nuutsUg, salt);
   }
 });
 
 orshinSuugchSchema.pre("updateOne", async function () {
-  this.indexTalbar =  this._update.nevtrekhNer;
-  
-  if (this._update.nuutsUg && !this._update.nuutsUg.startsWith('$2b$')) {
+  this.indexTalbar = this._update.nevtrekhNer;
+
+  if (this._update.nuutsUg && !this._update.nuutsUg.startsWith("$2b$")) {
     const salt = await bcrypt.genSalt(12);
     this._update.nuutsUg = await bcrypt.hash(this._update.nuutsUg, salt);
   }
