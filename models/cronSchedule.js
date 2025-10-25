@@ -7,38 +7,38 @@ const nekhemjlekhCronSchema = new Schema({
   baiguullagiinId: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
   },
-  sarinUdur: {
+  nekhemjlekhUusgekhOgnoo: {
     type: Number,
     required: true,
     min: 1,
     max: 31,
-    default: 1
+    default: 1,
   },
   idevkhitei: {
     type: Boolean,
-    default: true
+    default: true,
   },
   suuldAjillasanOgnoo: {
     type: Date,
-    default: null
+    default: null,
   },
   daraagiinAjillakhOgnoo: {
     type: Date,
-    default: null
+    default: null,
   },
   uussenOgnoo: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   shinechilsenOgnoo: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
-nekhemjlekhCronSchema.pre('save', function(next) {
+nekhemjlekhCronSchema.pre("save", function (next) {
   this.shinechilsenOgnoo = new Date();
   next();
 });
