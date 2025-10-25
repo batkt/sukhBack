@@ -227,6 +227,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       ...req.body,
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
+      barilgiinId: baiguullaga.barilgiinId, // Store barilgiinId from baiguullaga
       mail: req.body.mail,
       erkh: "OrshinSuugch",
       duureg: req.body.duureg,
@@ -531,6 +532,20 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       orshinSuugch.baiguullagiinId
     );
+
+    // Update barilgiinId if baiguullaga has a new one
+    if (
+      baiguullaga &&
+      baiguullaga.barilgiinId &&
+      baiguullaga.barilgiinId !== orshinSuugch.barilgiinId
+    ) {
+      console.log(
+        "Updating user barilgiinId from baiguullaga:",
+        baiguullaga.barilgiinId
+      );
+      orshinSuugch.barilgiinId = baiguullaga.barilgiinId;
+      await orshinSuugch.save();
+    }
 
     // REMOVED: Organization reassignment logic
     // Users should stay in their original organization to maintain data access
