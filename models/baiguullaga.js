@@ -13,8 +13,8 @@ const baiguullagaSchema = new Schema(
     utas: [String],
     zurgiinNer: String,
     bairniiNer: String,
-    dans : String,
-    bankniiNer : String,
+    dans: String,
+    bankniiNer: String,
     barilguud: [
       {
         bairshil: {
@@ -162,6 +162,7 @@ const baiguullagaSchema = new Schema(
         ],
       },
     ],
+    barilgiinId: String,
   },
   {
     timestamps: true,
