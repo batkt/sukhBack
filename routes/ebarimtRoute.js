@@ -96,9 +96,12 @@ async function nekhemjlekheesEbarimtShineUusgye(
 async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
   try {
     if (!!shine) {
-        var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
+      var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
+      console.log("📤 Sending ebarimt to API:", url);
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
+        console.log("📥 API Response received:", { err: !!err, status: res1?.statusCode, body });
         if (err) {
+          console.error("❌ API Error:", err.message);
           if (!!next) next(err);
         } else {
           onFinish(body, ugugdul);
@@ -106,6 +109,7 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
       });
     } else if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
   } catch (aldaa) {
+    console.error("❌ EbarimtDuudya error:", aldaa.message);
     if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
   }
 }

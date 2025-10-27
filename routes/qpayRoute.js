@@ -484,21 +484,26 @@ router.get(
           );
 
           var butsaakhMethod = function (d, khariuObject) {
+            console.log("📥 Callback received for ebarimt");
             try {
+              console.log("📥 Response status:", d?.status, d?.success);
               if (d?.status != "SUCCESS" && !d.success) {
                 console.log("⚠️ E-Barimt API not SUCCESS:", d);
                 return;
               }
+              console.log("📝 Creating EbarimtShine model instance...");
               var shineBarimt = new EbarimtShine(kholbolt)(d);
               shineBarimt.nekhemjlekhiinId = khariuObject._id.toString();
               shineBarimt.baiguullagiinId = khariuObject.baiguullagiinId;
               shineBarimt.barilgiinId = khariuObject.barilgiinId;
               shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;
               shineBarimt.utas = khariuObject.utas;
+              console.log("💾 Saving to database...");
               shineBarimt.save();
               console.log("✅ E-Barimt created and saved to database");
             } catch (err) {
               console.error("❌ Failed to save e-barimt:", err);
+              console.error("❌ Error stack:", err.stack);
             }
           };
 
