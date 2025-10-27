@@ -5,8 +5,17 @@ const Baiguullaga = require("../models/baiguullaga");
 // Гэрээнээс нэхэмжлэх үүсгэх функц
 const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt, uusgegsenEsekh = "garan") => {
   try {
+    console.log("=== ГЭРЭЭНЭЭС НЭХЭМЖЛЭХ ҮҮСГЭХ ===");
+    console.log("Geree ID:", tempData._id);
+    console.log("Geree Dugaar:", tempData.gereeniiDugaar);
+    console.log("Baiguullaga Ner:", org.ner);
+    
+    // Get the model for this connection
+    const NekhemjlekhiinTuukhModel = nekhemjlekhiinTuukh(tukhainBaaziinKholbolt);
+    console.log("Model initialized:", !!NekhemjlekhiinTuukhModel);
+    
     // Нэхэмжлэхийн бичлэг үүсгэх
-    const tuukh = new nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)();
+    const tuukh = new NekhemjlekhiinTuukhModel();
     
     // Гэрээний мэдээллийг нэхэмжлэх рүү хуулах
     tuukh.baiguullagiinNer = tempData.baiguullagiinNer || org.ner;
@@ -59,7 +68,7 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     tuukh.tuluv = "Төлөөгүй";
     
     // Нэхэмжлэхийн дугаар үүсгэх
-    const suuliinNekhemjlekh = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+    const suuliinNekhemjlekh = await NekhemjlekhiinTuukhModel
       .findOne()
       .sort({ dugaalaltDugaar: -1 });
     
@@ -67,7 +76,15 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     tuukh.dugaalaltDugaar = (suuliinDugaar && !isNaN(suuliinDugaar)) ? suuliinDugaar + 1 : 1;
 
     // Нэхэмжлэх хадгалах
-    await tuukh.save();
+    console.log("Saving nekhemjlekh with data:", {
+      baiguullagiinNer: tuukh.baiguullagiinNer,
+      gereeniiDugaar: tuukh.gereeniiDugaar,
+      niitTulbur: tuukh.niitTulbur,
+      dugaalaltDugaar: tuukh.dugaalaltDugaar
+    });
+    
+    const savedTuukh = await tuukh.save();
+    console.log("✅ Nekhemjlekh saved with ID:", savedTuukh._id);
     
     // Гэрээг нэхэмжлэхийн огноогоор шинэчлэх
     await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(tempData._id, {
@@ -76,7 +93,7 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     
     return {
       success: true,
-      nekhemjlekh: tuukh,
+      nekhemjlekh: savedTuukh,
       gereeniiId: tempData._id,
       gereeniiDugaar: tempData.gereeniiDugaar,
       tulbur: tempData.niitTulbur
