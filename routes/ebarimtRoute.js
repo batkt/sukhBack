@@ -23,21 +23,6 @@ async function nekhemjlekheesEbarimtShineUusgye(
   nuatTulukhEsekh = true
 ) {
   try {
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      nekhemjlekh.baiguullagiinId
-    );
-
-    if (!baiguullaga) {
-      throw new Error("Organization not found");
-    }
-
-    const tuxainSalbar = baiguullaga?.barilguud?.find(
-      (e) => e._id.toString() == nekhemjlekh.barilgiinId
-    )?.tokhirgoo;
-
-    if (!tuxainSalbar) {
-      throw new Error("Building configuration not found");
-    }
 
     const dun = nekhemjlekh.niitTulbur || 0;
     var ebarimt = new EbarimtShine(tukhainBaaziinKholbolt)();
