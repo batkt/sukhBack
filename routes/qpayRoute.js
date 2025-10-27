@@ -450,11 +450,11 @@ router.get(
         console.log("🔍 Checking ebarimt configuration...");
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(nekhemjlekh.baiguullagiinId);
         
-        console.log("🔍 Baiguullaga barilgiinId:", baiguullaga.barilgiinId);
+        console.log("🔍 Baiguullaga barilgiinId:", baiguullaga.barilguud.id);
         
         // Find building by baiguullaga.barilgiinId (not nekhemjlekh.barilgiinId)
         const tuxainSalbar = baiguullaga?.barilguud?.find(
-          (e) => e._id.toString() == baiguullaga.barilgiinId
+          (e) => e._id.toString() == baiguullaga.barilguud.id
         )?.tokhirgoo;
 
         console.log("🔍 eBarimtShine config:", tuxainSalbar?.eBarimtShine);
