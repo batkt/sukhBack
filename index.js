@@ -87,12 +87,12 @@ async function automataarNekhemjlekhUusgekh() {
 
     // Одоогийн огноо авах
     const odoo = new Date();
-    const sarinUdur = odoo.getDate();
+    const nekhemjlekhUusgekhOgnoo = odoo.getDate();
 
-    console.log(`Өнөөдөр сарын ${sarinUdur} өдөр`);
+    console.log(`Өнөөдөр сарын ${nekhemjlekhUusgekhOgnoo} өдөр`);
 
     // Өнөөдрийн хувьд идэвхтэй тохиргоонуудыг авах
-    console.log("Хайлтын нөхцөл:", { sarinUdur: sarinUdur, idevkhitei: true });
+    console.log("Хайлтын нөхцөл:", { nekhemjlekhUusgekhOgnoo: nekhemjlekhUusgekhOgnoo, idevkhitei: true });
 
     // Get all organizations first
     const baiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
@@ -113,7 +113,7 @@ async function automataarNekhemjlekhUusgekh() {
         }
 
         const schedules = await NekhemjlekhCron(tukhainBaaziinKholbolt).find({
-          sarinUdur: sarinUdur,
+          nekhemjlekhUusgekhOgnoo: nekhemjlekhUusgekhOgnoo,
           idevkhitei: true,
         });
 
@@ -136,7 +136,7 @@ async function automataarNekhemjlekhUusgekh() {
 
     if (tovchoonuud.length === 0) {
       console.log(
-        `Сарын ${sarinUdur} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`
+        `Сарын ${nekhemjlekhUusgekhOgnoo} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`
       );
       return;
     }
@@ -215,7 +215,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "34 13 * * *", // Өдөр бүр 10:10 цагт
+  "29 10 * * *", // Өдөр бүр 10:10 цагт
   function () {
     automataarNekhemjlekhUusgekh();
   },
