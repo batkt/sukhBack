@@ -23,6 +23,7 @@ const gereeniiZagvarRoute = require("./routes/gereeniiZagvarRoute");
 const nekhemjlekhRoute = require("./routes/nekhemjlekhRoute");
 const nekhemjlekhCronRoute = require("./routes/cronScheduleRoute");
 const qpayRoute = require("./routes/qpayRoute");
+const ebarimtRoute = require("./routes/ebarimtRoute");
 
 const { db } = require("zevbackv2");
 
@@ -72,6 +73,7 @@ app.use(nekhemjlekhiinZagvarRoute);
 app.use(nekhemjlekhRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
 app.use(qpayRoute);
+app.use(ebarimtRoute);
 app.use(dansRoute);
 
 app.use(aldaaBarigch);

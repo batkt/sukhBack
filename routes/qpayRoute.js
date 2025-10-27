@@ -435,6 +435,51 @@ router.get(
       console.log("  - Payment Transaction ID:", paymentTransactionId);
       console.log("  - Status:", nekhemjlekh.tuluv);
 
+      // Automatically create e-barimt after successful payment
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(nekhemjlekh.baiguullagiinId);
+        const tuxainSalbar = baiguullaga?.barilguud?.find(
+          (e) => e._id.toString() == nekhemjlekh.barilgiinId
+        )?.tokhirgoo;
+
+        if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
+          const { nekhemjlekheesEbarimtShineUusgye, ebarimtDuudya } = require("./ebarimtRoute");
+          const EbarimtShine = require("../models/ebarimShine");
+          
+          const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
+          
+          const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
+            nekhemjlekh,
+            nekhemjlekh.register || "",
+            "",
+            tuxainSalbar.merchantTin,
+            tuxainSalbar.districtCode,
+            kholbolt,
+            nuatTulukhEsekh
+          );
+
+          var butsaakhMethod = function (d, khariuObject) {
+            try {
+              if (d?.status != "SUCCESS" && !d.success) return;
+              var shineBarimt = new EbarimtShine(kholbolt)(d);
+              shineBarimt.nekhemjlekhiinId = khariuObject._id.toString();
+              shineBarimt.baiguullagiinId = khariuObject.baiguullagiinId;
+              shineBarimt.barilgiinId = khariuObject.barilgiinId;
+              shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;
+              shineBarimt.utas = khariuObject.utas;
+              shineBarimt.save();
+              console.log("✅ E-Barimt created automatically after payment");
+            } catch (err) {
+              console.error("❌ Failed to save e-barimt:", err);
+            }
+          };
+
+          ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
+        }
+      } catch (ebarimtError) {
+        console.error("❌ Failed to create e-barimt:", ebarimtError.message);
+      }
+
       // Emit socket event for real-time updates
       req.app.get("socketio").emit(`nekhemjlekhPayment/${baiguullagiinId}/${nekhemjlekhiinId}`, {
         status: "success",
