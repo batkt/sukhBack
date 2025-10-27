@@ -129,54 +129,9 @@ async function handleZardluudUpdate(doc) {
         // Save the updated geree
         await geree.save();
         
-        // Update corresponding nekhemjlekh if it exists
-        const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findOne({
-          gereeniiId: geree._id,
-          tuluv: { $ne: "Төлсөн" } // Only update unpaid invoices
-        });
+        // NOTE: Do NOT update existing nekhemjlekhiinTuukh records
+        // Once an invoice is created, it should NEVER be modified
         
-        if (nekhemjlekh) {
-          // Ensure medeelel and zardluud exist
-          if (!nekhemjlekh.medeelel) nekhemjlekh.medeelel = {};
-          if (!nekhemjlekh.medeelel.zardluud) nekhemjlekh.medeelel.zardluud = [];
-          
-          // Update nekhemjlekh zardluud by matching name and other fields
-          const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(z => 
-            z.ner === doc.ner && 
-            z.turul === doc.turul && 
-            z.zardliinTurul === doc.zardliinTurul
-          );
-          
-          if (nekhemjlekhZardalIndex !== -1) {
-            nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex] = {
-              ...nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex],
-              ner: doc.ner,
-              turul: doc.turul,
-              tariff: doc.tariff,
-              tariffUsgeer: doc.tariffUsgeer,
-              zardliinTurul: doc.zardliinTurul,
-              tseverUsDun: doc.tseverUsDun,
-              bokhirUsDun: doc.bokhirUsDun,
-              usKhalaasniiDun: doc.usKhalaasniiDun,
-              tsakhilgaanUrjver: doc.tsakhilgaanUrjver,
-              tsakhilgaanChadal: doc.tsakhilgaanChadal,
-              tsakhilgaanDemjikh: doc.tsakhilgaanDemjikh,
-              suuriKhuraamj: doc.suuriKhuraamj,
-              nuatNemekhEsekh: doc.nuatNemekhEsekh,
-              dun: doc.dun
-            };
-            
-            // Recalculate nekhemjlekh total using tariff instead of dun
-            nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
-              return sum + (zardal.tariff || 0);
-            }, 0);
-            
-            // Update content
-            nekhemjlekh.content = `Гэрээний дугаар: ${geree.gereeniiDugaar}, Нийт төлбөр: ${nekhemjlekh.niitTulbur}₮`;
-            
-            await nekhemjlekh.save();
-          }
-        }
       } else {
         // Add new zardal to geree
         console.log(`➕ Adding new zardluud to geree ${geree.gereeniiDugaar}`);
@@ -213,40 +168,9 @@ async function handleZardluudUpdate(doc) {
         // Save the updated geree
         await geree.save();
         
-        // Update corresponding nekhemjlekh if it exists
-        const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findOne({
-          gereeniiId: geree._id,
-          tuluv: { $ne: "Төлсөн" } // Only update unpaid invoices
-        });
+        // NOTE: Do NOT update existing nekhemjlekhiinTuukh records
+        // Once an invoice is created, it should NEVER be modified
         
-        if (nekhemjlekh) {
-          // Ensure medeelel and zardluud exist
-          if (!nekhemjlekh.medeelel) nekhemjlekh.medeelel = {};
-          if (!nekhemjlekh.medeelel.zardluud) nekhemjlekh.medeelel.zardluud = [];
-          
-          // Add new zardal to nekhemjlekh
-          const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(z => 
-            z.ner === doc.ner && 
-            z.turul === doc.turul && 
-            z.zardliinTurul === doc.zardliinTurul
-          );
-          
-          if (nekhemjlekhZardalIndex === -1) {
-            nekhemjlekh.medeelel.zardluud.push(newZardal);
-          } else {
-            nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex] = newZardal;
-          }
-          
-          // Recalculate nekhemjlekh total using tariff instead of dun
-          nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
-            return sum + (zardal.tariff || 0);
-          }, 0);
-          
-          // Update content
-          nekhemjlekh.content = `Гэрээний дугаар: ${geree.gereeniiDugaar}, Нийт төлбөр: ${nekhemjlekh.niitTulbur}₮`;
-          
-          await nekhemjlekh.save();
-        }
       }
     }
   } catch (error) {
@@ -300,33 +224,9 @@ ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async functio
       // Save the updated geree
       await geree.save();
       
-      // Update corresponding nekhemjlekh if it exists
-      const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findOne({
-        gereeniiId: geree._id,
-        tuluv: { $ne: "Төлсөн" } // Only update unpaid invoices
-      });
+      // NOTE: Do NOT update existing nekhemjlekhiinTuukh records
+      // Once an invoice is created, it should NEVER be modified
       
-      if (nekhemjlekh) {
-        if (!nekhemjlekh.medeelel) nekhemjlekh.medeelel = {};
-        if (!nekhemjlekh.medeelel.zardluud) nekhemjlekh.medeelel.zardluud = [];
-        
-        // Remove the zardal from nekhemjlekh by matching name and other fields
-        nekhemjlekh.medeelel.zardluud = nekhemjlekh.medeelel.zardluud.filter(z => 
-          !(z.ner === doc.ner && 
-            z.turul === doc.turul && 
-            z.zardliinTurul === doc.zardliinTurul)
-        );
-        
-        // Recalculate nekhemjlekh total using tariff instead of dun
-        nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
-          return sum + (zardal.tariff || 0);
-        }, 0);
-        
-        // Update content
-        nekhemjlekh.content = `Гэрээний дугаар: ${geree.gereeniiDugaar}, Нийт төлбөр: ${nekhemjlekh.niitTulbur}₮`;
-        
-        await nekhemjlekh.save();
-      }
     }
   } catch (error) {
     console.error("Error updating geree and nekhemjlekh after ashiglaltiinZardluud deletion:", error);

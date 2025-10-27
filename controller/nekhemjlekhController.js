@@ -33,8 +33,29 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     tuukh.maililgeesenAjiltniiId = tempData.maililgeesenAjiltniiId || tempData.burtgesenAjiltan;
     tuukh.maililgeesenAjiltniiNer = tempData.maililgeesenAjiltniiNer || tempData.ner;
     tuukh.nekhemjlekhiinZagvarId = tempData.nekhemjlekhiinZagvarId || "";
+    
+    // Filter zardluud based on liftShalgaya exclusions
+    let filteredZardluud = tempData.zardluud || [];
+    if (tempData.davkhar) {
+      const { db } = require("zevbackv2");
+      const LiftShalgaya = require("../models/liftShalgaya");
+      
+      const liftShalgayaData = await LiftShalgaya(tukhainBaaziinKholbolt).findOne({
+        baiguullagiinId: tempData.baiguullagiinId
+      });
+      
+      const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+      
+      if (choloolugdokhDavkhar.includes(tempData.davkhar)) {
+        // Exclude lift items for this department
+        filteredZardluud = tempData.zardluud.filter(zardal => 
+          !(zardal.zardliinTurul === "Лифт")
+        );
+      }
+    }
+    
     tuukh.medeelel = {
-      zardluud: tempData.zardluud || [],
+      zardluud: filteredZardluud,
       segmentuud: tempData.segmentuud || [],
       khungulultuud: tempData.khungulultuud || [],
       toot: tempData.toot,
@@ -44,13 +65,19 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     };
     tuukh.nekhemjlekh = tempData.nekhemjlekh || (uusgegsenEsekh === "automataar" ? "Автоматаар үүссэн нэхэмжлэх" : "Гаран үүссэн нэхэмжлэх");
     tuukh.zagvariinNer = tempData.zagvariinNer || org.ner;
-    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${tempData.niitTulbur}₮`;
+    
+    // Recalculate niitTulbur from filtered zardluud
+    const filteredNiitTulbur = filteredZardluud.reduce((sum, zardal) => {
+      return sum + (zardal.tariff || 0);
+    }, 0);
+    
+    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${filteredNiitTulbur}₮`;
     tuukh.nekhemjlekhiinDans = tempData.nekhemjlekhiinDans || "";
     tuukh.nekhemjlekhiinDansniiNer = tempData.nekhemjlekhiinDansniiNer || "";
     tuukh.nekhemjlekhiinBank = tempData.nekhemjlekhiinBank || "";
     tuukh.nekhemjlekhiinIbanDugaar = tempData.nekhemjlekhiinIbanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
-    tuukh.niitTulbur = tempData.niitTulbur || 0;
+    tuukh.niitTulbur = filteredNiitTulbur;
     
     // Set payment due date (30 days from creation)
     tuukh.tulukhOgnoo = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
