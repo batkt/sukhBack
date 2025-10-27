@@ -90,6 +90,7 @@ const gereeSchema = new Schema(
     duusakhOgnoo: Date,
     tulukhOgnoo: Date,
     tsutsalsanOgnoo: Date,
+    nekhemjlekhiinOgnoo: Date,
     khungulukhKhugatsaa: Number,
     suhTulbur: String,
     suhTulburUsgeer: String,
@@ -105,6 +106,9 @@ const gereeSchema = new Schema(
     davkhar: String,
     burtgesenAjiltan: String,
     orshinSuugchId: String, 
+    baiguullagiinId: String,
+    baiguullagiinNer: String,
+    barilgiinId: String,
     temdeglel: String,
     baritsaaniiUldegdel: {
       type: Number,
