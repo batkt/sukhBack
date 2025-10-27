@@ -487,10 +487,13 @@ router.get(
             console.log("📥 Callback received for ebarimt");
             try {
               console.log("📥 Response status:", d?.status, d?.success);
+              console.log("📥 Full response:", JSON.stringify(d, null, 2));
+              
               if (d?.status != "SUCCESS" && !d.success) {
                 console.log("⚠️ E-Barimt API not SUCCESS:", d);
                 return;
               }
+              
               console.log("📝 Creating EbarimtShine model instance...");
               var shineBarimt = new EbarimtShine(kholbolt)(d);
               shineBarimt.nekhemjlekhiinId = khariuObject._id.toString();
@@ -498,9 +501,16 @@ router.get(
               shineBarimt.barilgiinId = khariuObject.barilgiinId;
               shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;
               shineBarimt.utas = khariuObject.utas;
+              
+              // Save QR code and receipt info from e-Barimt response
+              if (d.qrData) shineBarimt.qrData = d.qrData;
+              if (d.lottery) shineBarimt.lottery = d.lottery;
+              if (d.id) shineBarimt.receiptId = d.id;
+              if (d.date) shineBarimt.date = d.date;
+              
               console.log("💾 Saving to database...");
               shineBarimt.save();
-              console.log("✅ E-Barimt created and saved to database");
+              console.log("✅ E-Barimt created and saved to database with QR code");
             } catch (err) {
               console.error("❌ Failed to save e-barimt:", err);
               console.error("❌ Error stack:", err.stack);

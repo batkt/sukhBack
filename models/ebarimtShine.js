@@ -8,11 +8,11 @@ const ebarimtSchema = new Schema(
     baiguullagiinId: String,
     barilgiinId: String,
     guilgeeniiId: String,
-    togloomiinId: String,
-    zogsooliinId: String,
-    tasalbariinGuilgeeniiId: String,
     tulultiinId: String,
     nekhemjlekhiinId: String, // Invoice ID
+    qrData: String, // QR Code value from e-Barimt response
+    lottery: String, // Lottery number
+    receiptId: String, // Receipt ID (33-digit from e-Barimt)
     ustgasanOgnoo: Date,
     talbainDugaar: String,
     gereeniiDugaar: String,
