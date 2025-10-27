@@ -23,55 +23,58 @@ async function nekhemjlekheesEbarimtShineUusgye(
   nuatTulukhEsekh = true
 ) {
   try {
-
-    const dun = nekhemjlekh.niitTulbur || 0;
-    var ebarimt = new EbarimtShine(tukhainBaaziinKholbolt)();
+    console.log("📝 Creating ebarimt for invoice:", nekhemjlekh._id);
     
-    if (!!customerTin) {
-      ebarimt.type = "B2B_RECEIPT";
-      ebarimt.customerTin = customerTin;
-    } else {
-      ebarimt.type = "B2C_RECEIPT";
-    }
+    const dun = nekhemjlekh.niitTulbur || 0;
+    console.log("📝 Amount:", dun);
+  var ebarimt = new EbarimtShine(tukhainBaaziinKholbolt)();
+    console.log("📝 Ebarimt model initialized");
+    
+  if (!!customerTin) {
+    ebarimt.type = "B2B_RECEIPT";
+    ebarimt.customerTin = customerTin;
+  } else {
+    ebarimt.type = "B2C_RECEIPT";
+  }
 
     ebarimt.nekhemjlekhiinId = nekhemjlekh._id.toString();
     ebarimt.baiguullagiinId = nekhemjlekh.baiguullagiinId;
     ebarimt.barilgiinId = nekhemjlekh.barilgiinId;
     ebarimt.gereeniiDugaar = nekhemjlekh.gereeniiDugaar;
     ebarimt.utas = nekhemjlekh.utas?.[0] || "";
-    
-    ebarimt.totalAmount = dun.toFixed(2);
-    ebarimt.totalVAT = !!nuatTulukhEsekh ? nuatBodyo(dun) : 0;
-    ebarimt.totalCityTax = "0.00";
-    ebarimt.branchNo = "001";
-    ebarimt.districtCode = districtCode;
-    ebarimt.posNo = "0001";
-    ebarimt.merchantTin = merchantTin;
+
+  ebarimt.totalAmount = dun.toFixed(2);
+  ebarimt.totalVAT = !!nuatTulukhEsekh ? nuatBodyo(dun) : 0;
+  ebarimt.totalCityTax = "0.00";
+  ebarimt.branchNo = "001";
+  ebarimt.districtCode = districtCode;
+  ebarimt.posNo = "0001";
+  ebarimt.merchantTin = merchantTin;
     ebarimt.customerNo = customerNo || "";
     ebarimt.createdAt = new Date();
 
-    ebarimt.receipts = [
-      {
-        totalAmount: dun.toFixed(2),
-        totalVAT: !!nuatTulukhEsekh ? nuatBodyo(dun) : 0,
-        totalCityTax: "0.00",
+  ebarimt.receipts = [
+    {
+      totalAmount: dun.toFixed(2),
+      totalVAT: !!nuatTulukhEsekh ? nuatBodyo(dun) : 0,
+      totalCityTax: "0.00",
         taxType: nuatTulukhEsekh ? "VAT_ABLE" : "VAT_FREE",
-        merchantTin: merchantTin,
-        items: [
-          {
+      merchantTin: merchantTin,
+      items: [
+        {
             name: "Үл хөдлөх хөрөнгийг түрээслэх үйлчилгээ",
-            barCodeType: "UNDEFINED",
-            classificationCode: "7211200",
-            measureUnit: "шир",
-            qty: "1.00",
-            unitPrice: dun.toFixed(2),
-            totalVat: !!nuatTulukhEsekh ? nuatBodyo(dun) : 0,
-            totalCityTax: "0.00",
+          barCodeType: "UNDEFINED",
+          classificationCode: "7211200",
+          measureUnit: "шир",
+          qty: "1.00",
+          unitPrice: dun.toFixed(2),
+          totalVat: !!nuatTulukhEsekh ? nuatBodyo(dun) : 0,
+          totalCityTax: "0.00",
             totalAmount: dun.toFixed(2)
           }
         ]
       }
-    ];
+  ];
 
     ebarimt.payments = [
       {
@@ -81,6 +84,7 @@ async function nekhemjlekheesEbarimtShineUusgye(
       }
     ];
 
+    console.log("📝 Ebarimt object created successfully");
     return ebarimt;
 
   } catch (error) {
@@ -92,7 +96,7 @@ async function nekhemjlekheesEbarimtShineUusgye(
 async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
   try {
     if (!!shine) {
-      var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
+        var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         if (err) {
           if (!!next) next(err);
@@ -137,15 +141,15 @@ router.post("/nekhemjlekhEbarimtShivye", tokenShalgakh, async (req, res, next) =
       nekhemjlekh,
       req.body.customerNo || "",
       req.body.customerTin || "",
-      tuxainSalbar.merchantTin,
-      tuxainSalbar.districtCode,
-      req.body.tukhainBaaziinKholbolt,
-      nuatTulukhEsekh
-    );
+          tuxainSalbar.merchantTin,
+          tuxainSalbar.districtCode,
+          req.body.tukhainBaaziinKholbolt,
+          nuatTulukhEsekh
+        );
 
     var butsaakhMethod = function (d, khariuObject) {
-      try {
-        if (d?.status != "SUCCESS" && !d.success) throw new Error(d.message);
+        try {
+          if (d?.status != "SUCCESS" && !d.success) throw new Error(d.message);
         
         var shineBarimt = new EbarimtShine(req.body.tukhainBaaziinKholbolt)(d);
         shineBarimt.nekhemjlekhiinId = khariuObject._id.toString();
@@ -155,14 +159,14 @@ router.post("/nekhemjlekhEbarimtShivye", tokenShalgakh, async (req, res, next) =
         shineBarimt.utas = khariuObject.utas;
         
         shineBarimt.save().catch((err) => {
-          next(err);
-        });
+            next(err);
+          });
         
-        res.send(d);
-      } catch (err) {
-        next(err);
-      }
-    };
+          res.send(d);
+        } catch (err) {
+          next(err);
+        }
+      };
 
     ebarimtDuudya(ebarimt, butsaakhMethod, next, true);
 
