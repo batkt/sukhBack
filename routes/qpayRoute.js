@@ -225,6 +225,20 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         callback_url,
         req.body.tukhainBaaziinKholbolt
       );
+      
+      // Save invoice_id and qpayUrl to nekhemjlekh if this is an invoice payment
+      if (req.body.nekhemjlekhiinId && khariu) {
+        const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+        const kholbolt = db.kholboltuud.find(
+          (a) => a.baiguullagiinId == req.body.baiguullagiinId
+        );
+        
+        await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(req.body.nekhemjlekhiinId, {
+          qpayInvoiceId: khariu.invoice_id || khariu.invoiceId,
+          qpayUrl: khariu.qr_text || khariu.url || khariu.invoice_url
+        });
+      }
+      
       var dugaarlalt = new Dugaarlalt(req.body.tukhainBaaziinKholbolt)();
       dugaarlalt.baiguullagiinId = req.body.baiguullagiinId;
       dugaarlalt.barilgiinId = req.body.barilgiinId;
@@ -374,26 +388,52 @@ router.get(
         return res.status(200).send("Payment already completed");
       }
 
+      let paymentTransactionId = null;
+      
+      // Try to get the actual payment transaction ID from QPay
+      if (nekhemjlekh.qpayInvoiceId) {
+        try {
+          const qpayShalgay = require("../controller/qpayController").qpayShalgay;
+          const khariu = await qpayShalgay({ invoice_id: nekhemjlekh.qpayInvoiceId }, kholbolt);
+          
+          // Extract payment transaction ID from QPay response
+          if (khariu?.payments?.[0]?.transactions?.[0]?.id) {
+            paymentTransactionId = khariu.payments[0].transactions[0].id;
+            nekhemjlekh.qpayPaymentId = paymentTransactionId;
+          }
+        } catch (err) {
+          console.log("Could not fetch QPay payment details:", err);
+        }
+      }
+      
+      // Fallback to query parameter if available
+      if (!paymentTransactionId && req.query.qpay_payment_id) {
+        paymentTransactionId = req.query.qpay_payment_id;
+        nekhemjlekh.qpayPaymentId = paymentTransactionId;
+      }
+
       // Update payment status
       nekhemjlekh.tuluv = "Төлсөн";
       nekhemjlekh.tulsunOgnoo = new Date();
-      
-      // Add QPay payment ID if provided
-      if (req.query.qpay_payment_id) {
-        nekhemjlekh.qpayPaymentId = req.query.qpay_payment_id;
-      }
 
       // Add payment to history
+      nekhemjlekh.paymentHistory = nekhemjlekh.paymentHistory || [];
       nekhemjlekh.paymentHistory.push({
         ognoo: new Date(),
         dun: nekhemjlekh.niitTulbur,
         turul: "qpay",
-        guilgeeniiId: req.query.qpay_payment_id || "unknown",
+        guilgeeniiId: paymentTransactionId || nekhemjlekh.qpayInvoiceId || "unknown",
         tailbar: "QPay төлбөр амжилттай хийгдлээ"
       });
 
       // Save the updated nekhemjlekh
       await nekhemjlekh.save();
+      
+      console.log("✅ Nekhemjlekh payment completed:");
+      console.log("  - Invoice ID:", nekhemjlekh._id);
+      console.log("  - QPay Invoice ID:", nekhemjlekh.qpayInvoiceId);
+      console.log("  - Payment Transaction ID:", paymentTransactionId);
+      console.log("  - Status:", nekhemjlekh.tuluv);
 
       // Emit socket event for real-time updates
       req.app.get("socketio").emit(`nekhemjlekhPayment/${baiguullagiinId}/${nekhemjlekhiinId}`, {
