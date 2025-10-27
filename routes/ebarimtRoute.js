@@ -48,9 +48,10 @@ async function nekhemjlekheesEbarimtShineUusgye(
   ebarimt.totalCityTax = "0.00";
   ebarimt.branchNo = "001";
   ebarimt.districtCode = districtCode;
-  ebarimt.posNo = "0001";
-  ebarimt.merchantTin = merchantTin;
+    ebarimt.posNo = "0001";
+    ebarimt.merchantTin = merchantTin;
     ebarimt.customerNo = customerNo || "";
+    if (customerTin) ebarimt.customerTin = customerTin;
     ebarimt.createdAt = new Date();
 
   ebarimt.receipts = [
@@ -62,7 +63,7 @@ async function nekhemjlekheesEbarimtShineUusgye(
       merchantTin: merchantTin,
       items: [
         {
-            name: "Үл хөдлөх хөрөнгийг түрээслэх үйлчилгээ",
+            name: "СӨХИЙН ТӨЛБӨР",
           barCodeType: "UNDEFINED",
           classificationCode: "7211200",
           measureUnit: "шир",
