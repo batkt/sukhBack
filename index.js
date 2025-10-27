@@ -156,17 +156,9 @@ async function automataarNekhemjlekhUusgekh() {
           (k) => k.baiguullagiinId === baiguullaga._id.toString()
         );
 
-        // Find contracts that haven't received an invoice this month
-        const currentMonth = new Date();
-        currentMonth.setDate(1);
-        currentMonth.setHours(0, 0, 0, 0);
-        
+        // Find ALL contracts for this organization
         const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
-          baiguullagiinId: baiguullaga._id.toString(),
-          $or: [
-            { nekhemjlekhiinOgnoo: { $exists: false } }, // Never invoiced
-            // { nekhemjlekhiinOgnoo: { $lt: currentMonth } } // Last invoice was before this month
-          ]
+          baiguullagiinId: baiguullaga._id.toString()
         });
 
         if (gereenuud.length === 0) {
@@ -223,7 +215,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "57 10 * * *", // Өдөр бүр 10:10 цагт
+  "1 11 * * *", // Өдөр бүр 10:10 цагт
   function () {
     automataarNekhemjlekhUusgekh();
   },
