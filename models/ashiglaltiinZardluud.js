@@ -76,15 +76,20 @@ async function handleZardluudUpdate(doc) {
     
     if (!kholbolt) return;
     
-    // Find all geree records that use this ashiglaltiinZardal by matching zardal fields
+    // Find ALL geree records for this organization (not just ones with this item)
     const gereenuud = await Geree(kholbolt, true).find({
-      "zardluud.ner": doc.ner,
-      "zardluud.turul": doc.turul,
-      "zardluud.zardliinTurul": doc.zardliinTurul
+      baiguullagiinId: doc.baiguullagiinId
     });
+    
+    console.log(`📋 Found ${gereenuud.length} geree records for organization ${doc.baiguullagiinId}`);
     
     // Update each geree record
     for (const geree of gereenuud) {
+      // Ensure zardluud array exists
+      if (!geree.zardluud) {
+        geree.zardluud = [];
+      }
+      
       // Find the specific zardal in the geree by matching name and other fields
       const zardalIndex = geree.zardluud.findIndex(z => 
         z.ner === doc.ner && 
@@ -93,6 +98,8 @@ async function handleZardluudUpdate(doc) {
       );
       
       if (zardalIndex !== -1) {
+        // Update existing zardal
+        console.log(`✅ Updating existing zardluud in geree ${geree.gereeniiDugaar}`);
         // Update the zardal in geree
         geree.zardluud[zardalIndex] = {
           ...geree.zardluud[zardalIndex].toObject(),
@@ -129,6 +136,10 @@ async function handleZardluudUpdate(doc) {
         });
         
         if (nekhemjlekh) {
+          // Ensure medeelel and zardluud exist
+          if (!nekhemjlekh.medeelel) nekhemjlekh.medeelel = {};
+          if (!nekhemjlekh.medeelel.zardluud) nekhemjlekh.medeelel.zardluud = [];
+          
           // Update nekhemjlekh zardluud by matching name and other fields
           const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(z => 
             z.ner === doc.ner && 
@@ -166,6 +177,76 @@ async function handleZardluudUpdate(doc) {
             await nekhemjlekh.save();
           }
         }
+      } else {
+        // Add new zardal to geree
+        console.log(`➕ Adding new zardluud to geree ${geree.gereeniiDugaar}`);
+        
+        const newZardal = {
+          ner: doc.ner,
+          turul: doc.turul,
+          tariff: doc.tariff,
+          tariffUsgeer: doc.tariffUsgeer,
+          zardliinTurul: doc.zardliinTurul,
+          tulukhDun: 0,
+          dun: doc.dun || 0,
+          bodokhArga: doc.bodokhArga || "",
+          tseverUsDun: doc.tseverUsDun || 0,
+          bokhirUsDun: doc.bokhirUsDun || 0,
+          usKhalaasniiDun: doc.usKhalaasniiDun || 0,
+          tsakhilgaanUrjver: doc.tsakhilgaanUrjver || 1,
+          tsakhilgaanChadal: doc.tsakhilgaanChadal || 0,
+          tsakhilgaanDemjikh: doc.tsakhilgaanDemjikh || 0,
+          suuriKhuraamj: doc.suuriKhuraamj || 0,
+          nuatNemekhEsekh: doc.nuatNemekhEsekh || false,
+          ognoonuud: doc.ognoonuud || []
+        };
+        
+        geree.zardluud.push(newZardal);
+        
+        // Recalculate niitTulbur using tariff instead of dun
+        const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
+          return sum + (zardal.tariff || 0);
+        }, 0);
+        
+        geree.niitTulbur = niitTulbur;
+        
+        // Save the updated geree
+        await geree.save();
+        
+        // Update corresponding nekhemjlekh if it exists
+        const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findOne({
+          gereeniiId: geree._id,
+          tuluv: { $ne: "Төлсөн" } // Only update unpaid invoices
+        });
+        
+        if (nekhemjlekh) {
+          // Ensure medeelel and zardluud exist
+          if (!nekhemjlekh.medeelel) nekhemjlekh.medeelel = {};
+          if (!nekhemjlekh.medeelel.zardluud) nekhemjlekh.medeelel.zardluud = [];
+          
+          // Add new zardal to nekhemjlekh
+          const nekhemjlekhZardalIndex = nekhemjlekh.medeelel.zardluud.findIndex(z => 
+            z.ner === doc.ner && 
+            z.turul === doc.turul && 
+            z.zardliinTurul === doc.zardliinTurul
+          );
+          
+          if (nekhemjlekhZardalIndex === -1) {
+            nekhemjlekh.medeelel.zardluud.push(newZardal);
+          } else {
+            nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex] = newZardal;
+          }
+          
+          // Recalculate nekhemjlekh total using tariff instead of dun
+          nekhemjlekh.niitTulbur = nekhemjlekh.medeelel.zardluud.reduce((sum, zardal) => {
+            return sum + (zardal.tariff || 0);
+          }, 0);
+          
+          // Update content
+          nekhemjlekh.content = `Гэрээний дугаар: ${geree.gereeniiDugaar}, Нийт төлбөр: ${nekhemjlekh.niitTulbur}₮`;
+          
+          await nekhemjlekh.save();
+        }
       }
     }
   } catch (error) {
@@ -189,15 +270,19 @@ ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async functio
     
     if (!kholbolt) return;
     
-    // Find all geree records that use this ashiglaltiinZardal by matching zardal fields
+    // Find ALL geree records for this organization
     const gereenuud = await Geree(kholbolt, true).find({
-      "zardluud.ner": doc.ner,
-      "zardluud.turul": doc.turul,
-      "zardluud.zardliinTurul": doc.zardliinTurul
+      baiguullagiinId: doc.baiguullagiinId
     });
+    
+    console.log(`📋 Deleting zardluud from ${gereenuud.length} geree records`);
     
     // Update each geree record
     for (const geree of gereenuud) {
+      if (!geree.zardluud) {
+        geree.zardluud = [];
+      }
+      
       // Remove the zardal from geree by matching name and other fields
       geree.zardluud = geree.zardluud.filter(z => 
         !(z.ner === doc.ner && 
@@ -222,6 +307,9 @@ ashiglaltiinZardluudSchema.post(['findOneAndDelete', 'deleteOne'], async functio
       });
       
       if (nekhemjlekh) {
+        if (!nekhemjlekh.medeelel) nekhemjlekh.medeelel = {};
+        if (!nekhemjlekh.medeelel.zardluud) nekhemjlekh.medeelel.zardluud = [];
+        
         // Remove the zardal from nekhemjlekh by matching name and other fields
         nekhemjlekh.medeelel.zardluud = nekhemjlekh.medeelel.zardluud.filter(z => 
           !(z.ner === doc.ner && 
