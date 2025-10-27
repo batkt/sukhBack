@@ -400,7 +400,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       );
 
       const contractData = {
-        gereeniiDugaar: `ГД-${Date.now()}`,
+        gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
         gereeniiOgnoo: new Date(),
         turul: "Үндсэн",
         ovog: req.body.ovog || "",
