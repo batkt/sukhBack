@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const request = require("request");
-const { tokenShalgakh, db, crud } = require("zevbackv2");
+const { tokenShalgakh, db, crud, khuudaslalt } = require("zevbackv2");
 const Baiguullaga = require("../models/baiguullaga");
 const EbarimtShine = require("../models/ebarimtShine");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
@@ -48,8 +48,8 @@ async function nekhemjlekheesEbarimtShineUusgye(
   ebarimt.totalCityTax = "0.00";
   ebarimt.branchNo = "001";
   ebarimt.districtCode = districtCode;
-    ebarimt.posNo = "0001";
-    ebarimt.merchantTin = merchantTin;
+  ebarimt.posNo = "0001";
+  ebarimt.merchantTin = merchantTin;
     ebarimt.customerNo = customerNo || "";
     if (customerTin) ebarimt.customerTin = customerTin;
     ebarimt.createdAt = new Date();
@@ -77,16 +77,16 @@ async function nekhemjlekheesEbarimtShineUusgye(
       }
   ];
 
-    ebarimt.payments = [
-      {
-        code: "PAYMENT_CARD",
-        paidAmount: dun.toFixed(2),
+  ebarimt.payments = [
+    {
+      code: "PAYMENT_CARD",
+      paidAmount: dun.toFixed(2),
         status: "PAID"
       }
     ];
 
     console.log("📝 Ebarimt object created successfully");
-    return ebarimt;
+  return ebarimt;
 
   } catch (error) {
     console.error("❌ Create ebarimt error:", error);
@@ -97,7 +97,7 @@ async function nekhemjlekheesEbarimtShineUusgye(
 async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
   try {
     if (!!shine) {
-      var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
+        var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
       console.log("📤 Sending ebarimt to API:", url);
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         console.log("📥 API Response received:", { err: !!err, status: res1?.statusCode, body });
@@ -116,6 +116,145 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
 }
 
 // Create e-barimt for paid invoice
+router.get("/ebarimtJagsaaltAvya", tokenShalgakh, async (req, res, next) => {
+  try {
+    const body = req.query;
+    if (!!body?.query) body.query = JSON.parse(body.query);
+    if (!!body?.order) body.order = JSON.parse(body.order);
+    if (!!body?.khuudasniiDugaar)
+      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+    if (!!body?.khuudasniiKhemjee)
+      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+    if (!!body?.search) body.search = String(body.search);
+    body.query && (body.query["baiguullagiinId"] = req.body.baiguullagiinId);
+    
+    // Always use EbarimtShine for now
+    const shine = true;
+    
+    khuudaslalt(
+      EbarimtShine(req.body.tukhainBaaziinKholbolt),
+      body
+    )
+      .then((result) => {
+        res.send(result);
+      })
+      .catch((err) => {
+        next(err);
+      });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/ebarimtToololtAvya", tokenShalgakh, async (req, res, next) => {
+  try {
+    var ebarimtShine = true; // Always use EbarimtShine for now
+    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      req.body.baiguullagiinId
+    );
+    var tuxainSalbar = baiguullaga?.barilguud?.find(
+      (e) => e._id.toString() == req.body?.barilgiinId
+    )?.tokhirgoo;
+    
+    var match = {
+      baiguullagiinId: req.body.baiguullagiinId,
+      barilgiinId: req.body.barilgiinId,
+    };
+    
+    if (!!ebarimtShine) {
+      match.createdAt = {
+        $gte: new Date(req.body.ekhlekhOgnoo),
+        $lte: new Date(req.body.duusakhOgnoo),
+      };
+    }
+
+    if (req.body.barimtTurul === "nekhemjlekhiinId")
+      match.nekhemjlekhiinId = { $exists: true };
+
+    var query = [
+      {
+        $match: match,
+      },
+      {
+        $facet: {
+          butsaasan: [
+            {
+              $match: {
+                ustgasanOgnoo: {
+                  $exists: true,
+                },
+              },
+            },
+            {
+              $group: {
+                _id: "butsaasan",
+                too: {
+                  $sum: 1,
+                },
+                dun: {
+                  $sum: {
+                    $toDecimal: { $ifNull: ["$totalAmount", 0] },
+                  },
+                },
+              },
+            },
+          ],
+          ilgeesen: [
+            {
+              $match: {
+                ustgasanOgnoo: {
+                  $exists: false,
+                },
+              },
+            },
+            {
+              $group: {
+                _id: "ilgeesen",
+                too: {
+                  $sum: 1,
+                },
+                dun: {
+                  $sum: {
+                    $toDecimal: { $ifNull: ["$totalAmount", 0] },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ];
+    
+    var result = await EbarimtShine(req.body.tukhainBaaziinKholbolt)
+      .aggregate(query)
+      .catch((err) => {
+        next(err);
+      });
+
+    var khariu = {
+      ilgeesenDun: 0,
+      ilgeesenToo: 0,
+      butsaasanDun: 0,
+      butsaasanToo: 0,
+    };
+    
+    if (result[0]) {
+      if (result[0].butsaasan[0]) {
+        khariu.butsaasanDun = parseFloat(result[0].butsaasan[0].dun);
+        khariu.butsaasanToo = result[0].butsaasan[0].too;
+      }
+      if (result[0].ilgeesen[0]) {
+        khariu.ilgeesenDun = parseFloat(result[0].ilgeesen[0].dun);
+        khariu.ilgeesenToo = result[0].ilgeesen[0].too;
+      }
+    }
+    
+    res.send(khariu);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/nekhemjlekhEbarimtShivye", tokenShalgakh, async (req, res, next) => {
   try {
     const nekhemjlekh = await nekhemjlekhiinTuukh(req.body.tukhainBaaziinKholbolt).findById(req.body.nekhemjlekhiinId);
@@ -164,8 +303,8 @@ router.post("/nekhemjlekhEbarimtShivye", tokenShalgakh, async (req, res, next) =
         shineBarimt.utas = khariuObject.utas;
         
         shineBarimt.save().catch((err) => {
-            next(err);
-          });
+          next(err);
+        });
         
           res.send(d);
         } catch (err) {
