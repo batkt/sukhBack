@@ -450,12 +450,19 @@ router.get(
         console.log("🔍 Checking ebarimt configuration...");
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(nekhemjlekh.baiguullagiinId);
         
-        console.log("🔍 Baiguullaga barilgiinId:", baiguullaga.barilguud.id);
+        console.log("🔍 Baiguullaga barilgiinId:", baiguullaga.barilgiinId);
+        console.log("🔍 Available barilguud IDs:", baiguullaga?.barilguud?.map(b => b._id.toString()));
         
-        // Find building by baiguullaga.barilgiinId (not nekhemjlekh.barilgiinId)
-        const tuxainSalbar = baiguullaga?.barilguud?.find(
-          (e) => e._id.toString() == baiguullaga.barilguud.id
+        // Try to find building by baiguullaga.barilgiinId
+        let tuxainSalbar = baiguullaga?.barilguud?.find(
+          (e) => e._id.toString() == baiguullaga.barilgiinId
         )?.tokhirgoo;
+        
+        // If not found, use first building as fallback
+        if (!tuxainSalbar && baiguullaga?.barilguud?.length > 0) {
+          console.log("⚠️ Using first building as fallback");
+          tuxainSalbar = baiguullaga.barilguud[0].tokhirgoo;
+        }
 
         console.log("🔍 eBarimtShine config:", tuxainSalbar?.eBarimtShine);
 
