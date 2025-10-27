@@ -68,7 +68,7 @@ app.use(orshinSuugchRoute);
 app.use(gereeRoute);
 app.use(gereeniiZagvarRoute);
 app.use(nekhemjlekhiinZagvarRoute);
-app.use("/nekhemjlekhiinTuukh", nekhemjlekhRoute);
+app.use(nekhemjlekhRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
 app.use(qpayRoute);
 
