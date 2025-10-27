@@ -444,7 +444,7 @@ router.get(
 
         if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
           const { nekhemjlekheesEbarimtShineUusgye, ebarimtDuudya } = require("./ebarimtRoute");
-          const EbarimtShine = require("../models/ebarimShine");
+          const EbarimtShine = require("../models/ebarimtShine");
           
           const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
           
