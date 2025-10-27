@@ -6,12 +6,12 @@ const Baiguullaga = require("../models/baiguullaga");
 const EbarimtShine = require("../models/ebarimtShine");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 
-crud(router, "ebarimt", EbarimtShine);
 
 function nuatBodyo(bodokhDun) {
   var nuatguiDun = bodokhDun / 1.1;
   return (bodokhDun - nuatguiDun).toFixed(2).toString();
 }
+crud(router, "ebarimtShine", EbarimtShine, UstsanBarimt);
 
 async function nekhemjlekheesEbarimtShineUusgye(
   nekhemjlekh,
