@@ -18,6 +18,7 @@ const orshinSuugchRoute = require("./routes/orshinSuugchRoute");
 const licenseRoute = require("./routes/licenseRoute");
 const nekhemjlekhiinZagvarRoute = require("./routes/nekhemjlekhiinZagvarRoute");
 const gereeRoute = require("./routes/gereeRoute");
+const dansRoute = require("./routes/dansRoute");
 const gereeniiZagvarRoute = require("./routes/gereeniiZagvarRoute");
 const nekhemjlekhRoute = require("./routes/nekhemjlekhRoute");
 const nekhemjlekhCronRoute = require("./routes/cronScheduleRoute");
@@ -71,6 +72,7 @@ app.use(nekhemjlekhiinZagvarRoute);
 app.use(nekhemjlekhRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
 app.use(qpayRoute);
+app.use(dansRoute);
 
 app.use(aldaaBarigch);
 
