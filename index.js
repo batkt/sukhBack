@@ -215,7 +215,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "51 10 * * *", // Өдөр бүр 10:10 цагт
+  "54 10 * * *", // Өдөр бүр 10:10 цагт
   function () {
     automataarNekhemjlekhUusgekh();
   },
