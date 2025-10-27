@@ -233,10 +233,20 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           (a) => a.baiguullagiinId == req.body.baiguullagiinId
         );
         
-        await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(req.body.nekhemjlekhiinId, {
-          qpayInvoiceId: khariu.invoice_id || khariu.invoiceId,
-          qpayUrl: khariu.qr_text || khariu.url || khariu.invoice_url
+        console.log("📝 Saving QPay invoice info to nekhemjlekh:", {
+          nekhemjlekhiinId: req.body.nekhemjlekhiinId,
+          qpayResponse: khariu
         });
+        
+        const invoiceId = khariu.invoice_id || khariu.invoiceId || khariu.id;
+        const qpayUrl = khariu.qr_text || khariu.url || khariu.invoice_url || khariu.qr_image;
+        
+        await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(req.body.nekhemjlekhiinId, {
+          qpayInvoiceId: invoiceId,
+          qpayUrl: qpayUrl
+        });
+        
+        console.log("✅ Saved QPay info:", { invoiceId, qpayUrl });
       }
       
       var dugaarlalt = new Dugaarlalt(req.body.tukhainBaaziinKholbolt)();
@@ -437,12 +447,16 @@ router.get(
 
       // Automatically create e-barimt after successful payment
       try {
+        console.log("🔍 Checking ebarimt configuration...");
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(nekhemjlekh.baiguullagiinId);
         const tuxainSalbar = baiguullaga?.barilguud?.find(
           (e) => e._id.toString() == nekhemjlekh.barilgiinId
         )?.tokhirgoo;
 
+        console.log("🔍 eBarimtShine config:", tuxainSalbar?.eBarimtShine);
+
         if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
+          console.log("✅ Creating e-barimt automatically...");
           const { nekhemjlekheesEbarimtShineUusgye, ebarimtDuudya } = require("./ebarimtRoute");
           const EbarimtShine = require("../models/ebarimtShine");
           
@@ -460,7 +474,10 @@ router.get(
 
           var butsaakhMethod = function (d, khariuObject) {
             try {
-              if (d?.status != "SUCCESS" && !d.success) return;
+              if (d?.status != "SUCCESS" && !d.success) {
+                console.log("⚠️ E-Barimt API not SUCCESS:", d);
+                return;
+              }
               var shineBarimt = new EbarimtShine(kholbolt)(d);
               shineBarimt.nekhemjlekhiinId = khariuObject._id.toString();
               shineBarimt.baiguullagiinId = khariuObject.baiguullagiinId;
@@ -468,16 +485,19 @@ router.get(
               shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;
               shineBarimt.utas = khariuObject.utas;
               shineBarimt.save();
-              console.log("✅ E-Barimt created automatically after payment");
+              console.log("✅ E-Barimt created and saved to database");
             } catch (err) {
               console.error("❌ Failed to save e-barimt:", err);
             }
           };
 
           ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
+        } else {
+          console.log("⚠️ eBarimtShine is not enabled for this building");
         }
       } catch (ebarimtError) {
         console.error("❌ Failed to create e-barimt:", ebarimtError.message);
+        console.error(ebarimtError.stack);
       }
 
       // Emit socket event for real-time updates
