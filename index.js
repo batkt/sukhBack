@@ -74,7 +74,7 @@ app.use(ebarimtRoute);
 app.use(nekhemjlekhRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
 app.use(qpayRoute);
-app.use(dansRoute);
+app.use("/dans", dansRoute);
 
 app.use(aldaaBarigch);
 
