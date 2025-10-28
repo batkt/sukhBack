@@ -8,6 +8,30 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     // Нэхэмжлэхийн бичлэг үүсгэх
     const tuukh = new nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)();
     
+    // Look up dans information from the database
+    let dansInfo = { dugaar: "", dansniiNer: "", bank: "" };
+    try {
+      const { db } = require("zevbackv2");
+      const { Dans } = require("zevbackv2");
+      
+      if (tempData.baiguullagiinId) {
+        const dansModel = Dans(db.erunkhiiKholbolt);
+        const dans = await dansModel.findOne({ 
+          baiguullagiinId: tempData.baiguullagiinId 
+        });
+        
+        if (dans) {
+          dansInfo = {
+            dugaar: dans.dugaar || "",
+            dansniiNer: dans.dansniiNer || "",
+            bank: dans.bank || ""
+          };
+        }
+      }
+    } catch (dansError) {
+      console.error("Error fetching dans info:", dansError);
+    }
+    
     // Гэрээний мэдээллийг нэхэмжлэх рүү хуулах
     tuukh.baiguullagiinNer = tempData.baiguullagiinNer || org.ner;
     tuukh.baiguullagiinId = tempData.baiguullagiinId;
@@ -72,9 +96,9 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     }, 0);
     
     tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${filteredNiitTulbur}₮`;
-    tuukh.nekhemjlekhiinDans = tempData.nekhemjlekhiinDans || "";
-    tuukh.nekhemjlekhiinDansniiNer = tempData.nekhemjlekhiinDansniiNer || "";
-    tuukh.nekhemjlekhiinBank = tempData.nekhemjlekhiinBank || "";
+    tuukh.nekhemjlekhiinDans = tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
+    tuukh.nekhemjlekhiinDansniiNer = tempData.nekhemjlekhiinDansniiNer || dansInfo.dansniiNer || "";
+    tuukh.nekhemjlekhiinBank = tempData.nekhemjlekhiinBank || dansInfo.bank || "";
     tuukh.nekhemjlekhiinIbanDugaar = tempData.nekhemjlekhiinIbanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = filteredNiitTulbur;
