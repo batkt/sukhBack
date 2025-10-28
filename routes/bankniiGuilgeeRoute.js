@@ -242,26 +242,36 @@ router
   .post(async (req, res, next) => {
     try
     {
+      console.log("🏦 [Bank] Setting bank field for transactions without bank info...");
       var kholboltuud;
       const { db } = require("zevbackv2");
       if (!!req?.body?.tukhainBaaziinKholbolt) {
         kholboltuud = [req.body.tukhainBaaziinKholbolt];
+        console.log("  - Processing single organization");
       } else {
         kholboltuud = db.kholboltuud;
+        console.log("  - Processing all organizations:", kholboltuud.length);
       }
       if (kholboltuud) {
         for await (const kholbolt of kholboltuud) {
+          console.log("  - Processing org:", kholbolt.baiguullagiinNer);
           var guilgeenuud = await BankniiGuilgee(kholbolt, true).find({ baiguullagiinId: kholbolt.baiguullagiinId, bank: { $exists: false }});
+          console.log("  - Found", guilgeenuud.length, "transactions without bank field");
+          
           for await (const guilgee of guilgeenuud)
           {
             var dans = await Dans(kholbolt).findOne({ baiguullagiinId: kholbolt.baiguullagiinId, dugaar: guilgee.dansniiDugaar });
-            if(dans) 
+            if(dans) {
+              console.log("  - Setting bank for transaction:", guilgee.dansniiDugaar, "→", dans.bank);
               await BankniiGuilgee(kholbolt).findByIdAndUpdate(guilgee._id, { bank: dans?.bank });
+            }
           }
         }    
       }
+      console.log("✅ [Bank] Bank field update complete");
       res.send("Амжилт");
     } catch (error) {
+      console.error("❌ [Bank] Error setting bank field:", error.message);
       next(error);
     }
   });
@@ -271,16 +281,23 @@ router
   .post(async (req, res, next) => {
     try
     {
+      console.log("🔑 [Bank] Generating indexTalbar for bank transactions...");
       var kholboltuud;
       const { db } = require("zevbackv2");
       if (!!req?.body?.tukhainBaaziinKholbolt) {
         kholboltuud = [req.body.tukhainBaaziinKholbolt];
+        console.log("  - Processing single organization");
       } else {
         kholboltuud = db.kholboltuud;
+        console.log("  - Processing all organizations:", kholboltuud.length);
       }
       if (kholboltuud) {
         for await (const kholbolt of kholboltuud) {
+          console.log("  - Processing org:", kholbolt.baiguullagiinNer);
           var guilgeenuud = await BankniiGuilgee(kholbolt, true).find({ baiguullagiinId: kholbolt.baiguullagiinId });
+          console.log("  - Found", guilgeenuud.length, "transactions to process");
+          let processedCount = 0;
+          
           for await (const guilgee of guilgeenuud)
           {
             var dugaar = guilgee.bank === "khanbank" ? guilgee.record : 
@@ -295,11 +312,18 @@ router
                         guilgee.bank === "tdb" ? guilgee.Amt : 0
             indexTalbar = guilgee.barilgiinId + guilgee.bank + guilgee.dansniiDugaar + dugaar + mungunDun.toString();
             await BankniiGuilgee(kholbolt).findByIdAndUpdate(guilgee._id, { indexTalbar: indexTalbar });
+            processedCount++;
+            if (processedCount % 100 === 0) {
+              console.log("  - Processed", processedCount, "transactions");
+            }
           }
+          console.log("  - ✅ Completed for org:", kholbolt.baiguullagiinNer, "- Total processed:", processedCount);
         }    
       }
+      console.log("✅ [Bank] Index generation complete");
       res.send("Амжилт");
     } catch (error) {
+      console.error("❌ [Bank] Error generating indexes:", error.message);
       next(error);
     }
   });
