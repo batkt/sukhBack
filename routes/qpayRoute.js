@@ -445,6 +445,55 @@ router.get(
       console.log("  - Payment Transaction ID:", paymentTransactionId);
       console.log("  - Status:", nekhemjlekh.tuluv);
 
+      // Create bank payment record for this invoice
+      try {
+        const BankniiGuilgee = require("../models/bankniiGuilgee");
+        const Geree = require("../models/geree");
+        
+        // Get the contract to link the payment correctly
+        const geree = await Geree(kholbolt).findById(nekhemjlekh.gereeniiId).lean();
+        
+        // Use the invoice dans info directly
+        const bankGuilgee = new BankniiGuilgee(kholbolt)();
+        
+        // Map QPay payment to bank payment record
+        bankGuilgee.tranDate = new Date();
+        bankGuilgee.amount = nekhemjlekh.niitTulbur;
+        bankGuilgee.description = `QPay төлбөр - Гэрээ ${nekhemjlekh.gereeniiDugaar}`;
+        bankGuilgee.accName = nekhemjlekh.nekhemjlekhiinDansniiNer || "";
+        bankGuilgee.accNum = nekhemjlekh.nekhemjlekhiinDans || "";
+        
+        // QPay specific fields (using as virtual bank transaction)
+        bankGuilgee.record = paymentTransactionId || nekhemjlekh.qpayInvoiceId;
+        bankGuilgee.tranId = paymentTransactionId || nekhemjlekh.qpayInvoiceId;
+        bankGuilgee.balance = 0;
+        bankGuilgee.requestId = nekhemjlekh.qpayInvoiceId;
+        
+        // Link to contract (not invoice directly, as per system design)
+        bankGuilgee.kholbosonGereeniiId = [nekhemjlekh.gereeniiId];
+        bankGuilgee.kholbosonTalbainId = geree?.talbainDugaar ? [geree.talbainDugaar] : [];
+        bankGuilgee.dansniiDugaar = nekhemjlekh.nekhemjlekhiinDans;
+        bankGuilgee.bank = nekhemjlekh.nekhemjlekhiinBank || "qpay";
+        bankGuilgee.baiguullagiinId = nekhemjlekh.baiguullagiinId;
+        bankGuilgee.barilgiinId = nekhemjlekh.barilgiinId || "";
+        bankGuilgee.kholbosonDun = nekhemjlekh.niitTulbur;
+        bankGuilgee.ebarimtAvsanEsekh = false;
+        bankGuilgee.drOrCr = "Credit";
+        bankGuilgee.tranCrnCode = "MNT";
+        bankGuilgee.exchRate = 1;
+        bankGuilgee.postDate = new Date();
+        
+        // Generate index for uniqueness
+        bankGuilgee.indexTalbar = `${bankGuilgee.barilgiinId}${bankGuilgee.bank}${bankGuilgee.dansniiDugaar}${bankGuilgee.record}${bankGuilgee.amount}`;
+        
+        await bankGuilgee.save();
+        console.log("✅ Bank payment record created and linked to contract:", nekhemjlekh.gereeniiId);
+        console.log("   Payment amount:", nekhemjlekh.niitTulbur);
+        console.log("   Bank:", bankGuilgee.bank);
+      } catch (bankErr) {
+        console.error("❌ Error creating bank payment record:", bankErr);
+      }
+
       // Automatically create e-barimt after successful payment
       try {
         console.log("🔍 Checking ebarimt configuration...");
