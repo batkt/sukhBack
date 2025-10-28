@@ -45,6 +45,10 @@ const baiguullagaSchema = new Schema(
           merchantTin: String,
           duuregNer: String,
           districtCode: String,
+          horoo : {
+            ner: String,
+            kod: String,
+          },
           sohCode: String, // СӨХ код
           nuatTulukhEsekh: Boolean,
           zogsoolMsgIlgeekh: Boolean,
