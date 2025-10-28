@@ -15,10 +15,13 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
       const { Dans } = require("zevbackv2");
       
       if (tempData.baiguullagiinId) {
+        console.log("🔍 Looking up dans for baiguullagiinId:", tempData.baiguullagiinId);
         const dansModel = Dans(db.erunkhiiKholbolt);
         const dans = await dansModel.findOne({ 
           baiguullagiinId: tempData.baiguullagiinId 
         });
+        
+        console.log("📋 Found dans:", dans ? dans.dugaar : "none");
         
         if (dans) {
           dansInfo = {
@@ -26,10 +29,11 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
             dansniiNer: dans.dansniiNer || "",
             bank: dans.bank || ""
           };
+          console.log("✅ Dans info populated:", dansInfo);
         }
       }
     } catch (dansError) {
-      console.error("Error fetching dans info:", dansError);
+      console.error("❌ Error fetching dans info:", dansError);
     }
     
     // Гэрээний мэдээллийг нэхэмжлэх рүү хуулах
@@ -99,6 +103,10 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     tuukh.nekhemjlekhiinDans = tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
     tuukh.nekhemjlekhiinDansniiNer = tempData.nekhemjlekhiinDansniiNer || dansInfo.dansniiNer || "";
     tuukh.nekhemjlekhiinBank = tempData.nekhemjlekhiinBank || dansInfo.bank || "";
+    
+    console.log("💾 Setting nekhemjlekhiinDans:", tuukh.nekhemjlekhiinDans);
+    console.log("💾 Setting nekhemjlekhiinDansniiNer:", tuukh.nekhemjlekhiinDansniiNer);
+    console.log("💾 Setting nekhemjlekhiinBank:", tuukh.nekhemjlekhiinBank);
     tuukh.nekhemjlekhiinIbanDugaar = tempData.nekhemjlekhiinIbanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = filteredNiitTulbur;
