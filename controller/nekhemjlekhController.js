@@ -16,11 +16,13 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
       
       if (tempData.baiguullagiinId) {
         console.log("🔍 Looking up dans for baiguullagiinId:", tempData.baiguullagiinId);
-        const dansModel = Dans(db.erunkhiiKholbolt);
+        
+        // Try both main database and organization-specific database
+        const dansModel = Dans(tukhainBaaziinKholbolt);
         
         // Try to find any dans records to debug
         const allDans = await dansModel.find({});
-        console.log("📊 Total dans records:", allDans.length);
+        console.log("📊 Total dans records in org DB:", allDans.length);
         
         const dans = await dansModel.findOne({ 
           baiguullagiinId: tempData.baiguullagiinId.toString() 
