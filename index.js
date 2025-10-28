@@ -70,11 +70,11 @@ app.use(orshinSuugchRoute);
 app.use(gereeRoute);
 app.use(gereeniiZagvarRoute);
 app.use(nekhemjlekhiinZagvarRoute);
+app.use(dansRoute);
 app.use(ebarimtRoute);
 app.use(nekhemjlekhRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
 app.use(qpayRoute);
-app.use("/dans", dansRoute);
 
 app.use(aldaaBarigch);
 
