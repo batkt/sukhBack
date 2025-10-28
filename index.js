@@ -19,12 +19,12 @@ const licenseRoute = require("./routes/licenseRoute");
 const nekhemjlekhiinZagvarRoute = require("./routes/nekhemjlekhiinZagvarRoute");
 const gereeRoute = require("./routes/gereeRoute");
 const dansRoute = require("./routes/dansRoute");
+const bankniiGuilgeeRoute = require("./routes/bankniiGuilgeeRoute");
 const gereeniiZagvarRoute = require("./routes/gereeniiZagvarRoute");
 const nekhemjlekhRoute = require("./routes/nekhemjlekhRoute");
 const nekhemjlekhCronRoute = require("./routes/cronScheduleRoute");
 const qpayRoute = require("./routes/qpayRoute");
 const ebarimtRoute = require("./routes/ebarimtRoute");
-const bankniiGuilgeeRoute = require("./routes/bankniiGuilgeeRoute");
 
 const { db } = require("zevbackv2");
 
