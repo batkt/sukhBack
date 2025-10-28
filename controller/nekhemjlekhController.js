@@ -17,11 +17,16 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
       if (tempData.baiguullagiinId) {
         console.log("🔍 Looking up dans for baiguullagiinId:", tempData.baiguullagiinId);
         const dansModel = Dans(db.erunkhiiKholbolt);
+        
+        // Try to find any dans records to debug
+        const allDans = await dansModel.find({});
+        console.log("📊 Total dans records:", allDans.length);
+        
         const dans = await dansModel.findOne({ 
-          baiguullagiinId: tempData.baiguullagiinId 
+          baiguullagiinId: tempData.baiguullagiinId.toString() 
         });
         
-        console.log("📋 Found dans:", dans ? dans.dugaar : "none");
+        console.log("📋 Found dans:", dans ? JSON.stringify(dans) : "none");
         
         if (dans) {
           dansInfo = {
