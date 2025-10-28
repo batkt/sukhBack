@@ -174,25 +174,49 @@ async function automataarNekhemjlekhUusgekh() {
           `${baiguullaga.ner}-д ${gereenuud.length} гэрээ боловсруулах олдлоо`
         );
 
-        for (const geree of gereenuud) {
-          const urdun = await nekhemjlekhController.gereeNeesNekhemjlekhUusgekh(
-            geree,
-            baiguullaga,
-            tukhainBaaziinKholbolt,
-            "automataar"
+        // Process in batches of 20 to handle large volumes efficiently
+        const batchSize = 20;
+        let processedCount = 0;
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (let i = 0; i < gereenuud.length; i += batchSize) {
+          const batch = gereenuud.slice(i, i + batchSize);
+          console.log(`📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(gereenuud.length / batchSize)} (${batch.length} contracts)`);
+          
+          // Process batch with controlled concurrency (max 10 at a time)
+          const results = await Promise.allSettled(
+            batch.map(geree => 
+              nekhemjlekhController.gereeNeesNekhemjlekhUusgekh(
+                geree,
+                baiguullaga,
+                tukhainBaaziinKholbolt,
+                "automataar"
+              )
+            )
           );
 
-          if (urdun.success) {
-            console.log(
-              `✅ Гэрээ ${urdun.gereeniiDugaar}-д нэхэмжлэх үүсгэгдлээ - Төлбөр: ${urdun.tulbur}₮`
-            );
-          } else {
-            console.error(
-              `❌ Гэрээ ${urdun.gereeniiDugaar} боловсруулах алдаа:`,
-              urdun.error
-            );
-          }
+          // Log results
+          results.forEach((result, index) => {
+            processedCount++;
+            if (result.status === 'fulfilled' && result.value.success) {
+              successCount++;
+              const urdun = result.value;
+              console.log(
+                `✅ [${processedCount}/${gereenuud.length}] Гэрээ ${urdun.gereeniiDugaar}-д нэхэмжлэх үүсгэгдлээ - Төлбөр: ${urdun.tulbur}₮`
+              );
+            } else {
+              errorCount++;
+              const error = result.status === 'rejected' ? result.reason : result.value.error;
+              console.error(
+                `❌ [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} боловсруулах алдаа:`,
+                error
+              );
+            }
+          });
         }
+
+        console.log(`📊 ${baiguullaga.ner}: Төлөв - Amjilttai: ${successCount}, Aldaa: ${errorCount}, Niit: ${processedCount}`);
 
         // Сүүлийн ажилласан огноо шинэчлэх
         await NekhemjlekhCron(tukhainBaaziinKholbolt).findByIdAndUpdate(

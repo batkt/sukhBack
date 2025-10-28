@@ -405,6 +405,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         turul: "Үндсэн",
         ovog: req.body.ovog || "",
         ner: req.body.ner,
+        register: req.body.register || "",
         utas: [req.body.utas],
         mail: req.body.mail || "",
         baiguullagiinId: baiguullaga._id,
