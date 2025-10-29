@@ -42,7 +42,7 @@ const qpayObjectSchema = new Schema(
 qpayObjectSchema.index({ zakhialgiinDugaar: 1, baiguullagiinId: 1 });
 qpayObjectSchema.index({ invoice_id: 1 });
 qpayObjectSchema.index({ tulsunEsekh: 1, ognoo: 1 });
-qpayObjectSchema.index({ "nekhemjlekh.nekhemjlekhiinId": 1 });
+qpayObjectSchema.index({ "sukhNekhemjlekh.nekhemjlekhiinId": 1 });
 
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)

@@ -250,13 +250,11 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           if (invoiceId && nekhemjlekh._id) {
             // Use the actual invoice _id (ObjectId) converted to string
             const nekhemjlekhiinId = nekhemjlekh._id.toString();
-            const updateData = {
-              nekhemjlekh: {
-                nekhemjlekhiinId: nekhemjlekhiinId,
-                gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
-                utas: nekhemjlekh.utas?.[0] || "",
-                pay_amount: (nekhemjlekh.niitTulbur || req.body.dun || "").toString()
-              }
+            const sukhemjlekhData = {
+              nekhemjlekhiinId: nekhemjlekhiinId,
+              gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
+              utas: nekhemjlekh.utas?.[0] || "",
+              pay_amount: (nekhemjlekh.niitTulbur || req.body.dun || "").toString()
             };
             
             const updateNekhemjlekhData = async () => {
@@ -266,7 +264,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
               // Strategy 1: Search by invoice_id
               updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                 { invoice_id: invoiceId },
-                updateData,
+                { sukhNekhemjlekh: sukhemjlekhData },
                 { new: true }
               );
               
@@ -277,7 +275,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                     baiguullagiinId: req.body.baiguullagiinId,
                     "qpay.callback_url": { $regex: nekhemjlekhiinId }
                   },
-                  updateData,
+                  { sukhNekhemjlekh: sukhemjlekhData },
                   { new: true }
                 );
               }
@@ -290,7 +288,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                     baiguullagiinId: req.body.baiguullagiinId,
                     ognoo: { $gte: new Date(Date.now() - 60000) } // Last minute
                   },
-                  updateData,
+                  { sukhNekhemjlekh: sukhemjlekhData },
                   { new: true }
                 );
               }
@@ -307,7 +305,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 if (recent) {
                   updated = await QuickQpayObject(kholbolt).findByIdAndUpdate(
                     recent._id,
-                    updateData,
+                    { sukhNekhemjlekh: sukhemjlekhData },
                     { new: true }
                   );
                 }
@@ -318,7 +316,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                   { invoice_id: invoiceId },
-                  updateData,
+                  { sukhNekhemjlekh: sukhemjlekhData },
                   { new: true }
                 );
               }
@@ -327,7 +325,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                   { invoice_id: invoiceId },
-                  updateData,
+                  { sukhNekhemjlekh: sukhemjlekhData },
                   { new: true }
                 );
               }
@@ -536,13 +534,11 @@ router.get(
         try {
           // Use the actual invoice _id (ObjectId) converted to string
           const nekhemjlekhiinId = nekhemjlekh._id.toString();
-          const updateData = {
-            nekhemjlekh: {
-              nekhemjlekhiinId: nekhemjlekhiinId,
-              gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
-              utas: nekhemjlekh.utas?.[0] || "",
-              pay_amount: (nekhemjlekh.niitTulbur || "").toString()
-            }
+          const sukhemjlekhData = {
+            nekhemjlekhiinId: nekhemjlekhiinId,
+            gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
+            utas: nekhemjlekh.utas?.[0] || "",
+            pay_amount: (nekhemjlekh.niitTulbur || "").toString()
           };
           
           // Try to find by invoice_id
@@ -558,11 +554,11 @@ router.get(
             });
           }
           
-          // Update if found and nekhemjlekh field is missing or incomplete
-          if (qpayObject && (!qpayObject.nekhemjlekh || !qpayObject.nekhemjlekh.nekhemjlekhiinId)) {
+          // Update if found and sukhNekhemjlekh field is missing or incomplete
+          if (qpayObject && (!qpayObject.sukhNekhemjlekh || !qpayObject.sukhNekhemjlekh.nekhemjlekhiinId)) {
             await QuickQpayObject(kholbolt).findByIdAndUpdate(
               qpayObject._id,
-              updateData,
+              { sukhNekhemjlekh: sukhemjlekhData },
               { new: true }
             );
           }
