@@ -440,6 +440,45 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       console.log("  - Contract Number:", geree.gereeniiDugaar);
       console.log("  - User ID:", geree.orshinSuugchId);
       console.log("  - Organization ID:", geree.baiguullagiinId);
+
+      // Create invoice automatically after contract creation
+      console.log("=== CREATING INVOICE AUTOMATICALLY ===");
+      try {
+        const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
+        
+        console.log("Calling gereeNeesNekhemjlekhUusgekh with:");
+        console.log("  - Contract ID:", geree._id);
+        console.log("  - Organization:", baiguullaga.ner);
+        console.log("  - Connection:", tukhainBaaziinKholbolt.baiguullagiinNer);
+        
+        const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+          geree,
+          baiguullaga,
+          tukhainBaaziinKholbolt,
+          "automataar"
+        );
+        
+        if (invoiceResult.success) {
+          console.log("✅ Invoice created successfully:");
+          console.log("  - Invoice ID:", invoiceResult.nekhemjlekh._id);
+          console.log("  - Invoice Number:", invoiceResult.nekhemjlekh.dugaalaltDugaar);
+          console.log("  - Contract Number:", invoiceResult.gereeniiDugaar);
+          console.log("  - Total Amount:", invoiceResult.tulbur);
+          console.log("  - Payment Status:", invoiceResult.nekhemjlekh.tuluv);
+          console.log("  - Due Date:", invoiceResult.nekhemjlekh.tulukhOgnoo);
+        } else {
+          console.error("❌ Invoice creation failed:");
+          console.error("  - Error:", invoiceResult.error);
+          console.error("  - Contract ID:", invoiceResult.gereeniiId);
+          console.error("  - Contract Number:", invoiceResult.gereeniiDugaar);
+        }
+      } catch (invoiceError) {
+        console.error("❌ ERROR CREATING INVOICE:");
+        console.error("  - Error:", invoiceError.message);
+        console.error("  - Stack:", invoiceError.stack);
+        console.error("  - Contract ID:", geree._id);
+        console.error("  - Contract Number:", geree.gereeniiDugaar);
+      }
     } catch (contractError) {
       console.error("❌ ERROR CREATING CONTRACT:");
       console.error("  - Error:", contractError.message);
