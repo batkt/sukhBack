@@ -248,28 +248,74 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           
           // Update QuickQpayObject with invoice data (with retry logic)
           if (invoiceId && nekhemjlekh._id) {
+            // Use the actual invoice _id (ObjectId) converted to string
+            const nekhemjlekhiinId = nekhemjlekh._id.toString();
+            const updateData = {
+              nekhemjlekh: {
+                nekhemjlekhiinId: nekhemjlekhiinId,
+                gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
+                utas: nekhemjlekh.utas?.[0] || "",
+                pay_amount: (nekhemjlekh.niitTulbur || req.body.dun || "").toString()
+              }
+            };
+            
             const updateNekhemjlekhData = async () => {
-              // Use the actual invoice _id (ObjectId) converted to string
-              const nekhemjlekhiinId = nekhemjlekh._id.toString();
-              const updateData = {
-                nekhemjlekh: {
-                  nekhemjlekhiinId: nekhemjlekhiinId,
-                  gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
-                  utas: nekhemjlekh.utas?.[0] || "",
-                  pay_amount: (nekhemjlekh.niitTulbur || req.body.dun || "").toString()
-                }
-              };
+              // Try multiple search strategies
+              let updated = null;
               
-              // Try to update immediately
-              let updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
+              // Strategy 1: Search by invoice_id
+              updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                 { invoice_id: invoiceId },
                 updateData,
                 { new: true }
               );
               
-              // If not found, retry after a short delay (in case QuickQpayObject is being created)
+              // Strategy 2: If not found, search by callback_url containing the invoice ID
+              if (!updated && nekhemjlekhiinId) {
+                updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
+                  { 
+                    baiguullagiinId: req.body.baiguullagiinId,
+                    "qpay.callback_url": { $regex: nekhemjlekhiinId }
+                  },
+                  updateData,
+                  { new: true }
+                );
+              }
+              
+              // Strategy 3: Search by zakhialgiinDugaar if available + baiguullagiinId + recent date
+              if (!updated && req.body.zakhialgiinDugaar) {
+                updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
+                  { 
+                    zakhialgiinDugaar: req.body.zakhialgiinDugaar,
+                    baiguullagiinId: req.body.baiguullagiinId,
+                    ognoo: { $gte: new Date(Date.now() - 60000) } // Last minute
+                  },
+                  updateData,
+                  { new: true }
+                );
+              }
+              
+              // Strategy 4: Search by baiguullagiinId + most recent record with matching callback_url
+              if (!updated && nekhemjlekhiinId) {
+                const recent = await QuickQpayObject(kholbolt)
+                  .findOne({ 
+                    baiguullagiinId: req.body.baiguullagiinId,
+                    "qpay.callback_url": { $regex: nekhemjlekhiinId }
+                  })
+                  .sort({ ognoo: -1 })
+                  .limit(1);
+                if (recent) {
+                  updated = await QuickQpayObject(kholbolt).findByIdAndUpdate(
+                    recent._id,
+                    updateData,
+                    { new: true }
+                  );
+                }
+              }
+              
+              // Retry with delays if still not found
               if (!updated) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                   { invoice_id: invoiceId },
                   updateData,
@@ -277,10 +323,9 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 );
               }
               
-              // One more retry if still not found
               if (!updated) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                await QuickQpayObject(kholbolt).findOneAndUpdate(
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                   { invoice_id: invoiceId },
                   updateData,
                   { new: true }
@@ -288,7 +333,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
               }
             };
             
-            // Don't await this - let it run in background to not block the response
+            // Run update in background but don't block response
             updateNekhemjlekhData().catch(err => {
               console.error("Error updating QuickQpayObject with nekhemjlekh data:", err);
             });
@@ -487,23 +532,39 @@ router.get(
       await nekhemjlekh.save();
 
       // Update QuickQpayObject with nekhemjlekh data if not already set (fallback)
-      if (nekhemjlekh.qpayInvoiceId) {
+      if (nekhemjlekh.qpayInvoiceId && nekhemjlekh._id) {
         try {
-          const qpayObject = await QuickQpayObject(kholbolt).findOne({
+          // Use the actual invoice _id (ObjectId) converted to string
+          const nekhemjlekhiinId = nekhemjlekh._id.toString();
+          const updateData = {
+            nekhemjlekh: {
+              nekhemjlekhiinId: nekhemjlekhiinId,
+              gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
+              utas: nekhemjlekh.utas?.[0] || "",
+              pay_amount: (nekhemjlekh.niitTulbur || "").toString()
+            }
+          };
+          
+          // Try to find by invoice_id
+          let qpayObject = await QuickQpayObject(kholbolt).findOne({
             invoice_id: nekhemjlekh.qpayInvoiceId
           });
           
-          if (qpayObject && nekhemjlekh._id && (!qpayObject.nekhemjlekh || !qpayObject.nekhemjlekh.nekhemjlekhiinId)) {
-            // Use the actual invoice _id (ObjectId) converted to string
-            const nekhemjlekhiinId = nekhemjlekh._id.toString();
-            await QuickQpayObject(kholbolt).findByIdAndUpdate(qpayObject._id, {
-              nekhemjlekh: {
-                nekhemjlekhiinId: nekhemjlekhiinId,
-                gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
-                utas: nekhemjlekh.utas?.[0] || "",
-                pay_amount: (nekhemjlekh.niitTulbur || "").toString()
-              }
+          // If not found, try searching by callback_url containing the invoice ID
+          if (!qpayObject) {
+            qpayObject = await QuickQpayObject(kholbolt).findOne({
+              baiguullagiinId: nekhemjlekh.baiguullagiinId,
+              "qpay.callback_url": { $regex: nekhemjlekhiinId }
             });
+          }
+          
+          // Update if found and nekhemjlekh field is missing or incomplete
+          if (qpayObject && (!qpayObject.nekhemjlekh || !qpayObject.nekhemjlekh.nekhemjlekhiinId)) {
+            await QuickQpayObject(kholbolt).findByIdAndUpdate(
+              qpayObject._id,
+              updateData,
+              { new: true }
+            );
           }
         } catch (err) {
           console.error("Error updating QuickQpayObject in callback:", err);
