@@ -7,7 +7,7 @@ const { tokenShalgakh, crud, UstsanBarimt, Dans } = require("zevbackv2");
 //const { crud } = require('../components/crud');
 //const { tokenShalgakh } = require("../middlewares/tokenShalgakh");
 
-crud(router, "bankniiGuilgee", (conn) => BankniiGuilgee(conn, true), UstsanBarimt);
+crud(router, "bankniiGuilgee", (conn) => BankniiGuilgee(conn, false), UstsanBarimt);
 router.post(
   "/bankniiGuilgeeToololtAvya",
   tokenShalgakh,
@@ -82,7 +82,7 @@ router
         },
       },
     ];
-    BankniiGuilgee(req.body.tukhainBaaziinKholbolt, true)
+    BankniiGuilgee(req.body.tukhainBaaziinKholbolt, false)
       .aggregate(query)
       .then((result) => {
         res.send(result);
@@ -132,7 +132,7 @@ router
         },
       }]
 
-    var result = await BankniiGuilgee(req.body.tukhainBaaziinKholbolt, true).aggregate(query);
+    var result = await BankniiGuilgee(req.body.tukhainBaaziinKholbolt, false).aggregate(query);
     var filterResult = result?.filter((e) => e.countRef > 1);
     for await (const val of filterResult)
     {
@@ -150,7 +150,7 @@ router
         match["jrno"] = val?._id;
       else if(bank === "tdb")
         match["NtryRef"] = val?._id;
-      var resultRef = await BankniiGuilgee(req.body.tukhainBaaziinKholbolt, true).find(match);
+      var resultRef = await BankniiGuilgee(req.body.tukhainBaaziinKholbolt, false).find(match);
       if(resultRef?.length > 0)
       {
         if(req.body.type === 1) // ebarimtAvsanEsekh true baival uldeekh
@@ -199,7 +199,7 @@ router
     if(!!req.body.record)  
       match["record"] = req.body.record;
     
-    var result = await BankniiGuilgee(req.body.tukhainBaaziinKholbolt, true).find(match);
+    var result = await BankniiGuilgee(req.body.tukhainBaaziinKholbolt, false).find(match);
     for await (const val of result)
     {
       match = {
@@ -208,7 +208,7 @@ router
         dansniiDugaar: req.body.dansniiDugaar,
         record: val.record,
       }
-      var resultRef = await BankniiGuilgee(req.body.tukhainBaaziinKholbolt, true).find(match);
+      var resultRef = await BankniiGuilgee(req.body.tukhainBaaziinKholbolt, false).find(match);
       if(resultRef?.length === 0)
       {
         var guilgee = new BankniiGuilgee(req.body.tukhainBaaziinKholbolt)();
@@ -255,7 +255,7 @@ router
       if (kholboltuud) {
         for await (const kholbolt of kholboltuud) {
           console.log("  - Processing org:", kholbolt.baiguullagiinNer);
-          var guilgeenuud = await BankniiGuilgee(kholbolt, true).find({ baiguullagiinId: kholbolt.baiguullagiinId, bank: { $exists: false }});
+          var guilgeenuud = await BankniiGuilgee(kholbolt, false).find({ baiguullagiinId: kholbolt.baiguullagiinId, bank: { $exists: false }});
           console.log("  - Found", guilgeenuud.length, "transactions without bank field");
           
           for await (const guilgee of guilgeenuud)
@@ -294,7 +294,7 @@ router
       if (kholboltuud) {
         for await (const kholbolt of kholboltuud) {
           console.log("  - Processing org:", kholbolt.baiguullagiinNer);
-          var guilgeenuud = await BankniiGuilgee(kholbolt, true).find({ baiguullagiinId: kholbolt.baiguullagiinId });
+          var guilgeenuud = await BankniiGuilgee(kholbolt, false).find({ baiguullagiinId: kholbolt.baiguullagiinId });
           console.log("  - Found", guilgeenuud.length, "transactions to process");
           let processedCount = 0;
           
