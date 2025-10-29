@@ -24,7 +24,7 @@ const qpayObjectSchema = new Schema(
     customer_info: Schema.Types.Mixed,
     payment_method: String,
     transaction_id: String,
-    nekhemjlekh: {
+    sukhNekhemjlekh: {
       nekhemjlekhiinId: { type: String, default: "" },
       gereeniiDugaar: { type: String, default: "" },
       utas: { type: String, default: "" },
