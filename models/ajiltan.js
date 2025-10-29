@@ -35,6 +35,15 @@ const ajiltanSchema = new Schema(
     albanTushaal: String,
     zurgiinId: String,
     nevtrekhNer: String,
+    porool: String,
+    departmentAssignments: [
+      {
+        level: Number,
+        departmentId: { type: String, default: null },
+        departmentName: String,
+        departmentValue: String,
+      },
+    ],
 
     tokhirgoo: {
       gereeKharakhErkh: [String], //barilgiin id-nuud
