@@ -246,20 +246,52 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             qpayUrl: qpayUrl
           });
           
-          // Update QuickQpayObject with invoice data
-          if (invoiceId) {
-            await QuickQpayObject(kholbolt).findOneAndUpdate(
-              { invoice_id: invoiceId },
-              {
+          // Update QuickQpayObject with invoice data (with retry logic)
+          if (invoiceId && nekhemjlekh._id) {
+            const updateNekhemjlekhData = async () => {
+              // Use the actual invoice _id (ObjectId) converted to string
+              const nekhemjlekhiinId = nekhemjlekh._id.toString();
+              const updateData = {
                 nekhemjlekh: {
-                  nekhemjlekhiinId: nekhemjlekh._id.toString(),
+                  nekhemjlekhiinId: nekhemjlekhiinId,
                   gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
                   utas: nekhemjlekh.utas?.[0] || "",
                   pay_amount: (nekhemjlekh.niitTulbur || req.body.dun || "").toString()
                 }
-              },
-              { new: true }
-            );
+              };
+              
+              // Try to update immediately
+              let updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
+                { invoice_id: invoiceId },
+                updateData,
+                { new: true }
+              );
+              
+              // If not found, retry after a short delay (in case QuickQpayObject is being created)
+              if (!updated) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
+                  { invoice_id: invoiceId },
+                  updateData,
+                  { new: true }
+                );
+              }
+              
+              // One more retry if still not found
+              if (!updated) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await QuickQpayObject(kholbolt).findOneAndUpdate(
+                  { invoice_id: invoiceId },
+                  updateData,
+                  { new: true }
+                );
+              }
+            };
+            
+            // Don't await this - let it run in background to not block the response
+            updateNekhemjlekhData().catch(err => {
+              console.error("Error updating QuickQpayObject with nekhemjlekh data:", err);
+            });
           }
         }
       }
@@ -419,7 +451,6 @@ router.get(
       // Try to get the actual payment transaction ID from QPay
       if (nekhemjlekh.qpayInvoiceId) {
         try {
-          const qpayShalgay = require("../controller/qpayController").qpayShalgay;
           const khariu = await qpayShalgay({ invoice_id: nekhemjlekh.qpayInvoiceId }, kholbolt);
           
           // Extract payment transaction ID from QPay response
@@ -454,6 +485,30 @@ router.get(
 
       // Save the updated nekhemjlekh
       await nekhemjlekh.save();
+
+      // Update QuickQpayObject with nekhemjlekh data if not already set (fallback)
+      if (nekhemjlekh.qpayInvoiceId) {
+        try {
+          const qpayObject = await QuickQpayObject(kholbolt).findOne({
+            invoice_id: nekhemjlekh.qpayInvoiceId
+          });
+          
+          if (qpayObject && nekhemjlekh._id && (!qpayObject.nekhemjlekh || !qpayObject.nekhemjlekh.nekhemjlekhiinId)) {
+            // Use the actual invoice _id (ObjectId) converted to string
+            const nekhemjlekhiinId = nekhemjlekh._id.toString();
+            await QuickQpayObject(kholbolt).findByIdAndUpdate(qpayObject._id, {
+              nekhemjlekh: {
+                nekhemjlekhiinId: nekhemjlekhiinId,
+                gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
+                utas: nekhemjlekh.utas?.[0] || "",
+                pay_amount: (nekhemjlekh.niitTulbur || "").toString()
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Error updating QuickQpayObject in callback:", err);
+        }
+      }
 
       // Create bank payment record for this invoice
       try {
