@@ -295,8 +295,10 @@ router.post("/nekhemjlekhEbarimtShivye", tokenShalgakh, async (req, res, next) =
         try {
           if (d?.status != "SUCCESS" && !d.success) throw new Error(d.message);
         
+        console.log("📝 Original invoice ID from khariuObject:", khariuObject.nekhemjlekhiinId);
         var shineBarimt = new EbarimtShine(req.body.tukhainBaaziinKholbolt)(d);
-        shineBarimt.nekhemjlekhiinId = khariuObject._id.toString();
+        // Keep the original invoice ID that was set in nekhemjlekheesEbarimtShineUusgye
+        shineBarimt.nekhemjlekhiinId = khariuObject.nekhemjlekhiinId;
         shineBarimt.baiguullagiinId = khariuObject.baiguullagiinId;
         shineBarimt.barilgiinId = khariuObject.barilgiinId;
         shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;

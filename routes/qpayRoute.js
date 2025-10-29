@@ -544,8 +544,10 @@ router.get(
               }
               
               console.log("📝 Creating EbarimtShine model instance...");
+              console.log("📝 Original invoice ID from khariuObject:", khariuObject.nekhemjlekhiinId);
               var shineBarimt = new EbarimtShine(kholbolt)(d);
-              shineBarimt.nekhemjlekhiinId = khariuObject._id.toString();
+              // Keep the original invoice ID that was set in nekhemjlekheesEbarimtShineUusgye
+              shineBarimt.nekhemjlekhiinId = khariuObject.nekhemjlekhiinId;
               shineBarimt.baiguullagiinId = khariuObject.baiguullagiinId;
               shineBarimt.barilgiinId = khariuObject.barilgiinId;
               shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;
