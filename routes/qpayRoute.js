@@ -371,6 +371,7 @@ router.get(
   "/qpayNekhemjlekhCallback/:baiguullagiinId/:nekhemjlekhiinId",
   async (req, res, next) => {
     try {
+      console.log("Энэ рүү орлоо: qpayNekhemjlekhCallback");
       const { db } = require("zevbackv2");
       const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
       
@@ -412,7 +413,7 @@ router.get(
             nekhemjlekh.qpayPaymentId = paymentTransactionId;
           }
         } catch (err) {
-          console.log("Could not fetch QPay payment details:", err);
+          console.error("Could not fetch QPay payment details:", err);
         }
       }
       
@@ -438,12 +439,6 @@ router.get(
 
       // Save the updated nekhemjlekh
       await nekhemjlekh.save();
-      
-      console.log("✅ Nekhemjlekh payment completed:");
-      console.log("  - Invoice ID:", nekhemjlekh._id);
-      console.log("  - QPay Invoice ID:", nekhemjlekh.qpayInvoiceId);
-      console.log("  - Payment Transaction ID:", paymentTransactionId);
-      console.log("  - Status:", nekhemjlekh.tuluv);
 
       // Create bank payment record for this invoice
       try {
@@ -487,20 +482,13 @@ router.get(
         bankGuilgee.indexTalbar = `${bankGuilgee.barilgiinId}${bankGuilgee.bank}${bankGuilgee.dansniiDugaar}${bankGuilgee.record}${bankGuilgee.amount}`;
         
         await bankGuilgee.save();
-        console.log("✅ Bank payment record created and linked to contract:", nekhemjlekh.gereeniiId);
-        console.log("   Payment amount:", nekhemjlekh.niitTulbur);
-        console.log("   Bank:", bankGuilgee.bank);
       } catch (bankErr) {
-        console.error("❌ Error creating bank payment record:", bankErr);
+        console.error("Error creating bank payment record:", bankErr);
       }
 
       // Automatically create e-barimt after successful payment
       try {
-        console.log("🔍 Checking ebarimt configuration...");
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(nekhemjlekh.baiguullagiinId);
-        
-        console.log("🔍 Baiguullaga barilgiinId:", baiguullaga.barilgiinId);
-        console.log("🔍 Available barilguud IDs:", baiguullaga?.barilguud?.map(b => b._id.toString()));
         
         // Try to find building by baiguullaga.barilgiinId
         let tuxainSalbar = baiguullaga?.barilguud?.find(
@@ -509,14 +497,10 @@ router.get(
         
         // If not found, use first building as fallback
         if (!tuxainSalbar && baiguullaga?.barilguud?.length > 0) {
-          console.log("⚠️ Using first building as fallback");
           tuxainSalbar = baiguullaga.barilguud[0].tokhirgoo;
         }
 
-        console.log("🔍 eBarimtShine config:", tuxainSalbar?.eBarimtShine);
-
         if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
-          console.log("✅ Creating e-barimt automatically...");
           const { nekhemjlekheesEbarimtShineUusgye, ebarimtDuudya } = require("./ebarimtRoute");
           const EbarimtShine = require("../models/ebarimtShine");
           
@@ -533,18 +517,11 @@ router.get(
           );
 
           var butsaakhMethod = function (d, khariuObject) {
-            console.log("📥 Callback received for ebarimt");
             try {
-              console.log("📥 Response status:", d?.status, d?.success);
-              console.log("📥 Full response:", JSON.stringify(d, null, 2));
-              
               if (d?.status != "SUCCESS" && !d.success) {
-                console.log("⚠️ E-Barimt API not SUCCESS:", d);
                 return;
               }
               
-              console.log("📝 Creating EbarimtShine model instance...");
-              console.log("📝 Original invoice ID from khariuObject:", khariuObject.nekhemjlekhiinId);
               var shineBarimt = new EbarimtShine(kholbolt)(d);
               // Keep the original invoice ID that was set in nekhemjlekheesEbarimtShineUusgye
               shineBarimt.nekhemjlekhiinId = khariuObject.nekhemjlekhiinId;
@@ -559,22 +536,16 @@ router.get(
               if (d.id) shineBarimt.receiptId = d.id;
               if (d.date) shineBarimt.date = d.date;
               
-              console.log("💾 Saving to database...");
               shineBarimt.save();
-              console.log("✅ E-Barimt created and saved to database with QR code");
             } catch (err) {
-              console.error("❌ Failed to save e-barimt:", err);
-              console.error("❌ Error stack:", err.stack);
+              console.error("Failed to save e-barimt:", err);
             }
           };
 
           ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
-        } else {
-          console.log("⚠️ eBarimtShine is not enabled for this building");
         }
       } catch (ebarimtError) {
-        console.error("❌ Failed to create e-barimt:", ebarimtError.message);
-        console.error(ebarimtError.stack);
+        console.error("Failed to create e-barimt:", ebarimtError.message);
       }
 
       // Emit socket event for real-time updates

@@ -151,20 +151,14 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 
 exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
+    console.log("Энэ рүү орлоо: orshinSuugchBurtgey");
     const { db } = require("zevbackv2");
 
-    console.log(
-      "orshinSuugchBurtgey request body:",
-      JSON.stringify(req.body, null, 2)
-    );
-
     if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
-      console.log("❌ VALIDATION FAILED: Missing location data");
       throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
     }
 
     if (!req.body.baiguullagiinId) {
-      console.log("❌ VALIDATION FAILED: Missing baiguullagiinId");
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
     }
 
@@ -173,56 +167,32 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     if (!req.body.nuutsUg) {
-      console.log("❌ VALIDATION FAILED: Missing nuutsUg");
       throw new aldaa("Нууц үг заавал бөглөх шаардлагатай!");
     }
 
     if (!req.body.ner) {
-      console.log("❌ VALIDATION FAILED: Missing ner");
       throw new aldaa("Нэр заавал бөглөх шаардлагатай!");
     }
 
-    console.log("✅ All validations passed");
-
     // Find organization
-    console.log("=== FINDING ORGANIZATION ===");
-    console.log("Looking for baiguullaga with ID:", req.body.baiguullagiinId);
-
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       req.body.baiguullagiinId
     );
 
     if (!baiguullaga) {
-      console.log("❌ ORGANIZATION NOT FOUND:", req.body.baiguullagiinId);
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    console.log("✅ Organization found:");
-    console.log("  - ID:", baiguullaga._id);
-    console.log("  - Name:", baiguullaga.ner);
-
     // Check for existing user
-    console.log("=== CHECKING FOR EXISTING USER ===");
-    console.log("Searching for existing user with:");
-    console.log("  - utas:", req.body.utas);
-    console.log("  - mail:", req.body.mail);
-
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [{ utas: req.body.utas }, { mail: req.body.mail }],
     });
 
     if (existingUser) {
-      console.log("❌ USER ALREADY EXISTS:");
-      console.log("  - ID:", existingUser._id);
-      console.log("  - utas:", existingUser.utas);
-      console.log("  - mail:", existingUser.mail);
       throw new aldaa("Утасны дугаар эсвэл регистр, мэйл давхардаж байна!");
     }
 
-    console.log("✅ No existing user found, proceeding with registration");
-
     // Create user
-    console.log("=== CREATING USER ===");
     const userData = {
       ...req.body,
       baiguullagiinId: baiguullaga._id,
@@ -236,56 +206,20 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       nevtrekhNer: req.body.utas,
     };
 
-    console.log("User data to create:", JSON.stringify(userData, null, 2));
-
     const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
-
-    console.log("Saving user to database...");
     await orshinSuugch.save();
-    console.log("✅ User saved successfully:");
-    console.log("  - User ID:", orshinSuugch._id);
-    console.log("  - Name:", orshinSuugch.ner);
-    console.log("  - Organization ID:", orshinSuugch.baiguullagiinId);
-    console.log("  - Organization Name:", orshinSuugch.baiguullagiinNer);
 
     // Create contract
-    console.log("=== CREATING CONTRACT ===");
     try {
-      console.log(
-        "Looking for organization connection for baiguullagiinId:",
-        baiguullaga._id.toString()
-      );
-      console.log(
-        "Available connections:",
-        db.kholboltuud.map((k) => ({
-          id: k.baiguullagiinId,
-          name: k.baiguullagiinNer,
-        }))
-      );
-
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
         (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
       );
 
       if (!tukhainBaaziinKholbolt) {
-        console.error("❌ ORGANIZATION CONNECTION NOT FOUND:");
-        console.error("  - Looking for:", baiguullaga._id.toString());
-        console.error(
-          "  - Available connections:",
-          db.kholboltuud.map((k) => k.baiguullagiinId)
-        );
         throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
       }
 
-      console.log("✅ Organization connection found:");
-      console.log("  - Connection ID:", tukhainBaaziinKholbolt.baiguullagiinId);
-      console.log(
-        "  - Connection Name:",
-        tukhainBaaziinKholbolt.baiguullagiinNer
-      );
-
       // Fetch ashiglaltiinZardluud data for this organization
-      console.log("=== FETCHING ASHIGLALTIIN ZARDLUUD DATA ===");
       const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
       const ashiglaltiinZardluudData = await AshiglaltiinZardluud(
         tukhainBaaziinKholbolt
@@ -293,17 +227,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         baiguullagiinId: baiguullaga._id.toString(),
       });
 
-      console.log(
-        "Found ashiglaltiinZardluud records:",
-        ashiglaltiinZardluudData.length
-      );
-      console.log(
-        "Zardluud data:",
-        JSON.stringify(ashiglaltiinZardluudData, null, 2)
-      );
-
       // Fetch liftShalgaya data to get excluded departments for lift items
-      console.log("=== FETCHING LIFT SHALGAYA DATA ===");
       const LiftShalgaya = require("../models/liftShalgaya");
       const liftShalgayaData = await LiftShalgaya(
         tukhainBaaziinKholbolt
@@ -311,17 +235,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         baiguullagiinId: baiguullaga._id.toString(),
       });
 
-      console.log(
-        "LiftShalgaya data:",
-        JSON.stringify(liftShalgayaData, null, 2)
-      );
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
-      console.log("Excluded departments for lift:", choloolugdokhDavkhar);
-      console.log("User's department:", orshinSuugch.davkhar);
-      console.log(
-        "Is user's department excluded?",
-        choloolugdokhDavkhar.includes(orshinSuugch.davkhar)
-      );
 
       // Map ashiglaltiinZardluud data to zardluud array format
       const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
@@ -344,11 +258,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         ognoonuud: zardal.ognoonuud || [],
       }));
 
-      console.log(
-        "Mapped zardluud array:",
-        JSON.stringify(zardluudArray, null, 2)
-      );
-
       // Calculate niitTulbur by summing all tariff values, excluding departments for lift items
       const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
         const tariff = zardal.tariff || 0;
@@ -357,47 +266,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         const isLiftItem =
           zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
 
-        console.log(`Processing item: "${zardal.ner}"`);
-        console.log(`  - zardliinTurul: "${zardal.zardliinTurul}"`);
-        console.log(`  - isLiftItem: ${isLiftItem}`);
-        console.log(`  - tariff: ${tariff}`);
-        console.log(`  - user department: "${orshinSuugch.davkhar}"`);
-        console.log(
-          `  - excluded departments: [${choloolugdokhDavkhar.join(", ")}]`
-        );
-        console.log(
-          `  - is user department excluded: ${choloolugdokhDavkhar.includes(
-            orshinSuugch.davkhar
-          )}`
-        );
-
         // If it's a lift item and user's department is in excluded list, don't count it
         if (
           isLiftItem &&
           orshinSuugch.davkhar &&
           choloolugdokhDavkhar.includes(orshinSuugch.davkhar)
         ) {
-          console.log(
-            `❌ EXCLUDING lift item "${zardal.ner}" (tariff: ${tariff}) for department "${orshinSuugch.davkhar}"`
-          );
           return total; // Don't add this tariff
         }
 
-        console.log(`✅ INCLUDING item "${zardal.ner}" (tariff: ${tariff})`);
         return total + tariff;
       }, 0);
-
-      console.log("Calculated niitTulbur:", niitTulbur);
-      console.log(
-        "Tariff breakdown:",
-        ashiglaltiinZardluudData.map((z) => ({
-          ner: z.ner,
-          turul: z.turul,
-          zardliinTurul: z.zardliinTurul,
-          tariff: z.tariff,
-          isLift: z.zardliinTurul && z.zardliinTurul === "Лифт",
-        }))
-      );
 
       const contractData = {
         gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
@@ -426,30 +305,12 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         khungulultuud: [],
       };
 
-      console.log(
-        "Contract data to create:",
-        JSON.stringify(contractData, null, 2)
-      );
-
       const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
-
-      console.log("Saving contract to database...");
       await geree.save();
-      console.log("✅ Contract saved successfully:");
-      console.log("  - Contract ID:", geree._id);
-      console.log("  - Contract Number:", geree.gereeniiDugaar);
-      console.log("  - User ID:", geree.orshinSuugchId);
-      console.log("  - Organization ID:", geree.baiguullagiinId);
 
       // Create invoice automatically after contract creation
-      console.log("=== CREATING INVOICE AUTOMATICALLY ===");
       try {
         const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
-        
-        console.log("Calling gereeNeesNekhemjlekhUusgekh with:");
-        console.log("  - Contract ID:", geree._id);
-        console.log("  - Organization:", baiguullaga.ner);
-        console.log("  - Connection:", tukhainBaaziinKholbolt.baiguullagiinNer);
         
         const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
           geree,
@@ -458,35 +319,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           "automataar"
         );
         
-        if (invoiceResult.success) {
-          console.log("✅ Invoice created successfully:");
-          console.log("  - Invoice ID:", invoiceResult.nekhemjlekh._id);
-          console.log("  - Invoice Number:", invoiceResult.nekhemjlekh.dugaalaltDugaar);
-          console.log("  - Contract Number:", invoiceResult.gereeniiDugaar);
-          console.log("  - Total Amount:", invoiceResult.tulbur);
-          console.log("  - Payment Status:", invoiceResult.nekhemjlekh.tuluv);
-          console.log("  - Due Date:", invoiceResult.nekhemjlekh.tulukhOgnoo);
-        } else {
-          console.error("❌ Invoice creation failed:");
-          console.error("  - Error:", invoiceResult.error);
-          console.error("  - Contract ID:", invoiceResult.gereeniiId);
-          console.error("  - Contract Number:", invoiceResult.gereeniiDugaar);
+        if (!invoiceResult.success) {
+          console.error("Invoice creation failed:", invoiceResult.error);
         }
       } catch (invoiceError) {
-        console.error("❌ ERROR CREATING INVOICE:");
-        console.error("  - Error:", invoiceError.message);
-        console.error("  - Stack:", invoiceError.stack);
-        console.error("  - Contract ID:", geree._id);
-        console.error("  - Contract Number:", geree.gereeniiDugaar);
+        console.error("Error creating invoice:", invoiceError.message);
       }
     } catch (contractError) {
-      console.error("❌ ERROR CREATING CONTRACT:");
-      console.error("  - Error:", contractError.message);
-      console.error("  - Stack:", contractError.stack);
+      console.error("Error creating contract:", contractError.message);
     }
 
     // Send response
-    console.log("=== SENDING RESPONSE ===");
     const response = {
       success: true,
       message: "Амжилттай бүртгэгдлээ",
@@ -498,18 +341,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       },
     };
 
-    console.log("Response data:", JSON.stringify(response, null, 2));
-    console.log("=== ORSHINSUUGCH BURTGEY COMPLETED SUCCESSFULLY ===");
-
     res.status(201).json(response);
   } catch (error) {
-    console.error("=== ORSHINSUUGCH BURTGEY ERROR ===");
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-    console.error(
-      "Request body that caused error:",
-      JSON.stringify(req.body, null, 2)
-    );
+    console.error("Error in orshinSuugchBurtgey:", error.message);
     next(error);
   }
 });

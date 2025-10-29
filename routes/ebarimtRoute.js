@@ -23,19 +23,17 @@ async function nekhemjlekheesEbarimtShineUusgye(
   nuatTulukhEsekh = true
 ) {
   try {
-    console.log("📝 Creating ebarimt for invoice:", nekhemjlekh._id);
+    console.log("Энэ рүү орлоо: nekhemjlekheesEbarimtShineUusgye");
     
     const dun = nekhemjlekh.niitTulbur || 0;
-    console.log("📝 Amount:", dun);
-  var ebarimt = new EbarimtShine(tukhainBaaziinKholbolt)();
-    console.log("📝 Ebarimt model initialized");
+    var ebarimt = new EbarimtShine(tukhainBaaziinKholbolt)();
     
-  if (!!customerTin) {
-    ebarimt.type = "B2B_RECEIPT";
-    ebarimt.customerTin = customerTin;
-  } else {
-    ebarimt.type = "B2C_RECEIPT";
-  }
+    if (!!customerTin) {
+      ebarimt.type = "B2B_RECEIPT";
+      ebarimt.customerTin = customerTin;
+    } else {
+      ebarimt.type = "B2C_RECEIPT";
+    }
 
     ebarimt.nekhemjlekhiinId = nekhemjlekh._id.toString();
     ebarimt.baiguullagiinId = nekhemjlekh.baiguullagiinId;
@@ -43,13 +41,13 @@ async function nekhemjlekheesEbarimtShineUusgye(
     ebarimt.gereeniiDugaar = nekhemjlekh.gereeniiDugaar;
     ebarimt.utas = nekhemjlekh.utas?.[0] || "";
 
-  ebarimt.totalAmount = dun.toFixed(2);
-  ebarimt.totalVAT = !!nuatTulukhEsekh ? nuatBodyo(dun) : 0;
-  ebarimt.totalCityTax = "0.00";
-  ebarimt.branchNo = "001";
-  ebarimt.districtCode = districtCode;
-  ebarimt.posNo = "0001";
-  ebarimt.merchantTin = merchantTin;
+    ebarimt.totalAmount = dun.toFixed(2);
+    ebarimt.totalVAT = !!nuatTulukhEsekh ? nuatBodyo(dun) : 0;
+    ebarimt.totalCityTax = "0.00";
+    ebarimt.branchNo = "001";
+    ebarimt.districtCode = districtCode;
+    ebarimt.posNo = "0001";
+    ebarimt.merchantTin = merchantTin;
     ebarimt.customerNo = customerNo || "";
     if (customerTin) ebarimt.customerTin = customerTin;
     ebarimt.createdAt = new Date();
@@ -85,11 +83,10 @@ async function nekhemjlekheesEbarimtShineUusgye(
       }
     ];
 
-    console.log("📝 Ebarimt object created successfully");
   return ebarimt;
 
   } catch (error) {
-    console.error("❌ Create ebarimt error:", error);
+    console.error("Create ebarimt error:", error);
     throw error;
   }
 }
@@ -98,11 +95,9 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
   try {
     if (!!shine) {
         var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
-      console.log("📤 Sending ebarimt to API:", url);
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
-        console.log("📥 API Response received:", { err: !!err, status: res1?.statusCode, body });
         if (err) {
-          console.error("❌ API Error:", err.message);
+          console.error("API Error:", err.message);
           if (!!next) next(err);
         } else {
           onFinish(body, ugugdul);
@@ -110,7 +105,7 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
       });
     } else if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
   } catch (aldaa) {
-    console.error("❌ EbarimtDuudya error:", aldaa.message);
+    console.error("EbarimtDuudya error:", aldaa.message);
     if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
   }
 }
@@ -257,6 +252,7 @@ router.post("/ebarimtToololtAvya", tokenShalgakh, async (req, res, next) => {
 
 router.post("/nekhemjlekhEbarimtShivye", tokenShalgakh, async (req, res, next) => {
   try {
+    console.log("Энэ рүү орлоо: nekhemjlekhEbarimtShivye");
     const nekhemjlekh = await nekhemjlekhiinTuukh(req.body.tukhainBaaziinKholbolt).findById(req.body.nekhemjlekhiinId);
     
     if (!nekhemjlekh) {
@@ -295,7 +291,6 @@ router.post("/nekhemjlekhEbarimtShivye", tokenShalgakh, async (req, res, next) =
         try {
           if (d?.status != "SUCCESS" && !d.success) throw new Error(d.message);
         
-        console.log("📝 Original invoice ID from khariuObject:", khariuObject.nekhemjlekhiinId);
         var shineBarimt = new EbarimtShine(req.body.tukhainBaaziinKholbolt)(d);
         // Keep the original invoice ID that was set in nekhemjlekheesEbarimtShineUusgye
         shineBarimt.nekhemjlekhiinId = khariuObject.nekhemjlekhiinId;

@@ -44,21 +44,19 @@ async function tokenAvya(
   tukhainBaaziinKholbolt
 ) {
   try {
-    console.log("🔐 [CGW] Khan Bank: Getting authentication token...");
-    console.log("  - Organization ID:", baiguullagiinId);
+    console.log("Энэ рүү орлоо: tokenAvya");
     var url = new URL(
       "https://api.khanbank.com/v1/auth/token?grant_type=client_credentials"
     );
     url.username = username;
     url.password = password;
     const response = await instance.post(url).catch((err) => {
-      console.error("❌ [CGW] Khan Bank: Token request failed:", err.message);
+      console.error("Token request failed:", err.message);
       throw err;
     });
     var qeury = { turul: "khaanCorporate", baiguullagiinId: baiguullagiinId };
     if (!!barilgiinId) qeury["barilgiinId"] = barilgiinId;
     var khariu = JSON.parse(response.body);
-    console.log("✅ [CGW] Khan Bank: Token obtained successfully");
     Token(tukhainBaaziinKholbolt)
       .updateOne(
         qeury,
@@ -66,14 +64,14 @@ async function tokenAvya(
         { upsert: true }
       )
       .then((x) => {
-        console.log("💾 [CGW] Khan Bank: Token saved to database");
+        // Token saved
       })
       .catch((e) => {
-        console.error("❌ [CGW] Khan Bank: Failed to save token:", e.message);
+        console.error("Failed to save token:", e.message);
       });
     return khariu;
   } catch (error) {
-    console.error("❌ [CGW] Khan Bank: Error getting token:", error.message);
+    console.error("Error getting token:", error.message);
     if (next) next(new Error("Банктай холбогдоход алдаа гарлаа!"));
   }
 }
@@ -81,6 +79,7 @@ async function tokenAvya(
 // Golomt token function
 async function golomtTokenAvya(dans, tukhainBaaziinKholbolt) {
   try {
+    console.log("Энэ рүү орлоо: golomtTokenAvya");
     var tokenObject = await Token(tukhainBaaziinKholbolt).findOne({
       turul: "golomt",
       baiguullagiinId: dans.baiguullagiinId,
