@@ -233,20 +233,35 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           (a) => a.baiguullagiinId == req.body.baiguullagiinId
         );
         
-        console.log("📝 Saving QPay invoice info to nekhemjlekh:", {
-          nekhemjlekhiinId: req.body.nekhemjlekhiinId,
-          qpayResponse: khariu
-        });
-        
         const invoiceId = khariu.invoice_id || khariu.invoiceId || khariu.id;
         const qpayUrl = khariu.qr_text || khariu.url || khariu.invoice_url || khariu.qr_image;
         
-        await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(req.body.nekhemjlekhiinId, {
-          qpayInvoiceId: invoiceId,
-          qpayUrl: qpayUrl
-        });
+        // Fetch the invoice to get real data
+        const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findById(req.body.nekhemjlekhiinId);
         
-        console.log("✅ Saved QPay info:", { invoiceId, qpayUrl });
+        if (nekhemjlekh) {
+          // Update nekhemjlekh with QPay invoice info
+          await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(req.body.nekhemjlekhiinId, {
+            qpayInvoiceId: invoiceId,
+            qpayUrl: qpayUrl
+          });
+          
+          // Update QuickQpayObject with invoice data
+          if (invoiceId) {
+            await QuickQpayObject(kholbolt).findOneAndUpdate(
+              { invoice_id: invoiceId },
+              {
+                nekhemjlekh: {
+                  nekhemjlekhiinId: nekhemjlekh._id.toString(),
+                  gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
+                  utas: nekhemjlekh.utas?.[0] || "",
+                  pay_amount: (nekhemjlekh.niitTulbur || req.body.dun || "").toString()
+                }
+              },
+              { new: true }
+            );
+          }
+        }
       }
       
       var dugaarlalt = new Dugaarlalt(req.body.tukhainBaaziinKholbolt)();
