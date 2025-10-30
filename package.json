@@ -6,7 +6,10 @@
     "pm2": "pm2 --name \"amarSukhBack\" start index.js",
     "pm2update": "pm2 restart amarSukhBack",
     "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/e2e.js",
+    "e2e": "node scripts/e2e.js",
+    "callbacks": "node scripts/callback-storm.js",
+    "invoices": "node scripts/invoice-stress.js",
     "update": "git pull && pm2 reload amarSukhBack",
     "addpack": "npm install --registry http://103.143.40.90:4873 zevbackv2"
   },

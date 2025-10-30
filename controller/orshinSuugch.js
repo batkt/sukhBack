@@ -877,8 +877,7 @@ exports.nuutsUgShalgakhOrshinSuugch = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Change password: requires Authorization Bearer token
-// Body: { odoogiinNuutsUg, shineNuutsUg, davtahNuutsUg }
+
 exports.orshinSuugchiinNuutsUgSoliyo = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
