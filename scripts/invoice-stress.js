@@ -49,13 +49,17 @@ async function fetchUnpaidInvoiceIds() {
 
 async function triggerQpay(invoiceId) {
   try {
-    await got.post(`${BASE_URL}/qpayGargaya`, {
+    const r = await got.post(`${BASE_URL}/qpayGargaya`, {
       json: { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoiceId },
       headers: h(),
+      throwHttpErrors: false,
       timeout: { request: 20000 }
     });
-    return true;
+    if (r.statusCode >= 200 && r.statusCode < 300) return true;
+    console.log('QPay fail:', r.statusCode, r.body?.slice?.(0, 300));
+    return false;
   } catch (e) {
+    console.log('QPay error:', e.response?.statusCode, e.response?.body?.slice?.(0, 300) || e.message);
     return false;
   }
 }
