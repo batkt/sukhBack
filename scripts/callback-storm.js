@@ -9,7 +9,8 @@ const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8084';
 const ORG_ID = process.env.ORG_ID;
 const INVOICE_ID = process.env.INVOICE_ID;
 const CONCURRENCY = Number(process.env.CONCURRENCY || 1000);
-const TOKEN = process.env.TOKEN;
+let TOKEN = process.env.TOKEN;
+if (TOKEN && !/^Bearer\s+/i.test(TOKEN)) TOKEN = `Bearer ${TOKEN}`;
 
 function h() {
   const headers = {};

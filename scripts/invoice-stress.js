@@ -13,7 +13,8 @@ const got = require('got');
 
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8084';
 const ORG_ID = process.env.ORG_ID;
-const TOKEN = process.env.TOKEN;
+let TOKEN = process.env.TOKEN;
+if (TOKEN && !/^Bearer\s+/i.test(TOKEN)) TOKEN = `Bearer ${TOKEN}`;
 const COUNT = Number(process.env.COUNT || 1000);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 100);
 
