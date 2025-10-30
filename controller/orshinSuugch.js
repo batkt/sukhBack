@@ -454,6 +454,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     var msgIlgeekhDugaar = "72002002";
 
     const { baiguullagiinId, utas } = req.body;
+    const purpose = req.body.purpose || "password_reset"; // "register" | "password_reset"
 
     if (!baiguullagiinId || !utas) {
       return res.status(400).json({
@@ -484,11 +485,31 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // Validate existence based on purpose
+    const existing = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
+    if (purpose === "register") {
+      if (existing) {
+        return res.status(409).json({
+          success: false,
+          message: "Энэ утас аль хэдийн бүртгэгдсэн байна!",
+          codeSent: false,
+        });
+      }
+    } else if (purpose === "password_reset") {
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
+          codeSent: false,
+        });
+      }
+    }
+
     const BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
     const batalgaajuulkhCodeDoc =
       await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
         utas,
-        "password_reset",
+        purpose,
         10
       );
 
@@ -519,6 +540,8 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       message: "Баталгаажуулах код илгээгдлээ",
       expiresIn: 10,
       baiguullagiinId: baiguullagiinId,
+      purpose,
+      codeSent: true,
     });
   } catch (error) {
     next(error);
@@ -832,7 +855,7 @@ exports.khayagaarBaiguullagaAvya = asyncHandler(async (req, res, next) => {
       $and: [
         { "tokhirgoo.duuregNer": duureg },
         { "tokhirgoo.districtCode": horoo },
-        { "tokhirgoo.sohCode": soh },
+        { "tokhirgoo.sohNer": soh },
       ],
     });
 
