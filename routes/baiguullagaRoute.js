@@ -58,6 +58,34 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
   }
 });
 
+router.post("/salbarBurtgey", async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    Baiguullaga(db.erunkhiiKholbolt)
+      .updateOne(
+        { register: req.body.tolgoiCompany },
+        {
+          $push: {
+            barilguud: {
+              licenseRegister: req.body.register,
+              ner: req.body.ner,
+              khayag: req.body.khayag,
+            },
+          },
+        }
+      )
+      .then((result) => {
+        res.send("Amjilttai");
+      })
+      .catch((err) => {
+        next(err);
+      });
+  } catch (error) {
+    next(error);
+  }
+});
+
+
 
 router.post("/baiguullagaAvya", (req, res, next) => {
   const { db } = require("zevbackv2");
@@ -81,7 +109,7 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
       _id: 1,
       "barilguud.tokhirgoo.duuregNer": 1,
       "barilguud.tokhirgoo.districtCode": 1,
-      "barilguud.tokhirgoo.sohCode": 1,
+      "barilguud.tokhirgoo.sohNer": 1,
       "barilguud.tokhirgoo.horoo": 1
     })
     .then((result) => {
@@ -92,7 +120,7 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
           baiguullagiinId: item._id,
           duuregNer: tokhirgoo?.duuregNer || "",
           districtCode: tokhirgoo?.districtCode || "",
-          sohCode: tokhirgoo?.sohCode || "",
+          sohNer: tokhirgoo?.sohNer || "",
           horoo: tokhirgoo?.horoo || {}
         };
       });
