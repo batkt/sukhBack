@@ -17,6 +17,7 @@ let TOKEN = process.env.TOKEN;
 if (TOKEN && !/^Bearer\s+/i.test(TOKEN)) TOKEN = `Bearer ${TOKEN}`;
 const COUNT = Number(process.env.COUNT || 1000);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 100);
+const BARILGIIN_ID = process.env.BARILGIIN_ID || null;
 
 function h() {
   const headers = { 'Content-Type': 'application/json' };
@@ -49,8 +50,10 @@ async function fetchUnpaidInvoiceIds() {
 
 async function triggerQpay(invoiceId) {
   try {
+    const payload = { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoiceId };
+    if (BARILGIIN_ID) payload.barilgiinId = BARILGIIN_ID;
     const r = await got.post(`${BASE_URL}/qpayGargaya`, {
-      json: { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoiceId },
+      json: payload,
       headers: h(),
       throwHttpErrors: false,
       timeout: { request: 20000 }

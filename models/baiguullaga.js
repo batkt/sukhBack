@@ -49,7 +49,7 @@ const baiguullagaSchema = new Schema(
             ner: String,
             kod: String,
           },
-          sohCode: String, // СӨХ код
+          sohNer: String, // СӨХ код
           nuatTulukhEsekh: Boolean,
           zogsoolMsgIlgeekh: Boolean,
           tooluurAutomatTatakhToken: String,
@@ -172,6 +172,28 @@ const baiguullagaSchema = new Schema(
     timestamps: true,
   }
 );
+
+// Ensure top-level barilgiinId is set to the first building's _id when creating/updating
+baiguullagaSchema.pre(["save", "updateOne"], function (next) {
+  try {
+    // on save: this refers to doc; on updateOne: this._update holds updates
+    const getBarilguud = () => {
+      if (this.barilguud && Array.isArray(this.barilguud)) return this.barilguud;
+      if (this._update && Array.isArray(this._update.barilguud)) return this._update.barilguud;
+      return null;
+    };
+    const setBarilgiinId = (val) => {
+      if (this.barilgiinId !== undefined) this.barilgiinId = val;
+      if (this._update) this._update.barilgiinId = val;
+    };
+    const barilguud = getBarilguud();
+    if (barilguud && barilguud.length > 0) {
+      const firstId = (barilguud[0] && (barilguud[0]._id || barilguud[0].id)) ? String(barilguud[0]._id || barilguud[0].id) : null;
+      if (firstId) setBarilgiinId(firstId);
+    }
+  } catch (e) {}
+  next();
+});
 
 //const BaiguullagaModel = mongoose.model("baiguullaga", baiguullagaSchema);
 
