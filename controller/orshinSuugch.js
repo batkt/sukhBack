@@ -124,30 +124,30 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
   );
 }
 
-// async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
-//   var ipTuukh = await IpTuukh(tukhainBaaziinKholbolt).findOne({ ip: tuukh.ip });
-//   if (ipTuukh) {
-//     tuukh.bairshilUls = ipTuukh.bairshilUls;
-//     tuukh.bairshilKhot = ipTuukh.bairshilKhot;
-//   } else if (tuukh.ip) {
-//     try {
-//       var axiosKhariu = await axios.get(
-//         "https://api.ipgeolocation.io/ipgeo?apiKey=8ee349f1c7304c379fdb6b855d1e9df4&ip=" +
-//           tuukh.ip.toString()
-//       );
-//       ipTuukh = new IpTuukh(tukhainBaaziinKholbolt)();
-//       ipTuukh.ognoo = new Date();
-//       ipTuukh.medeelel = axiosKhariu.data;
-//       ipTuukh.bairshilUls = axiosKhariu.data.country_name;
-//       ipTuukh.bairshilKhot = axiosKhariu.data.city;
-//       ipTuukh.ip = tuukh.ip;
-//       tuukh.bairshilUls = ipTuukh.bairshilUls;
-//       tuukh.bairshilKhot = ipTuukh.bairshilKhot;
-//       await ipTuukh.save();
-//     } catch (err) {}
-//   }
-//   await tuukh.save();
-// }
+async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
+  var ipTuukh = await IpTuukh(tukhainBaaziinKholbolt).findOne({ ip: tuukh.ip });
+  if (ipTuukh) {
+    tuukh.bairshilUls = ipTuukh.bairshilUls;
+    tuukh.bairshilKhot = ipTuukh.bairshilKhot;
+  } else if (tuukh.ip) {
+    try {
+      var axiosKhariu = await axios.get(
+        "https://api.ipgeolocation.io/ipgeo?apiKey=8ee349f1c7304c379fdb6b855d1e9df4&ip=" +
+          tuukh.ip.toString()
+      );
+      ipTuukh = new IpTuukh(tukhainBaaziinKholbolt)();
+      ipTuukh.ognoo = new Date();
+      ipTuukh.medeelel = axiosKhariu.data;
+      ipTuukh.bairshilUls = axiosKhariu.data.country_name;
+      ipTuukh.bairshilKhot = axiosKhariu.data.city;
+      ipTuukh.ip = tuukh.ip;
+      tuukh.bairshilUls = ipTuukh.bairshilUls;
+      tuukh.bairshilKhot = ipTuukh.bairshilKhot;
+      await ipTuukh.save();
+    } catch (err) {}
+  }
+  await tuukh.save();
+}
 
 exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
@@ -872,6 +872,62 @@ exports.nuutsUgShalgakhOrshinSuugch = asyncHandler(async (req, res, next) => {
         success: false,
         message: "Хэрэглэгчийн одоо ашиглаж буй нууц үг буруу байна!",
       });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Change password: requires Authorization Bearer token
+// Body: { odoogiinNuutsUg, shineNuutsUg, davtahNuutsUg }
+exports.orshinSuugchiinNuutsUgSoliyo = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { odoogiinNuutsUg, shineNuutsUg, davtahNuutsUg } = req.body || {};
+
+    if (!odoogiinNuutsUg || !shineNuutsUg || !davtahNuutsUg) {
+      return res.status(400).json({ success: false, message: "Бүх талбарыг бөглөх шаардлагатай!" });
+    }
+    if (String(shineNuutsUg) !== String(davtahNuutsUg)) {
+      return res.status(400).json({ success: false, message: "Шинэ нууц үг таарахгүй байна!" });
+    }
+    if (String(shineNuutsUg).length < 4) {
+      return res.status(400).json({ success: false, message: "Нууц үг хамгийн багадаа 4 тэмдэгт байх ёстой!" });
+    }
+
+    if (!req.headers.authorization) {
+      return res.status(401).json({ success: false, message: "Энэ үйлдлийг хийх эрх байхгүй байна!" });
+    }
+    const token = req.headers.authorization.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ success: false, message: "Token олдсонгүй!" });
+    }
+
+    let tokenObject;
+    try {
+      tokenObject = jwt.verify(token, process.env.APP_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({ success: false, message: "Token хүчингүй байна!" });
+    }
+    if (!tokenObject?.id || tokenObject.id === "zochin") {
+      return res.status(401).json({ success: false, message: "Энэ үйлдлийг хийх эрх байхгүй байна!" });
+    }
+
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+      .findById(tokenObject.id)
+      .select("+nuutsUg");
+    if (!orshinSuugch) {
+      return res.status(404).json({ success: false, message: "Хэрэглэгч олдсонгүй!" });
+    }
+
+    const ok = await orshinSuugch.passwordShalgaya(odoogiinNuutsUg);
+    if (!ok) {
+      return res.status(400).json({ success: false, message: "Одоогийн нууц үг буруу байна!" });
+    }
+
+    orshinSuugch.nuutsUg = shineNuutsUg;
+    await orshinSuugch.save();
+
+    return res.json({ success: true, message: "Нууц үг амжилттай солигдлоо" });
   } catch (error) {
     next(error);
   }

@@ -322,20 +322,18 @@ exports.tailanUliral = asyncHandler(async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-// POST /tailan/export — CSV export for a report type
 exports.tailanExport = asyncHandler(async (req, res, next) => {
   try {
     const { type = "csv", report = "avlaga" } = req.body || {};
     if (type !== "csv") return res.status(400).json({ success: false, message: "Зөвхөн CSV дэмжинэ (excel)" });
     let rows = [];
     if (report === "avlaga") {
-      // Re-run avlaga within this request
       const originalJson = res.json;
       let data;
       res.json = (payload) => { data = payload; return originalJson.call(res, payload); };
       await exports.tailanAvlaga(req, res, next);
       res.json = originalJson;
-      if (!data?.success) return; // already handled
+      if (!data?.success) return;
       const list = [...(data.paid?.list || []), ...(data.unpaid?.list || [])];
       rows = [
         ["gereeniiDugaar","ovog","ner","utas","toot","davkhar","bairNer","ognoo","niitTulbur","tuluv"],
