@@ -100,7 +100,7 @@ orshinSuugchSchema.methods.zochinTokenUusgye = function (
   return token;
 };
 
-orshinSuugchSchema.post(["findOneAndDelete", "deleteOne"], async function (doc) {
+async function cascadeDeleteForResident(doc) {
   try {
     if (!doc) return;
     const { db } = require("zevbackv2");
@@ -110,19 +110,43 @@ orshinSuugchSchema.post(["findOneAndDelete", "deleteOne"], async function (doc) 
       (a) => a.baiguullagiinId == doc.baiguullagiinId
     );
     if (!kholbolt) return;
-    // Find contracts for this resident
-    const gereenuud = await Geree(kholbolt).find({ orshinSuugchId: doc._id.toString() }, { _id: 1 });
-    const gereeIds = gereenuud.map((g) => g._id.toString());
-    // Delete invoices linked to those contracts
+    const gereenuud = await Geree(kholbolt)
+      .find({ orshinSuugchId: doc._id.toString() }, { _id: 1 })
+      .lean();
+    const gereeIds = (gereenuud || [])
+      .map((g) => (g && g._id ? String(g._id) : null))
+      .filter((id) => !!id);
     if (gereeIds.length > 0) {
       await NekhemjlekhiinTuukh(kholbolt).deleteMany({ gereeniiId: { $in: gereeIds } });
-    }
-    // Delete contracts
-    if (gereeIds.length > 0) {
       await Geree(kholbolt).deleteMany({ _id: { $in: gereeIds } });
     }
   } catch (e) {
     console.error("Error cascading delete for geree after orshinSuugch deletion:", e);
+  }
+}
+
+// Single-document deletes
+orshinSuugchSchema.post(["findOneAndDelete", "deleteOne"], async function (doc) {
+  await cascadeDeleteForResident(doc);
+});
+
+// Bulk deletes: capture targets in pre, then cascade in post
+orshinSuugchSchema.pre(["deleteMany"], async function () {
+  try {
+    const filter = this.getFilter ? this.getFilter() : {};
+    this._toDeleteDocs = await this.model.find(filter).lean();
+  } catch (e) {
+    console.error("Error capturing residents before deleteMany:", e);
+  }
+});
+orshinSuugchSchema.post(["deleteMany"], async function () {
+  try {
+    const docs = Array.isArray(this._toDeleteDocs) ? this._toDeleteDocs : [];
+    for (const doc of docs) {
+      await cascadeDeleteForResident(doc);
+    }
+  } catch (e) {
+    console.error("Error cascading after deleteMany for residents:", e);
   }
 });
 orshinSuugchSchema.pre("save", async function () {
