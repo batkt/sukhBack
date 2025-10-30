@@ -69,15 +69,21 @@ async function getInvoiceIdByPhone(phone, retries = 8) {
 }
 
 async function triggerQpay(invoiceId) {
-  const payload = { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoiceId };
-  if (BARILGIIN_ID) payload.barilgiinId = BARILGIIN_ID;
-  const r = await got.post(`${BASE_URL}/qpayGargaya`, {
-    json: payload, headers: h(), throwHttpErrors: false
-  });
-  if (r.statusCode >= 200 && r.statusCode < 300) return true;
-  console.log('QPay create fail:', r.statusCode, r.body?.slice?.(0, 200));
-  return false;
-}
+    try {
+      const r = await got.post(`${BASE_URL}/qpayGargaya`, {
+        json: { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoiceId },
+        headers: h(),
+        throwHttpErrors: false,
+        timeout: { request: 20000 }
+      });
+      if (r.statusCode >= 200 && r.statusCode < 300) return true;
+      console.log('QPay fail:', r.statusCode, r.body?.slice?.(0, 300));
+      return false;
+    } catch (e) {
+      console.log('QPay error:', e.response?.statusCode, e.response?.body?.slice?.(0, 300) || e.message);
+      return false;
+    }
+  }
 
 async function main() {
   if (!ORG_ID) throw new Error('ORG_ID is required');
