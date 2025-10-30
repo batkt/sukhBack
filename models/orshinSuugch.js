@@ -99,6 +99,32 @@ orshinSuugchSchema.methods.zochinTokenUusgye = function (
   );
   return token;
 };
+
+orshinSuugchSchema.post(["findOneAndDelete", "deleteOne"], async function (doc) {
+  try {
+    if (!doc) return;
+    const { db } = require("zevbackv2");
+    const Geree = require("./geree");
+    const NekhemjlekhiinTuukh = require("./nekhemjlekhiinTuukh");
+    const kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == doc.baiguullagiinId
+    );
+    if (!kholbolt) return;
+    // Find contracts for this resident
+    const gereenuud = await Geree(kholbolt).find({ orshinSuugchId: doc._id.toString() }, { _id: 1 });
+    const gereeIds = gereenuud.map((g) => g._id.toString());
+    // Delete invoices linked to those contracts
+    if (gereeIds.length > 0) {
+      await NekhemjlekhiinTuukh(kholbolt).deleteMany({ gereeniiId: { $in: gereeIds } });
+    }
+    // Delete contracts
+    if (gereeIds.length > 0) {
+      await Geree(kholbolt).deleteMany({ _id: { $in: gereeIds } });
+    }
+  } catch (e) {
+    console.error("Error cascading delete for geree after orshinSuugch deletion:", e);
+  }
+});
 orshinSuugchSchema.pre("save", async function () {
   this.indexTalbar = this.nevtrekhNer;
 

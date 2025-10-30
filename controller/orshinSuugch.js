@@ -294,7 +294,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         niitTulbur: niitTulbur, // Use calculated total from tariff values
         toot: orshinSuugch.toot || 0, // Get toot from user data
         davkhar: orshinSuugch.davkhar || "", // Get davkhar from user data
-        bairNer: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
+        bairNer: req.body.bairniiNer || "",
+        sukhBairshil: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
+        orts: req.body.orts || "",
         burtgesenAjiltan: orshinSuugch._id,
         orshinSuugchId: orshinSuugch._id.toString(), // Add user ID for filtering
         temdeglel: "Автоматаар үүссэн гэрээ",
