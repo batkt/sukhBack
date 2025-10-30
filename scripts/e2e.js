@@ -10,7 +10,8 @@ const got = require('got');
 
 const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8084';
 const ORG_ID = process.env.ORG_ID;
-const TOKEN = process.env.TOKEN; // Full value including "Bearer ..."
+let TOKEN = process.env.TOKEN; // Can be with or without "Bearer "
+if (TOKEN && !/^Bearer\s+/i.test(TOKEN)) TOKEN = `Bearer ${TOKEN}`;
 
 function h() {
   const headers = { 'Content-Type': 'application/json' };
@@ -43,18 +44,21 @@ async function main() {
   const user = regRes.result;
   console.log('✅ Registered:', user?._id);
 
-  // 2) Verify contract and invoice exist
-  console.log('🔎 Check contract by phone');
-  const gereeList = await got.get(`${BASE_URL}/geree`, { searchParams: { query: JSON.stringify({ utas: phone }) }, headers: h() }).json();
-  const gereeId = gereeList?.jagsaalt?.[0]?._id || gereeList?.result?.[0]?._id;
-  if (!gereeId) throw new Error('No contract found for new user');
-  console.log('✅ Contract:', gereeId);
-
-  console.log('🔎 Find invoice by contract');
-  const invList = await got.get(`${BASE_URL}/nekhemjlekhiinTuukh`, { searchParams: { query: JSON.stringify({ gereeniiId: gereeId }) }, headers: h() }).json();
-  const inv = invList?.jagsaalt?.[0] || invList?.result?.[0];
-  if (!inv?._id) throw new Error('No invoice found for contract');
-  console.log('✅ Invoice:', inv._id);
+  // 2) Find invoice by phone with retry (avoids geree 500 and async delay)
+  console.log('🔎 Find invoice by phone (with retry)');
+  let inv, gereeId;
+  for (let i = 0; i < 8; i++) { // retry up to ~8s
+    const r = await got.get(`${BASE_URL}/nekhemjlekhiinTuukh`, {
+      searchParams: { query: JSON.stringify({ baiguullagiinId: ORG_ID, utas: phone }) },
+      headers: h()
+    }).json();
+    inv = r?.jagsaalt?.[0] || r?.result?.[0];
+    if (inv?._id) break;
+    await sleep(1000);
+  }
+  if (!inv?._id) throw new Error('No invoice found for phone');
+  gereeId = inv.gereeniiId;
+  console.log('✅ Invoice:', inv._id, 'Contract:', gereeId);
 
   // 3) Simulate QPay callback (no real QPay side-effects)
   console.log('➡️ Simulate QPay callback');
