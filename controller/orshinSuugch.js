@@ -57,7 +57,7 @@ async function verifyCodeHelper(baiguullagiinId, utas, code) {
 }
 
 // Helper function to only validate code without marking as used (for Step 2)
-async function validateCodeOnly(baiguullagiinId, utas, code) {
+async function validateCodeOnly(baiguullagiinId, utas, code, purpose = "password_reset") {
   const { db } = require("zevbackv2");
 
   // Validate code format
@@ -86,7 +86,7 @@ async function validateCodeOnly(baiguullagiinId, utas, code) {
   const verificationCode = await BatalgaajuulahCodeModel.findOne({
     utas,
     code,
-    purpose: "password_reset",
+    purpose,
     khereglesenEsekh: false,
     expiresAt: { $gt: new Date() },
   });
@@ -151,6 +151,13 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 
 exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
+    console.log("📨 dugaarBatalgaajuulya called", {
+      body: {
+        baiguullagiinId: req.body?.baiguullagiinId,
+        utas: req.body?.utas,
+        purpose: req.body?.purpose,
+      },
+    });
     console.log("Энэ рүү орлоо: orshinSuugchBurtgey");
     const { db } = require("zevbackv2");
 
@@ -463,10 +470,12 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
 
+    console.log("🔎 Fetching baiguullaga by id...");
     var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       baiguullagiinId
     );
     if (!baiguullaga) {
+      console.log("❌ Baiguullaga not found", { baiguullagiinId });
       return res.status(404).json({
         success: false,
         message: "Байгууллагын мэдээлэл олдсонгүй!",
@@ -479,6 +488,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     );
 
     if (!kholbolt) {
+      console.log("❌ Connection not found for org", { baiguullagiinId });
       return res.status(404).json({
         success: false,
         message: "Холболтын мэдээлэл олдсонгүй!",
@@ -486,9 +496,12 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     }
 
     // Validate existence based on purpose
+    console.log("🔎 Checking existing user by phone...");
     const existing = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
+    console.log("🔎 Existing:", !!existing);
     if (purpose === "registration") {
       if (existing) {
+        console.log("🚫 Registration requested but phone already exists");
         return res.status(409).json({
           success: false,
           message: "Энэ утас аль хэдийн бүртгэгдсэн байна!",
@@ -497,21 +510,33 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       }
     } else if (purpose === "password_reset") {
       if (!existing) {
+        console.log("🚫 Password reset requested but phone not found");
         return res.status(404).json({
           success: false,
           message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
           codeSent: false,
         });
       }
+    } else if (purpose === "register") {
+      console.log(
+        "⚠️ purpose=register received; schema expects 'registration'. Consider mapping before saving."
+      );
     }
 
     const BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
+    console.log("🧾 Creating verification code...", { purpose });
     const batalgaajuulkhCodeDoc =
       await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
         utas,
         purpose,
         10
       );
+
+    console.log("✅ Code created:", {
+      id: batalgaajuulkhCodeDoc?._id?.toString?.(),
+      purpose: batalgaajuulkhCodeDoc?.purpose,
+      expiresAt: batalgaajuulkhCodeDoc?.expiresAt,
+    });
 
     var text = `AmarSukh: Tany batalgaajuulax code: ${batalgaajuulkhCodeDoc.code}.`;
 
@@ -525,6 +550,10 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
 
     var khariu = [];
 
+    console.log("📤 Sending SMS via msgIlgeeye...", {
+      to: utas,
+      textLength: text.length,
+    });
     msgIlgeeye(
       ilgeexList,
       msgIlgeekhKey,
@@ -535,6 +564,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       baiguullagiinId
     );
 
+    console.log("📬 Response: code sent");
     res.json({
       success: true,
       message: "Баталгаажуулах код илгээгдлээ",
@@ -544,6 +574,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       codeSent: true,
     });
   } catch (error) {
+    console.error("🔥 dugaarBatalgaajuulya error:", error?.message);
     next(error);
   }
 });
@@ -788,6 +819,8 @@ function msgIlgeeye(
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
+    const purposeRaw = req.body.purpose || "password_reset"; // "registration" | "register" | "password_reset"
+    const purpose = purposeRaw === "register" ? "registration" : purposeRaw;
 
     if (!baiguullagiinId || !utas || !code) {
       return res.status(400).json({
@@ -800,7 +833,8 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
     const verificationResult = await validateCodeOnly(
       baiguullagiinId,
       utas,
-      code
+      code,
+      purpose
     );
 
     if (!verificationResult.success) {
@@ -817,6 +851,7 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
         verified: true,
         phone: utas,
         code: code,
+        purpose,
       },
     });
   } catch (error) {
