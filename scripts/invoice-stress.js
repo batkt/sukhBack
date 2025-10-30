@@ -48,10 +48,9 @@ async function fetchUnpaidInvoiceIds() {
 }
 
 async function triggerQpay(invoiceId) {
-  // Most implementations accept nekhemjlekhiinId in body; adjust if your API differs
   try {
-    await got.post(`${BASE_URL}/qpayNekhemjlekh/${ORG_ID}`, {
-      json: { nekhemjlekhiinId: invoiceId },
+    await got.post(`${BASE_URL}/qpayGargaya`, {
+      json: { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoiceId },
       headers: h(),
       timeout: { request: 20000 }
     });

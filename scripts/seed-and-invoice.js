@@ -69,9 +69,9 @@ async function getInvoiceIdByPhone(phone, retries = 8) {
 }
 
 async function triggerQpay(invoiceId) {
-  const payload = { nekhemjlekhiinId: invoiceId };
+  const payload = { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoiceId };
   if (BARILGIIN_ID) payload.barilgiinId = BARILGIIN_ID;
-  const r = await got.post(`${BASE_URL}/qpayNekhemjlekh/${ORG_ID}`, {
+  const r = await got.post(`${BASE_URL}/qpayGargaya`, {
     json: payload, headers: h(), throwHttpErrors: false
   });
   if (r.statusCode >= 200 && r.statusCode < 300) return true;
