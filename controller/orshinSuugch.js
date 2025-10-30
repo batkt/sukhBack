@@ -487,7 +487,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
 
     // Validate existence based on purpose
     const existing = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
-    if (purpose === "register") {
+    if (purpose === "registration") {
       if (existing) {
         return res.status(409).json({
           success: false,
@@ -540,7 +540,7 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       message: "Баталгаажуулах код илгээгдлээ",
       expiresIn: 10,
       baiguullagiinId: baiguullagiinId,
-      purpose,
+      purpose: purpose,
       codeSent: true,
     });
   } catch (error) {
