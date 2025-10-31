@@ -11,6 +11,7 @@
     "callbacks": "node scripts/callback-storm.js",
     "invoices": "node scripts/invoice-stress.js",
     "seedInvoices": "node scripts/seed-and-invoice.js",
+    "payments": "node scripts/qpay-payment-test.js",
     "update": "git pull && pm2 reload amarSukhBack",
     "addpack": "npm install --registry http://103.143.40.90:4873 zevbackv2"
   },
