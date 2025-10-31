@@ -116,6 +116,14 @@ router.get("/qpayObjectAvya", tokenShalgakh, async (req, res, next) => {
 router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    
+    // Find tenant database connection if not provided
+    if (!req.body.tukhainBaaziinKholbolt && req.body.baiguullagiinId) {
+      req.body.tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(req.body.baiguullagiinId)
+      );
+    }
+    
     var maxDugaar = 1;
     await Dugaarlalt(req.body.tukhainBaaziinKholbolt)
       .find({
@@ -218,6 +226,34 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           req.body.baiguullagiinId.toString() +
           "/" +
           req.body.nekhemjlekhiinId.toString();
+        
+        // Fetch invoice to get amount and other required fields
+        if (!req.body.dun && req.body.tukhainBaaziinKholbolt) {
+          try {
+            const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+            const nekhemjlekh = await nekhemjlekhiinTuukh(req.body.tukhainBaaziinKholbolt).findById(req.body.nekhemjlekhiinId).lean();
+            if (nekhemjlekh) {
+              // Set amount from invoice
+              if (nekhemjlekh.niitTulbur) {
+                req.body.dun = nekhemjlekh.niitTulbur.toString();
+              }
+              // Set other required fields if missing
+              if (!req.body.barilgiinId && nekhemjlekh.barilgiinId) {
+                req.body.barilgiinId = nekhemjlekh.barilgiinId;
+              }
+              // Set dans info if missing
+              if (!req.body.dansniiDugaar && nekhemjlekh.dansniiDugaar) {
+                req.body.dansniiDugaar = nekhemjlekh.dansniiDugaar;
+              }
+              // Set gereeniiId if missing
+              if (!req.body.gereeniiId && nekhemjlekh.gereeniiId) {
+                req.body.gereeniiId = nekhemjlekh.gereeniiId;
+              }
+            }
+          } catch (err) {
+            console.error("Error fetching invoice for amount:", err.message);
+          }
+        }
       }
 
       const khariu = await qpayGargaya(
