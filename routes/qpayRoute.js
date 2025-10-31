@@ -298,26 +298,38 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
       // Save invoice_id and qpayUrl to nekhemjlekh if this is an invoice payment
       if (req.body.nekhemjlekhiinId && khariu) {
         console.log("💾 Saving QPay info to invoice:", req.body.nekhemjlekhiinId);
-        const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
-        const kholbolt = db.kholboltuud.find(
-          (a) => a.baiguullagiinId == req.body.baiguullagiinId
-        );
-        
-        const invoiceId = khariu.invoice_id || khariu.invoiceId || khariu.id;
-        const qpayUrl = khariu.qr_text || khariu.url || khariu.invoice_url || khariu.qr_image;
-        
-        // Fetch the invoice to get real data
-        const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findById(req.body.nekhemjlekhiinId);
-        
-        if (nekhemjlekh) {
-          // Update nekhemjlekh with QPay invoice info
-          await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(req.body.nekhemjlekhiinId, {
-            qpayInvoiceId: invoiceId,
-            qpayUrl: qpayUrl
-          });
+        try {
+          const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+          const kholbolt = db.kholboltuud.find(
+            (a) => String(a.baiguullagiinId) === String(req.body.baiguullagiinId)
+          );
           
-          // Update QuickQpayObject with invoice data (with retry logic)
-          if (invoiceId && nekhemjlekh._id) {
+          if (!kholbolt) {
+            console.error("❌ Tenant connection not found for saving QPay info");
+            throw new Error("Tenant connection not found");
+          }
+          
+          const invoiceId = khariu.invoice_id || khariu.invoiceId || khariu.id;
+          const qpayUrl = khariu.qr_text || khariu.url || khariu.invoice_url || khariu.qr_image;
+          
+          console.log("📝 QPay invoice details:", { invoiceId, hasUrl: !!qpayUrl });
+          
+          // Fetch the invoice to get real data
+          console.log("🔍 Fetching invoice for update:", req.body.nekhemjlekhiinId);
+          const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findById(req.body.nekhemjlekhiinId);
+          
+          if (nekhemjlekh) {
+            console.log("✅ Invoice found, updating with QPay info");
+            // Update nekhemjlekh with QPay invoice info
+            await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(req.body.nekhemjlekhiinId, {
+              qpayInvoiceId: invoiceId,
+              qpayUrl: qpayUrl
+            });
+            console.log("✅ Invoice updated with QPay info");
+            
+            // Update QuickQpayObject with invoice data (with retry logic)
+            if (invoiceId && nekhemjlekh._id) {
+              console.log("🔄 Updating QuickQpayObject with invoice data");
             // Use the actual invoice _id (ObjectId) converted to string
             const nekhemjlekhiinId = nekhemjlekh._id.toString();
             const sukhemjlekhData = {
@@ -331,6 +343,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
               // Try multiple search strategies
               let updated = null;
               
+              console.log("🔍 Strategy 1: Searching by invoice_id:", invoiceId);
               // Strategy 1: Search by invoice_id
               updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                 { invoice_id: invoiceId },
@@ -338,8 +351,14 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 { new: true }
               );
               
+              if (updated) {
+                console.log("✅ QuickQpayObject updated via Strategy 1");
+                return;
+              }
+              
               // Strategy 2: If not found, search by callback_url containing the invoice ID
               if (!updated && nekhemjlekhiinId) {
+                console.log("🔍 Strategy 2: Searching by callback_url regex");
                 updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                   { 
                     baiguullagiinId: req.body.baiguullagiinId,
@@ -348,10 +367,15 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                   { sukhNekhemjlekh: sukhemjlekhData },
                   { new: true }
                 );
+                if (updated) {
+                  console.log("✅ QuickQpayObject updated via Strategy 2");
+                  return;
+                }
               }
               
               // Strategy 3: Search by zakhialgiinDugaar if available + baiguullagiinId + recent date
               if (!updated && req.body.zakhialgiinDugaar) {
+                console.log("🔍 Strategy 3: Searching by zakhialgiinDugaar");
                 updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                   { 
                     zakhialgiinDugaar: req.body.zakhialgiinDugaar,
@@ -361,10 +385,15 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                   { sukhNekhemjlekh: sukhemjlekhData },
                   { new: true }
                 );
+                if (updated) {
+                  console.log("✅ QuickQpayObject updated via Strategy 3");
+                  return;
+                }
               }
               
               // Strategy 4: Search by baiguullagiinId + most recent record with matching callback_url
               if (!updated && nekhemjlekhiinId) {
+                console.log("🔍 Strategy 4: Searching for most recent record");
                 const recent = await QuickQpayObject(kholbolt)
                   .findOne({ 
                     baiguullagiinId: req.body.baiguullagiinId,
@@ -378,44 +407,74 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                     { sukhNekhemjlekh: sukhemjlekhData },
                     { new: true }
                   );
+                  if (updated) {
+                    console.log("✅ QuickQpayObject updated via Strategy 4");
+                    return;
+                  }
                 }
               }
               
               // Retry with delays if still not found
               if (!updated) {
+                console.log("⏳ Retry 1: Waiting 1 second, then retrying by invoice_id");
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                   { invoice_id: invoiceId },
                   { sukhNekhemjlekh: sukhemjlekhData },
                   { new: true }
                 );
+                if (updated) {
+                  console.log("✅ QuickQpayObject updated via Retry 1");
+                  return;
+                }
               }
               
               if (!updated) {
+                console.log("⏳ Retry 2: Waiting 2 seconds, then retrying by invoice_id");
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                   { invoice_id: invoiceId },
                   { sukhNekhemjlekh: sukhemjlekhData },
                   { new: true }
                 );
+                if (updated) {
+                  console.log("✅ QuickQpayObject updated via Retry 2");
+                } else {
+                  console.warn("⚠️  QuickQpayObject not found after all strategies and retries");
+                }
               }
             };
             
+            console.log("🚀 Starting QuickQpayObject update (async)");
             // Run update in background but don't block response
             updateNekhemjlekhData().catch(err => {
-              console.error("Error updating QuickQpayObject with nekhemjlekh data:", err);
+              console.error("❌ Error updating QuickQpayObject with nekhemjlekh data:", err.message);
             });
+          } else {
+            console.warn("⚠️  Cannot update QuickQpayObject - missing invoiceId or invoice _id");
           }
+        } else {
+          console.error("❌ Invoice not found for updating QPay info:", req.body.nekhemjlekhiinId);
         }
+        } catch (saveErr) {
+          console.error("❌ Error saving QPay info to invoice:", saveErr.message);
+          // Continue anyway - QPay invoice was created successfully
+        }
+      } else {
+        console.log("ℹ️  Skipping invoice update - no nekhemjlekhiinId or QPay response");
       }
       
+      console.log("📝 Creating dugaarlalt record");
       var dugaarlalt = new Dugaarlalt(req.body.tukhainBaaziinKholbolt)();
       dugaarlalt.baiguullagiinId = req.body.baiguullagiinId;
       dugaarlalt.barilgiinId = req.body.barilgiinId;
       dugaarlalt.ognoo = new Date();
       dugaarlalt.turul = "qpay";
       dugaarlalt.dugaar = maxDugaar;
-      dugaarlalt.save();
+      await dugaarlalt.save();
+      console.log("✅ Dugaarlalt record saved");
+      
+      console.log("✅ Sending QPay response to client");
       res.send(khariu);
     }
   } catch (err) {
