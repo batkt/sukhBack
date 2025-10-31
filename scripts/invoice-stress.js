@@ -27,9 +27,9 @@ function h() {
 
 async function fetchUnpaidInvoiceIds() {
   const pageSize = Math.min(COUNT, 500);
-  let ids = [];
+  let invoices = [];
   let page = 1;
-  while (ids.length < COUNT && page <= 100) {
+  while (invoices.length < COUNT && page <= 100) {
     const res = await got.get(`${BASE_URL}/nekhemjlekhiinTuukh`, {
       searchParams: {
         query: JSON.stringify({ baiguullagiinId: ORG_ID, tuluv: 'Төлөөгүй' }),
@@ -41,17 +41,24 @@ async function fetchUnpaidInvoiceIds() {
       timeout: { request: 20000 }
     }).json();
     const list = res?.jagsaalt || res?.result || [];
-    ids.push(...list.map(x => x._id).filter(Boolean));
+    invoices.push(...list.filter(x => x._id).map(x => ({ id: x._id, barilgiinId: x.barilgiinId })));
     if (list.length < pageSize) break;
     page++;
   }
-  return ids.slice(0, COUNT);
+  return invoices.slice(0, COUNT);
 }
 
-async function triggerQpay(invoiceId) {
+async function triggerQpay(invoice) {
   try {
-    const payload = { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoiceId };
-    if (BARILGIIN_ID) payload.barilgiinId = BARILGIIN_ID;
+    const payload = { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoice.id };
+    
+    // Use barilgiinId from invoice, or from env
+    if (invoice.barilgiinId) {
+      payload.barilgiinId = invoice.barilgiinId;
+    } else if (BARILGIIN_ID) {
+      payload.barilgiinId = BARILGIIN_ID;
+    }
+    
     const r = await got.post(`${BASE_URL}/qpayGargaya`, {
       json: payload,
       headers: h(),
@@ -67,33 +74,75 @@ async function triggerQpay(invoiceId) {
   }
 }
 
-async function runPool(ids) {
+async function runPool(invoices) {
   let i = 0, ok = 0, ko = 0;
   async function worker() {
     while (true) {
       const idx = i++;
-      if (idx >= ids.length) break;
-      const id = ids[idx];
-      const r = await triggerQpay(id);
+      if (idx >= invoices.length) break;
+      const invoice = invoices[idx];
+      const r = await triggerQpay(invoice);
       if (r) ok++; else ko++;
-      if ((ok + ko) % 100 === 0) console.log(`Progress: ${ok + ko}/${ids.length} ok=${ok} ko=${ko}`);
+      if ((ok + ko) % 100 === 0) console.log(`Progress: ${ok + ko}/${invoices.length} ok=${ok} ko=${ko}`);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, invoices.length) }, worker));
   return { ok, ko };
+}
+
+async function getBarilgiinIdFromBaiguullaga() {
+  try {
+    const res = await got.get(`${BASE_URL}/baiguullaga`, {
+      searchParams: { query: JSON.stringify({ _id: ORG_ID }) },
+      headers: h(),
+      throwHttpErrors: false,
+      timeout: { request: 5000 }
+    });
+    if (res.statusCode === 200) {
+      const data = JSON.parse(res.body);
+      const org = data?.jagsaalt?.[0] || data?.result?.[0];
+      if (org?.barilguud && org.barilguud.length > 0) {
+        return String(org.barilguud[0]._id);
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching baiguullaga:', err.message);
+  }
+  return null;
 }
 
 async function main() {
   if (!ORG_ID || !TOKEN) throw new Error('ORG_ID and TOKEN are required');
+  
+  // Get barilgiinId from baiguullaga's barilguud
+  let defaultBarilgiinId = BARILGIIN_ID;
+  if (!defaultBarilgiinId) {
+    console.log('🔍 Fetching barilgiinId from baiguullaga...');
+    defaultBarilgiinId = await getBarilgiinIdFromBaiguullaga();
+    if (defaultBarilgiinId) {
+      console.log(`✅ Found barilgiinId: ${defaultBarilgiinId}`);
+    } else {
+      console.log('⚠️  Warning: Could not find barilgiinId from baiguullaga');
+    }
+  }
+  
   console.log(`🔎 Fetching up to ${COUNT} unpaid invoices for org ${ORG_ID}...`);
-  const ids = await fetchUnpaidInvoiceIds();
-  console.log(`Found ${ids.length} invoices`);
-  if (ids.length === 0) {
+  const invoices = await fetchUnpaidInvoiceIds();
+  console.log(`Found ${invoices.length} invoices`);
+  if (invoices.length === 0) {
     console.log('No unpaid invoices to process.');
     return;
   }
+  
+  // Set default barilgiinId for invoices that don't have it
+  invoices.forEach(inv => {
+    if (!inv.barilgiinId && defaultBarilgiinId) {
+      inv.barilgiinId = defaultBarilgiinId;
+    }
+  });
+  
   console.log(`⚡ Sending QPay create requests with concurrency=${CONCURRENCY}`);
-  const { ok, ko } = await runPool(ids);
+  const { ok, ko } = await runPool(invoices);
   console.log(`✅ OK: ${ok}  ❌ Fail: ${ko}`);
 }
 

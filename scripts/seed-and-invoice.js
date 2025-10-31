@@ -52,7 +52,7 @@ async function registerResident(phone) {
   return false;
 }
 
-async function getInvoiceIdByPhone(phone, retries = 8) {
+async function getInvoiceByPhone(phone, retries = 8) {
   for (let i = 0; i < retries; i++) {
     const r = await got.get(`${BASE_URL}/nekhemjlekhiinTuukh`, {
       searchParams: { query: JSON.stringify({ baiguullagiinId: ORG_ID, utas: phone }) },
@@ -61,17 +61,26 @@ async function getInvoiceIdByPhone(phone, retries = 8) {
     if (r.statusCode === 200) {
       const data = JSON.parse(r.body);
       const inv = data?.jagsaalt?.[0] || data?.result?.[0];
-      if (inv?._id) return inv._id;
+      if (inv?._id) return { id: inv._id, barilgiinId: inv.barilgiinId };
     }
     await sleep(1000);
   }
   return null;
 }
 
-async function triggerQpay(invoiceId) {
+async function triggerQpay(invoice) {
     try {
+      const payload = { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoice.id };
+      
+      // Use barilgiinId from invoice, or from env
+      if (invoice.barilgiinId) {
+        payload.barilgiinId = invoice.barilgiinId;
+      } else if (BARILGIIN_ID) {
+        payload.barilgiinId = BARILGIIN_ID;
+      }
+      
       const r = await got.post(`${BASE_URL}/qpayGargaya`, {
-        json: { baiguullagiinId: ORG_ID, nekhemjlekhiinId: invoiceId },
+        json: payload,
         headers: h(),
         throwHttpErrors: false,
         timeout: { request: 20000 }
@@ -85,9 +94,43 @@ async function triggerQpay(invoiceId) {
     }
   }
 
+async function getBarilgiinIdFromBaiguullaga() {
+  try {
+    const res = await got.get(`${BASE_URL}/baiguullaga`, {
+      searchParams: { query: JSON.stringify({ _id: ORG_ID }) },
+      headers: h(),
+      throwHttpErrors: false,
+      timeout: { request: 5000 }
+    });
+    if (res.statusCode === 200) {
+      const data = JSON.parse(res.body);
+      const org = data?.jagsaalt?.[0] || data?.result?.[0];
+      if (org?.barilguud && org.barilguud.length > 0) {
+        return String(org.barilguud[0]._id);
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching baiguullaga:', err.message);
+  }
+  return null;
+}
+
 async function main() {
   if (!ORG_ID) throw new Error('ORG_ID is required');
   if (!TOKEN) throw new Error('TOKEN is required');
+  
+  // Get barilgiinId from baiguullaga's barilguud
+  let defaultBarilgiinId = BARILGIIN_ID;
+  if (!defaultBarilgiinId) {
+    console.log('🔍 Fetching barilgiinId from baiguullaga...');
+    defaultBarilgiinId = await getBarilgiinIdFromBaiguullaga();
+    if (defaultBarilgiinId) {
+      console.log(`✅ Found barilgiinId: ${defaultBarilgiinId}`);
+    } else {
+      console.log('⚠️  Warning: Could not find barilgiinId from baiguullaga');
+    }
+  }
+  
   console.log(`🚀 Seeding ${COUNT} users with concurrency=${CONCURRENCY}`);
 
   const phones = Array.from({ length: COUNT }, () => genPhone());
@@ -105,26 +148,33 @@ async function main() {
   console.log(`✅ Registered ok=${regOk} ko=${regKo}`);
 
   console.log('🔎 Resolving invoices for seeded users...');
-  const invoiceIds = [];
+  const invoices = [];
   for (const phone of phones) {
-    const invId = await getInvoiceIdByPhone(phone, 8);
-    if (invId) invoiceIds.push(invId);
+    const invoice = await getInvoiceByPhone(phone, 8);
+    if (invoice) invoices.push(invoice);
   }
-  console.log(`Found invoices: ${invoiceIds.length}/${COUNT}`);
+  console.log(`Found invoices: ${invoices.length}/${COUNT}`);
+  
+  // Set default barilgiinId for invoices that don't have it
+  invoices.forEach(inv => {
+    if (!inv.barilgiinId && defaultBarilgiinId) {
+      inv.barilgiinId = defaultBarilgiinId;
+    }
+  });
 
-  console.log(`⚡ Sending QPay create for ${invoiceIds.length} invoices with concurrency=${CONCURRENCY}`);
+  console.log(`⚡ Sending QPay create for ${invoices.length} invoices with concurrency=${CONCURRENCY}`);
   let j = 0, ok = 0, ko = 0;
   async function invWorker() {
     while (true) {
       const idx = j++;
-      if (idx >= invoiceIds.length) break;
-      const id = invoiceIds[idx];
-      const r = await triggerQpay(id);
+      if (idx >= invoices.length) break;
+      const invoice = invoices[idx];
+      const r = await triggerQpay(invoice);
       if (r) ok++; else ko++;
-      if ((ok + ko) % 100 === 0) console.log(`QPay: ${ok + ko}/${invoiceIds.length} ok=${ok} ko=${ko}`);
+      if ((ok + ko) % 100 === 0) console.log(`QPay: ${ok + ko}/${invoices.length} ok=${ok} ko=${ko}`);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, invoiceIds.length) }, invWorker));
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, invoices.length) }, invWorker));
   console.log(`✅ QPay create ok=${ok} ko=${ko}`);
 }
 
