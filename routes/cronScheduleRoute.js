@@ -41,7 +41,7 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
 
     // Get tenant database connection
     let tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (k) => k.baiguullagiinId === baiguullagiinId
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
 
     if (!tukhainBaaziinKholbolt) {
@@ -86,7 +86,7 @@ router.get("/:baiguullagiinId", tokenShalgakh, async (req, res, next) => {
 
     // Get tenant database connection
     let tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (k) => k.baiguullagiinId === baiguullagiinId
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
 
     if (!tukhainBaaziinKholbolt) {
