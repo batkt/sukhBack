@@ -65,26 +65,11 @@ async function fetchUnpaidQPayInvoices() {
 
 async function simulateQPayPayment(invoice) {
   try {
-    // Simulate QPay payment callback
+    // Call the QPay callback route (GET request)
+    // The route will check QPay API to verify payment status
     const callbackUrl = `${BASE_URL}/qpayNekhemjlekhCallback/${invoice.baiguullagiinId}/${invoice.id}`;
     
-    // Generate payment transaction data (simulating QPay callback)
-    const paymentData = {
-      invoice_id: invoice.qpayInvoiceId,
-      payment_status: "PAID",
-      transaction_id: `TXN_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      payment_amount: invoice.niitTulbur.toString(),
-      currency: "MNT",
-      payment_date: new Date().toISOString(),
-      payment_type: "CARD",
-      payer_info: {
-        account_no: "TEST_ACCOUNT",
-        account_name: "TEST_PAYER"
-      }
-    };
-    
-    const r = await got.post(callbackUrl, {
-      json: paymentData,
+    const r = await got.get(callbackUrl, {
       headers: h(),
       throwHttpErrors: false,
       timeout: { request: 15000 }
