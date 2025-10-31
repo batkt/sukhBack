@@ -3,12 +3,14 @@ const asyncHandler = require("express-async-handler");
 exports.tailanSummary = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    // Support both GET (query params) and POST (body)
+    const source = req.method === 'GET' ? req.query : req.body;
     const {
       baiguullagiinId,
       barilgiinId,
       ekhlekhOgnoo,
       duusakhOgnoo,
-    } = req.body || {};
+    } = source || {};
 
     if (!baiguullagiinId) {
       return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
@@ -147,6 +149,8 @@ function buildDateRange(ekhlekhOgnoo, duusakhOgnoo) {
 exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    // Support both GET (query params) and POST (body)
+    const source = req.method === 'GET' ? req.query : req.body;
     const {
       baiguullagiinId,
       barilgiinId,
@@ -156,7 +160,7 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
       toot,
       ekhlekhOgnoo,
       duusakhOgnoo,
-    } = req.body || {};
+    } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
 
     const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
@@ -206,12 +210,14 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
 exports.tailanGuilgee = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    // Support both GET (query params) and POST (body)
+    const source = req.method === 'GET' ? req.query : req.body;
     const {
       baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo,
       turul, // orlogo | zarlaga
       bank, dansniiDugaar, tuluv, // tuluv optional
       khuudasniiDugaar = 1, khuudasniiKhemjee = 20,
-    } = req.body || {};
+    } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
     const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
     if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
@@ -244,7 +250,9 @@ exports.tailanGuilgee = asyncHandler(async (req, res, next) => {
 exports.tailanOrlogoZarlaga = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = req.body || {};
+    // Support both GET (query params) and POST (body)
+    const source = req.method === 'GET' ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
     const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
     if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
@@ -270,7 +278,12 @@ exports.tailanOrlogoZarlaga = asyncHandler(async (req, res, next) => {
 // POST /tailan/ashig-aldagdal — Profit/Loss
 exports.tailanAshigAldagdal = asyncHandler(async (req, res, next) => {
   try {
-    req.body = req.body || {};
+    // Support both GET (query params) and POST (body)
+    if (req.method === 'GET') {
+      req.query = req.query || {};
+    } else {
+      req.body = req.body || {};
+    }
     const r = await exports.tailanOrlogoZarlaga.handler(req, res, () => {});
   } catch (error) { next(error); }
 });
@@ -282,7 +295,9 @@ exports.tailanOrlogoZarlaga.handler = async (req, res, next) => exports.tailanOr
 exports.tailanSariin = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = req.body || {};
+    // Support both GET (query params) and POST (body)
+    const source = req.method === 'GET' ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
     const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
     if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
@@ -304,7 +319,9 @@ exports.tailanSariin = asyncHandler(async (req, res, next) => {
 exports.tailanUliral = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = req.body || {};
+    // Support both GET (query params) and POST (body)
+    const source = req.method === 'GET' ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
     const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
     if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
@@ -324,7 +341,9 @@ exports.tailanUliral = asyncHandler(async (req, res, next) => {
 
 exports.tailanExport = asyncHandler(async (req, res, next) => {
   try {
-    const { type = "csv", report = "avlaga" } = req.body || {};
+    // Support both GET (query params) and POST (body)
+    const source = req.method === 'GET' ? req.query : req.body;
+    const { type = "csv", report = "avlaga" } = source || {};
     if (type !== "csv") return res.status(400).json({ success: false, message: "Зөвхөн CSV дэмжинэ (excel)" });
     let rows = [];
     if (report === "avlaga") {
