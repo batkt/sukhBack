@@ -617,10 +617,13 @@ router.get(
       try {
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(nekhemjlekh.baiguullagiinId);
         
-        // Try to find building by baiguullaga.barilgiinId
-        let tuxainSalbar = baiguullaga?.barilguud?.find(
-          (e) => e._id.toString() == baiguullaga.barilgiinId
-        )?.tokhirgoo;
+        // Try to find building by nekhemjlekh.barilgiinId
+        let tuxainSalbar = null;
+        if (nekhemjlekh.barilgiinId && baiguullaga?.barilguud) {
+          tuxainSalbar = baiguullaga.barilguud.find(
+            (e) => e._id.toString() === String(nekhemjlekh.barilgiinId)
+          )?.tokhirgoo;
+        }
         
         // If not found, use first building as fallback
         if (!tuxainSalbar && baiguullaga?.barilguud?.length > 0) {

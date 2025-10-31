@@ -200,11 +200,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     // Create user
+    // Get barilgiinId from first ->building in barilguud array, or from req.body if provided
+    const barilgiinId = req.body.barilgiinId || 
+      (baiguullaga.barilguud && baiguullaga.barilguud.length > 0 
+        ? String(baiguullaga.barilguud[0]._id) 
+        : null);
+    
     const userData = {
       ...req.body,
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
-      barilgiinId: baiguullaga.barilgiinId, // Store barilgiinId from baiguullaga
+      barilgiinId: barilgiinId,
       mail: req.body.mail,
       erkh: "OrshinSuugch",
       duureg: req.body.duureg,
@@ -416,17 +422,20 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       orshinSuugch.baiguullagiinId
     );
 
-    // Update barilgiinId if baiguullaga has a new one
+    // Update barilgiinId from first building in barilguud array if different
+    const firstBarilgiinId = baiguullaga?.barilguud && baiguullaga.barilguud.length > 0
+      ? String(baiguullaga.barilguud[0]._id)
+      : null;
     if (
       baiguullaga &&
-      baiguullaga.barilgiinId &&
-      baiguullaga.barilgiinId !== orshinSuugch.barilgiinId
+      firstBarilgiinId &&
+      firstBarilgiinId !== orshinSuugch.barilgiinId
     ) {
       console.log(
-        "Updating user barilgiinId from baiguullaga:",
-        baiguullaga.barilgiinId
+        "Updating user barilgiinId from baiguullaga first building:",
+        firstBarilgiinId
       );
-      orshinSuugch.barilgiinId = baiguullaga.barilgiinId;
+      orshinSuugch.barilgiinId = firstBarilgiinId;
       await orshinSuugch.save();
     }
 
