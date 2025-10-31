@@ -38,7 +38,27 @@ const gereeNeesNekhemjlekhUusgekh = async (tempData, org, tukhainBaaziinKholbolt
     // Гэрээний мэдээллийг нэхэмжлэх рүү хуулах
     tuukh.baiguullagiinNer = tempData.baiguullagiinNer || org.ner;
     tuukh.baiguullagiinId = tempData.baiguullagiinId;
-    tuukh.barilgiinId = tempData.barilgiinId || "";
+    
+    // Get barilgiinId from contract, or fallback to first building in org's barilguud
+    let barilgiinId = tempData.barilgiinId;
+    if (!barilgiinId) {
+      // Try to get from org if it has barilguud
+      if (org?.barilguud && org.barilguud.length > 0) {
+        barilgiinId = String(org.barilguud[0]._id);
+      } else if (tempData.baiguullagiinId) {
+        // Fetch org from database to get barilguud
+        try {
+          const { db } = require("zevbackv2");
+          const freshOrg = await Baiguullaga(db.erunkhiiKholbolt).findById(tempData.baiguullagiinId).lean();
+          if (freshOrg?.barilguud && freshOrg.barilguud.length > 0) {
+            barilgiinId = String(freshOrg.barilguud[0]._id);
+          }
+        } catch (err) {
+          console.error("Error fetching baiguullaga for barilgiinId:", err.message);
+        }
+      }
+    }
+    tuukh.barilgiinId = barilgiinId || "";
     tuukh.ovog = tempData.ovog;
     tuukh.ner = tempData.ner;
     tuukh.register = tempData.register || "";
