@@ -97,11 +97,28 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
         var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         if (err) {
-          console.error("API Error:", err.message);
-          if (!!next) next(err);
-        } else {
-          onFinish(body, ugugdul);
+          console.error("❌ E-barimt API request error:", err.message);
+          if (next) next(err);
+          return;
         }
+        if (res1 && res1.statusCode !== 200) {
+          console.error("❌ E-barimt API response error:", {
+            statusCode: res1.statusCode,
+            body: body,
+            message: body?.message || body?.error || "Unknown error"
+          });
+        }
+        if (body && (body.error || body.message)) {
+          console.error("❌ E-barimt API error response:", {
+            error: body.error,
+            message: body.message,
+            fullBody: JSON.stringify(body).slice(0, 500)
+          });
+          if (next) next(new Error(body.message || body.error || "E-barimt API error"));
+          return;
+        }
+        // Success case
+        onFinish(body, ugugdul);
       });
     } else if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
   } catch (aldaa) {
