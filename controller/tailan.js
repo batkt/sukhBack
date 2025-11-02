@@ -4,28 +4,31 @@ exports.tailanSummary = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     // Support both GET (query params) and POST (body)
-    const source = req.method === 'GET' ? req.query : req.body;
-    const {
-      baiguullagiinId,
-      barilgiinId,
-      ekhlekhOgnoo,
-      duusakhOgnoo,
-    } = source || {};
+    const source = req.method === "GET" ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
+      source || {};
 
     if (!baiguullagiinId) {
-      return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
     }
 
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
     if (!kholbolt) {
-      console.log("❌ Холболтын мэдээлэл олдсонгүй:", { 
-        baiguullagiinId, 
+      console.log("❌ Холболтын мэдээлэл олдсонгүй:", {
+        baiguullagiinId,
         type: typeof baiguullagiinId,
-        availableIds: db.kholboltuud.map(k => ({ id: k.baiguullagiinId, type: typeof k.baiguullagiinId }))
+        availableIds: db.kholboltuud.map((k) => ({
+          id: k.baiguullagiinId,
+          type: typeof k.baiguullagiinId,
+        })),
       });
-      return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     }
 
     const OrshinSuugch = require("../models/orshinSuugch");
@@ -36,8 +39,12 @@ exports.tailanSummary = asyncHandler(async (req, res, next) => {
 
     const dateFilter = {};
     if (ekhlekhOgnoo || duusakhOgnoo) {
-      const start = ekhlekhOgnoo ? new Date(ekhlekhOgnoo) : new Date("1970-01-01");
-      const end = duusakhOgnoo ? new Date(duusakhOgnoo) : new Date("2999-12-31");
+      const start = ekhlekhOgnoo
+        ? new Date(ekhlekhOgnoo)
+        : new Date("1970-01-01");
+      const end = duusakhOgnoo
+        ? new Date(duusakhOgnoo)
+        : new Date("2999-12-31");
       dateFilter.$gte = start;
       dateFilter.$lte = end;
     }
@@ -47,17 +54,13 @@ exports.tailanSummary = asyncHandler(async (req, res, next) => {
       ? { ...baseFilter, barilgiinId: String(barilgiinId) }
       : baseFilter;
 
-    const [
-      numResidents,
-      numContracts,
-      numInvoices,
-      numEbarimt,
-    ] = await Promise.all([
-      OrshinSuugch(db.erunkhiiKholbolt).countDocuments(baseFilter),
-      Geree(kholbolt).countDocuments(baseFilterWithBuilding),
-      NekhemjlekhiinTuukh(kholbolt).countDocuments(baseFilterWithBuilding),
-      EbarimtShine(kholbolt).countDocuments(baseFilterWithBuilding),
-    ]);
+    const [numResidents, numContracts, numInvoices, numEbarimt] =
+      await Promise.all([
+        OrshinSuugch(db.erunkhiiKholbolt).countDocuments(baseFilter),
+        Geree(kholbolt).countDocuments(baseFilterWithBuilding),
+        NekhemjlekhiinTuukh(kholbolt).countDocuments(baseFilterWithBuilding),
+        EbarimtShine(kholbolt).countDocuments(baseFilterWithBuilding),
+      ]);
 
     const matchInvoices = { ...baseFilterWithBuilding };
     if (dateFilter.$gte) matchInvoices.ognoo = dateFilter;
@@ -96,7 +99,10 @@ exports.tailanSummary = asyncHandler(async (req, res, next) => {
     ]);
     const bankStats = bankAgg.reduce(
       (acc, r) => {
-        acc.byBank[r._id || "unknown"] = { count: r.count, totalAmount: r.totalAmount };
+        acc.byBank[r._id || "unknown"] = {
+          count: r.count,
+          totalAmount: r.totalAmount,
+        };
         acc.totalCount += r.count;
         acc.totalAmount += r.totalAmount;
         return acc;
@@ -127,7 +133,12 @@ exports.tailanSummary = asyncHandler(async (req, res, next) => {
 
     res.json({
       success: true,
-      filter: { baiguullagiinId, barilgiinId: barilgiinId || null, ekhlekhOgnoo: ekhlekhOgnoo || null, duusakhOgnoo: duusakhOgnoo || null },
+      filter: {
+        baiguullagiinId,
+        barilgiinId: barilgiinId || null,
+        ekhlekhOgnoo: ekhlekhOgnoo || null,
+        duusakhOgnoo: duusakhOgnoo || null,
+      },
       summary: {
         numResidents,
         numContracts,
@@ -151,12 +162,12 @@ function buildDateRange(ekhlekhOgnoo, duusakhOgnoo) {
   return { $gte: start, $lte: end };
 }
 
-// POST /tailan/avlaga — Debt report with filters
+// GET/POST /tailan/avlaga — Debt report with filters
 exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     // Support both GET (query params) and POST (body)
-    const source = req.method === 'GET' ? req.query : req.body;
+    const source = req.method === "GET" ? req.query : req.body;
     const {
       baiguullagiinId,
       barilgiinId,
@@ -167,16 +178,26 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
       ekhlekhOgnoo,
       duusakhOgnoo,
     } = source || {};
-    if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
+    if (!baiguullagiinId)
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
 
-    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
     if (!kholbolt) {
-      console.log("❌ Холболтын мэдээлэл олдсонгүй:", { 
-        baiguullagiinId, 
+      console.log("❌ Холболтын мэдээлэл олдсонгүй:", {
+        baiguullagiinId,
         type: typeof baiguullagiinId,
-        availableIds: db.kholboltuud.map(k => ({ id: k.baiguullagiinId, type: typeof k.baiguullagiinId }))
+        availableIds: db.kholboltuud.map((k) => ({
+          id: k.baiguullagiinId,
+          type: typeof k.baiguullagiinId,
+        })),
       });
-      return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     }
 
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
@@ -215,25 +236,46 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
         unpaidSum += d.niitTulbur || 0;
       }
     }
-    res.json({ success: true, total: docs.length, paid: { count: paid.length, sum: paidSum, list: paid }, unpaid: { count: unpaid.length, sum: unpaidSum, list: unpaid } });
-  } catch (error) { next(error); }
+    res.json({
+      success: true,
+      total: docs.length,
+      paid: { count: paid.length, sum: paidSum, list: paid },
+      unpaid: { count: unpaid.length, sum: unpaidSum, list: unpaid },
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
-// POST /tailan/guilegee — Transactions with filters
+// GET/POST /tailan/guilegee — Transactions with filters
 exports.tailanGuilgee = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     // Support both GET (query params) and POST (body)
-    const source = req.method === 'GET' ? req.query : req.body;
+    const source = req.method === "GET" ? req.query : req.body;
     const {
-      baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo,
+      baiguullagiinId,
+      barilgiinId,
+      ekhlekhOgnoo,
+      duusakhOgnoo,
       turul, // orlogo | zarlaga
-      bank, dansniiDugaar, tuluv, // tuluv optional
-      khuudasniiDugaar = 1, khuudasniiKhemjee = 20,
+      bank,
+      dansniiDugaar,
+      tuluv, // tuluv optional
+      khuudasniiDugaar = 1,
+      khuudasniiKhemjee = 20,
     } = source || {};
-    if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
-    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
-    if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    if (!baiguullagiinId)
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt)
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
 
     const BankniiGuilgee = require("../models/bankniiGuilgee");
     const match = { baiguullagiinId: String(baiguullagiinId) };
@@ -251,24 +293,47 @@ exports.tailanGuilgee = asyncHandler(async (req, res, next) => {
 
     const skip = (Number(khuudasniiDugaar) - 1) * Number(khuudasniiKhemjee);
     const [list, niitMur] = await Promise.all([
-      BankniiGuilgee(kholbolt, false).find(match).sort({ tranDate: -1 }).skip(skip).limit(Number(khuudasniiKhemjee)).lean(),
+      BankniiGuilgee(kholbolt, false)
+        .find(match)
+        .sort({ tranDate: -1 })
+        .skip(skip)
+        .limit(Number(khuudasniiKhemjee))
+        .lean(),
       BankniiGuilgee(kholbolt, false).countDocuments(match),
     ]);
     const niitKhuudas = Math.ceil(niitMur / Number(khuudasniiKhemjee));
-    res.json({ success: true, khuudasniiDugaar: Number(khuudasniiDugaar), khuudasniiKhemjee: Number(khuudasniiKhemjee), niitMur, niitKhuudas, list });
-  } catch (error) { next(error); }
+    res.json({
+      success: true,
+      khuudasniiDugaar: Number(khuudasniiDugaar),
+      khuudasniiKhemjee: Number(khuudasniiKhemjee),
+      niitMur,
+      niitKhuudas,
+      list,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
-// POST /tailan/orlogo-zarlaga — Income/Expense
+// GET/POST /tailan/orlogo-zarlaga — Income/Expense
 exports.tailanOrlogoZarlaga = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     // Support both GET (query params) and POST (body)
-    const source = req.method === 'GET' ? req.query : req.body;
-    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = source || {};
-    if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
-    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
-    if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    const source = req.method === "GET" ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
+      source || {};
+    if (!baiguullagiinId)
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt)
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     const BankniiGuilgee = require("../models/bankniiGuilgee");
     const match = { baiguullagiinId: String(baiguullagiinId) };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
@@ -277,43 +342,118 @@ exports.tailanOrlogoZarlaga = asyncHandler(async (req, res, next) => {
 
     const agg = await BankniiGuilgee(kholbolt, false).aggregate([
       { $match: match },
-      { $group: {
-        _id: null,
-        orlogo: { $sum: { $ifNull: ["$income", { $cond: [{ $eq: ["$drOrCr", "CR"] }, "$amount", 0] }] } },
-        zarlaga: { $sum: { $ifNull: ["$outcome", { $cond: [{ $eq: ["$drOrCr", "DR"] }, "$amount", 0] }] } },
-      }},
+      {
+        $group: {
+          _id: null,
+          orlogo: {
+            $sum: {
+              $ifNull: [
+                "$income",
+                { $cond: [{ $eq: ["$drOrCr", "CR"] }, "$amount", 0] },
+              ],
+            },
+          },
+          zarlaga: {
+            $sum: {
+              $ifNull: [
+                "$outcome",
+                { $cond: [{ $eq: ["$drOrCr", "DR"] }, "$amount", 0] },
+              ],
+            },
+          },
+        },
+      },
     ]);
     const row = agg[0] || { orlogo: 0, zarlaga: 0 };
-    res.json({ success: true, orlogo: row.orlogo || 0, zarlaga: row.zarlaga || 0 });
-  } catch (error) { next(error); }
+    res.json({
+      success: true,
+      orlogo: row.orlogo || 0,
+      zarlaga: row.zarlaga || 0,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
-// POST /tailan/ashig-aldagdal — Profit/Loss
+// GET/POST /tailan/ashig-aldagdal — Profit/Loss
 exports.tailanAshigAldagdal = asyncHandler(async (req, res, next) => {
   try {
+    const { db } = require("zevbackv2");
     // Support both GET (query params) and POST (body)
-    if (req.method === 'GET') {
-      req.query = req.query || {};
-    } else {
-      req.body = req.body || {};
-    }
-    const r = await exports.tailanOrlogoZarlaga.handler(req, res, () => {});
-  } catch (error) { next(error); }
+    const source = req.method === "GET" ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
+      source || {};
+    if (!baiguullagiinId)
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt)
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    const BankniiGuilgee = require("../models/bankniiGuilgee");
+    const match = { baiguullagiinId: String(baiguullagiinId) };
+    if (barilgiinId) match.barilgiinId = String(barilgiinId);
+    const dr = buildDateRange(ekhlekhOgnoo, duusakhOgnoo);
+    if (dr) match.tranDate = dr;
+
+    const agg = await BankniiGuilgee(kholbolt, false).aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: null,
+          orlogo: {
+            $sum: {
+              $ifNull: [
+                "$income",
+                { $cond: [{ $eq: ["$drOrCr", "CR"] }, "$amount", 0] },
+              ],
+            },
+          },
+          zarlaga: {
+            $sum: {
+              $ifNull: [
+                "$outcome",
+                { $cond: [{ $eq: ["$drOrCr", "DR"] }, "$amount", 0] },
+              ],
+            },
+          },
+        },
+      },
+    ]);
+    const row = agg[0] || { orlogo: 0, zarlaga: 0 };
+    res.json({
+      success: true,
+      orlogo: row.orlogo || 0,
+      zarlaga: row.zarlaga || 0,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
-// Helper to expose handlers for internal calls
-exports.tailanOrlogoZarlaga.handler = async (req, res, next) => exports.tailanOrlogoZarlaga(req, res, next);
-
-// POST /tailan/sariin — Monthly report (invoices)
+// GET/POST /tailan/sariin — Monthly report (invoices)
 exports.tailanSariin = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     // Support both GET (query params) and POST (body)
-    const source = req.method === 'GET' ? req.query : req.body;
-    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = source || {};
-    if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
-    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
-    if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    const source = req.method === "GET" ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
+      source || {};
+    if (!baiguullagiinId)
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt)
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
     const match = { baiguullagiinId: String(baiguullagiinId) };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
@@ -321,23 +461,40 @@ exports.tailanSariin = asyncHandler(async (req, res, next) => {
     if (dr) match.ognoo = dr;
     const agg = await NekhemjlekhiinTuukh(kholbolt).aggregate([
       { $match: match },
-      { $group: { _id: { y: { $year: "$ognoo" }, m: { $month: "$ognoo" } }, total: { $sum: { $ifNull: ["$niitTulbur", 0] } }, count: { $sum: 1 } } },
-      { $sort: { "_id.y": 1, "_id.m": 1 } }
+      {
+        $group: {
+          _id: { y: { $year: "$ognoo" }, m: { $month: "$ognoo" } },
+          total: { $sum: { $ifNull: ["$niitTulbur", 0] } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { "_id.y": 1, "_id.m": 1 } },
     ]);
     res.json({ success: true, months: agg });
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  }
 });
 
-// POST /tailan/uliral — Quarterly report (invoices)
+// GET/POST /tailan/uliral — Quarterly report (invoices)
 exports.tailanUliral = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     // Support both GET (query params) and POST (body)
-    const source = req.method === 'GET' ? req.query : req.body;
-    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = source || {};
-    if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
-    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
-    if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    const source = req.method === "GET" ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
+      source || {};
+    if (!baiguullagiinId)
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt)
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
     const match = { baiguullagiinId: String(baiguullagiinId) };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
@@ -345,50 +502,118 @@ exports.tailanUliral = asyncHandler(async (req, res, next) => {
     if (dr) match.ognoo = dr;
     const agg = await NekhemjlekhiinTuukh(kholbolt).aggregate([
       { $match: match },
-      { $group: { _id: { y: { $year: "$ognoo" }, q: { $ceil: { $divide: [{ $month: "$ognoo" }, 3] } } }, total: { $sum: { $ifNull: ["$niitTulbur", 0] } }, count: { $sum: 1 } } },
-      { $sort: { "_id.y": 1, "_id.q": 1 } }
+      {
+        $group: {
+          _id: {
+            y: { $year: "$ognoo" },
+            q: { $ceil: { $divide: [{ $month: "$ognoo" }, 3] } },
+          },
+          total: { $sum: { $ifNull: ["$niitTulbur", 0] } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { "_id.y": 1, "_id.q": 1 } },
     ]);
     res.json({ success: true, quarters: agg });
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  }
 });
 
 exports.tailanExport = asyncHandler(async (req, res, next) => {
   try {
     // Support both GET (query params) and POST (body)
-    const source = req.method === 'GET' ? req.query : req.body;
+    const source = req.method === "GET" ? req.query : req.body;
     const { type = "csv", report = "avlaga" } = source || {};
-    if (type !== "csv") return res.status(400).json({ success: false, message: "Зөвхөн CSV дэмжинэ (excel)" });
+    if (type !== "csv")
+      return res
+        .status(400)
+        .json({ success: false, message: "Зөвхөн CSV дэмжинэ (excel)" });
     let rows = [];
     if (report === "avlaga") {
       const originalJson = res.json;
       let data;
-      res.json = (payload) => { data = payload; return originalJson.call(res, payload); };
+      res.json = (payload) => {
+        data = payload;
+        return originalJson.call(res, payload);
+      };
       await exports.tailanAvlaga(req, res, next);
       res.json = originalJson;
       if (!data?.success) return;
       const list = [...(data.paid?.list || []), ...(data.unpaid?.list || [])];
       rows = [
-        ["gereeniiDugaar","ovog","ner","utas","toot","davkhar","bairNer","ognoo","niitTulbur","tuluv"],
-        ...list.map((r) => [r.gereeniiDugaar, r.ovog, r.ner, (r.utas||[]).join("/"), r.toot, r.davkhar, r.bairNer, r.ognoo, r.niitTulbur, r.tuluv])
+        [
+          "gereeniiDugaar",
+          "ovog",
+          "ner",
+          "utas",
+          "toot",
+          "davkhar",
+          "bairNer",
+          "ognoo",
+          "niitTulbur",
+          "tuluv",
+        ],
+        ...list.map((r) => [
+          r.gereeniiDugaar,
+          r.ovog,
+          r.ner,
+          (r.utas || []).join("/"),
+          r.toot,
+          r.davkhar,
+          r.bairNer,
+          r.ognoo,
+          r.niitTulbur,
+          r.tuluv,
+        ]),
       ];
     } else if (report === "guilegee") {
-      const originalJson = res.json; let data;
-      res.json = (payload) => { data = payload; return originalJson.call(res, payload); };
+      const originalJson = res.json;
+      let data;
+      res.json = (payload) => {
+        data = payload;
+        return originalJson.call(res, payload);
+      };
       await exports.tailanGuilgee(req, res, next);
       res.json = originalJson;
       if (!data?.success) return;
       rows = [
-        ["tranDate","bank","amount","description","dansniiDugaar","accNum","drOrCr"],
-        ...data.list.map((t) => [t.tranDate, t.bank, t.amount, t.description, t.dansniiDugaar, t.accNum, t.drOrCr])
+        [
+          "tranDate",
+          "bank",
+          "amount",
+          "description",
+          "dansniiDugaar",
+          "accNum",
+          "drOrCr",
+        ],
+        ...data.list.map((t) => [
+          t.tranDate,
+          t.bank,
+          t.amount,
+          t.description,
+          t.dansniiDugaar,
+          t.accNum,
+          t.drOrCr,
+        ]),
       ];
     } else {
-      return res.status(400).json({ success: false, message: "Report not supported for export" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Report not supported for export" });
     }
-    const csv = rows.map((r) => r.map((c) => (c==null?"":String(c).replace(/"/g,'""'))).map((c)=>`"${c}"`).join(",")).join("\n");
+    const csv = rows
+      .map((r) =>
+        r
+          .map((c) => (c == null ? "" : String(c).replace(/"/g, '""')))
+          .map((c) => `"${c}"`)
+          .join(",")
+      )
+      .join("\n");
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename=${report}.csv`);
     res.send(csv);
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  }
 });
-
-
