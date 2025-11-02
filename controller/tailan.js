@@ -5,8 +5,13 @@ exports.tailanSummary = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
-      ? { baiguullagiinId: req.params.baiguullagiinId, ...(req.method === "GET" ? req.query : req.body) }
-      : req.method === "GET" ? req.query : req.body;
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
     const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
       source || {};
 
@@ -170,8 +175,13 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
-      ? { baiguullagiinId: req.params.baiguullagiinId, ...(req.method === "GET" ? req.query : req.body) }
-      : req.method === "GET" ? req.query : req.body;
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
     const {
       baiguullagiinId,
       barilgiinId,
@@ -257,8 +267,13 @@ exports.tailanGuilgee = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
-      ? { baiguullagiinId: req.params.baiguullagiinId, ...(req.method === "GET" ? req.query : req.body) }
-      : req.method === "GET" ? req.query : req.body;
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
     const {
       baiguullagiinId,
       barilgiinId,
@@ -327,8 +342,13 @@ exports.tailanOrlogoZarlaga = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
-      ? { baiguullagiinId: req.params.baiguullagiinId, ...(req.method === "GET" ? req.query : req.body) }
-      : req.method === "GET" ? req.query : req.body;
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
     const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
       source || {};
     if (!baiguullagiinId)
@@ -389,8 +409,13 @@ exports.tailanAshigAldagdal = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
-      ? { baiguullagiinId: req.params.baiguullagiinId, ...(req.method === "GET" ? req.query : req.body) }
-      : req.method === "GET" ? req.query : req.body;
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
     const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
       source || {};
     if (!baiguullagiinId)
@@ -451,8 +476,13 @@ exports.tailanSariin = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
-      ? { baiguullagiinId: req.params.baiguullagiinId, ...(req.method === "GET" ? req.query : req.body) }
-      : req.method === "GET" ? req.query : req.body;
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
     const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
       source || {};
     if (!baiguullagiinId)
@@ -494,8 +524,13 @@ exports.tailanUliral = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
     // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
-      ? { baiguullagiinId: req.params.baiguullagiinId, ...(req.method === "GET" ? req.query : req.body) }
-      : req.method === "GET" ? req.query : req.body;
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
     const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } =
       source || {};
     if (!baiguullagiinId)
@@ -538,8 +573,13 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
   try {
     // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
-      ? { baiguullagiinId: req.params.baiguullagiinId, ...(req.method === "GET" ? req.query : req.body) }
-      : req.method === "GET" ? req.query : req.body;
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
     const { type = "csv", report = "avlaga" } = source || {};
     if (type !== "csv")
       return res
