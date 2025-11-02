@@ -1,11 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const request = require("request");
-const { tokenShalgakh, db, crud, khuudaslalt,UstsanBarimt } = require("zevbackv2");
+const {
+  tokenShalgakh,
+  db,
+  crud,
+  khuudaslalt,
+  UstsanBarimt,
+} = require("zevbackv2");
 const Baiguullaga = require("../models/baiguullaga");
 const EbarimtShine = require("../models/ebarimtShine");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
-
 
 function nuatBodyo(bodokhDun) {
   var nuatguiDun = bodokhDun / 1.1;
@@ -24,10 +29,10 @@ async function nekhemjlekheesEbarimtShineUusgye(
 ) {
   try {
     console.log("Энэ рүү орлоо: nekhemjlekheesEbarimtShineUusgye");
-    
+
     const dun = nekhemjlekh.niitTulbur || 0;
     var ebarimt = new EbarimtShine(tukhainBaaziinKholbolt)();
-    
+
     if (!!customerTin) {
       ebarimt.type = "B2B_RECEIPT";
       ebarimt.customerTin = customerTin;
@@ -52,39 +57,51 @@ async function nekhemjlekheesEbarimtShineUusgye(
     if (customerTin) ebarimt.customerTin = customerTin;
     ebarimt.createdAt = new Date();
 
-  ebarimt.receipts = [
-    {
-      totalAmount: dun.toFixed(2),
-      totalVAT: !!nuatTulukhEsekh ? nuatBodyo(dun) : 0,
+    const taxType = nuatTulukhEsekh ? "VAT_ABLE" : "VAT_FREE";
+    const item = {
+      name: "СӨХИЙН ТӨЛБӨР",
+      barCodeType: "UNDEFINED",
+      classificationCode: "7211200",
+      measureUnit: "шир",
+      qty: "1.00",
+      unitPrice: dun.toFixed(2),
+      totalVat: !!nuatTulukhEsekh ? nuatBodyo(dun) : 0,
       totalCityTax: "0.00",
-        taxType: nuatTulukhEsekh ? "VAT_ABLE" : "VAT_FREE",
-      merchantTin: merchantTin,
-      items: [
-        {
-            name: "СӨХИЙН ТӨЛБӨР",
-          barCodeType: "UNDEFINED",
-          classificationCode: "7211200",
-          measureUnit: "шир",
-          qty: "1.00",
-          unitPrice: dun.toFixed(2),
-          totalVat: !!nuatTulukhEsekh ? nuatBodyo(dun) : 0,
-          totalCityTax: "0.00",
-            totalAmount: dun.toFixed(2)
-          }
-        ]
-      }
-  ];
+      totalAmount: dun.toFixed(2),
+    };
 
-  ebarimt.payments = [
-    {
-      code: "PAYMENT_CARD",
-      paidAmount: dun.toFixed(2),
-        status: "PAID"
-      }
+    // Add taxProductCode when taxType is VAT_FREE, VAT_ZERO, or NOT_VAT
+    // This is required by e-barimt API for VAT-free services
+    if (
+      taxType === "VAT_FREE" ||
+      taxType === "VAT_ZERO" ||
+      taxType === "NOT_VAT"
+    ) {
+      // Use default tax code 401 for VAT_FREE service fees (СӨХИЙН ТӨЛБӨР)
+      // This is a 3-digit tax code commonly used for VAT-free services in Mongolia
+      item.taxProductCode = "401";
+    }
+
+    ebarimt.receipts = [
+      {
+        totalAmount: dun.toFixed(2),
+        totalVAT: !!nuatTulukhEsekh ? nuatBodyo(dun) : 0,
+        totalCityTax: "0.00",
+        taxType: taxType,
+        merchantTin: merchantTin,
+        items: [item],
+      },
     ];
 
-  return ebarimt;
+    ebarimt.payments = [
+      {
+        code: "PAYMENT_CARD",
+        paidAmount: dun.toFixed(2),
+        status: "PAID",
+      },
+    ];
 
+    return ebarimt;
   } catch (error) {
     console.error("Create ebarimt error:", error);
     throw error;
@@ -94,7 +111,7 @@ async function nekhemjlekheesEbarimtShineUusgye(
 async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
   try {
     if (!!shine) {
-        var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
+      var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         if (err) {
           console.error("❌ E-barimt API request error:", err.message);
@@ -105,16 +122,17 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
           console.error("❌ E-barimt API response error:", {
             statusCode: res1.statusCode,
             body: body,
-            message: body?.message || body?.error || "Unknown error"
+            message: body?.message || body?.error || "Unknown error",
           });
         }
         if (body && (body.error || body.message)) {
           console.error("❌ E-barimt API error response:", {
             error: body.error,
             message: body.message,
-            fullBody: JSON.stringify(body).slice(0, 500)
+            fullBody: JSON.stringify(body).slice(0, 500),
           });
-          if (next) next(new Error(body.message || body.error || "E-barimt API error"));
+          if (next)
+            next(new Error(body.message || body.error || "E-barimt API error"));
           return;
         }
         // Success case
@@ -139,14 +157,11 @@ router.get("/ebarimtJagsaaltAvya", tokenShalgakh, async (req, res, next) => {
       body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
     if (!!body?.search) body.search = String(body.search);
     body.query && (body.query["baiguullagiinId"] = req.body.baiguullagiinId);
-    
+
     // Always use EbarimtShine for now
     const shine = true;
-    
-    khuudaslalt(
-      EbarimtShine(req.body.tukhainBaaziinKholbolt),
-      body
-    )
+
+    khuudaslalt(EbarimtShine(req.body.tukhainBaaziinKholbolt), body)
       .then((result) => {
         res.send(result);
       })
@@ -167,12 +182,12 @@ router.post("/ebarimtToololtAvya", tokenShalgakh, async (req, res, next) => {
     var tuxainSalbar = baiguullaga?.barilguud?.find(
       (e) => e._id.toString() == req.body?.barilgiinId
     )?.tokhirgoo;
-    
+
     var match = {
       baiguullagiinId: req.body.baiguullagiinId,
       barilgiinId: req.body.barilgiinId,
     };
-    
+
     if (!!ebarimtShine) {
       match.createdAt = {
         $gte: new Date(req.body.ekhlekhOgnoo),
@@ -236,7 +251,7 @@ router.post("/ebarimtToololtAvya", tokenShalgakh, async (req, res, next) => {
         },
       },
     ];
-    
+
     var result = await EbarimtShine(req.body.tukhainBaaziinKholbolt)
       .aggregate(query)
       .catch((err) => {
@@ -249,7 +264,7 @@ router.post("/ebarimtToololtAvya", tokenShalgakh, async (req, res, next) => {
       butsaasanDun: 0,
       butsaasanToo: 0,
     };
-    
+
     if (result[0]) {
       if (result[0].butsaasan[0]) {
         khariu.butsaasanDun = parseFloat(result[0].butsaasan[0].dun);
@@ -260,80 +275,88 @@ router.post("/ebarimtToololtAvya", tokenShalgakh, async (req, res, next) => {
         khariu.ilgeesenToo = result[0].ilgeesen[0].too;
       }
     }
-    
+
     res.send(khariu);
   } catch (error) {
     next(error);
   }
 });
 
-router.post("/nekhemjlekhEbarimtShivye", tokenShalgakh, async (req, res, next) => {
-  try {
-    console.log("Энэ рүү орлоо: nekhemjlekhEbarimtShivye");
-    const nekhemjlekh = await nekhemjlekhiinTuukh(req.body.tukhainBaaziinKholbolt).findById(req.body.nekhemjlekhiinId);
-    
-    if (!nekhemjlekh) {
-      return res.status(404).json({ error: "Invoice not found" });
-    }
+router.post(
+  "/nekhemjlekhEbarimtShivye",
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      console.log("Энэ рүү орлоо: nekhemjlekhEbarimtShivye");
+      const nekhemjlekh = await nekhemjlekhiinTuukh(
+        req.body.tukhainBaaziinKholbolt
+      ).findById(req.body.nekhemjlekhiinId);
 
-    if (nekhemjlekh.tuluv !== "Төлсөн") {
-      throw new Error("Invoice is not paid yet");
-    }
+      if (!nekhemjlekh) {
+        return res.status(404).json({ error: "Invoice not found" });
+      }
 
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      req.body.baiguullagiinId
-    );
+      if (nekhemjlekh.tuluv !== "Төлсөн") {
+        throw new Error("Invoice is not paid yet");
+      }
 
-    const tuxainSalbar = baiguullaga?.barilguud?.find(
-      (e) => e._id.toString() == nekhemjlekh.barilgiinId
-    )?.tokhirgoo;
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        req.body.baiguullagiinId
+      );
 
-    if (!tuxainSalbar) {
-      throw new Error("Building configuration not found");
-    }
+      const tuxainSalbar = baiguullaga?.barilguud?.find(
+        (e) => e._id.toString() == nekhemjlekh.barilgiinId
+      )?.tokhirgoo;
 
-    const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
-    
-    const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
-      nekhemjlekh,
-      req.body.customerNo || "",
-      req.body.customerTin || "",
-          tuxainSalbar.merchantTin,
-          tuxainSalbar.districtCode,
-          req.body.tukhainBaaziinKholbolt,
-          nuatTulukhEsekh
-        );
+      if (!tuxainSalbar) {
+        throw new Error("Building configuration not found");
+      }
 
-    var butsaakhMethod = function (d, khariuObject) {
+      const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
+
+      const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
+        nekhemjlekh,
+        req.body.customerNo || "",
+        req.body.customerTin || "",
+        tuxainSalbar.merchantTin,
+        tuxainSalbar.districtCode,
+        req.body.tukhainBaaziinKholbolt,
+        nuatTulukhEsekh
+      );
+
+      var butsaakhMethod = function (d, khariuObject) {
         try {
           if (d?.status != "SUCCESS" && !d.success) throw new Error(d.message);
-        
-        var shineBarimt = new EbarimtShine(req.body.tukhainBaaziinKholbolt)(d);
-        // Keep the original invoice ID that was set in nekhemjlekheesEbarimtShineUusgye
-        shineBarimt.nekhemjlekhiinId = khariuObject.nekhemjlekhiinId;
-        shineBarimt.baiguullagiinId = khariuObject.baiguullagiinId;
-        shineBarimt.barilgiinId = khariuObject.barilgiinId;
-        shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;
-        shineBarimt.utas = khariuObject.utas;
-        
-        shineBarimt.save().catch((err) => {
-          next(err);
-        });
-        
+
+          var shineBarimt = new EbarimtShine(req.body.tukhainBaaziinKholbolt)(
+            d
+          );
+          // Keep the original invoice ID that was set in nekhemjlekheesEbarimtShineUusgye
+          shineBarimt.nekhemjlekhiinId = khariuObject.nekhemjlekhiinId;
+          shineBarimt.baiguullagiinId = khariuObject.baiguullagiinId;
+          shineBarimt.barilgiinId = khariuObject.barilgiinId;
+          shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;
+          shineBarimt.utas = khariuObject.utas;
+
+          shineBarimt.save().catch((err) => {
+            next(err);
+          });
+
           res.send(d);
         } catch (err) {
           next(err);
         }
       };
 
-    ebarimtDuudya(ebarimt, butsaakhMethod, next, true);
-
-  } catch (error) {
-    console.error("Error creating ebarimt:", error);
-    next(error);
+      ebarimtDuudya(ebarimt, butsaakhMethod, next, true);
+    } catch (error) {
+      console.error("Error creating ebarimt:", error);
+      next(error);
+    }
   }
-});
+);
 
 module.exports = router;
-module.exports.nekhemjlekheesEbarimtShineUusgye = nekhemjlekheesEbarimtShineUusgye;
+module.exports.nekhemjlekheesEbarimtShineUusgye =
+  nekhemjlekheesEbarimtShineUusgye;
 module.exports.ebarimtDuudya = ebarimtDuudya;
