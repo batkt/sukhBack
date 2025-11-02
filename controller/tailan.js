@@ -17,10 +17,16 @@ exports.tailanSummary = asyncHandler(async (req, res, next) => {
     }
 
     const kholbolt = db.kholboltuud.find(
-      (k) => k.baiguullagiinId === String(baiguullagiinId)
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
-    if (!kholbolt)
+    if (!kholbolt) {
+      console.log("❌ Холболтын мэдээлэл олдсонгүй:", { 
+        baiguullagiinId, 
+        type: typeof baiguullagiinId,
+        availableIds: db.kholboltuud.map(k => ({ id: k.baiguullagiinId, type: typeof k.baiguullagiinId }))
+      });
       return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    }
 
     const OrshinSuugch = require("../models/orshinSuugch");
     const Geree = require("../models/geree");
@@ -163,8 +169,15 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
     } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
 
-    const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
-    if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
+    if (!kholbolt) {
+      console.log("❌ Холболтын мэдээлэл олдсонгүй:", { 
+        baiguullagiinId, 
+        type: typeof baiguullagiinId,
+        availableIds: db.kholboltuud.map(k => ({ id: k.baiguullagiinId, type: typeof k.baiguullagiinId }))
+      });
+      return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    }
 
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
     const match = { baiguullagiinId: String(baiguullagiinId) };
@@ -219,7 +232,7 @@ exports.tailanGuilgee = asyncHandler(async (req, res, next) => {
       khuudasniiDugaar = 1, khuudasniiKhemjee = 20,
     } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
-    const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
+    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
     if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
 
     const BankniiGuilgee = require("../models/bankniiGuilgee");
@@ -254,7 +267,7 @@ exports.tailanOrlogoZarlaga = asyncHandler(async (req, res, next) => {
     const source = req.method === 'GET' ? req.query : req.body;
     const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
-    const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
+    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
     if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     const BankniiGuilgee = require("../models/bankniiGuilgee");
     const match = { baiguullagiinId: String(baiguullagiinId) };
@@ -299,7 +312,7 @@ exports.tailanSariin = asyncHandler(async (req, res, next) => {
     const source = req.method === 'GET' ? req.query : req.body;
     const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
-    const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
+    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
     if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
     const match = { baiguullagiinId: String(baiguullagiinId) };
@@ -323,7 +336,7 @@ exports.tailanUliral = asyncHandler(async (req, res, next) => {
     const source = req.method === 'GET' ? req.query : req.body;
     const { baiguullagiinId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = source || {};
     if (!baiguullagiinId) return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
-    const kholbolt = db.kholboltuud.find((k) => k.baiguullagiinId === String(baiguullagiinId));
+    const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
     if (!kholbolt) return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
     const match = { baiguullagiinId: String(baiguullagiinId) };
