@@ -100,7 +100,10 @@ async function automataarNekhemjlekhUusgekh() {
     console.log(`Өнөөдөр сарын ${nekhemjlekhUusgekhOgnoo} өдөр`);
 
     // Өнөөдрийн хувьд идэвхтэй тохиргоонуудыг авах
-    console.log("Хайлтын нөхцөл:", { nekhemjlekhUusgekhOgnoo: nekhemjlekhUusgekhOgnoo, idevkhitei: true });
+    console.log("Хайлтын нөхцөл:", {
+      nekhemjlekhUusgekhOgnoo: nekhemjlekhUusgekhOgnoo,
+      idevkhitei: true,
+    });
 
     // Get all organizations first
     const baiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
@@ -166,7 +169,7 @@ async function automataarNekhemjlekhUusgekh() {
 
         // Find ALL contracts for this organization
         const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
-          baiguullagiinId: baiguullaga._id.toString()
+          baiguullagiinId: baiguullaga._id.toString(),
         });
 
         if (gereenuud.length === 0) {
@@ -186,11 +189,15 @@ async function automataarNekhemjlekhUusgekh() {
 
         for (let i = 0; i < gereenuud.length; i += batchSize) {
           const batch = gereenuud.slice(i, i + batchSize);
-          console.log(`📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(gereenuud.length / batchSize)} (${batch.length} contracts)`);
-          
+          console.log(
+            `📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(
+              gereenuud.length / batchSize
+            )} (${batch.length} contracts)`
+          );
+
           // Process batch with controlled concurrency (max 10 at a time)
           const results = await Promise.allSettled(
-            batch.map(geree => 
+            batch.map((geree) =>
               nekhemjlekhController.gereeNeesNekhemjlekhUusgekh(
                 geree,
                 baiguullaga,
@@ -203,7 +210,7 @@ async function automataarNekhemjlekhUusgekh() {
           // Log results
           results.forEach((result, index) => {
             processedCount++;
-            if (result.status === 'fulfilled' && result.value.success) {
+            if (result.status === "fulfilled" && result.value.success) {
               successCount++;
               const urdun = result.value;
               console.log(
@@ -211,7 +218,10 @@ async function automataarNekhemjlekhUusgekh() {
               );
             } else {
               errorCount++;
-              const error = result.status === 'rejected' ? result.reason : result.value.error;
+              const error =
+                result.status === "rejected"
+                  ? result.reason
+                  : result.value.error;
               console.error(
                 `❌ [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} боловсруулах алдаа:`,
                 error
@@ -220,7 +230,9 @@ async function automataarNekhemjlekhUusgekh() {
           });
         }
 
-        console.log(`📊 ${baiguullaga.ner}: Төлөв - Amjilttai: ${successCount}, Aldaa: ${errorCount}, Niit: ${processedCount}`);
+        console.log(
+          `📊 ${baiguullaga.ner}: Төлөв - Amjilttai: ${successCount}, Aldaa: ${errorCount}, Niit: ${processedCount}`
+        );
 
         // Сүүлийн ажилласан огноо шинэчлэх
         await NekhemjlekhCron(tukhainBaaziinKholbolt).findByIdAndUpdate(
@@ -247,7 +259,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "35 15 * * *", // Өдөр бүр 10:10 цагт
+  "40 16 * * *", // Өдөр бүр 10:10 цагт
   function () {
     automataarNekhemjlekhUusgekh();
   },
