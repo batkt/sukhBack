@@ -56,8 +56,18 @@ async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
 }
 
 exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
+  console.log("🔍 ajiltanNevtrey called with:", {
+    nevtrekhNer: req.body.nevtrekhNer,
+    hasPassword: !!req.body.nuutsUg,
+  });
+
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
+
+  console.log(
+    "🔍 Searching for employee with nevtrekhNer:",
+    req.body.nevtrekhNer
+  );
 
   const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
     .findOne()
@@ -69,96 +79,42 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
       next(err);
     });
 
+  console.log(
+    "🔍 Found employee:",
+    ajiltan
+      ? { id: ajiltan._id, ner: ajiltan.ner, nevtrekhNer: ajiltan.nevtrekhNer }
+      : "NOT FOUND"
+  );
+
   if (!ajiltan) {
     console.log("❌ Employee not found, throwing error");
     throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
 
+  console.log("🔍 Verifying password...");
   var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
+  console.log("🔍 Password verification result:", ok ? "SUCCESS" : "FAILED");
 
   if (!ok) {
+    console.log("❌ Password verification failed, throwing error");
     throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
 
-  if (!ajiltan.baiguullagiinId) {
-    console.error("❌ Employee missing baiguullagiinId:", ajiltan._id);
-    throw new aldaa("Ажилтны байгууллагын мэдээлэл олдсонгүй!");
-  }
-
-  // Convert baiguullagiinId to ObjectId if it's a string
-  const mongoose = require("mongoose");
-  let baiguullagiinObjectId;
-  try {
-    baiguullagiinObjectId =
-      typeof ajiltan.baiguullagiinId === "string"
-        ? new mongoose.Types.ObjectId(ajiltan.baiguullagiinId)
-        : ajiltan.baiguullagiinId;
-  } catch (error) {
-    console.error(
-      "❌ Invalid baiguullagiinId format:",
-      ajiltan.baiguullagiinId,
-      error.message
-    );
-    throw new aldaa(
-      `Байгууллагын ID буруу байна! (ID: ${ajiltan.baiguullagiinId})`
-    );
-  }
-
+  console.log("🔍 Finding organization with ID:", ajiltan.baiguullagiinId);
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-    baiguullagiinObjectId
+    ajiltan.baiguullagiinId
   );
 
-  if (!baiguullaga) {
-    // Try alternative query with string ID
-    const baiguullagaByString = await Baiguullaga(
-      db.erunkhiiKholbolt
-    ).findOne({
-      _id: ajiltan.baiguullagiinId.toString(),
-    });
-
-    if (baiguullagaByString) {
-      baiguullaga = baiguullagaByString;
-    } else {
-      // Diagnostic: List all available organizations to help identify the issue
-      const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt)
-        .find({}, { _id: 1, ner: 1 })
-        .limit(10)
-        .lean();
-
-      console.error(
-        "❌ Baiguullaga not found for ID:",
-        ajiltan.baiguullagiinId,
-        "Employee ID:",
-        ajiltan._id,
-        "Type:",
-        typeof ajiltan.baiguullagiinId
-      );
-      console.error(
-        "📋 Available organizations in erunkhiiKholbolt:",
-        allBaiguullaguud.map((b) => ({
-          _id: b._id.toString(),
-          ner: b.ner,
-        }))
-      );
-      console.error(
-        "💡 Note: Employee ID and baiguullagiinId are very similar - possible data corruption:",
-        {
-          employeeId: ajiltan._id.toString(),
-          baiguullagiinId: ajiltan.baiguullagiinId,
-          difference:
-            ajiltan._id.toString().slice(-2) !==
-            ajiltan.baiguullagiinId.toString().slice(-2)
-              ? "Last 2 chars differ"
-              : "Same",
+  console.log(
+    "🔍 Found organization:",
+    baiguullaga
+      ? {
+          id: baiguullaga._id,
+          ner: baiguullaga.ner,
+          register: baiguullaga.register,
         }
-      );
-
-      throw new aldaa(
-        `Байгууллагын мэдээлэл олдсонгүй! (ID: ${ajiltan.baiguullagiinId}). Ажилтны бүртгэлийг шалгана уу. Сервер лог дээр бүх байгууллагуудын жагсаалтыг үзээрэй.`
-      );
-    }
-  }
-
+      : "NOT FOUND"
+  );
   var butsaakhObject = {
     result: ajiltan,
     success: true,
@@ -169,9 +125,13 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
       type: "logout",
     });
   }
+  console.log("🔍 Calling duusakhOgnooAvya with:", {
+    register: baiguullaga.register,
+    system: "sukh",
+  });
 
   duusakhOgnooAvya(
-    { register: baiguullaga?.register || "", system: "sukh" },
+    { register: baiguullaga.register, system: "sukh" },
     async (khariu) => {
       try {
         console.log("🔍 duusakhOgnooAvya response:", khariu);
@@ -219,7 +179,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
             butsaakhObject.result.zogsoolNer =
               baiguullaga?.tokhirgoo?.zogsoolNer;
-          else butsaakhObject.result.zogsoolNer = baiguullaga?.ner || "";
+          else butsaakhObject.result.zogsoolNer = baiguullaga.ner;
           var source = req.headers["user-agent"];
           var ua = useragent.parse(source);
           var tuukh = new NevtreltiinTuukh(db.erunkhiiKholbolt)();
@@ -238,8 +198,10 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           tuukh.browser = ua.browser;
           tuukh.useragent = ua;
           tuukh.baiguullagiinId = ajiltan.baiguullagiinId;
-          tuukh.baiguullagiinRegister = baiguullaga?.register || "";
+          tuukh.baiguullagiinRegister = baiguullaga.register;
+          console.log("🔍 Saving login history...");
           await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
+          console.log("✅ Login history saved successfully");
 
           console.log(
             "✅ ajiltanNevtrey completed successfully, sending response"
