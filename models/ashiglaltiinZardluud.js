@@ -65,9 +65,19 @@ async function handleZardluudUpdate(doc) {
 
     if (!kholbolt) return;
 
-    const gereenuud = await Geree(kholbolt, true).find({
+    // Filter geree documents by both baiguullagiinId AND barilgiinId
+    // This ensures ashiglaltiinZardluud updates only affect the correct barilga
+    const gereeQuery = {
       baiguullagiinId: doc.baiguullagiinId,
-    });
+    };
+    
+    // Only filter by barilgiinId if it exists in the doc
+    // This maintains backward compatibility for existing data
+    if (doc.barilgiinId) {
+      gereeQuery.barilgiinId = doc.barilgiinId;
+    }
+
+    const gereenuud = await Geree(kholbolt, true).find(gereeQuery);
 
     for (const geree of gereenuud) {
       if (!geree.zardluud) {
@@ -170,9 +180,19 @@ ashiglaltiinZardluudSchema.post(
 
       if (!kholbolt) return;
 
-      const gereenuud = await Geree(kholbolt, true).find({
+      // Filter geree documents by both baiguullagiinId AND barilgiinId
+      // This ensures ashiglaltiinZardluud deletions only affect the correct barilga
+      const gereeQuery = {
         baiguullagiinId: doc.baiguullagiinId,
-      });
+      };
+      
+      // Only filter by barilgiinId if it exists in the doc
+      // This maintains backward compatibility for existing data
+      if (doc.barilgiinId) {
+        gereeQuery.barilgiinId = doc.barilgiinId;
+      }
+
+      const gereenuud = await Geree(kholbolt, true).find(gereeQuery);
 
       for (const geree of gereenuud) {
         if (!geree.zardluud) {

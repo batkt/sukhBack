@@ -182,4 +182,128 @@ router.post(
   }
 );
 
+router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, ner, sohNer } = req.body;
+
+    if (!baiguullagiinId || !ner || !sohNer) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId, ner, and sohNer are required",
+      });
+    }
+
+    // Find the baiguullaga
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      baiguullagiinId
+    );
+
+    if (!baiguullaga) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллага олдсонгүй",
+      });
+    }
+
+    // Check if barilguud array exists and has at least one barilga
+    if (!baiguullaga.barilguud || baiguullaga.barilguud.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Байгууллагад барилга байхгүй байна",
+      });
+    }
+
+    // Get the first barilga (the template)
+    const firstBarilga = baiguullaga.barilguud[0];
+
+    // Create a new barilga object by copying the first one
+    // But use main baiguullaga tokhirgoo as base, then merge with first barilga's tokhirgoo
+    const newBarilga = {
+      ner: ner,
+      khayag: firstBarilga.khayag || baiguullaga.khayag || "",
+      register: firstBarilga.register || baiguullaga.register || "",
+      niitTalbai: firstBarilga.niitTalbai || 0,
+      bairshil: firstBarilga.bairshil || {
+        type: "Point",
+        coordinates: [],
+      },
+      // Get main tokhirgoo from baiguullaga, then merge with first barilga's barilga-specific tokhirgoo
+      tokhirgoo: firstBarilga.tokhirgoo
+        ? JSON.parse(JSON.stringify(firstBarilga.tokhirgoo))
+        : baiguullaga.tokhirgoo
+        ? JSON.parse(JSON.stringify(baiguullaga.tokhirgoo))
+        : {},
+      davkharuud: firstBarilga.davkharuud
+        ? JSON.parse(JSON.stringify(firstBarilga.davkharuud))
+        : [],
+    };
+
+    // Update sohNer in tokhirgoo
+    if (newBarilga.tokhirgoo) {
+      newBarilga.tokhirgoo.sohNer = sohNer;
+    }
+
+    // Add the new barilga to the barilguud array
+    baiguullaga.barilguud.push(newBarilga);
+    await baiguullaga.save();
+
+    // Get the newly created barilga ID (last one in the array)
+    const newBarilgiinId = baiguullaga.barilguud[
+      baiguullaga.barilguud.length - 1
+    ]._id.toString();
+
+    // Find the company's database connection
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId
+    );
+
+    if (tukhainBaaziinKholbolt) {
+      // Copy ashiglaltiinZardluud from first barilga to new barilga
+      const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
+      const firstBarilgiinId = firstBarilga._id.toString();
+
+      // Find all ashiglaltiinZardluud entries for the first barilga
+      const existingZardluud = await AshiglaltiinZardluud(
+        tukhainBaaziinKholbolt
+      ).find({
+        baiguullagiinId: baiguullagiinId,
+        barilgiinId: firstBarilgiinId,
+      });
+
+      // Create copies for the new barilga
+      if (existingZardluud && existingZardluud.length > 0) {
+        const newZardluudArray = existingZardluud.map((zardal) => {
+          const zardalObj = zardal.toObject();
+          delete zardalObj._id;
+          delete zardalObj.__v;
+          delete zardalObj.createdAt;
+          delete zardalObj.updatedAt;
+          return {
+            ...zardalObj,
+            barilgiinId: newBarilgiinId,
+          };
+        });
+
+        await AshiglaltiinZardluud(tukhainBaaziinKholbolt).insertMany(
+          newZardluudArray
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Барилга амжилттай бүртгэгдлээ",
+      result: {
+        baiguullagiinId: baiguullagiinId,
+        barilgiinId: newBarilgiinId,
+        ner: ner,
+        sohNer: sohNer,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
