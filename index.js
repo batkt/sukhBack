@@ -188,12 +188,17 @@ async function automataarNekhemjlekhUusgekh() {
             if (result.status === "fulfilled" && result.value.success) {
               successCount++;
               const urdun = result.value;
+              if (urdun.alreadyExists) {
+                console.log(
+                  `ℹ️  [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} - Нэхэмжлэх энэ сард аль хэдийн байна (${urdun.nekhemjlekh._id})`
+                );
+              }
             } else {
               errorCount++;
               const error =
                 result.status === "rejected"
                   ? result.reason
-                  : result.value.error;
+                  : result.value?.error || "Unknown error";
               console.error(
                 `❌ [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} боловсруулах алдаа:`,
                 error
@@ -229,7 +234,7 @@ async function automataarNekhemjlekhUusgekh() {
 }
 
 cron.schedule(
-  "56 16 * * *",
+  "59 10 * * *",
   function () {
     automataarNekhemjlekhUusgekh();
   },
