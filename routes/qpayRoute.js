@@ -1082,10 +1082,102 @@ router.get(
             );
           }
 
+          // Create ebarimt for each invoice
+          try {
+            const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+              updatedInvoice.baiguullagiinId
+            );
+
+            let tuxainSalbar = null;
+            if (updatedInvoice.barilgiinId && baiguullaga?.barilguud) {
+              tuxainSalbar = baiguullaga.barilguud.find(
+                (e) => e._id.toString() === String(updatedInvoice.barilgiinId)
+              )?.tokhirgoo;
+            }
+
+            if (!tuxainSalbar && baiguullaga?.barilguud?.length > 0) {
+              tuxainSalbar = baiguullaga.barilguud[0].tokhirgoo;
+            }
+
+            if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
+              if (!tuxainSalbar.merchantTin) {
+                console.error(`⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: merchantTin is required`);
+              } else if (!tuxainSalbar.districtCode) {
+                console.error(`⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: districtCode is missing`);
+              } else {
+                const {
+                  nekhemjlekheesEbarimtShineUusgye,
+                  ebarimtDuudya,
+                } = require("./ebarimtRoute");
+                const EbarimtShine = require("../models/ebarimtShine");
+
+                const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
+
+                const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
+                  updatedInvoice,
+                  updatedInvoice.register || "",
+                  "",
+                  tuxainSalbar.merchantTin,
+                  tuxainSalbar.districtCode,
+                  kholbolt,
+                  nuatTulukhEsekh
+                );
+
+                // The ebarimt object already has invoice data set in nekhemjlekheesEbarimtShineUusgye
+                // ebarimtDuudya calls onFinish(body, ugugdul) where ugugdul is the ebarimt object
+                var butsaakhMethod = function (d, ebarimtObject) {
+                  try {
+                    if (d?.status != "SUCCESS" && !d.success) {
+                      console.error(
+                        `❌ E-barimt API error for invoice ${ebarimtObject.nekhemjlekhiinId}:`,
+                        d?.message || d?.error || JSON.stringify(d)
+                      );
+                      return;
+                    }
+
+                    var shineBarimt = new EbarimtShine(kholbolt)(d);
+                    shineBarimt.nekhemjlekhiinId = ebarimtObject.nekhemjlekhiinId;
+                    shineBarimt.baiguullagiinId = ebarimtObject.baiguullagiinId;
+                    shineBarimt.barilgiinId = ebarimtObject.barilgiinId;
+                    shineBarimt.gereeniiDugaar = ebarimtObject.gereeniiDugaar;
+                    shineBarimt.utas = ebarimtObject.utas;
+
+                    if (d.qrData) shineBarimt.qrData = d.qrData;
+                    if (d.lottery) shineBarimt.lottery = d.lottery;
+                    if (d.id) shineBarimt.receiptId = d.id;
+                    if (d.date) shineBarimt.date = d.date;
+
+                    shineBarimt.save();
+                    console.log(
+                      `✅ E-barimt saved successfully for invoice:`,
+                      ebarimtObject.nekhemjlekhiinId
+                    );
+                  } catch (err) {
+                    console.error(`❌ Failed to save e-barimt for invoice ${ebarimtObject?.nekhemjlekhiinId || 'unknown'}:`, err.message);
+                  }
+                };
+
+                // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
+                // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
+                ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
+              }
+            } else {
+              console.log(`ℹ️  E-barimt creation skipped for invoice ${updatedInvoice._id}:`, {
+                hasSalbar: !!tuxainSalbar,
+                eBarimtShine: tuxainSalbar?.eBarimtShine,
+              });
+            }
+          } catch (ebarimtError) {
+            console.error(
+              `❌ Error creating e-barimt for invoice ${updatedInvoice._id}:`,
+              ebarimtError.message
+            );
+          }
+
           // Emit socket event for each invoice
           req.app
             .get("socketio")
-            .emit(`nekhemjlekhPayment/${baiguullagiinId}/${nekhemjlekh._id}`, {
+            .emit(`nekhemjlekhPayment/${baiguullagiinId}/${updatedInvoice._id}`, {
               status: "success",
               tuluv: "Төлсөн",
               tulsunOgnoo: updatedInvoice.tulsunOgnoo,
