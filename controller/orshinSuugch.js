@@ -247,6 +247,25 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         return total + tariff;
       }, 0);
 
+      // Get barilga details for location info
+      const barilgiinId =
+        req.body.barilgiinId ||
+        (baiguullaga.barilguud && baiguullaga.barilguud.length > 0
+          ? String(baiguullaga.barilguud[0]._id)
+          : null);
+
+      const targetBarilga = barilgiinId
+        ? baiguullaga.barilguud?.find(
+            (b) => String(b._id) === String(barilgiinId)
+          )
+        : null;
+
+      const duuregNer =
+        targetBarilga?.tokhirgoo?.duuregNer || req.body.duureg || "";
+      const horooData =
+        targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
+      const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
+
       const contractData = {
         gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
         gereeniiOgnoo: new Date(),
@@ -258,6 +277,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         mail: req.body.mail || "",
         baiguullagiinId: baiguullaga._id,
         baiguullagiinNer: baiguullaga.ner,
+        barilgiinId: barilgiinId || "",
         tulukhOgnoo: new Date(),
         ashiglaltiinZardal: 0,
         niitTulbur: niitTulbur,
@@ -265,6 +285,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         davkhar: orshinSuugch.davkhar || "",
         bairNer: req.body.bairniiNer || "",
         sukhBairshil: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
+        duureg: duuregNer, // Save separately
+        horoo: horooData, // Save horoo object separately
+        sohNer: sohNer, // Save sohNer separately
         orts: req.body.orts || "",
         burtgesenAjiltan: orshinSuugch._id,
         orshinSuugchId: orshinSuugch._id.toString(),

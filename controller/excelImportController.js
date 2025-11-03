@@ -302,6 +302,9 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           davkhar: userData.davkhar || "",
           bairNer: userData.bairniiNer || "",
           sukhBairshil: `${duuregNer}, ${horooNer}, ${sohNer}`, // From barilga tokhirgoo
+          duureg: duuregNer, // Save separately
+          horoo: horooData, // Save horoo object separately
+          sohNer: sohNer, // Save sohNer separately
           orts: userData.orts || "",
           burtgesenAjiltan: orshinSuugch._id,
           orshinSuugchId: orshinSuugch._id.toString(),
