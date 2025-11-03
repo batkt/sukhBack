@@ -154,12 +154,13 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
+    // Check for existing user by utas only (mail is not required)
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      $or: [{ utas: req.body.utas }, { mail: req.body.mail }],
+      utas: req.body.utas,
     });
 
     if (existingUser) {
-      throw new aldaa("Утасны дугаар эсвэл регистр, мэйл давхардаж байна!");
+      throw new aldaa("Утасны дугаар давхардаж байна!");
     }
 
     const barilgiinId =

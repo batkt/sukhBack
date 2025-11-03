@@ -107,6 +107,7 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
       {},
       {
         _id: 1,
+        "barilguud.ner": 1,
         "barilguud.tokhirgoo.duuregNer": 1,
         "barilguud.tokhirgoo.districtCode": 1,
         "barilguud.tokhirgoo.sohNer": 1,
@@ -117,15 +118,17 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
     )
     .then((result) => {
       const transformedResult = result.map((item) => {
-        const tokhirgoo = item.barilguud?.[0]?.tokhirgoo;
+        const firstBarilga = item.barilguud?.[0];
+        const tokhirgoo = firstBarilga?.tokhirgoo;
         return {
           baiguullagiinId: item._id,
+          bairniiNer: firstBarilga?.ner || "", // Барилгын нэр from barilguud[].ner
           duuregNer: tokhirgoo?.duuregNer || "",
           districtCode: tokhirgoo?.districtCode || "",
           sohNer: tokhirgoo?.sohNer || "",
           horoo: tokhirgoo?.horoo || {},
-          orts: tokhirgoo?.orts || "",
-          davkhar: tokhirgoo?.davkhar || "",
+          orts: Array.isArray(tokhirgoo?.orts) ? tokhirgoo.orts : (tokhirgoo?.orts ? [tokhirgoo.orts] : []),
+          davkhar: Array.isArray(tokhirgoo?.davkhar) ? tokhirgoo.davkhar : (tokhirgoo?.davkhar ? [tokhirgoo.davkhar] : []),
         };
       });
 
@@ -189,7 +192,7 @@ router.post(
 router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const { baiguullagiinId, ner, sohNer, orts, davkhar } = req.body;
+    const { baiguullagiinId, ner, sohNer, bairniiNer, orts, davkhar } = req.body;
 
     if (!baiguullagiinId || !ner || !sohNer) {
       return res.status(400).json({
@@ -243,14 +246,18 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         : [],
     };
 
-    // Update sohNer, orts, and davkhar in tokhirgoo
+    // Update sohNer, bairniiNer, orts, and davkhar in tokhirgoo
+    // bairniiNer, orts, and davkhar are arrays
     if (newBarilga.tokhirgoo) {
       newBarilga.tokhirgoo.sohNer = sohNer;
+      if (bairniiNer !== undefined) {
+        newBarilga.tokhirgoo.bairniiNer = Array.isArray(bairniiNer) ? bairniiNer : (bairniiNer ? [bairniiNer] : []);
+      }
       if (orts !== undefined) {
-        newBarilga.tokhirgoo.orts = orts;
+        newBarilga.tokhirgoo.orts = Array.isArray(orts) ? orts : (orts ? [orts] : []);
       }
       if (davkhar !== undefined) {
-        newBarilga.tokhirgoo.davkhar = davkhar;
+        newBarilga.tokhirgoo.davkhar = Array.isArray(davkhar) ? davkhar : (davkhar ? [davkhar] : []);
       }
     }
 
@@ -309,8 +316,9 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         barilgiinId: newBarilgiinId,
         ner: ner,
         sohNer: sohNer,
-        orts: orts || "",
-        davkhar: davkhar || "",
+        bairniiNer: Array.isArray(bairniiNer) ? bairniiNer : (bairniiNer ? [bairniiNer] : []),
+        orts: Array.isArray(orts) ? orts : (orts ? [orts] : []),
+        davkhar: Array.isArray(davkhar) ? davkhar : (davkhar ? [davkhar] : []),
       },
     });
   } catch (error) {
