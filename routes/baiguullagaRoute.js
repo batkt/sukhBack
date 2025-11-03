@@ -111,6 +111,8 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
         "barilguud.tokhirgoo.districtCode": 1,
         "barilguud.tokhirgoo.sohNer": 1,
         "barilguud.tokhirgoo.horoo": 1,
+        "barilguud.tokhirgoo.orts": 1,
+        "barilguud.tokhirgoo.davkhar": 1,
       }
     )
     .then((result) => {
@@ -122,6 +124,8 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
           districtCode: tokhirgoo?.districtCode || "",
           sohNer: tokhirgoo?.sohNer || "",
           horoo: tokhirgoo?.horoo || {},
+          orts: tokhirgoo?.orts || "",
+          davkhar: tokhirgoo?.davkhar || "",
         };
       });
 
@@ -185,7 +189,7 @@ router.post(
 router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const { baiguullagiinId, ner, sohNer } = req.body;
+    const { baiguullagiinId, ner, sohNer, orts, davkhar } = req.body;
 
     if (!baiguullagiinId || !ner || !sohNer) {
       return res.status(400).json({
@@ -239,9 +243,15 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         : [],
     };
 
-    // Update sohNer in tokhirgoo
+    // Update sohNer, ortts, and davkhar in tokhirgoo
     if (newBarilga.tokhirgoo) {
       newBarilga.tokhirgoo.sohNer = sohNer;
+      if (orts !== undefined) {
+        newBarilga.tokhirgoo.orts = orts;
+      }
+      if (davkhar !== undefined) {
+        newBarilga.tokhirgoo.davkhar = davkhar;
+      }
     }
 
     // Add the new barilga to the barilguud array
@@ -299,6 +309,8 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         barilgiinId: newBarilgiinId,
         ner: ner,
         sohNer: sohNer,
+        orts: orts || "",
+        davkhar: davkhar || "",
       },
     });
   } catch (error) {
