@@ -84,6 +84,10 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     ajiltan.baiguullagiinId
   );
 
+  if (!baiguullaga) {
+    throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+  }
+
   var butsaakhObject = {
     result: ajiltan,
     success: true,
@@ -96,7 +100,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   }
 
   duusakhOgnooAvya(
-    { register: baiguullaga.register, system: "sukh" },
+    { register: baiguullaga?.register || "", system: "sukh" },
     async (khariu) => {
       try {
         console.log("🔍 duusakhOgnooAvya response:", khariu);
@@ -144,7 +148,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
             butsaakhObject.result.zogsoolNer =
               baiguullaga?.tokhirgoo?.zogsoolNer;
-          else butsaakhObject.result.zogsoolNer = baiguullaga.ner;
+          else butsaakhObject.result.zogsoolNer = baiguullaga?.ner || "";
           var source = req.headers["user-agent"];
           var ua = useragent.parse(source);
           var tuukh = new NevtreltiinTuukh(db.erunkhiiKholbolt)();
@@ -163,7 +167,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           tuukh.browser = ua.browser;
           tuukh.useragent = ua;
           tuukh.baiguullagiinId = ajiltan.baiguullagiinId;
-          tuukh.baiguullagiinRegister = baiguullaga.register;
+          tuukh.baiguullagiinRegister = baiguullaga?.register || "";
           await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
 
           console.log(
