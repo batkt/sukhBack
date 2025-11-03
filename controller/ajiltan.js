@@ -119,6 +119,12 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     if (baiguullagaByString) {
       baiguullaga = baiguullagaByString;
     } else {
+      // Diagnostic: List all available organizations to help identify the issue
+      const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt)
+        .find({}, { _id: 1, ner: 1 })
+        .limit(10)
+        .lean();
+
       console.error(
         "❌ Baiguullaga not found for ID:",
         ajiltan.baiguullagiinId,
@@ -127,8 +133,28 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
         "Type:",
         typeof ajiltan.baiguullagiinId
       );
+      console.error(
+        "📋 Available organizations in erunkhiiKholbolt:",
+        allBaiguullaguud.map((b) => ({
+          _id: b._id.toString(),
+          ner: b.ner,
+        }))
+      );
+      console.error(
+        "💡 Note: Employee ID and baiguullagiinId are very similar - possible data corruption:",
+        {
+          employeeId: ajiltan._id.toString(),
+          baiguullagiinId: ajiltan.baiguullagiinId,
+          difference:
+            ajiltan._id.toString().slice(-2) !==
+            ajiltan.baiguullagiinId.toString().slice(-2)
+              ? "Last 2 chars differ"
+              : "Same",
+        }
+      );
+
       throw new aldaa(
-        `Байгууллагын мэдээлэл олдсонгүй! (ID: ${ajiltan.baiguullagiinId}). Ажилтны бүртгэлийг шалгана уу.`
+        `Байгууллагын мэдээлэл олдсонгүй! (ID: ${ajiltan.baiguullagiinId}). Ажилтны бүртгэлийг шалгана уу. Сервер лог дээр бүх байгууллагуудын жагсаалтыг үзээрэй.`
       );
     }
   }
