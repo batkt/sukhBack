@@ -49,7 +49,6 @@ const baiguullagaSchema = new Schema(
             kod: String,
           },
           sohNer: String, // СӨХ код
-          bairniiNer: [String],
           orts: [String], // Орц
           davkhar: [String], // Давхар
           nuatTulukhEsekh: Boolean,
