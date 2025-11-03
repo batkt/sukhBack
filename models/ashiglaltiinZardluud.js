@@ -84,77 +84,68 @@ async function handleZardluudUpdate(doc) {
         geree.zardluud = [];
       }
 
-      const zardalIndex = geree.zardluud.findIndex(
-        (z) =>
-          z.ner === doc.ner &&
-          z.turul === doc.turul &&
-          z.zardliinTurul === doc.zardliinTurul
-      );
-
-      if (zardalIndex !== -1) {
-        geree.zardluud[zardalIndex] = {
-          ...geree.zardluud[zardalIndex].toObject(),
-          ner: doc.ner,
-          turul: doc.turul,
-          tariff: doc.tariff,
-          tariffUsgeer: doc.tariffUsgeer,
-          zardliinTurul: doc.zardliinTurul,
-          tseverUsDun: doc.tseverUsDun,
-          bokhirUsDun: doc.bokhirUsDun,
-          usKhalaasniiDun: doc.usKhalaasniiDun,
-          tsakhilgaanUrjver: doc.tsakhilgaanUrjver,
-          tsakhilgaanChadal: doc.tsakhilgaanChadal,
-          tsakhilgaanDemjikh: doc.tsakhilgaanDemjikh,
-          suuriKhuraamj: doc.suuriKhuraamj,
-          nuatNemekhEsekh: doc.nuatNemekhEsekh,
-          dun: doc.dun,
-        };
-
-        const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
-          return sum + (zardal.tariff || 0);
-        }, 0);
-
-        geree.niitTulbur = niitTulbur;
-
-        // Save the updated geree
-        await geree.save();
-
-        // NOTE: Do NOT update existing nekhemjlekhiinTuukh records
-        // Once an invoice is created, it should NEVER be modified
-      } else {
-        const newZardal = {
-          ner: doc.ner,
-          turul: doc.turul,
-          tariff: doc.tariff,
-          tariffUsgeer: doc.tariffUsgeer,
-          zardliinTurul: doc.zardliinTurul,
-          tulukhDun: 0,
-          dun: doc.dun || 0,
-          bodokhArga: doc.bodokhArga || "",
-          tseverUsDun: doc.tseverUsDun || 0,
-          bokhirUsDun: doc.bokhirUsDun || 0,
-          usKhalaasniiDun: doc.usKhalaasniiDun || 0,
-          tsakhilgaanUrjver: doc.tsakhilgaanUrjver || 1,
-          tsakhilgaanChadal: doc.tsakhilgaanChadal || 0,
-          tsakhilgaanDemjikh: doc.tsakhilgaanDemjikh || 0,
-          suuriKhuraamj: doc.suuriKhuraamj || 0,
-          nuatNemekhEsekh: doc.nuatNemekhEsekh || false,
-          ognoonuud: doc.ognoonuud || [],
-        };
-
-        geree.zardluud.push(newZardal);
-
-        const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
-          return sum + (zardal.tariff || 0);
-        }, 0);
-
-        geree.niitTulbur = niitTulbur;
-
-        await geree.save();
-
-        // NOTE: Do NOT update existing nekhemjlekhiinTuukh records
-        // Once an invoice is created, it should NEVER be modified
+      // First, remove ALL duplicates of this zardal (by ner, turul, zardliinTurul, and barilgiinId)
+      // This prevents duplicate entries from being added multiple times
+      // Also match by barilgiinId to ensure zardluud from different barilgas are kept separate
+      const matchingZardluudIndices = [];
+      for (let i = geree.zardluud.length - 1; i >= 0; i--) {
+        const z = geree.zardluud[i];
+        const matchesNer = z.ner === doc.ner;
+        const matchesTurul = z.turul === doc.turul;
+        const matchesZardliinTurul = z.zardliinTurul === doc.zardliinTurul;
+        const matchesBarilgiinId = (!doc.barilgiinId && !z.barilgiinId) || 
+                                   (doc.barilgiinId && z.barilgiinId && String(doc.barilgiinId) === String(z.barilgiinId));
+        
+        if (matchesNer && matchesTurul && matchesZardliinTurul && matchesBarilgiinId) {
+          matchingZardluudIndices.push(i);
+        }
       }
+
+      // If we found matches, remove all but keep track for updating
+      // If multiple duplicates exist, remove all and add one fresh entry
+      if (matchingZardluudIndices.length > 0) {
+        // Remove all duplicates (in reverse order to maintain indices)
+        for (let i = matchingZardluudIndices.length - 1; i >= 0; i--) {
+          geree.zardluud.splice(matchingZardluudIndices[i], 1);
+        }
+      }
+
+      // Now add/update with the new zardal (only one entry)
+      // Include barilgiinId to track which barilga this zardal came from
+      const newZardal = {
+        ner: doc.ner,
+        turul: doc.turul,
+        tariff: doc.tariff,
+        tariffUsgeer: doc.tariffUsgeer,
+        zardliinTurul: doc.zardliinTurul,
+        barilgiinId: doc.barilgiinId || "", // Track which barilga this zardal belongs to
+        tulukhDun: 0,
+        dun: doc.dun || 0,
+        bodokhArga: doc.bodokhArga || "",
+        tseverUsDun: doc.tseverUsDun || 0,
+        bokhirUsDun: doc.bokhirUsDun || 0,
+        usKhalaasniiDun: doc.usKhalaasniiDun || 0,
+        tsakhilgaanUrjver: doc.tsakhilgaanUrjver || 1,
+        tsakhilgaanChadal: doc.tsakhilgaanChadal || 0,
+        tsakhilgaanDemjikh: doc.tsakhilgaanDemjikh || 0,
+        suuriKhuraamj: doc.suuriKhuraamj || 0,
+        nuatNemekhEsekh: doc.nuatNemekhEsekh || false,
+        ognoonuud: doc.ognoonuud || [],
+      };
+
+      geree.zardluud.push(newZardal);
+
+      const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
+        return sum + (zardal.tariff || 0);
+      }, 0);
+
+      geree.niitTulbur = niitTulbur;
+
+      // Save the updated geree
+      await geree.save();
+
+      // NOTE: Do NOT update existing nekhemjlekhiinTuukh records
+      // Once an invoice is created, it should NEVER be modified
     }
   } catch (error) {
     console.error(
