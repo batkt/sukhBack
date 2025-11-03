@@ -27,6 +27,33 @@ const {
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
+const multer = require("multer");
+const {
+  generateExcelTemplate,
+  importUsersFromExcel,
+} = require("../controller/excelImportController");
+
+// Configure multer for memory storage (Excel files)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept Excel files
+    if (
+      file.mimetype ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      file.mimetype === "application/vnd.ms-excel" ||
+      file.originalname.endsWith(".xlsx") ||
+      file.originalname.endsWith(".xls")
+    ) {
+      cb(null, true);
+    } else {
+      cb(new Error("Зөвхөн Excel файл (.xlsx, .xls) оруулах боломжтой!"), false);
+    }
+  },
+});
 
 crud(router, "orshinSuugch", OrshinSuugch, UstsanBarimt);
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
@@ -47,6 +74,21 @@ router.post("/orshinSuugchBatalgaajuulya", orshinSuugchBatalgaajuulya);
 router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
 router.post("/orshinSuugchNuutsUgSoliyo", tokenShalgakh, orshinSuugchiinNuutsUgSoliyo);
 router.post("/davhardsanOrshinSuugchShalgayy", davhardsanOrshinSuugchShalgayy);
+
+// Excel template download
+router.get(
+  "/orshinSuugchExcelTemplate",
+  tokenShalgakh,
+  generateExcelTemplate
+);
+
+// Excel import (with file upload)
+router.post(
+  "/orshinSuugchExcelImport",
+  tokenShalgakh,
+  upload.single("excelFile"),
+  importUsersFromExcel
+);
 
 router.get("/orshinSuugchiiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   const fileName = req.params.ner;
