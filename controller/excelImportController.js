@@ -11,18 +11,12 @@ const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
  */
 exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
   try {
-    // Define headers only (no sample data)
+    // Define headers only (no sample data) - exact format requested
     const headers = [
-      "Нэр",
       "Овог",
+      "Нэр",
       "Утас",
-      "Нууц үг",
       "Имэйл",
-      "Регистр",
-      "Дүүрэг",
-      "Хороо",
-      "СӨХ",
-      "Барилгын ID",
       "Давхар",
       "Орц",
       "Барилгын нэр",
@@ -35,16 +29,10 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
 
     // Set column widths
     const colWidths = [
-      { wch: 15 }, // Нэр
       { wch: 15 }, // Овог
+      { wch: 15 }, // Нэр
       { wch: 12 }, // Утас
-      { wch: 12 }, // Нууц үг
       { wch: 25 }, // Имэйл
-      { wch: 15 }, // Регистр
-      { wch: 20 }, // Дүүрэг
-      { wch: 10 }, // Хороо
-      { wch: 15 }, // СӨХ
-      { wch: 20 }, // Барилгын ID
       { wch: 10 }, // Давхар
       { wch: 10 }, // Орц
       { wch: 20 }, // Барилгын нэр
@@ -159,18 +147,12 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
       const rowNumber = i + 2; // +2 because row 1 is header and arrays start at 0
 
       try {
-        // Map Excel columns to user data
+        // Map Excel columns to user data - only the new format columns
         const userData = {
-          ner: row["Нэр"]?.toString().trim() || "",
           ovog: row["Овог"]?.toString().trim() || "",
+          ner: row["Нэр"]?.toString().trim() || "",
           utas: row["Утас"]?.toString().trim() || "",
-          nuutsUg: row["Нууц үг"]?.toString().trim() || "",
           mail: row["Имэйл"]?.toString().trim() || "",
-          register: row["Регистр"]?.toString().trim() || "",
-          duureg: row["Дүүрэг"]?.toString().trim() || "",
-          horoo: row["Хороо"]?.toString().trim() || "",
-          soh: row["СӨХ"]?.toString().trim() || "",
-          barilgiinId: row["Барилгын ID"]?.toString().trim() || defaultBarilgiinId,
           davkhar: row["Давхар"]?.toString().trim() || "",
           orts: row["Орц"]?.toString().trim() || "",
           bairniiNer: row["Барилгын нэр"]?.toString().trim() || "",
@@ -184,17 +166,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         if (!userData.utas) {
           throw new Error("Утасны дугаар заавал бөглөх шаардлагатай!");
         }
-        if (!userData.nuutsUg) {
-          throw new Error("Нууц үг заавал бөглөх шаардлагатай!");
-        }
-        if (!userData.duureg) {
-          throw new Error("Дүүрэг заавал бөглөх шаардлагатай!");
-        }
-        if (!userData.horoo) {
-          throw new Error("Хороо заавал бөглөх шаардлагатай!");
-        }
-        if (!userData.soh) {
-          throw new Error("СӨХ заавал бөглөх шаардлагатай!");
+        if (!userData.davkhar) {
+          throw new Error("Давхар заавал бөглөх шаардлагатай!");
         }
         if (!userData.orts) {
           throw new Error("Орц заавал бөглөх шаардлагатай!");
@@ -215,18 +188,44 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           throw new Error("Утасны дугаар давхардаж байна!");
         }
 
-        // Determine barilgiinId for this user
-        const finalBarilgiinId =
-          userData.barilgiinId || defaultBarilgiinId;
+        // Determine barilgiinId for this user (from request body or default)
+        const finalBarilgiinId = barilgiinId || defaultBarilgiinId;
 
-        // Create user
+        // Get barilga details for location info (duureg, horoo, soh)
+        const targetBarilga = baiguullaga.barilguud?.find(
+          (b) => String(b._id) === String(finalBarilgiinId)
+        );
+
+        if (!targetBarilga) {
+          throw new Error(
+            `Барилга олдсонгүй. Барилгын ID: ${finalBarilgiinId}`
+          );
+        }
+
+        // Get location info from barilga's tokhirgoo
+        const duuregNer = targetBarilga.tokhirgoo?.duuregNer || "";
+        const horooData = targetBarilga.tokhirgoo?.horoo || {};
+        const horooNer = horooData.ner || "";
+        const sohNer = targetBarilga.tokhirgoo?.sohNer || "";
+
+        // Create user - password is hardcoded to "1234"
         const userObject = {
-          ...userData,
+          ovog: userData.ovog || "",
+          ner: userData.ner,
+          utas: userData.utas,
+          mail: userData.mail || "",
+          nuutsUg: "1234", // Hardcoded password for Excel imports
           baiguullagiinId: baiguullaga._id,
           baiguullagiinNer: baiguullaga.ner,
           barilgiinId: finalBarilgiinId,
           erkh: "OrshinSuugch",
           nevtrekhNer: userData.utas,
+          duureg: duuregNer,
+          horoo: horooData,
+          soh: sohNer,
+          davkhar: userData.davkhar,
+          orts: userData.orts,
+          bairniiNer: userData.bairniiNer,
           toot: userData.toot ? Number(userData.toot) : 0,
         };
 
@@ -284,33 +283,32 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           return total + tariff;
         }, 0);
 
-        // Create contract
+        // Create contract - register field removed, ashiglaltiinZardal set to niitTulbur
         const contractData = {
           gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}-${i}`,
           gereeniiOgnoo: new Date(),
           turul: "Үндсэн",
           ovog: userData.ovog || "",
           ner: userData.ner,
-          register: userData.register || "",
           utas: [userData.utas],
           mail: userData.mail || "",
           baiguullagiinId: baiguullaga._id,
           baiguullagiinNer: baiguullaga.ner,
           barilgiinId: finalBarilgiinId || "",
           tulukhOgnoo: new Date(),
-          ashiglaltiinZardal: 0,
+          ashiglaltiinZardal: niitTulbur, // Set to niitTulbur (sum of tariffs)
           niitTulbur: niitTulbur,
           toot: userObject.toot || 0,
           davkhar: userData.davkhar || "",
           bairNer: userData.bairniiNer || "",
-          sukhBairshil: `${userData.duureg}, ${userData.horoo}, ${userData.soh}`,
+          sukhBairshil: `${duuregNer}, ${horooNer}, ${sohNer}`, // From barilga tokhirgoo
           orts: userData.orts || "",
           burtgesenAjiltan: orshinSuugch._id,
           orshinSuugchId: orshinSuugch._id.toString(),
           temdeglel: "Excel файлаас автоматаар үүссэн гэрээ",
           actOgnoo: new Date(),
           baritsaaniiUldegdel: 0,
-          zardluud: zardluudArray,
+          zardluud: zardluudArray, // Populated from ashiglaltiinZardluud
           segmentuud: [],
           khungulultuud: [],
         };
