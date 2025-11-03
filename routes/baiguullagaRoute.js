@@ -243,7 +243,7 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         : [],
     };
 
-    // Update sohNer, ortts, and davkhar in tokhirgoo
+    // Update sohNer, orts, and davkhar in tokhirgoo
     if (newBarilga.tokhirgoo) {
       newBarilga.tokhirgoo.sohNer = sohNer;
       if (orts !== undefined) {
