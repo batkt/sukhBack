@@ -85,20 +85,52 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     throw new aldaa("Ажилтны байгууллагын мэдээлэл олдсонгүй!");
   }
 
+  // Convert baiguullagiinId to ObjectId if it's a string
+  const mongoose = require("mongoose");
+  let baiguullagiinObjectId;
+  try {
+    baiguullagiinObjectId =
+      typeof ajiltan.baiguullagiinId === "string"
+        ? new mongoose.Types.ObjectId(ajiltan.baiguullagiinId)
+        : ajiltan.baiguullagiinId;
+  } catch (error) {
+    console.error(
+      "❌ Invalid baiguullagiinId format:",
+      ajiltan.baiguullagiinId,
+      error.message
+    );
+    throw new aldaa(
+      `Байгууллагын ID буруу байна! (ID: ${ajiltan.baiguullagiinId})`
+    );
+  }
+
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-    ajiltan.baiguullagiinId
+    baiguullagiinObjectId
   );
 
   if (!baiguullaga) {
-    console.error(
-      "❌ Baiguullaga not found for ID:",
-      ajiltan.baiguullagiinId,
-      "Employee ID:",
-      ajiltan._id
-    );
-    throw new aldaa(
-      `Байгууллагын мэдээлэл олдсонгүй! (ID: ${ajiltan.baiguullagiinId})`
-    );
+    // Try alternative query with string ID
+    const baiguullagaByString = await Baiguullaga(
+      db.erunkhiiKholbolt
+    ).findOne({
+      _id: ajiltan.baiguullagiinId.toString(),
+    });
+
+    if (baiguullagaByString) {
+      baiguullaga = baiguullagaByString;
+    } else {
+      console.error(
+        "❌ Baiguullaga not found for ID:",
+        ajiltan.baiguullagiinId,
+        "Employee ID:",
+        ajiltan._id,
+        "Type:",
+        typeof ajiltan.baiguullagiinId
+      );
+      throw new aldaa(
+        `Байгууллагын мэдээлэл олдсонгүй! (ID: ${ajiltan.baiguullagiinId}). Ажилтны бүртгэлийг шалгана уу.`
+      );
+    }
   }
 
   var butsaakhObject = {
