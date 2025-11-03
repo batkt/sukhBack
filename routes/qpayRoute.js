@@ -259,7 +259,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         // Create callback URL with comma-separated invoice IDs
         const invoiceIdsString = invoiceIds.join(",");
         callback_url =
-          process.env.UNDSEN_SERVER +
+          (process.env.UNDSEN_SERVER || "http://103.143.40.46:8084") +
           "/qpayNekhemjlekhMultipleCallback/" +
           req.body.baiguullagiinId.toString() +
           "/" +
@@ -938,10 +938,25 @@ router.get(
         return res.status(404).send("Organization not found");
       }
 
+      // Convert invoice IDs to ObjectId if needed
+      const mongoose = require("mongoose");
+      const ObjectId = mongoose.Types.ObjectId;
+      const invoiceObjectIds = invoiceIds.map(id => {
+        try {
+          return ObjectId(id);
+        } catch (e) {
+          return id;
+        }
+      });
+
+      console.log("🔍 Fetching invoices with IDs:", invoiceObjectIds);
+
       // Fetch all invoices
       const invoices = await nekhemjlekhiinTuukh(kholbolt).find({
-        _id: { $in: invoiceIds },
+        _id: { $in: invoiceObjectIds },
       });
+
+      console.log(`📄 Found ${invoices.length} invoices to update`);
 
       if (invoices.length === 0) {
         console.error("❌ Invoices not found:", invoiceIds);
@@ -980,84 +995,108 @@ router.get(
 
       // Update all invoices as paid
       const updatePromises = invoices.map(async (nekhemjlekh) => {
-        if (nekhemjlekh.tuluv === "Төлсөн") {
-          console.log(`ℹ️  Invoice ${nekhemjlekh._id} already paid`);
-          return;
-        }
-
-        nekhemjlekh.tuluv = "Төлсөн";
-        nekhemjlekh.tulsunOgnoo = new Date();
-        if (paymentTransactionId) {
-          nekhemjlekh.qpayPaymentId = paymentTransactionId;
-        }
-
-        nekhemjlekh.paymentHistory = nekhemjlekh.paymentHistory || [];
-        nekhemjlekh.paymentHistory.push({
-          ognoo: new Date(),
-          dun: nekhemjlekh.niitTulbur || 0,
-          turul: "qpay",
-          guilgeeniiId:
-            paymentTransactionId || nekhemjlekh.qpayInvoiceId || "unknown",
-          tailbar: "QPay төлбөр (Олон нэхэмжлэх)",
-        });
-
-        await nekhemjlekh.save();
-
-        // Create bank payment record for each invoice
         try {
-          const geree = await Geree(kholbolt)
-            .findById(nekhemjlekh.gereeniiId)
-            .lean();
-
-          if (geree) {
-            const bankGuilgee = new BankniiGuilgee(kholbolt)();
-
-            bankGuilgee.tranDate = new Date();
-            bankGuilgee.amount = nekhemjlekh.niitTulbur || 0;
-            bankGuilgee.description = `QPay төлбөр (Олон нэхэмжлэх) - Гэрээ ${nekhemjlekh.gereeniiDugaar}`;
-            bankGuilgee.accName = nekhemjlekh.nekhemjlekhiinDansniiNer || "";
-            bankGuilgee.accNum = nekhemjlekh.nekhemjlekhiinDans || "";
-
-            bankGuilgee.record = paymentTransactionId || nekhemjlekh.qpayInvoiceId || "";
-            bankGuilgee.tranId = paymentTransactionId || nekhemjlekh.qpayInvoiceId || "";
-            bankGuilgee.balance = 0;
-            bankGuilgee.requestId = nekhemjlekh.qpayInvoiceId || "";
-
-            bankGuilgee.kholbosonGereeniiId = [nekhemjlekh.gereeniiId];
-            bankGuilgee.kholbosonTalbainId = geree?.talbainDugaar
-              ? [geree.talbainDugaar]
-              : [];
-            bankGuilgee.dansniiDugaar = nekhemjlekh.nekhemjlekhiinDans || "";
-            bankGuilgee.bank = nekhemjlekh.nekhemjlekhiinBank || "qpay";
-            bankGuilgee.baiguullagiinId = nekhemjlekh.baiguullagiinId;
-            bankGuilgee.barilgiinId = nekhemjlekh.barilgiinId || "";
-            bankGuilgee.kholbosonDun = nekhemjlekh.niitTulbur || 0;
-            bankGuilgee.ebarimtAvsanEsekh = false;
-            bankGuilgee.drOrCr = "Credit";
-            bankGuilgee.tranCrnCode = "MNT";
-            bankGuilgee.exchRate = 1;
-            bankGuilgee.postDate = new Date();
-
-            bankGuilgee.indexTalbar = `${bankGuilgee.barilgiinId}${bankGuilgee.bank}${bankGuilgee.dansniiDugaar}${bankGuilgee.record}${bankGuilgee.amount}`;
-
-            await bankGuilgee.save();
+          if (nekhemjlekh.tuluv === "Төлсөн") {
+            console.log(`ℹ️  Invoice ${nekhemjlekh._id} already paid`);
+            return;
           }
-        } catch (bankErr) {
+
+          console.log(`💰 Updating invoice ${nekhemjlekh._id} to paid status`);
+
+          // Use findByIdAndUpdate to ensure the update is applied
+          const updatedInvoice = await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
+            nekhemjlekh._id,
+            {
+              $set: {
+                tuluv: "Төлсөн",
+                tulsunOgnoo: new Date(),
+                ...(paymentTransactionId && { qpayPaymentId: paymentTransactionId }),
+              },
+              $push: {
+                paymentHistory: {
+                  ognoo: new Date(),
+                  dun: nekhemjlekh.niitTulbur || 0,
+                  turul: "qpay",
+                  guilgeeniiId:
+                    paymentTransactionId || nekhemjlekh.qpayInvoiceId || "unknown",
+                  tailbar: "QPay төлбөр (Олон нэхэмжлэх)",
+                },
+              },
+            },
+            { new: true }
+          );
+
+          if (!updatedInvoice) {
+            console.error(`❌ Failed to update invoice ${nekhemjlekh._id}`);
+            return;
+          }
+
+          console.log(`✅ Invoice ${updatedInvoice._id} updated successfully`);
+          
+          // Use the updated invoice for further operations
+          nekhemjlekh = updatedInvoice;
+
+          // Create bank payment record for each invoice
+          try {
+            const geree = await Geree(kholbolt)
+              .findById(nekhemjlekh.gereeniiId)
+              .lean();
+
+            if (geree) {
+              const bankGuilgee = new BankniiGuilgee(kholbolt)();
+
+              bankGuilgee.tranDate = new Date();
+              bankGuilgee.amount = nekhemjlekh.niitTulbur || 0;
+              bankGuilgee.description = `QPay төлбөр (Олон нэхэмжлэх) - Гэрээ ${nekhemjlekh.gereeniiDugaar}`;
+              bankGuilgee.accName = nekhemjlekh.nekhemjlekhiinDansniiNer || "";
+              bankGuilgee.accNum = nekhemjlekh.nekhemjlekhiinDans || "";
+
+              bankGuilgee.record = paymentTransactionId || nekhemjlekh.qpayInvoiceId || "";
+              bankGuilgee.tranId = paymentTransactionId || nekhemjlekh.qpayInvoiceId || "";
+              bankGuilgee.balance = 0;
+              bankGuilgee.requestId = nekhemjlekh.qpayInvoiceId || "";
+
+              bankGuilgee.kholbosonGereeniiId = [nekhemjlekh.gereeniiId];
+              bankGuilgee.kholbosonTalbainId = geree?.talbainDugaar
+                ? [geree.talbainDugaar]
+                : [];
+              bankGuilgee.dansniiDugaar = nekhemjlekh.nekhemjlekhiinDans || "";
+              bankGuilgee.bank = nekhemjlekh.nekhemjlekhiinBank || "qpay";
+              bankGuilgee.baiguullagiinId = nekhemjlekh.baiguullagiinId;
+              bankGuilgee.barilgiinId = nekhemjlekh.barilgiinId || "";
+              bankGuilgee.kholbosonDun = nekhemjlekh.niitTulbur || 0;
+              bankGuilgee.ebarimtAvsanEsekh = false;
+              bankGuilgee.drOrCr = "Credit";
+              bankGuilgee.tranCrnCode = "MNT";
+              bankGuilgee.exchRate = 1;
+              bankGuilgee.postDate = new Date();
+
+              bankGuilgee.indexTalbar = `${bankGuilgee.barilgiinId}${bankGuilgee.bank}${bankGuilgee.dansniiDugaar}${bankGuilgee.record}${bankGuilgee.amount}`;
+
+              await bankGuilgee.save();
+            }
+          } catch (bankErr) {
+            console.error(
+              `❌ Error creating bank payment record for invoice ${nekhemjlekh._id}:`,
+              bankErr.message
+            );
+          }
+
+          // Emit socket event for each invoice
+          req.app
+            .get("socketio")
+            .emit(`nekhemjlekhPayment/${baiguullagiinId}/${nekhemjlekh._id}`, {
+              status: "success",
+              tuluv: "Төлсөн",
+              tulsunOgnoo: updatedInvoice.tulsunOgnoo,
+              paymentId: updatedInvoice.qpayPaymentId,
+            });
+        } catch (invoiceErr) {
           console.error(
-            `❌ Error creating bank payment record for invoice ${nekhemjlekh._id}:`,
-            bankErr.message
+            `❌ Error updating invoice ${nekhemjlekh._id}:`,
+            invoiceErr.message
           );
         }
-
-        // Emit socket event for each invoice
-        req.app
-          .get("socketio")
-          .emit(`nekhemjlekhPayment/${baiguullagiinId}/${nekhemjlekh._id}`, {
-            status: "success",
-            tuluv: "Төлсөн",
-            tulsunOgnoo: nekhemjlekh.tulsunOgnoo,
-            paymentId: nekhemjlekh.qpayPaymentId,
-          });
       });
 
       await Promise.all(updatePromises);
