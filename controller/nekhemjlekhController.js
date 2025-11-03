@@ -11,6 +11,74 @@ const gereeNeesNekhemjlekhUusgekh = async (
 ) => {
   try {
     console.log("Энэ рүү орлоо: gereeNeesNekhemjlekhUusgekh");
+    
+    // Check if invoice already exists for this contract in the current month
+    // This prevents duplicate invoices regardless of when in the month they're created
+    // (handles cases where invoices are scheduled for 2nd, 15th, 31st, etc.)
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth(); // 0-11 (0 = January)
+    
+    // Get start and end of current calendar month (1st day 00:00:00 to last day 23:59:59)
+    const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+    
+    // Determine barilgiinId for the check (temporary variable)
+    let checkBarilgiinId = tempData.barilgiinId;
+    if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
+      checkBarilgiinId = String(org.barilguud[0]._id);
+    }
+    
+    // Check for existing invoice in current calendar month
+    // Uses ognoo (invoice date) OR createdAt as fallback
+    const existingInvoiceQuery = {
+      gereeniiId: tempData._id.toString(),
+      $or: [
+        // Check by ognoo field (invoice date)
+        {
+          ognoo: {
+            $gte: monthStart,
+            $lte: monthEnd,
+          },
+        },
+        // Fallback: check by createdAt (when invoice was created in DB)
+        {
+          createdAt: {
+            $gte: monthStart,
+            $lte: monthEnd,
+          },
+        },
+      ],
+    };
+    
+    // Add barilgiinId to query if available (for multi-barilga isolation)
+    if (checkBarilgiinId) {
+      existingInvoiceQuery.barilgiinId = checkBarilgiinId;
+    }
+    
+    // Find the most recent invoice for this contract in current month
+    const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+      .findOne(existingInvoiceQuery)
+      .sort({ ognoo: -1, createdAt: -1 });
+    
+    if (existingInvoice) {
+      console.log(
+        `ℹ️  Invoice already exists for contract ${tempData.gereeniiDugaar} in current month:`,
+        existingInvoice._id
+      );
+      
+      // Return existing invoice without modifying the contract
+      // This preserves the original created date of the geree
+      return {
+        success: true,
+        nekhemjlekh: existingInvoice,
+        gereeniiId: tempData._id,
+        gereeniiDugaar: tempData.gereeniiDugaar,
+        tulbur: existingInvoice.niitTulbur,
+        alreadyExists: true,
+      };
+    }
+    
     const tuukh = new nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)();
 
     let dansInfo = { dugaar: "", dansniiNer: "", bank: "" };
@@ -159,9 +227,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
     await tuukh.save();
 
     // Гэрээг нэхэмжлэхийн огноогоор шинэчлэх
-    await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(tempData._id, {
-      nekhemjlekhiinOgnoo: new Date(),
-    });
+    // Use $set to only update nekhemjlekhiinOgnoo without affecting timestamps
+    await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
+      tempData._id,
+      {
+        $set: {
+          nekhemjlekhiinOgnoo: new Date(),
+        },
+      },
+      {
+        runValidators: false,
+        // Don't update timestamps - only update the specific field
+      }
+    );
 
     return {
       success: true,
