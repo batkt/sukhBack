@@ -31,45 +31,8 @@ router
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiExcelTatya);
 
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
-
-// Test route to manually trigger middleware
-router.put("/test-ashiglaltiinZardluud/:id", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
-    );
-
-    if (!tukhainBaaziinKholbolt) {
-      return res.status(400).json({
-        success: false,
-        message: "Холболтын мэдээлэл олдсонгүй!"
-      });
-    }
-
-    const AshiglaltiinZardluud = ashiglaltiinZardluud(tukhainBaaziinKholbolt);
-    
-    console.log("🧪 Testing manual update of ashiglaltiinZardluud:", req.params.id);
-    
-    const result = await AshiglaltiinZardluud.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-
-    res.json({
-      success: true,
-      message: "Амжилттай шинэчлэгдлээ",
-      data: result
-    });
-  } catch (error) {
-    next(error);
-  }
-});
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
 crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
-
-
 
 crud(
   router,
@@ -88,7 +51,7 @@ crud(
       }
 
       const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)(req.body);
-      orshinSuugch.id ;
+      orshinSuugch.id;
 
       var unuudur = new Date();
       unuudur = new Date(
@@ -137,8 +100,7 @@ crud(
     }
   },
   async (req, res, next) => {
-    // Custom GET handler for geree
-    if (req.method === 'GET') {
+    if (req.method === "GET") {
       try {
         const { db } = require("zevbackv2");
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
@@ -148,7 +110,7 @@ crud(
         if (!tukhainBaaziinKholbolt) {
           return res.status(400).json({
             success: false,
-            aldaa: "Холболтын мэдээлэл олдсонгүй!"
+            aldaa: "Холболтын мэдээлэл олдсонгүй!",
           });
         }
 
@@ -162,36 +124,35 @@ crud(
           collation = {},
           select = {},
         } = body;
-        
+
         if (!!body?.query) body.query = JSON.parse(body.query);
         if (!!body?.order) body.order = JSON.parse(body.order);
         if (!!body?.select) body.select = JSON.parse(body.select);
         if (!!body?.collation) body.collation = JSON.parse(body.collation);
-        if (!!body?.khuudasniiDugaar) body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
-        if (!!body?.khuudasniiKhemjee) body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
-        
-        console.log("=== Geree GET Debug ===");
-        console.log("tukhainBaaziinKholbolt:", tukhainBaaziinKholbolt ? "EXISTS" : "MISSING");
-        console.log("query:", body.query);
-        console.log("baiguullagiinId from token:", req.body.baiguullagiinId);
-        
+        if (!!body?.khuudasniiDugaar)
+          body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+        if (!!body?.khuudasniiKhemjee)
+          body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+
         let jagsaalt = await Geree(tukhainBaaziinKholbolt)
           .find(body.query)
           .sort(body.order)
           .collation(body.collation ? body.collation : {})
           .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
           .limit(body.khuudasniiKhemjee);
-          
-        let niitMur = await Geree(tukhainBaaziinKholbolt).countDocuments(body.query);
+
+        let niitMur = await Geree(tukhainBaaziinKholbolt).countDocuments(
+          body.query
+        );
         let niitKhuudas =
           niitMur % body.khuudasniiKhemjee == 0
             ? Math.floor(niitMur / body.khuudasniiKhemjee)
             : Math.floor(niitMur / body.khuudasniiKhemjee) + 1;
-            
+
         if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
-        
+
         console.log("Found contracts:", jagsaalt.length);
-        
+
         res.json({
           khuudasniiDugaar: body.khuudasniiDugaar,
           khuudasniiKhemjee: body.khuudasniiKhemjee,
@@ -382,8 +343,6 @@ router.route("/gereeKhadgalya").post(tokenShalgakh, async (req, res, next) => {
   });
   res.send("Amjilttai");
 });
-
-
 
 router
   .route("/zaaltOlnoorOruulya")

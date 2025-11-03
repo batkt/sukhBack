@@ -3,12 +3,10 @@ const router = express.Router();
 const { crud, UstsanBarimt, tokenShalgakh } = require("zevbackv2");
 const nekhemjlekhCron = require("../models/cronSchedule.js");
 
-// Custom route to create cron schedule in tenant database
 router.post("/", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
-    // Use the organization ID from the authenticated user (set by tokenShalgakh middleware)
     const baiguullagiinId = req.body.baiguullagiinId;
     const { nekhemjlekhUusgekhOgnoo, idevkhitei = true } = req.body;
 
@@ -19,14 +17,12 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    // Get organization info
     const Baiguullaga = require("../models/baiguullaga");
     let baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       baiguullagiinId
     );
 
     if (!baiguullaga) {
-      // Try to find by string ID
       baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
         _id: baiguullagiinId,
       });
@@ -39,7 +35,6 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
       }
     }
 
-    // Get tenant database connection
     let tukhainBaaziinKholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
@@ -53,7 +48,6 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    // Create or update cron schedule
     const cronSchedule = await nekhemjlekhCron(
       tukhainBaaziinKholbolt
     ).findOneAndUpdate(
@@ -78,13 +72,11 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
   }
 });
 
-// GET route to fetch cron schedules for an organization
 router.get("/:baiguullagiinId", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const { baiguullagiinId } = req.params;
 
-    // Get tenant database connection
     let tukhainBaaziinKholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );

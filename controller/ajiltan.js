@@ -56,18 +56,8 @@ async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
 }
 
 exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
-  console.log("🔍 ajiltanNevtrey called with:", {
-    nevtrekhNer: req.body.nevtrekhNer,
-    hasPassword: !!req.body.nuutsUg,
-  });
-
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
-
-  console.log(
-    "🔍 Searching for employee with nevtrekhNer:",
-    req.body.nevtrekhNer
-  );
 
   const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
     .findOne()
@@ -79,42 +69,21 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
       next(err);
     });
 
-  console.log(
-    "🔍 Found employee:",
-    ajiltan
-      ? { id: ajiltan._id, ner: ajiltan.ner, nevtrekhNer: ajiltan.nevtrekhNer }
-      : "NOT FOUND"
-  );
-
   if (!ajiltan) {
     console.log("❌ Employee not found, throwing error");
     throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
 
-  console.log("🔍 Verifying password...");
   var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
-  console.log("🔍 Password verification result:", ok ? "SUCCESS" : "FAILED");
 
   if (!ok) {
-    console.log("❌ Password verification failed, throwing error");
     throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
 
-  console.log("🔍 Finding organization with ID:", ajiltan.baiguullagiinId);
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
     ajiltan.baiguullagiinId
   );
 
-  console.log(
-    "🔍 Found organization:",
-    baiguullaga
-      ? {
-          id: baiguullaga._id,
-          ner: baiguullaga.ner,
-          register: baiguullaga.register,
-        }
-      : "NOT FOUND"
-  );
   var butsaakhObject = {
     result: ajiltan,
     success: true,
@@ -125,10 +94,6 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
       type: "logout",
     });
   }
-  console.log("🔍 Calling duusakhOgnooAvya with:", {
-    register: baiguullaga.register,
-    system: "sukh",
-  });
 
   duusakhOgnooAvya(
     { register: baiguullaga.register, system: "sukh" },
@@ -199,9 +164,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           tuukh.useragent = ua;
           tuukh.baiguullagiinId = ajiltan.baiguullagiinId;
           tuukh.baiguullagiinRegister = baiguullaga.register;
-          console.log("🔍 Saving login history...");
           await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
-          console.log("✅ Login history saved successfully");
 
           console.log(
             "✅ ajiltanNevtrey completed successfully, sending response"
@@ -314,23 +277,23 @@ exports.backAvya = asyncHandler(async (req, res, next) => {
 exports.tokenoorAjiltanAvya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    
+
     if (!req.headers.authorization) {
       return res.status(401).json({
         success: false,
         message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
       });
     }
-    
+
     const token = req.headers.authorization.split(" ")[1];
-    
+
     if (!token) {
       return res.status(401).json({
         success: false,
         message: "Token is required",
       });
     }
-    
+
     let tokenObject;
     try {
       tokenObject = jwt.verify(token, process.env.APP_SECRET);
@@ -342,14 +305,14 @@ exports.tokenoorAjiltanAvya = asyncHandler(async (req, res, next) => {
         error: jwtError.message,
       });
     }
-    
+
     if (tokenObject.id == "zochin") {
       return res.status(401).json({
         success: false,
         message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
       });
     }
-    
+
     Ajiltan(db.erunkhiiKholbolt)
       .findById(tokenObject.id)
       .then((urDun) => {
@@ -397,23 +360,23 @@ exports.zochiniiTokenAvya = asyncHandler(async (req, res, next) => {
 exports.khugatsaaguiTokenAvya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    
+
     if (!req.headers.authorization) {
       return res.status(401).json({
         success: false,
         message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
       });
     }
-    
+
     const token = req.headers.authorization.split(" ")[1];
-    
+
     if (!token) {
       return res.status(401).json({
         success: false,
         message: "Token is required",
       });
     }
-    
+
     let tokenObject;
     try {
       tokenObject = jwt.verify(token, process.env.APP_SECRET);
@@ -425,14 +388,14 @@ exports.khugatsaaguiTokenAvya = asyncHandler(async (req, res, next) => {
         error: jwtError.message,
       });
     }
-    
+
     if (tokenObject.id == "zochin") {
       return res.status(401).json({
         success: false,
         message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
       });
     }
-    
+
     Ajiltan(db.erunkhiiKholbolt)
       .findById(tokenObject.id)
       .then(async (urDun) => {

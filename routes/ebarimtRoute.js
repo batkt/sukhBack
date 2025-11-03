@@ -70,15 +70,11 @@ async function nekhemjlekheesEbarimtShineUusgye(
       totalAmount: dun.toFixed(2),
     };
 
-    // Add taxProductCode when taxType is VAT_FREE, VAT_ZERO, or NOT_VAT
-    // This is required by e-barimt API for VAT-free services
     if (
       taxType === "VAT_FREE" ||
       taxType === "VAT_ZERO" ||
       taxType === "NOT_VAT"
     ) {
-      // Use default tax code 401 for VAT_FREE service fees (СӨХИЙН ТӨЛБӨР)
-      // This is a 3-digit tax code commonly used for VAT-free services in Mongolia
       item.taxProductCode = "401";
     }
 
@@ -114,28 +110,14 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
       var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         if (err) {
-          console.error("❌ E-barimt API request error:", err.message);
           if (next) next(err);
           return;
         }
-        if (res1 && res1.statusCode !== 200) {
-          console.error("❌ E-barimt API response error:", {
-            statusCode: res1.statusCode,
-            body: body,
-            message: body?.message || body?.error || "Unknown error",
-          });
-        }
         if (body && (body.error || body.message)) {
-          console.error("❌ E-barimt API error response:", {
-            error: body.error,
-            message: body.message,
-            fullBody: JSON.stringify(body).slice(0, 500),
-          });
           if (next)
             next(new Error(body.message || body.error || "E-barimt API error"));
           return;
         }
-        // Success case
         onFinish(body, ugugdul);
       });
     } else if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
@@ -145,7 +127,6 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
   }
 }
 
-// Create e-barimt for paid invoice
 router.get("/ebarimtJagsaaltAvya", tokenShalgakh, async (req, res, next) => {
   try {
     const body = req.query;
@@ -158,7 +139,6 @@ router.get("/ebarimtJagsaaltAvya", tokenShalgakh, async (req, res, next) => {
     if (!!body?.search) body.search = String(body.search);
     body.query && (body.query["baiguullagiinId"] = req.body.baiguullagiinId);
 
-    // Always use EbarimtShine for now
     const shine = true;
 
     khuudaslalt(EbarimtShine(req.body.tukhainBaaziinKholbolt), body)
@@ -175,7 +155,7 @@ router.get("/ebarimtJagsaaltAvya", tokenShalgakh, async (req, res, next) => {
 
 router.post("/ebarimtToololtAvya", tokenShalgakh, async (req, res, next) => {
   try {
-    var ebarimtShine = true; // Always use EbarimtShine for now
+    var ebarimtShine = true;
     var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       req.body.baiguullagiinId
     );
@@ -331,7 +311,6 @@ router.post(
           var shineBarimt = new EbarimtShine(req.body.tukhainBaaziinKholbolt)(
             d
           );
-          // Keep the original invoice ID that was set in nekhemjlekheesEbarimtShineUusgye
           shineBarimt.nekhemjlekhiinId = khariuObject.nekhemjlekhiinId;
           shineBarimt.baiguullagiinId = khariuObject.baiguullagiinId;
           shineBarimt.barilgiinId = khariuObject.barilgiinId;

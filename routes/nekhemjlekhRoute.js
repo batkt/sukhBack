@@ -5,20 +5,20 @@ const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
 
 crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
-// Enhanced GET route with QPay functionality
 router.get("/:id", tokenShalgakh, async (req, res, next) => {
   try {
     const { id } = req.params;
-    
-    const nekhemjlekh = await nekhemjlekhiinTuukh(req.body.tukhainBaaziinKholbolt).findById(id);
+
+    const nekhemjlekh = await nekhemjlekhiinTuukh(
+      req.body.tukhainBaaziinKholbolt
+    ).findById(id);
     if (!nekhemjlekh) {
       return res.status(404).json({
         success: false,
-        message: "Нэхэмжлэх олдсонгүй!"
+        message: "Нэхэмжлэх олдсонгүй!",
       });
     }
 
-    // Check and update overdue status
     const wasUpdated = nekhemjlekh.checkOverdue();
     if (wasUpdated) {
       await nekhemjlekh.save();
@@ -26,9 +26,8 @@ router.get("/:id", tokenShalgakh, async (req, res, next) => {
 
     res.json({
       success: true,
-      data: nekhemjlekh
+      data: nekhemjlekh,
     });
-
   } catch (error) {
     console.error("Invoice fetch error:", error);
     next(error);

@@ -82,7 +82,6 @@ app.use(tailanRoute);
 
 app.use(aldaaBarigch);
 
-// Автоматаар нэхэмжлэх үүсгэх функц (өдөр бүр шөнийн 12 цагт ажиллана)
 async function automataarNekhemjlekhUusgekh() {
   try {
     const { db } = require("zevbackv2");
@@ -93,25 +92,13 @@ async function automataarNekhemjlekhUusgekh() {
       "=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ЭХЭЛЛЭЭ ==="
     );
 
-    // Одоогийн огноо авах
     const odoo = new Date();
     const nekhemjlekhUusgekhOgnoo = odoo.getDate();
 
-    console.log(`Өнөөдөр сарын ${nekhemjlekhUusgekhOgnoo} өдөр`);
-
-    // Өнөөдрийн хувьд идэвхтэй тохиргоонуудыг авах
-    console.log("Хайлтын нөхцөл:", {
-      nekhemjlekhUusgekhOgnoo: nekhemjlekhUusgekhOgnoo,
-      idevkhitei: true,
-    });
-
-    // Get all organizations first
     const baiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
-    console.log(`Олдсон байгууллагын тоо: ${baiguullaguud.length}`);
 
     const tovchoonuud = [];
 
-    // Check each organization for schedules
     for (const baiguullaga of baiguullaguud) {
       try {
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
@@ -142,9 +129,6 @@ async function automataarNekhemjlekhUusgekh() {
       }
     }
 
-    console.log(`Олдсон тохиргоонуудын тоо: ${tovchoonuud.length}`);
-    console.log("Тохиргоонууд:", JSON.stringify(tovchoonuud, null, 2));
-
     if (tovchoonuud.length === 0) {
       console.log(
         `Сарын ${nekhemjlekhUusgekhOgnoo} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`
@@ -167,7 +151,6 @@ async function automataarNekhemjlekhUusgekh() {
           (k) => k.baiguullagiinId === baiguullaga._id.toString()
         );
 
-        // Find ALL contracts for this organization
         const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
           baiguullagiinId: baiguullaga._id.toString(),
         });
@@ -181,7 +164,6 @@ async function automataarNekhemjlekhUusgekh() {
           `${baiguullaga.ner}-д ${gereenuud.length} гэрээ боловсруулах олдлоо`
         );
 
-        // Process in batches of 20 to handle large volumes efficiently
         const batchSize = 20;
         let processedCount = 0;
         let successCount = 0;
@@ -189,13 +171,7 @@ async function automataarNekhemjlekhUusgekh() {
 
         for (let i = 0; i < gereenuud.length; i += batchSize) {
           const batch = gereenuud.slice(i, i + batchSize);
-          console.log(
-            `📦 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(
-              gereenuud.length / batchSize
-            )} (${batch.length} contracts)`
-          );
 
-          // Process batch with controlled concurrency (max 10 at a time)
           const results = await Promise.allSettled(
             batch.map((geree) =>
               nekhemjlekhController.gereeNeesNekhemjlekhUusgekh(
@@ -207,15 +183,11 @@ async function automataarNekhemjlekhUusgekh() {
             )
           );
 
-          // Log results
           results.forEach((result, index) => {
             processedCount++;
             if (result.status === "fulfilled" && result.value.success) {
               successCount++;
               const urdun = result.value;
-              console.log(
-                `✅ [${processedCount}/${gereenuud.length}] Гэрээ ${urdun.gereeniiDugaar}-д нэхэмжлэх үүсгэгдлээ - Төлбөр: ${urdun.tulbur}₮`
-              );
             } else {
               errorCount++;
               const error =
@@ -234,7 +206,6 @@ async function automataarNekhemjlekhUusgekh() {
           `📊 ${baiguullaga.ner}: Төлөв - Amjilttai: ${successCount}, Aldaa: ${errorCount}, Niit: ${processedCount}`
         );
 
-        // Сүүлийн ажилласан огноо шинэчлэх
         await NekhemjlekhCron(tukhainBaaziinKholbolt).findByIdAndUpdate(
           tovchoo._id,
           {
@@ -253,13 +224,12 @@ async function automataarNekhemjlekhUusgekh() {
       "=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ДУУССАН ==="
     );
   } catch (aldaa) {
-    console.error("❌ АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ КРИТИК АЛДАА:", aldaa);
+    console.error("❌ АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ АЛДАА:", aldaa);
   }
 }
 
-// Өдөр бүр 10:10 цагт ажиллах cron job
 cron.schedule(
-  "56 16 * * *", // Өдөр бүр 10:10 цагт
+  "56 16 * * *",
   function () {
     automataarNekhemjlekhUusgekh();
   },

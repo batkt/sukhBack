@@ -3,7 +3,6 @@ const asyncHandler = require("express-async-handler");
 exports.tailanSummary = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
       ? {
           baiguullagiinId: req.params.baiguullagiinId,
@@ -25,14 +24,6 @@ exports.tailanSummary = asyncHandler(async (req, res, next) => {
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
     if (!kholbolt) {
-      console.log("❌ Холболтын мэдээлэл олдсонгүй:", {
-        baiguullagiinId,
-        type: typeof baiguullagiinId,
-        availableIds: db.kholboltuud.map((k) => ({
-          id: k.baiguullagiinId,
-          type: typeof k.baiguullagiinId,
-        })),
-      });
       return res
         .status(404)
         .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
@@ -169,11 +160,9 @@ function buildDateRange(ekhlekhOgnoo, duusakhOgnoo) {
   return { $gte: start, $lte: end };
 }
 
-// GET/POST /tailan/avlaga — Debt report with filters
 exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
       ? {
           baiguullagiinId: req.params.baiguullagiinId,
@@ -201,14 +190,6 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
     if (!kholbolt) {
-      console.log("❌ Холболтын мэдээлэл олдсонгүй:", {
-        baiguullagiinId,
-        type: typeof baiguullagiinId,
-        availableIds: db.kholboltuud.map((k) => ({
-          id: k.baiguullagiinId,
-          type: typeof k.baiguullagiinId,
-        })),
-      });
       return res
         .status(404)
         .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
@@ -261,11 +242,9 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
   }
 });
 
-// GET/POST /tailan/guilegee — Transactions with filters
 exports.tailanGuilgee = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
       ? {
           baiguullagiinId: req.params.baiguullagiinId,
@@ -336,11 +315,9 @@ exports.tailanGuilgee = asyncHandler(async (req, res, next) => {
   }
 });
 
-// GET/POST /tailan/orlogo-zarlaga — Income/Expense
 exports.tailanOrlogoZarlaga = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
       ? {
           baiguullagiinId: req.params.baiguullagiinId,
@@ -403,11 +380,9 @@ exports.tailanOrlogoZarlaga = asyncHandler(async (req, res, next) => {
   }
 });
 
-// GET/POST /tailan/ashig-aldagdal — Profit/Loss
 exports.tailanAshigAldagdal = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
       ? {
           baiguullagiinId: req.params.baiguullagiinId,
@@ -470,11 +445,9 @@ exports.tailanAshigAldagdal = asyncHandler(async (req, res, next) => {
   }
 });
 
-// GET/POST /tailan/sariin — Monthly report (invoices)
 exports.tailanSariin = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
       ? {
           baiguullagiinId: req.params.baiguullagiinId,
@@ -518,11 +491,9 @@ exports.tailanSariin = asyncHandler(async (req, res, next) => {
   }
 });
 
-// GET/POST /tailan/uliral — Quarterly report (invoices)
 exports.tailanUliral = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
       ? {
           baiguullagiinId: req.params.baiguullagiinId,
@@ -571,7 +542,6 @@ exports.tailanUliral = asyncHandler(async (req, res, next) => {
 
 exports.tailanExport = asyncHandler(async (req, res, next) => {
   try {
-    // Support path params, GET (query params), and POST (body)
     const source = req.params.baiguullagiinId
       ? {
           baiguullagiinId: req.params.baiguullagiinId,

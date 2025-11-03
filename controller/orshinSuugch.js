@@ -13,11 +13,9 @@ const jwt = require("jsonwebtoken");
 
 const useragent = require("express-useragent");
 
-// Helper function to verify code using dugaarBatalgaajuulakh logic
 async function verifyCodeHelper(baiguullagiinId, utas, code) {
   const { db } = require("zevbackv2");
 
-  // Validate code format
   if (code.length !== 4 || !/^\d+$/.test(code)) {
     return {
       success: false,
@@ -25,7 +23,6 @@ async function verifyCodeHelper(baiguullagiinId, utas, code) {
     };
   }
 
-  // Find the correct database connection
   const tukhainBaaziinKholbolt = db.kholboltuud.find(
     (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId
   );
@@ -45,7 +42,6 @@ async function verifyCodeHelper(baiguullagiinId, utas, code) {
   );
 
   if (!verificationResult.success) {
-    // Increment failed attempts
     await BatalgaajuulahCodeModel.incrementAttempts(
       utas,
       code,
@@ -56,11 +52,14 @@ async function verifyCodeHelper(baiguullagiinId, utas, code) {
   return verificationResult;
 }
 
-// Helper function to only validate code without marking as used (for Step 2)
-async function validateCodeOnly(baiguullagiinId, utas, code, purpose = "password_reset") {
+async function validateCodeOnly(
+  baiguullagiinId,
+  utas,
+  code,
+  purpose = "password_reset"
+) {
   const { db } = require("zevbackv2");
 
-  // Validate code format
   if (code.length !== 4 || !/^\d+$/.test(code)) {
     return {
       success: false,
@@ -68,7 +67,6 @@ async function validateCodeOnly(baiguullagiinId, utas, code, purpose = "password
     };
   }
 
-  // Find the correct database connection
   const tukhainBaaziinKholbolt = db.kholboltuud.find(
     (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId
   );
@@ -82,7 +80,6 @@ async function validateCodeOnly(baiguullagiinId, utas, code, purpose = "password
 
   const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
 
-  // Only check if code exists and is valid, don't mark as used
   const verificationCode = await BatalgaajuulahCodeModel.findOne({
     utas,
     code,
@@ -124,40 +121,8 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
   );
 }
 
-async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
-  var ipTuukh = await IpTuukh(tukhainBaaziinKholbolt).findOne({ ip: tuukh.ip });
-  if (ipTuukh) {
-    tuukh.bairshilUls = ipTuukh.bairshilUls;
-    tuukh.bairshilKhot = ipTuukh.bairshilKhot;
-  } else if (tuukh.ip) {
-    try {
-      var axiosKhariu = await axios.get(
-        "https://api.ipgeolocation.io/ipgeo?apiKey=8ee349f1c7304c379fdb6b855d1e9df4&ip=" +
-          tuukh.ip.toString()
-      );
-      ipTuukh = new IpTuukh(tukhainBaaziinKholbolt)();
-      ipTuukh.ognoo = new Date();
-      ipTuukh.medeelel = axiosKhariu.data;
-      ipTuukh.bairshilUls = axiosKhariu.data.country_name;
-      ipTuukh.bairshilKhot = axiosKhariu.data.city;
-      ipTuukh.ip = tuukh.ip;
-      tuukh.bairshilUls = ipTuukh.bairshilUls;
-      tuukh.bairshilKhot = ipTuukh.bairshilKhot;
-      await ipTuukh.save();
-    } catch (err) {}
-  }
-  await tuukh.save();
-}
-
 exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
-    console.log("📨 dugaarBatalgaajuulya called", {
-      body: {
-        baiguullagiinId: req.body?.baiguullagiinId,
-        utas: req.body?.utas,
-        purpose: req.body?.purpose,
-      },
-    });
     console.log("Энэ рүү орлоо: orshinSuugchBurtgey");
     const { db } = require("zevbackv2");
 
@@ -181,7 +146,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Нэр заавал бөглөх шаардлагатай!");
     }
 
-    // Find organization
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       req.body.baiguullagiinId
     );
@@ -190,7 +154,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    // Check for existing user
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [{ utas: req.body.utas }, { mail: req.body.mail }],
     });
@@ -199,13 +162,12 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Утасны дугаар эсвэл регистр, мэйл давхардаж байна!");
     }
 
-    // Create user
-    // Get barilgiinId from first ->building in barilguud array, or from req.body if provided
-    const barilgiinId = req.body.barilgiinId || 
-      (baiguullaga.barilguud && baiguullaga.barilguud.length > 0 
-        ? String(baiguullaga.barilguud[0]._id) 
+    const barilgiinId =
+      req.body.barilgiinId ||
+      (baiguullaga.barilguud && baiguullaga.barilguud.length > 0
+        ? String(baiguullaga.barilguud[0]._id)
         : null);
-    
+
     const userData = {
       ...req.body,
       baiguullagiinId: baiguullaga._id,
@@ -222,7 +184,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
     await orshinSuugch.save();
 
-    // Create contract
     try {
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
         (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
@@ -232,7 +193,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
       }
 
-      // Fetch ashiglaltiinZardluud data for this organization
       const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
       const ashiglaltiinZardluudData = await AshiglaltiinZardluud(
         tukhainBaaziinKholbolt
@@ -240,7 +200,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         baiguullagiinId: baiguullaga._id.toString(),
       });
 
-      // Fetch liftShalgaya data to get excluded departments for lift items
       const LiftShalgaya = require("../models/liftShalgaya");
       const liftShalgayaData = await LiftShalgaya(
         tukhainBaaziinKholbolt
@@ -250,7 +209,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
 
-      // Map ashiglaltiinZardluud data to zardluud array format
       const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
         ner: zardal.ner,
         turul: zardal.turul,
@@ -271,21 +229,18 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         ognoonuud: zardal.ognoonuud || [],
       }));
 
-      // Calculate niitTulbur by summing all tariff values, excluding departments for lift items
       const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
         const tariff = zardal.tariff || 0;
 
-        // Check if this is a lift-related item (by zardliinTurul field)
         const isLiftItem =
           zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
 
-        // If it's a lift item and user's department is in excluded list, don't count it
         if (
           isLiftItem &&
           orshinSuugch.davkhar &&
           choloolugdokhDavkhar.includes(orshinSuugch.davkhar)
         ) {
-          return total; // Don't add this tariff
+          return total;
         }
 
         return total + tariff;
@@ -304,18 +259,18 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         baiguullagiinNer: baiguullaga.ner,
         tulukhOgnoo: new Date(),
         ashiglaltiinZardal: 0,
-        niitTulbur: niitTulbur, // Use calculated total from tariff values
-        toot: orshinSuugch.toot || 0, // Get toot from user data
-        davkhar: orshinSuugch.davkhar || "", // Get davkhar from user data
+        niitTulbur: niitTulbur,
+        toot: orshinSuugch.toot || 0,
+        davkhar: orshinSuugch.davkhar || "",
         bairNer: req.body.bairniiNer || "",
         sukhBairshil: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
         orts: req.body.orts || "",
         burtgesenAjiltan: orshinSuugch._id,
-        orshinSuugchId: orshinSuugch._id.toString(), // Add user ID for filtering
+        orshinSuugchId: orshinSuugch._id.toString(),
         temdeglel: "Автоматаар үүссэн гэрээ",
         actOgnoo: new Date(),
         baritsaaniiUldegdel: 0,
-        zardluud: zardluudArray, // Use populated zardluud data
+        zardluud: zardluudArray,
         segmentuud: [],
         khungulultuud: [],
       };
@@ -323,17 +278,18 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
       await geree.save();
 
-      // Create invoice automatically after contract creation
       try {
-        const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
-        
+        const {
+          gereeNeesNekhemjlekhUusgekh,
+        } = require("./nekhemjlekhController");
+
         const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
           geree,
           baiguullaga,
           tukhainBaaziinKholbolt,
           "automataar"
         );
-        
+
         if (!invoiceResult.success) {
           console.error("Invoice creation failed:", invoiceResult.error);
         }
@@ -344,7 +300,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       console.error("Error creating contract:", contractError.message);
     }
 
-    // Send response
     const response = {
       success: true,
       message: "Амжилттай бүртгэгдлээ",
@@ -422,10 +377,10 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       orshinSuugch.baiguullagiinId
     );
 
-    // Update barilgiinId from first building in barilguud array if different
-    const firstBarilgiinId = baiguullaga?.barilguud && baiguullaga.barilguud.length > 0
-      ? String(baiguullaga.barilguud[0]._id)
-      : null;
+    const firstBarilgiinId =
+      baiguullaga?.barilguud && baiguullaga.barilguud.length > 0
+        ? String(baiguullaga.barilguud[0]._id)
+        : null;
     if (
       baiguullaga &&
       firstBarilgiinId &&
@@ -438,16 +393,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       orshinSuugch.barilgiinId = firstBarilgiinId;
       await orshinSuugch.save();
     }
-
-    // REMOVED: Organization reassignment logic
-    // Users should stay in their original organization to maintain data access
-    // The organization reassignment was causing users to lose access to their contracts
-
-    // Keep the original organization assignment
-    console.log(
-      "User stays in original organization:",
-      orshinSuugch.baiguullagiinId
-    );
 
     var butsaakhObject = {
       result: orshinSuugch,
@@ -479,12 +424,10 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    console.log("🔎 Fetching baiguullaga by id...");
     var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       baiguullagiinId
     );
     if (!baiguullaga) {
-      console.log("❌ Baiguullaga not found", { baiguullagiinId });
       return res.status(404).json({
         success: false,
         message: "Байгууллагын мэдээлэл олдсонгүй!",
@@ -497,20 +440,15 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     );
 
     if (!kholbolt) {
-      console.log("❌ Connection not found for org", { baiguullagiinId });
       return res.status(404).json({
         success: false,
         message: "Холболтын мэдээлэл олдсонгүй!",
       });
     }
 
-    // Validate existence based on purpose
-    console.log("🔎 Checking existing user by phone...");
     const existing = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
-    console.log("🔎 Existing:", !!existing);
     if (purpose === "registration") {
       if (existing) {
-        console.log("🚫 Registration requested but phone already exists");
         return res.status(409).json({
           success: false,
           message: "Энэ утас аль хэдийн бүртгэгдсэн байна!",
@@ -519,7 +457,6 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       }
     } else if (purpose === "password_reset") {
       if (!existing) {
-        console.log("🚫 Password reset requested but phone not found");
         return res.status(404).json({
           success: false,
           message: "Энэ утасны дугаартай хэрэглэгч олдсонгүй!",
@@ -533,19 +470,12 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     }
 
     const BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
-    console.log("🧾 Creating verification code...", { purpose });
     const batalgaajuulkhCodeDoc =
       await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
         utas,
         purpose,
         10
       );
-
-    console.log("✅ Code created:", {
-      id: batalgaajuulkhCodeDoc?._id?.toString?.(),
-      purpose: batalgaajuulkhCodeDoc?.purpose,
-      expiresAt: batalgaajuulkhCodeDoc?.expiresAt,
-    });
 
     var text = `AmarSukh: Tany batalgaajuulax code: ${batalgaajuulkhCodeDoc.code}.`;
 
@@ -559,10 +489,6 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
 
     var khariu = [];
 
-    console.log("📤 Sending SMS via msgIlgeeye...", {
-      to: utas,
-      textLength: text.length,
-    });
     msgIlgeeye(
       ilgeexList,
       msgIlgeekhKey,
@@ -573,7 +499,6 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       baiguullagiinId
     );
 
-    console.log("📬 Response: code sent");
     res.json({
       success: true,
       message: "Баталгаажуулах код илгээгдлээ",
@@ -613,10 +538,8 @@ exports.orshinSuugchBatalgaajuulya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Set baiguullagiinId for the next step
     req.body.baiguullagiinId = orshinSuugch.baiguullagiinId;
 
-    // Call the next function to continue the flow
     await exports.dugaarBatalgaajuulya(req, res, next);
   } catch (error) {
     next(error);
@@ -635,7 +558,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Validate password strength
     if (shineNuutsUg.length < 4) {
       return res.status(400).json({
         success: false,
@@ -643,7 +565,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Find user first to get baiguullagiinId
     const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
       .findOne({ utas: utas })
       .catch((err) => {
@@ -657,7 +578,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Use helper function for code verification
     const verificationResult = await verifyCodeHelper(
       orshinSuugch.baiguullagiinId,
       utas,
@@ -838,7 +758,6 @@ exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Use validateCodeOnly for Step 2 - don't mark code as used yet
     const verificationResult = await validateCodeOnly(
       baiguullagiinId,
       utas,
@@ -886,50 +805,70 @@ exports.nuutsUgShalgakhOrshinSuugch = asyncHandler(async (req, res, next) => {
   }
 });
 
-
 exports.orshinSuugchiinNuutsUgSoliyo = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const { odoogiinNuutsUg, shineNuutsUg, davtahNuutsUg } = req.body || {};
 
     if (!odoogiinNuutsUg || !shineNuutsUg || !davtahNuutsUg) {
-      return res.status(400).json({ success: false, message: "Бүх талбарыг бөглөх шаардлагатай!" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Бүх талбарыг бөглөх шаардлагатай!" });
     }
     if (String(shineNuutsUg) !== String(davtahNuutsUg)) {
-      return res.status(400).json({ success: false, message: "Шинэ нууц үг таарахгүй байна!" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Шинэ нууц үг таарахгүй байна!" });
     }
     if (String(shineNuutsUg).length < 4) {
-      return res.status(400).json({ success: false, message: "Нууц үг хамгийн багадаа 4 тэмдэгт байх ёстой!" });
+      return res.status(400).json({
+        success: false,
+        message: "Нууц үг хамгийн багадаа 4 тэмдэгт байх ёстой!",
+      });
     }
 
     if (!req.headers.authorization) {
-      return res.status(401).json({ success: false, message: "Энэ үйлдлийг хийх эрх байхгүй байна!" });
+      return res.status(401).json({
+        success: false,
+        message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
+      });
     }
     const token = req.headers.authorization.split(" ")[1];
     if (!token) {
-      return res.status(401).json({ success: false, message: "Token олдсонгүй!" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Token олдсонгүй!" });
     }
 
     let tokenObject;
     try {
       tokenObject = jwt.verify(token, process.env.APP_SECRET);
     } catch (jwtError) {
-      return res.status(401).json({ success: false, message: "Token хүчингүй байна!" });
+      return res
+        .status(401)
+        .json({ success: false, message: "Token хүчингүй байна!" });
     }
     if (!tokenObject?.id || tokenObject.id === "zochin") {
-      return res.status(401).json({ success: false, message: "Энэ үйлдлийг хийх эрх байхгүй байна!" });
+      return res.status(401).json({
+        success: false,
+        message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
+      });
     }
 
     const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
       .findById(tokenObject.id)
       .select("+nuutsUg");
     if (!orshinSuugch) {
-      return res.status(404).json({ success: false, message: "Хэрэглэгч олдсонгүй!" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Хэрэглэгч олдсонгүй!" });
     }
 
     const ok = await orshinSuugch.passwordShalgaya(odoogiinNuutsUg);
     if (!ok) {
-      return res.status(400).json({ success: false, message: "Одоогийн нууц үг буруу байна!" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Одоогийн нууц үг буруу байна!" });
     }
 
     orshinSuugch.nuutsUg = shineNuutsUg;

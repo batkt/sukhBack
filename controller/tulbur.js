@@ -4,19 +4,16 @@ const BankniiGuilgee = require("../models/bankniiGuilgee");
 const Baiguullaga = require("../models/baiguullaga");
 const lodash = require("lodash");
 
-// Helper function to round numbers to 2 decimal places
 async function tooZasya(too) {
   var zassanToo = (await Math.round((too + Number.EPSILON) * 100)) / 100;
   return +zassanToo.toFixed(2);
 }
 
-// Synchronous version of number rounding
 function tooZasyaSync(too) {
   var zassanToo = Math.round((too + Number.EPSILON) * 100) / 100;
   return +zassanToo.toFixed(2);
 }
 
-// Calculate next due date for a contract
 async function daraagiinTulukhOgnooZasya(gereeniiId, tukhainBaaziinKholbolt) {
   var geree = await Geree(tukhainBaaziinKholbolt, true)
     .findById(gereeniiId)
@@ -53,7 +50,6 @@ async function daraagiinTulukhOgnooZasya(gereeniiId, tukhainBaaziinKholbolt) {
     .catch((err) => {});
 }
 
-// Auto-matching function for bank payments with contracts
 module.exports.tulultTaniya = async function tulultTaniya() {
   try {
     const { db } = require("zevbackv2");
@@ -79,8 +75,7 @@ module.exports.tulultTaniya = async function tulultTaniya() {
               kholbosonTalbainId: { $size: 0 },
               magadlaltaiGereenuud: { $exists: false },
             };
-            
-            // Find QPay transactions
+
             var match1 = { ...match };
             if (dans.bank == "golomt") {
               match1["tranDesc"] = { $regex: "qpay", $options: "i" };
@@ -95,12 +90,12 @@ module.exports.tulultTaniya = async function tulultTaniya() {
               match1["amount"] = { $gt: 0 };
             }
             var guilgeenuud = await BankniiGuilgee(kholbolt, true).find(match1);
-            
-            // Try to match with contracts
+
             if (guilgeenuud?.length > 0) {
               guilgeenuud.forEach(async (x) => {
                 if (
-                  (x.description && x.description.toLowerCase().includes("qpay")) ||
+                  (x.description &&
+                    x.description.toLowerCase().includes("qpay")) ||
                   (x.TxAddInf && x.TxAddInf.toLowerCase().includes("qpay")) ||
                   (x.tranDesc && x.tranDesc.toLowerCase().includes("qpay"))
                 ) {
@@ -108,13 +103,13 @@ module.exports.tulultTaniya = async function tulultTaniya() {
                   if (x.description) tailbar = x.description.split(/,| /);
                   else if (x.TxAddInf) tailbar = x.TxAddInf.split(/,| /);
                   else if (x.tranDesc) tailbar = x.tranDesc.split(/,| /);
-                  
+
                   var oldsonGereenuud = await Geree(kholbolt, true).find({
                     gereeniiDugaar: { $in: tailbar },
                     tuluv: 1,
                     barilgiinId: x.barilgiinId,
                   });
-                  
+
                   if (oldsonGereenuud != null && oldsonGereenuud.length == 1) {
                     x.kholbosonGereeniiId = [oldsonGereenuud[0]._id];
                     x.isNew = false;
@@ -130,7 +125,6 @@ module.exports.tulultTaniya = async function tulultTaniya() {
   } catch (e) {}
 };
 
-// Export helper functions
 module.exports.daraagiinTulukhOgnooZasya = daraagiinTulukhOgnooZasya;
 module.exports.tooZasya = tooZasya;
 module.exports.tooZasyaSync = tooZasyaSync;

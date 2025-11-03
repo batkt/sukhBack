@@ -34,7 +34,6 @@ const instanceJson = got.extend({
   },
 });
 
-// Khan Bank token function
 async function tokenAvya(
   username,
   password,
@@ -119,9 +118,7 @@ async function golomtTokenAvya(dans, tukhainBaaziinKholbolt) {
         .then((x) => {})
         .catch((e) => {});
       tokenObject = khariu;
-    } else if (
-      tokenObject.ognoo < new Date(new Date().getTime() - 290000)
-    ) {
+    } else if (tokenObject.ognoo < new Date(new Date().getTime() - 290000)) {
       var url = process.env.GOLOMT_SERVER + "/v1/auth/refresh";
       const response = await got
         .get(url, {
@@ -359,4 +356,3 @@ module.exports = {
   dansniiKhuulgaAvya,
   pad,
 };
-

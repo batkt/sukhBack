@@ -85,8 +85,6 @@ router.post("/salbarBurtgey", async (req, res, next) => {
   }
 });
 
-
-
 router.post("/baiguullagaAvya", (req, res, next) => {
   const { db } = require("zevbackv2");
   Baiguullaga(db.erunkhiiKholbolt)
@@ -103,32 +101,34 @@ router.post("/baiguullagaAvya", (req, res, next) => {
 
 router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
   const { db } = require("zevbackv2");
-  
+
   Baiguullaga(db.erunkhiiKholbolt)
-    .find({}, {
-      _id: 1,
-      "barilguud.tokhirgoo.duuregNer": 1,
-      "barilguud.tokhirgoo.districtCode": 1,
-      "barilguud.tokhirgoo.sohNer": 1,
-      "barilguud.tokhirgoo.horoo": 1
-    })
+    .find(
+      {},
+      {
+        _id: 1,
+        "barilguud.tokhirgoo.duuregNer": 1,
+        "barilguud.tokhirgoo.districtCode": 1,
+        "barilguud.tokhirgoo.sohNer": 1,
+        "barilguud.tokhirgoo.horoo": 1,
+      }
+    )
     .then((result) => {
-      // Transform the data to have cleaner field names
-      const transformedResult = result.map(item => {
+      const transformedResult = result.map((item) => {
         const tokhirgoo = item.barilguud?.[0]?.tokhirgoo;
         return {
           baiguullagiinId: item._id,
           duuregNer: tokhirgoo?.duuregNer || "",
           districtCode: tokhirgoo?.districtCode || "",
           sohNer: tokhirgoo?.sohNer || "",
-          horoo: tokhirgoo?.horoo || {}
+          horoo: tokhirgoo?.horoo || {},
         };
       });
-      
+
       res.json({
         success: true,
         message: "Бүх байгууллагын мэдээлэл олдлоо",
-        result: transformedResult
+        result: transformedResult,
       });
     })
     .catch((err) => {
