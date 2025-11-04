@@ -201,7 +201,7 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
     if (bairNer) match.bairNer = bairNer;
     if (orts) match.orts = orts;
     if (davkhar) match.davkhar = String(davkhar);
-    if (toot) match.toot = Number(toot);
+    if (toot) match.toot = String(toot);
     const dr = buildDateRange(ekhlekhOgnoo, duusakhOgnoo);
     if (dr) match.ognoo = dr;
 
