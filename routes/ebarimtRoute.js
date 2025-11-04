@@ -104,10 +104,22 @@ async function nekhemjlekheesEbarimtShineUusgye(
   }
 }
 
-async function ebarimtDuudya(ugugdul, onFinish, next, shine = false) {
+async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagiinId = null) {
   try {
     if (!!shine) {
-      var url = process.env.EBARIMTSHINE_TEST + "rest/receipt";
+      // Check if this baiguullaga should use TEST endpoint
+      // baiguullagiinId "68fadc445098626bde912f2e" uses TEST, others use IP
+      // Get baiguullagiinId from parameter or from ugugdul if not provided
+      const orgId = baiguullagiinId || ugugdul?.baiguullagiinId;
+      const shouldUseTest = orgId && String(orgId) === "69086ecd59da7b52fbf278f7";
+      
+      const baseUrl = shouldUseTest 
+        ? process.env.EBARIMTSHINE_TEST 
+        : process.env.EBARIMTSHINE_IP;
+      
+      var url = baseUrl + "rest/receipt";
+      console.log(`📧 Sending ebarimt to ${shouldUseTest ? 'TEST' : 'PRODUCTION'} endpoint for baiguullaga: ${orgId}`);
+      
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         if (err) {
           if (next) next(err);
@@ -327,7 +339,7 @@ router.post(
         }
       };
 
-      ebarimtDuudya(ebarimt, butsaakhMethod, next, true);
+      ebarimtDuudya(ebarimt, butsaakhMethod, next, true, req.body.baiguullagiinId);
     } catch (error) {
       console.error("Error creating ebarimt:", error);
       next(error);

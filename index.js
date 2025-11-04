@@ -26,6 +26,7 @@ const nekhemjlekhCronRoute = require("./routes/cronScheduleRoute");
 const qpayRoute = require("./routes/qpayRoute");
 const ebarimtRoute = require("./routes/ebarimtRoute");
 const tailanRoute = require("./routes/tailanRoute");
+const pdfRoute = require("./routes/pdfRoute");
 
 const { db } = require("zevbackv2");
 
@@ -79,6 +80,7 @@ app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
 app.use(nekhemjlekhRoute);
 app.use(qpayRoute);
 app.use(tailanRoute);
+app.use(pdfRoute);
 
 app.use(aldaaBarigch);
 
