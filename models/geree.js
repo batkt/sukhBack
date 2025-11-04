@@ -106,7 +106,7 @@ const gereeSchema = new Schema(
     horoo: Schema.Types.Mixed,
     sohNer: String,
     orts: String,
-    toot: Number,
+    toot: String,
     davkhar: String,
     burtgesenAjiltan: String,
     orshinSuugchId: String, 
