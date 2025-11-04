@@ -247,24 +247,23 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         return total + tariff;
       }, 0);
 
-      // Get barilga details for location info
       const barilgiinId =
-        req.body.barilgiinId ||
-        (baiguullaga.barilguud && baiguullaga.barilguud.length > 0
-          ? String(baiguullaga.barilguud[0]._id)
-          : null);
+      req.body.barilgiinId ||
+      (baiguullaga.barilguud && baiguullaga.barilguud.length > 0
+        ? String(baiguullaga.barilguud[0]._id)
+        : null);
 
-      const targetBarilga = barilgiinId
-        ? baiguullaga.barilguud?.find(
-            (b) => String(b._id) === String(barilgiinId)
-          )
-        : null;
+    const targetBarilga = barilgiinId
+      ? baiguullaga.barilguud?.find(
+          (b) => String(b._id) === String(barilgiinId)
+        )
+      : null;
 
-      const duuregNer =
-        targetBarilga?.tokhirgoo?.duuregNer || req.body.duureg || "";
-      const horooData =
-        targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
-      const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
+    const duuregNer =
+      targetBarilga?.tokhirgoo?.duuregNer || req.body.duureg || "";
+    const horooData =
+      targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
+    const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
 
       const contractData = {
         gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
@@ -281,7 +280,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         tulukhOgnoo: new Date(),
         ashiglaltiinZardal: 0,
         niitTulbur: niitTulbur,
-        toot: orshinSuugch.toot || 0,
+        toot: orshinSuugch.toot || "",
         davkhar: orshinSuugch.davkhar || "",
         bairNer: req.body.bairniiNer || "",
         sukhBairshil: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
