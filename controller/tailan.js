@@ -175,7 +175,6 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
       baiguullagiinId,
       barilgiinId,
       bairNer,
-      orts,
       davkhar,
       toot,
       ekhlekhOgnoo,
@@ -199,7 +198,6 @@ exports.tailanAvlaga = asyncHandler(async (req, res, next) => {
     const match = { baiguullagiinId: String(baiguullagiinId) };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
     if (bairNer) match.bairNer = bairNer;
-    if (orts) match.orts = orts;
     if (davkhar) match.davkhar = String(davkhar);
     if (toot) match.toot = String(toot);
     const dr = buildDateRange(ekhlekhOgnoo, duusakhOgnoo);

@@ -49,7 +49,6 @@ const baiguullagaSchema = new Schema(
             kod: String,
           },
           sohNer: String, // СӨХ код
-          orts: [String], // Орц
           davkhar: [String], // Давхар
           nuatTulukhEsekh: Boolean,
           zogsoolMsgIlgeekh: Boolean,
@@ -81,7 +80,6 @@ const baiguullagaSchema = new Schema(
         ],
       },
     ],
-    davkhar: Number,
     talbai: Number,
     tokhirgoo: {
       /**Хоногт бодох алдангийн хувь дээд тал 0.5 байна */

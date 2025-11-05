@@ -141,11 +141,56 @@ router.route("/excelZagvarUstgaya").post(tokenShalgakh, (req, res, next) => {
 
 function textSolyo(text, body) {
   var butsaakh = "";
-  Object.keys(body).forEach(async function (key) {
-    if (text === `<${key}>`) {
-      butsaakh = body[key];
+  
+  // Extract the variable name from <variable>
+  const variableMatch = text.match(/^<(.+?)>$/);
+  if (!variableMatch) {
+    return butsaakh;
+  }
+  
+  const variableName = variableMatch[1];
+  
+  // Check direct body properties (supports all user data, contract sections like "1.1", "1.2", etc.)
+  if (body[variableName] !== undefined && body[variableName] !== null) {
+    const value = body[variableName];
+    // Handle arrays (like utas)
+    if (Array.isArray(value)) {
+      butsaakh = value.join(", ");
+    } else if (value instanceof Date) {
+      butsaakh = value.toISOString().split('T')[0];
+    } else {
+      butsaakh = String(value);
     }
-  });
+    if (butsaakh !== "") return butsaakh;
+  }
+  
+  // Check nested properties (e.g., "horoo.ner", "geree.ovog")
+  const parts = variableName.split('.');
+  if (parts.length > 1) {
+    let nestedValue = body;
+    for (const part of parts) {
+      if (nestedValue && nestedValue[part] !== undefined) {
+        nestedValue = nestedValue[part];
+      } else {
+        nestedValue = null;
+        break;
+      }
+    }
+    if (nestedValue !== null && nestedValue !== undefined) {
+      if (Array.isArray(nestedValue)) {
+        butsaakh = nestedValue.join(", ");
+      } else if (nestedValue instanceof Date) {
+        butsaakh = nestedValue.toISOString().split('T')[0];
+      } else if (typeof nestedValue === 'object') {
+        butsaakh = JSON.stringify(nestedValue);
+      } else {
+        butsaakh = String(nestedValue);
+      }
+      if (butsaakh !== "") return butsaakh;
+    }
+  }
+  
+  // Special number-to-words conversions
   if (
     text === "<eneSardTulukhUsgeer>" ||
     text === "<niitUldegdelUsgeer>" ||
@@ -156,36 +201,54 @@ function textSolyo(text, body) {
       .replace("Usgeer", "")
       .replace("<", "")
       .replace(">", "");
-    butsaakh = numberToWords(
-      Math.abs(body[shineKey]),
-      { fixed: 2, suffix: "n" },
-      "төгрөг",
-      "мөнгө"
-    );
+    if (body[shineKey] !== undefined) {
+      butsaakh = numberToWords(
+        Math.abs(body[shineKey]),
+        { fixed: 2, suffix: "n" },
+        "төгрөг",
+        "мөнгө"
+      );
+      return butsaakh;
+    }
   }
+  
+  // VAT calculations
   if (text === "<talbainNiitUneNuat>" || text === "<niitUldegdelNuat>") {
     const shineKey = text.replace("Nuat", "").replace("<", "").replace(">", "");
-    butsaakh = ((Number(body[shineKey]) / 1.1) * 0.1).toFixed(2);
+    if (body[shineKey] !== undefined) {
+      butsaakh = ((Number(body[shineKey]) / 1.1) * 0.1).toFixed(2);
+      return butsaakh;
+    }
   }
+  
   if (text === "<talbainNiitUneNuatgui>" || text === "<niitUldegdelNuatgui>") {
     const shineKey = text
       .replace("Nuatgui", "")
       .replace("<", "")
       .replace(">", "");
-    const khasakh = (Number(body[shineKey]) / 1.1) * 0.1;
-    butsaakh = (body[shineKey] - khasakh).toFixed(2);
+    if (body[shineKey] !== undefined) {
+      const khasakh = (Number(body[shineKey]) / 1.1) * 0.1;
+      butsaakh = (body[shineKey] - khasakh).toFixed(2);
+      return butsaakh;
+    }
   }
-  if (body.zardluud.length > 0) {
-    const niitZardliinDun = body.zardluud.reduce((a, b) => a + b.tulukhDun, 0);
+  
+  // Zardluud (expenses) related variables
+  if (body.zardluud && body.zardluud.length > 0) {
+    const niitZardliinDun = body.zardluud.reduce((a, b) => a + (b.tulukhDun || 0), 0);
     if (text === "<niitZardliinDun>") {
       butsaakh = niitZardliinDun;
+      return butsaakh;
     }
     if (text === "<niitZardliinNuatguiDun>") {
       butsaakh = (niitZardliinDun - (niitZardliinDun / 1.1) * 0.1).toFixed(2);
+      return butsaakh;
     }
     if (text === "<niitZardliinNuatiinDun>") {
       butsaakh = ((niitZardliinDun / 1.1) * 0.1).toFixed(2);
+      return butsaakh;
     }
+    
     body.zardluud.forEach((a) => {
       if (text === `<${a.tailbar}.khemjikhNegj>`) {
         butsaakh = a.khemjikhNegj;
@@ -210,6 +273,7 @@ function textSolyo(text, body) {
       }
     });
   }
+  
   return butsaakh;
 }
 
@@ -309,6 +373,7 @@ router
               { includeEmpty: true },
               async (cell, colNumber) => {
                 await solikhTextArray.forEach(async (solikhText) => {
+                  // textSolyo checks body for any variable - user data, contract sections (1.1, 1.2), etc.
                   const shineText = await textSolyo(solikhText.talbar, tulugch);
                   if (
                     typeof cell.value === "string" &&

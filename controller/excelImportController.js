@@ -121,7 +121,6 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       { wch: 25 },
       { wch: 10 },
       { wch: 10 },
-      { wch: 10 },
     ];
     ws["!cols"] = colWidths;
 
@@ -226,7 +225,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           utas: row["Утас"]?.toString().trim() || "",
           mail: row["Имэйл"]?.toString().trim() || "",
           davkhar: row["Давхар"]?.toString().trim() || "",
-          orts: row["Орц"]?.toString().trim() || "",
           toot: row["Тоот"]?.toString().trim() || "",
         };
 
@@ -275,17 +273,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             validationErrors.push("Давхар талбарт хоосон зай байна!");
           } else if (!/^\d+$/.test(userData.davkhar)) {
             validationErrors.push("Давхар зөвхөн тоо байх ёстой!");
-          }
-        }
-
-        if (!userData.orts || userData.orts.length === 0) {
-          validationErrors.push("Орц хоосон байна!");
-        } else {
-          userData.orts = userData.orts.replace(/\s/g, "");
-          if (userData.orts.length === 0) {
-            validationErrors.push("Орц талбарт хоосон зай байна!");
-          } else if (!/^\d+$/.test(userData.orts)) {
-            validationErrors.push("Орц зөвхөн тоо байх ёстой!");
           }
         }
 
@@ -345,7 +332,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           horoo: horooData,
           soh: sohNer,
           davkhar: userData.davkhar,
-          orts: userData.orts,
           bairniiNer: targetBarilga.ner || "",
           toot: userData.toot || "",
         };
@@ -421,7 +407,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           duureg: duuregNer,
           horoo: horooData,
           sohNer: sohNer,
-          orts: userData.orts || "",
           burtgesenAjiltan: orshinSuugch._id,
           orshinSuugchId: orshinSuugch._id.toString(),
           temdeglel: "Excel файлаас автоматаар үүссэн гэрээ",

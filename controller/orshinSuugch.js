@@ -288,7 +288,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         duureg: duuregNer, // Save separately
         horoo: horooData, // Save horoo object separately
         sohNer: sohNer, // Save sohNer separately
-        orts: req.body.orts || "",
         burtgesenAjiltan: orshinSuugch._id,
         orshinSuugchId: orshinSuugch._id.toString(),
         temdeglel: "Автоматаар үүссэн гэрээ",

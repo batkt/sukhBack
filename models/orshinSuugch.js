@@ -15,7 +15,6 @@ const orshinSuugchSchema = new Schema(
     tuluv: String,
     davkhar: String,
     bairniiNer: String,
-    orts: String,
     taniltsuulgaKharakhEsekh: {
       type: Boolean,
       default: true,
