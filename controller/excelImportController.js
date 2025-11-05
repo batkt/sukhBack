@@ -107,7 +107,6 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       "Утас",
       "Имэйл",
       "Давхар",
-      "Орц",
       "Тоот",
     ];
 

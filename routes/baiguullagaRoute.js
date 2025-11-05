@@ -326,6 +326,7 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         ner: ner,
         sohNer: sohNer,
         bairniiNer: ner, // Барилгын нэр comes from barilga.ner
+        davkhar: Array.isArray(davkhar) ? davkhar : (davkhar ? [davkhar] : []),
       },
     });
   } catch (error) {
