@@ -24,6 +24,7 @@ const {
   nuutsUgSergeeye,
   davhardsanOrshinSuugchShalgayy,
   orshinSuugchiinNuutsUgSoliyo,
+  orshinSuugchOorooUstgakh,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
@@ -171,5 +172,19 @@ router.post("/orshinSuugchdTokenOnooyo", tokenShalgakh, (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * POST /orshinSuugch/oorooUstgakh - Self-delete orshinSuugch and all related data
+ * Requires password in request body for verification
+ * This endpoint allows an orshinSuugch to delete themselves and removes all traces:
+ * - geree (invoices/contracts where orshinSuugchId matches)
+ * - nekhemjlekhiinTuukh (invoice history related to deleted gerees)
+ * - nevtreltiinTuukh (login history)
+ */
+router.post(
+  "/orshinSuugch/oorooUstgakh",
+  tokenShalgakh,
+  orshinSuugchOorooUstgakh
+);
 
 module.exports = router;
