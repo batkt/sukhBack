@@ -6,6 +6,99 @@ const Geree = require("../models/geree");
 const aldaa = require("../components/aldaa");
 const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
 
+/**
+ * Generic Excel download service
+ * Accepts data array and headers, generates Excel file
+ * @param {Array} data - Array of objects to export
+ * @param {Array} headers - Array of header objects with 'key' and 'label'
+ * @param {String} fileName - Name of the file (without extension)
+ * @param {String} sheetName - Name of the Excel sheet
+ * @param {Array} colWidths - Optional array of column widths
+ */
+exports.downloadExcelList = asyncHandler(async (req, res, next) => {
+  try {
+    const { data, headers, fileName, sheetName, colWidths } = req.body;
+
+    if (!data || !Array.isArray(data)) {
+      throw new aldaa("Мэдээлэл оруулах шаардлагатай!");
+    }
+
+    if (!headers || !Array.isArray(headers) || headers.length === 0) {
+      throw new aldaa("Гарчиг оруулах шаардлагатай!");
+    }
+
+    // Extract header labels
+    const headerLabels = headers.map((h) => (typeof h === 'string' ? h : h.label || h.key));
+
+    // Extract header keys
+    const headerKeys = headers.map((h) => (typeof h === 'string' ? h : h.key));
+
+    // Create data rows
+    const rows = data.map((item) => {
+      return headerKeys.map((key) => {
+        // Handle nested properties (e.g., "user.name")
+        const value = key.split('.').reduce((obj, prop) => {
+          if (obj && obj[prop] !== undefined) {
+            return obj[prop];
+          }
+          return null;
+        }, item);
+
+        // Format the value
+        if (value === null || value === undefined) {
+          return '';
+        }
+        if (Array.isArray(value)) {
+          return value.join(', ');
+        }
+        if (typeof value === 'object') {
+          return JSON.stringify(value);
+        }
+        if (value instanceof Date) {
+          return value.toISOString().split('T')[0];
+        }
+        return String(value);
+      });
+    });
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headerLabels, ...rows]);
+
+    // Set column widths if provided
+    if (colWidths && Array.isArray(colWidths)) {
+      ws["!cols"] = colWidths.map((w) => ({ wch: typeof w === 'number' ? w : 15 }));
+    } else {
+      // Auto-width based on headers
+      ws["!cols"] = headerLabels.map(() => ({ wch: 15 }));
+    }
+
+    // Add sheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, sheetName || "Sheet1");
+
+    // Generate Excel buffer
+    const excelBuffer = XLSX.write(wb, {
+      type: "buffer",
+      bookType: "xlsx",
+    });
+
+    // Set response headers
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${fileName || `export_${Date.now()}`}.xlsx"`
+    );
+
+    res.send(excelBuffer);
+  } catch (error) {
+    console.error("Error generating Excel download:", error);
+    next(error);
+  }
+});
+
 exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
   try {
     const headers = [
@@ -209,15 +302,18 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           throw new Error(validationErrors.join(" "));
         }
 
+        const finalBarilgiinId = barilgiinId || defaultBarilgiinId;
+
+        // Check for duplicate user within the same barilga (barilgiinId)
+        // Same phone number can exist in different barilga, but not in the same barilga
         const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
           utas: userData.utas,
+          barilgiinId: finalBarilgiinId,
         });
 
         if (existingUser) {
-          throw new Error("Утасны дугаар давхардаж байна!");
+          throw new Error("Энэ барилгад утасны дугаар давхардаж байна!");
         }
-
-        const finalBarilgiinId = barilgiinId || defaultBarilgiinId;
 
         const targetBarilga = baiguullaga.barilguud?.find(
           (b) => String(b._id) === String(finalBarilgiinId)

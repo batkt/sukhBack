@@ -32,6 +32,7 @@ const multer = require("multer");
 const {
   generateExcelTemplate,
   importUsersFromExcel,
+  downloadExcelList,
 } = require("../controller/excelImportController");
 
 // Configure multer for memory storage (Excel files)
@@ -89,6 +90,13 @@ router.post(
   tokenShalgakh,
   upload.single("excelFile"),
   importUsersFromExcel
+);
+
+// Excel download service - generic list download
+router.post(
+  "/downloadExcelList",
+  tokenShalgakh,
+  downloadExcelList
 );
 
 router.get("/orshinSuugchiiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
