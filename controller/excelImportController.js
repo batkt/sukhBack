@@ -7,14 +7,64 @@ const aldaa = require("../components/aldaa");
 const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
 
 /**
- * Generic Excel download service
- * Accepts data array and headers, generates Excel file
- * @param {Array} data - Array of objects to export
- * @param {Array} headers - Array of header objects with 'key' and 'label'
+ * Generic Excel download service - Auto-detects fields from dynamic data
+ * 
+ * Frontend Usage Examples:
+ * 
+ * // EASIEST - Just pass data, headers auto-detected!
+ * {
+ *   data: [
+ *     { ner: "Ганболд", ovog: "Баяржавхлан", utas: "99112233", mail: "test@example.com" },
+ *     { ner: "Бат", ovog: "Эрдэнэ", utas: "99223344", mail: "bat@example.com" }
+ *   ],
+ *   fileName: "my_export"
+ * }
+ * // Automatically creates columns: ner, ovog, utas, mail
+ * 
+ * // With custom headers (optional)
+ * {
+ *   data: [{ ner: "Ганболд", ovog: "Баяржавхлан" }],
+ *   headers: ["ner", "ovog"], // Only export these fields
+ *   fileName: "my_export"
+ * }
+ * 
+ * // With custom labels (optional)
+ * {
+ *   data: [{ ner: "Ганболд", ovog: "Баяржавхлан" }],
+ *   headers: [
+ *     { key: "ner", label: "Нэр" },
+ *     { key: "ovog", label: "Овог" }
+ *   ],
+ *   fileName: "my_export"
+ * }
+ * 
+ * @param {Array} data - Array of objects to export (REQUIRED)
+ * @param {Array} headers - Optional: Array of header strings OR objects with 'key' and 'label'
+ *                         If not provided, all fields are auto-detected from data
  * @param {String} fileName - Name of the file (without extension)
  * @param {String} sheetName - Name of the Excel sheet
  * @param {Array} colWidths - Optional array of column widths
  */
+/**
+ * Recursively extract all keys from an object (including nested)
+ */
+function extractAllKeys(obj, prefix = '') {
+  const keys = [];
+  if (obj && typeof obj === 'object' && !Array.isArray(obj) && !(obj instanceof Date)) {
+    Object.keys(obj).forEach((key) => {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+      if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key]) && !(obj[key] instanceof Date)) {
+        // Nested object - recurse
+        keys.push(...extractAllKeys(obj[key], fullKey));
+      } else {
+        // Leaf property
+        keys.push(fullKey);
+      }
+    });
+  }
+  return keys;
+}
+
 exports.downloadExcelList = asyncHandler(async (req, res, next) => {
   try {
     const { data, headers, fileName, sheetName, colWidths } = req.body;
@@ -23,26 +73,53 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
       throw new aldaa("Мэдээлэл оруулах шаардлагатай!");
     }
 
-    if (!headers || !Array.isArray(headers) || headers.length === 0) {
-      throw new aldaa("Гарчиг оруулах шаардлагатай!");
+    let headerLabels = [];
+    let headerKeys = [];
+
+    // If headers provided, use them
+    if (headers && Array.isArray(headers) && headers.length > 0) {
+      headers.forEach((h) => {
+        if (typeof h === 'string') {
+          headerKeys.push(h);
+          headerLabels.push(h);
+        } else if (typeof h === 'object' && h !== null) {
+          headerKeys.push(h.key || h.field || '');
+          headerLabels.push(h.label || h.key || h.field || '');
+        }
+      });
+    } else {
+      // Auto-detect headers from data (dynamic)
+      // Get all unique keys from all objects in the data array
+      const allKeysSet = new Set();
+      
+      data.forEach((item) => {
+        if (item && typeof item === 'object') {
+          const keys = extractAllKeys(item);
+          keys.forEach(key => allKeysSet.add(key));
+        }
+      });
+
+      // Convert to sorted array for consistent ordering
+      headerKeys = Array.from(allKeysSet).sort();
+      headerLabels = headerKeys; // Use keys as labels by default
     }
 
-    // Extract header labels
-    const headerLabels = headers.map((h) => (typeof h === 'string' ? h : h.label || h.key));
-
-    // Extract header keys
-    const headerKeys = headers.map((h) => (typeof h === 'string' ? h : h.key));
-
     // Create data rows
-    const rows = data.map((item) => {
+    let rows = data.map((item) => {
       return headerKeys.map((key) => {
-        // Handle nested properties (e.g., "user.name")
-        const value = key.split('.').reduce((obj, prop) => {
-          if (obj && obj[prop] !== undefined) {
-            return obj[prop];
-          }
-          return null;
-        }, item);
+        // Handle nested properties (e.g., "user.name" or "horoo.ner")
+        let value;
+        if (key.includes('.')) {
+          value = key.split('.').reduce((obj, prop) => {
+            if (obj && obj[prop] !== undefined) {
+              return obj[prop];
+            }
+            return null;
+          }, item);
+        } else {
+          // Direct property access
+          value = item[key];
+        }
 
         // Format the value
         if (value === null || value === undefined) {
@@ -51,7 +128,11 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
         if (Array.isArray(value)) {
           return value.join(', ');
         }
-        if (typeof value === 'object') {
+        if (typeof value === 'object' && !(value instanceof Date)) {
+          // For objects like { ner: "Test", kod: "01" }, format nicely
+          if (value.ner && value.kod) {
+            return `${value.ner} (${value.kod})`;
+          }
           return JSON.stringify(value);
         }
         if (value instanceof Date) {
