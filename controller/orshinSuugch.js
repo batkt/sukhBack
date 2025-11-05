@@ -999,7 +999,7 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
     // Verify password is provided
     const nuutsUg = req.body.nuutsUg;
     if (!nuutsUg) {
-      throw new aldaa("Нууц үг заавал оруулах шаардлагатай!");
+      throw new aldaa("Нууц код заавал оруулах шаардлагатай!");
     }
 
     // Get user ID from token (from tokenShalgakh middleware or manually verify)
@@ -1038,7 +1038,7 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
     // Verify password
     const passwordMatch = await orshinSuugch.passwordShalgaya(nuutsUg);
     if (!passwordMatch) {
-      throw new aldaa("Нууц үг буруу байна!");
+      throw new aldaa("Нууц код буруу байна!");
     }
 
     // Delete all gerees (invoices/contracts) where orshinSuugchId matches
