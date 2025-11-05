@@ -132,6 +132,7 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
             districtCode: tokhirgoo?.districtCode || "",
             sohNer: tokhirgoo?.sohNer || "",
             horoo: tokhirgoo?.horoo || {},
+            davkhar: Array.isArray(tokhirgoo?.davkhar) ? tokhirgoo.davkhar : (tokhirgoo?.davkhar ? [tokhirgoo.davkhar] : []),
           };
         });
 
@@ -205,7 +206,7 @@ router.post(
 router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const { baiguullagiinId, ner, sohNer } = req.body;
+    const { baiguullagiinId, ner, sohNer, davkhar } = req.body;
 
     if (!baiguullagiinId || !ner || !sohNer) {
       return res.status(400).json({
@@ -259,10 +260,14 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         : [],
     };
 
-    // Update sohNer in tokhirgoo
+    // Update sohNer and davkhar in tokhirgoo
+    // davkhar is an array
     // Note: bairniiNer comes from barilga.ner, not from tokhirgoo
     if (newBarilga.tokhirgoo) {
       newBarilga.tokhirgoo.sohNer = sohNer;
+      if (davkhar !== undefined) {
+        newBarilga.tokhirgoo.davkhar = Array.isArray(davkhar) ? davkhar : (davkhar ? [davkhar] : []);
+      }
     }
 
     // Add the new barilga to the barilguud array
