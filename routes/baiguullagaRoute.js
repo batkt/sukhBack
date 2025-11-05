@@ -241,7 +241,24 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
     const firstBarilga = baiguullaga.barilguud[0];
     
     // Convert to plain object to ensure all nested fields are accessible
-    const firstBarilgaPlain = firstBarilga.toObject ? firstBarilga.toObject() : JSON.parse(JSON.stringify(firstBarilga));
+    // Use toObject() with getters: true to include all fields
+    const firstBarilgaPlain = firstBarilga.toObject 
+      ? firstBarilga.toObject({ getters: true, virtuals: false })
+      : JSON.parse(JSON.stringify(firstBarilga));
+
+    // Ensure tokhirgoo exists and has all fields
+    // Deep copy the entire tokhirgoo object to preserve all nested fields
+    let copiedTokhirgoo = {};
+    if (firstBarilgaPlain.tokhirgoo && typeof firstBarilgaPlain.tokhirgoo === 'object') {
+      try {
+        // Deep copy using JSON methods to ensure all fields are preserved
+        copiedTokhirgoo = JSON.parse(JSON.stringify(firstBarilgaPlain.tokhirgoo));
+      } catch (err) {
+        console.error("Error copying tokhirgoo:", err);
+        // Fallback: use Object.assign for shallow copy
+        copiedTokhirgoo = { ...firstBarilgaPlain.tokhirgoo };
+      }
+    }
 
     // Create a new barilga object by copying the first one completely
     const newBarilga = {
@@ -253,10 +270,8 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         type: "Point",
         coordinates: [],
       },
-      // Deep copy tokhirgoo from first barilga - copy everything
-      tokhirgoo: firstBarilgaPlain.tokhirgoo 
-        ? JSON.parse(JSON.stringify(firstBarilgaPlain.tokhirgoo))
-        : {},
+      // Use the deep copied tokhirgoo
+      tokhirgoo: copiedTokhirgoo,
       davkharuud: firstBarilgaPlain.davkharuud
         ? JSON.parse(JSON.stringify(firstBarilgaPlain.davkharuud))
         : [],
