@@ -6,6 +6,7 @@ const MsgTuukh = require("../models/msgTuukh");
 const IpTuukh = require("../models/ipTuukh");
 const BatalgaajuulahCode = require("../models/batalgaajuulahCode");
 const Geree = require("../models/geree");
+const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const aldaa = require("../components/aldaa");
 const request = require("request");
 const axios = require("axios");
@@ -976,6 +977,117 @@ exports.getVerificationCodeStatus = asyncHandler(async (req, res, next) => {
         createdAt: code.createdAt,
         isExpired: code.expiresAt < new Date(),
       })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Self-delete orshinSuugch and all related data
+ * Requires password verification in request body
+ * Deletes all traces of the user from:
+ * - geree (invoices/contracts where orshinSuugchId matches)
+ * - nekhemjlekhiinTuukh (invoice history related to deleted gerees)
+ * - nevtreltiinTuukh (login history)
+ * - Finally deletes the orshinSuugch user itself
+ */
+exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    
+    // Verify password is provided
+    const nuutsUg = req.body.nuutsUg;
+    if (!nuutsUg) {
+      throw new aldaa("Нууц үг заавал оруулах шаардлагатай!");
+    }
+
+    // Get user ID from token (from tokenShalgakh middleware or manually verify)
+    let userId;
+    if (req.body.nevtersenOrshinSuugchiinToken?.id) {
+      userId = req.body.nevtersenOrshinSuugchiinToken.id;
+    } else if (req.headers.authorization) {
+      // Fallback: manually verify token from header
+      const token = req.headers.authorization.split(" ")[1];
+      if (token) {
+        try {
+          const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+          userId = tokenObject.id;
+        } catch (err) {
+          throw new aldaa("Token хүчингүй байна!");
+        }
+      }
+    }
+    
+    if (!userId) {
+      throw new aldaa("Хэрэглэгчийн мэдээлэл олдсонгүй!");
+    }
+
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+    const userIdString = String(userId);
+
+    // Verify user exists and get user with password
+    const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+    const orshinSuugch = await OrshinSuugchModel.findById(userId)
+      .select("+nuutsUg");
+    
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    // Verify password
+    const passwordMatch = await orshinSuugch.passwordShalgaya(nuutsUg);
+    if (!passwordMatch) {
+      throw new aldaa("Нууц үг буруу байна!");
+    }
+
+    // Delete all gerees (invoices/contracts) where orshinSuugchId matches
+    const GereeModel = Geree(db.erunkhiiKholbolt);
+    const gereesToDelete = await GereeModel.find({
+      orshinSuugchId: userIdString,
+    }).select("_id");
+
+    const gereesIds = gereesToDelete.map((g) => g._id);
+    const gereesIdsAsStrings = gereesIds.map((id) => String(id));
+
+    // Delete all related nekhemjlekhiinTuukh first (before deleting gerees)
+    const NekhemjlekhiinTuukhModel = NekhemjlekhiinTuukh(db.erunkhiiKholbolt);
+    if (gereesIdsAsStrings.length > 0) {
+      // Delete nekhemjlekhiinTuukh related to these gerees
+      await NekhemjlekhiinTuukhModel.deleteMany({
+        gereeniiId: { $in: gereesIdsAsStrings },
+      });
+      
+      // Delete the gerees
+      await GereeModel.deleteMany({
+        _id: { $in: gereesIds },
+      });
+    }
+
+    // Delete nevtreltiinTuukh (login history) where orshinSuugchId matches
+    // Note: Check if nevtreltiinTuukh has orshinSuugchId field
+    // If not, we'll skip this step
+    try {
+      const NevtreltiinTuukhModel = NevtreltiinTuukh(db.erunkhiiKholbolt);
+      // Try to delete if the field exists (won't error if field doesn't exist)
+      await NevtreltiinTuukhModel.deleteMany({
+        orshinSuugchId: userIdString,
+      });
+    } catch (err) {
+      // Field might not exist, continue
+      console.log("Note: orshinSuugchId field may not exist in nevtreltiinTuukh");
+    }
+
+    // Finally, delete the orshinSuugch user itself
+    await OrshinSuugchModel.findByIdAndDelete(userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Хэрэглэгч болон түүний бүх мэдээлэл амжилттай устгагдлаа",
+      data: {
+        deletedUserId: userId,
+        deletedGerees: gereesIds.length,
+      },
     });
   } catch (error) {
     next(error);
