@@ -239,26 +239,26 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
 
     // Get the first barilga (the template)
     const firstBarilga = baiguullaga.barilguud[0];
+    
+    // Convert to plain object to ensure all nested fields are accessible
+    const firstBarilgaPlain = firstBarilga.toObject ? firstBarilga.toObject() : JSON.parse(JSON.stringify(firstBarilga));
 
-    // Create a new barilga object by copying the first one
-    // But use main baiguullaga tokhirgoo as base, then merge with first barilga's tokhirgoo
+    // Create a new barilga object by copying the first one completely
     const newBarilga = {
       ner: ner,
-      khayag: firstBarilga.khayag || baiguullaga.khayag || "",
-      register: firstBarilga.register || baiguullaga.register || "",
-      niitTalbai: firstBarilga.niitTalbai || 0,
-      bairshil: firstBarilga.bairshil || {
+      khayag: firstBarilgaPlain.khayag || baiguullaga.khayag || "",
+      register: firstBarilgaPlain.register || baiguullaga.register || "",
+      niitTalbai: firstBarilgaPlain.niitTalbai || 0,
+      bairshil: firstBarilgaPlain.bairshil || {
         type: "Point",
         coordinates: [],
       },
-      // Get main tokhirgoo from baiguullaga, then merge with first barilga's barilga-specific tokhirgoo
-      tokhirgoo: firstBarilga.tokhirgoo
-        ? JSON.parse(JSON.stringify(firstBarilga.tokhirgoo))
-        : baiguullaga.tokhirgoo
-        ? JSON.parse(JSON.stringify(baiguullaga.tokhirgoo))
+      // Deep copy tokhirgoo from first barilga - copy everything
+      tokhirgoo: firstBarilgaPlain.tokhirgoo 
+        ? JSON.parse(JSON.stringify(firstBarilgaPlain.tokhirgoo))
         : {},
-      davkharuud: firstBarilga.davkharuud
-        ? JSON.parse(JSON.stringify(firstBarilga.davkharuud))
+      davkharuud: firstBarilgaPlain.davkharuud
+        ? JSON.parse(JSON.stringify(firstBarilgaPlain.davkharuud))
         : [],
     };
 
