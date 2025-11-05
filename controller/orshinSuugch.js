@@ -392,7 +392,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       });
 
     if (!orshinSuugch)
-      throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
+      throw new aldaa("Бүртгэлгүй хаяг байна.");
 
     var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
