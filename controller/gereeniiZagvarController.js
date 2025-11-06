@@ -201,9 +201,37 @@ function getVariableValue(tagType, geree, orshinSuugch) {
       value = geree?.duureg || orshinSuugch?.duureg || "";
       break;
     case "horoo":
+      // Handle horoo from geree (object) or orshinSuugch (might be string or object)
       value = geree?.horoo || orshinSuugch?.horoo || "";
       if (typeof value === "object" && value !== null) {
         return formatObject(value);
+      }
+      // If horoo is a string in orshinSuugch, try to parse it
+      if (typeof value === "string" && value.trim().startsWith("{")) {
+        try {
+          // Try to parse the string representation (handles both JSON and object-like strings)
+          // First try JSON.parse (if it's valid JSON)
+          let parsed = null;
+          try {
+            parsed = JSON.parse(value);
+          } catch (jsonError) {
+            // If JSON.parse fails, try to extract values using regex
+            const nerMatch = value.match(/ner:\s*['"]([^'"]+)['"]/);
+            const kodMatch = value.match(/kod:\s*['"]([^'"]+)['"]/);
+            if (nerMatch || kodMatch) {
+              parsed = {
+                ner: nerMatch ? nerMatch[1] : "",
+                kod: kodMatch ? kodMatch[1] : "",
+              };
+            }
+          }
+          if (parsed && typeof parsed === "object") {
+            return formatObject(parsed);
+          }
+        } catch (e) {
+          // If parsing fails, return the string as is
+          console.log(`Warning: Could not parse horoo string: ${value}`);
+        }
       }
       break;
     case "soh":
@@ -246,6 +274,11 @@ function getVariableValue(tagType, geree, orshinSuugch) {
     return "";
   }
 
+  // Handle empty strings for certain fields (return empty instead of "undefined")
+  if (value === "" && (tagType.includes("Tulbur") || tagType.includes("Zardal"))) {
+    return "0";
+  }
+
   // Date formatting (for any remaining date fields)
   if (tagType.includes("Ognoo") || tagType.includes("ognoo")) {
     if (value instanceof Date || (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/))) {
@@ -268,35 +301,80 @@ function getVariableValue(tagType, geree, orshinSuugch) {
     (tagType.includes("Tulbur") || tagType.includes("Zardal") || tagType.includes("Dun")) &&
     !tagType.includes("Usgeer")
   ) {
-    if (typeof value === "number" || (typeof value === "string" && !isNaN(value))) {
+    if (typeof value === "number" || (typeof value === "string" && !isNaN(value) && value !== "")) {
       return formatCurrency(value);
     }
   }
 
-  return String(value);
+  // Return string value, but handle empty strings
+  const stringValue = String(value);
+  return stringValue === "undefined" || stringValue === "null" ? "" : stringValue;
+}
+
+// Helper function to extract all variable tags from HTML
+function extractVariableTags(htmlContent) {
+  if (!htmlContent) return [];
+  
+  const tagRegex =
+    /<span\s+[^>]*data-tag-type=["']([^"']+)["'][^>]*class=["']custom-tag["'][^>]*\/?>\s*<\/span>/gi;
+  
+  const tags = [];
+  let match;
+  while ((match = tagRegex.exec(htmlContent)) !== null) {
+    const tagType = match[1].trim();
+    if (!tags.includes(tagType)) {
+      tags.push(tagType);
+    }
+  }
+  
+  return tags;
 }
 
 // Main function to replace data-tag-type variables in HTML
 function replaceTemplateVariables(htmlContent, geree, orshinSuugch) {
   if (!htmlContent) return "";
 
-  // Regular expression to match <span data-tag-type="variableName" class="custom-tag"></span>
-  // Handles both single and double quotes, with or without spaces
+  // More flexible regex to match variable tags
+  // Handles various formats:
+  // - <span data-tag-type="var" class="custom-tag"></span>
+  // - <span class="custom-tag" data-tag-type="var"></span>
+  // - <span data-tag-type='var' class='custom-tag'></span>
+  // - Self-closing tags
   const tagRegex =
-    /<span\s+data-tag-type=["']([^"']+)["']\s+class=["']custom-tag["']\s*\/?>\s*<\/span>/gi;
+    /<span\s+[^>]*data-tag-type=["']([^"']+)["'][^>]*class=["']custom-tag["'][^>]*\/?>\s*<\/span>/gi;
+
+  // Extract all variable tags first for debugging
+  const foundTags = extractVariableTags(htmlContent);
+  console.log(`Found ${foundTags.length} variable tags in template:`, foundTags);
 
   let processedContent = htmlContent;
+  let replacementCount = 0;
+  const replacementLog = [];
   
   // Replace all variable tags
   processedContent = processedContent.replace(tagRegex, (match, tagType) => {
-    const value = getVariableValue(tagType.trim(), geree, orshinSuugch);
-    // Debug: log if replacement is happening
+    const trimmedTagType = tagType.trim();
+    const value = getVariableValue(trimmedTagType, geree, orshinSuugch);
+    
+    // Debug logging
     if (value) {
-      console.log(`Replacing ${tagType} with: ${value}`);
+      replacementCount++;
+      replacementLog.push({ tag: trimmedTagType, value: value.substring(0, 50) });
+      console.log(`✓ Replacing [${trimmedTagType}] with: "${value.substring(0, 50)}${value.length > 50 ? '...' : ''}"`);
+    } else {
+      replacementLog.push({ tag: trimmedTagType, value: null });
+      console.log(`✗ Variable [${trimmedTagType}] not found or empty`);
     }
+    
     return value || ""; // Return empty string if value not found
   });
 
+  console.log(`Total replacements: ${replacementCount}/${foundTags.length}`);
+  if (replacementCount < foundTags.length) {
+    const missing = foundTags.filter(tag => !replacementLog.find(r => r.tag === tag && r.value));
+    console.log(`Missing values for:`, missing);
+  }
+  
   return processedContent;
 }
 
