@@ -211,8 +211,8 @@ exports.downloadBankniiGuilgeeExcel = asyncHandler(async (req, res, next) => {
         }).lean();
         
         if (dans) {
-          // Use 'dans' field from Dans model, fallback to dansniiNer or dugaar if dans doesn't exist
-          dansMap[key] = dans.dans || dans.dansniiNer || dans.dugaar || "";
+          // Use 'dugaar' field from Dans model (account number), not dans or dansniiNer which are names
+          dansMap[key] = dans.dugaar || "";
         }
       } catch (dansError) {
         console.error(`Error fetching dans for ${key}:`, dansError);
