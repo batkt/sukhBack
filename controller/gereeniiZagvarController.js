@@ -2,6 +2,7 @@ const asyncHandler = require("express-async-handler");
 const GereeniiZagvar = require("../models/gereeniiZagvar");
 const Geree = require("../models/geree");
 const OrshinSuugch = require("../models/orshinSuugch");
+const { toWords } = require("mon_num");
 
 // Helper function to get value from geree or orshinSuugch based on tag type
 function getVariableValue(tagType, geree, orshinSuugch) {
@@ -23,8 +24,28 @@ function getVariableValue(tagType, geree, orshinSuugch) {
 
   // Format number to currency
   function formatCurrency(amount) {
-    if (!amount) return "0";
+    if (!amount && amount !== 0) return "0";
     return Number(amount).toLocaleString("mn-MN");
+  }
+
+  // Convert number to words (Mongolian)
+  function numberToWords(number, bukhel = "төгрөг", butarhai = "мөнгө") {
+    if (!number && number !== 0) return "";
+    const fixed = 2;
+    let resValue = "";
+    const value = Number(number).toFixed(fixed).toString();
+    if (value.includes(".")) {
+      resValue = toWords(Number(value.split(".")[0]), { suffix: "n" });
+      if (bukhel) resValue += ` ${bukhel}`;
+      if (Number(value.split(".")[1]) > 0) {
+        resValue += ` ${toWords(Number(value.split(".")[1]), { suffix: "n" })}`;
+        if (butarhai) resValue += ` ${butarhai}`;
+      }
+    } else {
+      resValue = toWords(Number(value), { suffix: "n" });
+      if (bukhel) resValue += ` ${bukhel}`;
+    }
+    return resValue;
   }
 
   // Handle arrays (like utas)
@@ -42,37 +63,182 @@ function getVariableValue(tagType, geree, orshinSuugch) {
     if (typeof obj === "object" && obj.ner) {
       return obj.ner;
     }
+    if (typeof obj === "object" && obj.kod) {
+      return obj.kod;
+    }
     return String(obj);
   }
 
-  // Check geree first, then orshinSuugch
+  // Calculate contract duration in months
+  function calculateKhugatsaa(ekhlekhOgnoo, duusakhOgnoo) {
+    if (!ekhlekhOgnoo || !duusakhOgnoo) return "";
+    const start = new Date(ekhlekhOgnoo);
+    const end = new Date(duusakhOgnoo);
+    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    return months > 0 ? `${months} сар` : "";
+  }
+
   let value = null;
 
-  // Direct geree fields
-  if (geree && geree[tagType] !== undefined && geree[tagType] !== null) {
-    value = geree[tagType];
-  }
-  // Direct orshinSuugch fields
-  else if (
-    orshinSuugch &&
-    orshinSuugch[tagType] !== undefined &&
-    orshinSuugch[tagType] !== null
-  ) {
-    value = orshinSuugch[tagType];
-  }
-  // Nested properties (e.g., "horoo.ner")
-  else if (tagType.includes(".")) {
-    const parts = tagType.split(".");
-    let source = geree || orshinSuugch;
-    for (const part of parts) {
-      if (source && source[part] !== undefined) {
-        source = source[part];
-      } else {
-        source = null;
-        break;
+  // Special handling for specific variables
+  switch (tagType) {
+    // Basic information
+    case "ovog":
+      value = geree?.ovog || orshinSuugch?.ovog || "";
+      break;
+    case "ner":
+      value = geree?.ner || orshinSuugch?.ner || "";
+      break;
+    case "utas":
+      value = geree?.utas || orshinSuugch?.utas || "";
+      if (Array.isArray(value)) value = formatArray(value);
+      break;
+    case "mail":
+      value = geree?.mail || orshinSuugch?.mail || "";
+      break;
+    case "khayag":
+      value = geree?.sukhBairshil || orshinSuugch?.khayag || "";
+      break;
+    case "baingiinKhayag":
+      value = geree?.baingiinKhayag || "";
+      break;
+    case "register":
+      value = geree?.register || orshinSuugch?.register || "";
+      break;
+    case "gereeniiDugaar":
+      value = geree?.gereeniiDugaar || "";
+      break;
+    case "gereeniiOgnoo":
+      value = geree?.gereeniiOgnoo || "";
+      if (value) return formatDate(value);
+      return "";
+    case "turul":
+      value = geree?.turul || "";
+      break;
+
+    // SUH information
+    case "suhNer":
+      value = geree?.suhNer || "";
+      break;
+    case "suhRegister":
+      value = geree?.suhRegister || "";
+      break;
+    case "suhUtas":
+      value = geree?.suhUtas || "";
+      if (Array.isArray(value)) value = formatArray(value);
+      break;
+    case "suhMail":
+      value = geree?.suhMail || "";
+      break;
+
+    // Duration
+    case "khugatsaa":
+      value = geree?.khugatsaa || "";
+      if (value) return `${value} сар`;
+      return "";
+    case "tulukhOgnoo":
+      value = geree?.tulukhOgnoo || "";
+      if (value) return formatDate(value);
+      return "";
+    case "gereeniiKhugatsaa":
+      value = calculateKhugatsaa(geree?.ekhlekhOgnoo, geree?.duusakhOgnoo);
+      if (value) return value;
+      return "";
+    case "TulultHiigdehOgnoo":
+      value = geree?.tulukhOgnoo || "";
+      if (value) return formatDate(value);
+      return "";
+
+    // Payment
+    case "suhTulbur":
+      value = geree?.suhTulbur || "";
+      break;
+    case "suhTulburUsgeer":
+      value = geree?.suhTulbur || "";
+      if (value) return numberToWords(value);
+      return "";
+    case "ashiglaltiinZardal":
+      value = geree?.ashiglaltiinZardal || "";
+      if (value || value === 0) return formatCurrency(value);
+      return "";
+    case "ashiglaltiinZardalUsgeer":
+      value = geree?.ashiglaltiinZardal || "";
+      if (value || value === 0) return numberToWords(value);
+      return "";
+    case "niitTulbur":
+      value = geree?.niitTulbur || "";
+      if (value || value === 0) return formatCurrency(value);
+      return "";
+    case "niitTulburUsgeer":
+      value = geree?.niitTulbur || "";
+      if (value || value === 0) return numberToWords(value);
+      return "";
+
+    // Property information
+    case "bairNer":
+      value = geree?.bairNer || orshinSuugch?.bairniiNer || "";
+      break;
+    case "orts":
+      value = geree?.orts || orshinSuugch?.orts || "";
+      break;
+    case "toot":
+      value = geree?.toot || orshinSuugch?.toot || "";
+      break;
+    case "davkhar":
+      value = geree?.davkhar || orshinSuugch?.davkhar || "";
+      break;
+
+    // Additional information
+    case "burtgesenAjiltan":
+      value = geree?.burtgesenAjiltan || "";
+      break;
+    case "temdeglel":
+      value = geree?.temdeglel || "";
+      break;
+
+    // Location information
+    case "duureg":
+      value = geree?.duureg || orshinSuugch?.duureg || "";
+      break;
+    case "horoo":
+      value = geree?.horoo || orshinSuugch?.horoo || "";
+      if (typeof value === "object" && value !== null) {
+        return formatObject(value);
       }
-    }
-    value = source;
+      break;
+    case "soh":
+      value = geree?.sohNer || orshinSuugch?.soh || "";
+      break;
+
+    // Default: try direct field access
+    default:
+      // Direct geree fields
+      if (geree && geree[tagType] !== undefined && geree[tagType] !== null) {
+        value = geree[tagType];
+      }
+      // Direct orshinSuugch fields
+      else if (
+        orshinSuugch &&
+        orshinSuugch[tagType] !== undefined &&
+        orshinSuugch[tagType] !== null
+      ) {
+        value = orshinSuugch[tagType];
+      }
+      // Nested properties (e.g., "horoo.ner")
+      else if (tagType.includes(".")) {
+        const parts = tagType.split(".");
+        let source = geree || orshinSuugch;
+        for (const part of parts) {
+          if (source && source[part] !== undefined) {
+            source = source[part];
+          } else {
+            source = null;
+            break;
+          }
+        }
+        value = source;
+      }
+      break;
   }
 
   // Format the value based on type
@@ -80,9 +246,11 @@ function getVariableValue(tagType, geree, orshinSuugch) {
     return "";
   }
 
-  // Date formatting
+  // Date formatting (for any remaining date fields)
   if (tagType.includes("Ognoo") || tagType.includes("ognoo")) {
-    return formatDate(value);
+    if (value instanceof Date || (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/))) {
+      return formatDate(value);
+    }
   }
 
   // Array formatting
@@ -95,13 +263,14 @@ function getVariableValue(tagType, geree, orshinSuugch) {
     return formatObject(value);
   }
 
-  // Number formatting for currency fields
+  // Number formatting for currency fields (if not already formatted)
   if (
-    tagType.includes("Tulbur") ||
-    tagType.includes("Zardal") ||
-    tagType.includes("Dun")
+    (tagType.includes("Tulbur") || tagType.includes("Zardal") || tagType.includes("Dun")) &&
+    !tagType.includes("Usgeer")
   ) {
-    return formatCurrency(value);
+    if (typeof value === "number" || (typeof value === "string" && !isNaN(value))) {
+      return formatCurrency(value);
+    }
   }
 
   return String(value);
@@ -112,13 +281,23 @@ function replaceTemplateVariables(htmlContent, geree, orshinSuugch) {
   if (!htmlContent) return "";
 
   // Regular expression to match <span data-tag-type="variableName" class="custom-tag"></span>
+  // Handles both single and double quotes, with or without spaces
   const tagRegex =
-    /<span\s+data-tag-type="([^"]+)"\s+class="custom-tag"><\/span>/g;
+    /<span\s+data-tag-type=["']([^"']+)["']\s+class=["']custom-tag["']\s*\/?>\s*<\/span>/gi;
 
-  return htmlContent.replace(tagRegex, (match, tagType) => {
+  let processedContent = htmlContent;
+  
+  // Replace all variable tags
+  processedContent = processedContent.replace(tagRegex, (match, tagType) => {
     const value = getVariableValue(tagType.trim(), geree, orshinSuugch);
+    // Debug: log if replacement is happening
+    if (value) {
+      console.log(`Replacing ${tagType} with: ${value}`);
+    }
     return value || ""; // Return empty string if value not found
   });
+
+  return processedContent;
 }
 
 // Unified endpoint to get processed contract template(s)
@@ -499,64 +678,65 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
       }
     }
 
-    // List of available variables from geree model
-    const gereeVariables = [
+    // List of all available variables matching tagCategories structure
+    const allVariables = [
+      // Basic information
+      "ovog",
+      "ner",
+      "utas",
+      "mail",
+      "khayag",
+      "baingiinKhayag",
+      "register",
       "gereeniiDugaar",
       "gereeniiOgnoo",
-      "ovog",
-      "ner",
-      "register",
-      "utas",
-      "mail",
-      "toot",
-      "davkhar",
-      "bairNer",
-      "sukhBairshil",
-      "duureg",
-      "horoo",
-      "horoo.ner",
-      "horoo.kod",
-      "sohNer",
-      "niitTulbur",
+      "turul",
+      // SUH information
+      "suhNer",
+      "suhRegister",
+      "suhUtas",
+      "suhMail",
+      // Duration
+      "khugatsaa",
+      "tulukhOgnoo",
+      "gereeniiKhugatsaa",
+      "TulultHiigdehOgnoo",
+      // Payment
+      "suhTulbur",
+      "suhTulburUsgeer",
       "ashiglaltiinZardal",
       "ashiglaltiinZardalUsgeer",
+      "niitTulbur",
       "niitTulburUsgeer",
-      "ekhlekhOgnoo",
-      "duusakhOgnoo",
-      "tulukhOgnoo",
-      "baiguullagiinNer",
-      "temdeglel",
-    ];
-
-    // List of available variables from orshinSuugch model
-    const orshinSuugchVariables = [
-      "ner",
-      "ovog",
-      "utas",
-      "mail",
+      // Property information
+      "bairNer",
+      "orts",
       "toot",
       "davkhar",
-      "bairniiNer",
+      // Additional information
+      "burtgesenAjiltan",
+      "temdeglel",
+      // Location information
       "duureg",
       "horoo",
       "soh",
     ];
 
+    // Variables that can come from both geree and orshinSuugch
+    const sharedVariables = ["ovog", "ner", "utas", "mail", "toot", "davkhar", "duureg", "horoo", "orts"];
+
+    // Variables specific to geree
+    const gereeVariables = allVariables.filter(v => !sharedVariables.includes(v) || v === "register");
+
+    // Variables specific to orshinSuugch (these are already in sharedVariables)
+    const orshinSuugchVariables = sharedVariables.filter(v => v !== "register");
+
     // Get example values if sample geree exists
     const exampleValues = {};
-    if (sampleGeree) {
-      gereeVariables.forEach((varName) => {
+    if (sampleGeree || sampleOrshinSuugch) {
+      allVariables.forEach((varName) => {
         const value = getVariableValue(varName, sampleGeree, sampleOrshinSuugch);
         if (value) {
-          exampleValues[varName] = value;
-        }
-      });
-    }
-
-    if (sampleOrshinSuugch) {
-      orshinSuugchVariables.forEach((varName) => {
-        const value = getVariableValue(varName, sampleGeree, sampleOrshinSuugch);
-        if (value && !exampleValues[varName]) {
           exampleValues[varName] = value;
         }
       });
@@ -566,6 +746,11 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
       success: true,
       message: "Боломжтой хувьсагчдын жагсаалт",
       result: {
+        allVariables: allVariables.map((name) => ({
+          name: name,
+          exampleValue: exampleValues[name] || null,
+          description: getVariableDescription(name),
+        })),
         gereeVariables: gereeVariables.map((name) => ({
           name: name,
           description: getVariableDescription(name),
@@ -576,7 +761,6 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
           description: getVariableDescription(name),
           exampleValue: exampleValues[name] || null,
         })),
-        allVariables: [...gereeVariables, ...orshinSuugchVariables],
         usage: {
           singleValue: "POST with gereeniiId and variableName to get specific value",
           allVariables: "POST with gereeniiId (optional) to get list of all variables",
@@ -591,33 +775,46 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
 // Helper function to get variable description
 function getVariableDescription(variableName) {
   const descriptions = {
-    gereeniiDugaar: "Гэрээний дугаар",
-    gereeniiOgnoo: "Гэрээний огноо",
+    // Basic information
     ovog: "Овог",
     ner: "Нэр",
-    register: "Регистр",
     utas: "Утас",
-    mail: "Имэйл",
+    mail: "И-мэйл",
+    khayag: "Хаяг",
+    baingiinKhayag: "Байнгын хаяг",
+    register: "Регистр",
+    gereeniiDugaar: "Гэрээний дугаар",
+    gereeniiOgnoo: "Гэрээний огноо",
+    turul: "Төрөл",
+    // SUH information
+    suhNer: "СӨХ-ийн нэр",
+    suhRegister: "СӨХ-ийн регистр",
+    suhUtas: "СӨХ-ийн утас",
+    suhMail: "СӨХ-ийн и-мэйл",
+    // Duration
+    khugatsaa: "Хугацаа",
+    tulukhOgnoo: "Төлөх огноо",
+    gereeniiKhugatsaa: "Гэрээний хугацаа",
+    TulultHiigdehOgnoo: "Төлөлт хийгдэх огноо",
+    // Payment
+    suhTulbur: "СӨХ хураамж",
+    suhTulburUsgeer: "СӨХ хураамж үсгээр",
+    ashiglaltiinZardal: "Ашиглалтын зардал",
+    ashiglaltiinZardalUsgeer: "Ашиглалт үсгээр",
+    niitTulbur: "Нийт төлбөр",
+    niitTulburUsgeer: "Нийт төлбөр үсгээр",
+    // Property information
+    bairNer: "Байрны нэр",
+    orts: "Орц",
     toot: "Тоот",
     davkhar: "Давхар",
-    bairNer: "Байрны нэр",
-    sukhBairshil: "Суух байршил",
-    duureg: "Дүүрэг",
-    horoo: "Хороо (объект)",
-    "horoo.ner": "Хорооны нэр",
-    "horoo.kod": "Хорооны код",
-    sohNer: "СӨХ-ийн нэр",
-    niitTulbur: "Нийт төлбөр",
-    ashiglaltiinZardal: "Ашиглалтын зардал",
-    ashiglaltiinZardalUsgeer: "Ашиглалтын зардлын үгээр",
-    niitTulburUsgeer: "Нийт төлбөрийн үгээр",
-    ekhlekhOgnoo: "Эхлэх огноо",
-    duusakhOgnoo: "Дуусах огноо",
-    tulukhOgnoo: "Төлөх огноо",
-    baiguullagiinNer: "Байгууллагын нэр",
+    // Additional information
+    burtgesenAjiltan: "Бүртгэсэн ажилтан",
     temdeglel: "Тэмдэглэл",
-    bairniiNer: "Байрны нэр (оршин суугчаас)",
-    soh: "СӨХ (оршин суугчаас)",
+    // Location information
+    duureg: "Дүүрэг",
+    horoo: "Хороо",
+    soh: "СӨХ",
   };
 
   return descriptions[variableName] || variableName;
