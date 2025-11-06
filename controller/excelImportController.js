@@ -183,10 +183,27 @@ exports.downloadBankniiGuilgeeExcel = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Set data for download
-    req.body.data = bankniiGuilgeeList;
+    // Format data with only required columns: №, Огноо, Гүйлгээний утга, Гүйлгээний дүн, Шилжүүлсэн данс
+    const formattedData = bankniiGuilgeeList.map((item, index) => ({
+      dugaar: index + 1, // № (row number)
+      ognoo: item.tranDate ? new Date(item.tranDate).toISOString().split('T')[0] : "", // Огноо (date)
+      guilgeeniiUtga: item.description || "", // Гүйлгээний утга (transaction description)
+      guilgeeniiDun: item.amount || 0, // Гүйлгээний дүн (transaction amount)
+      shiljuulsenDans: item.relatedAccount || "", // Шилжүүлсэн данс (transferred account)
+    }));
+
+    // Set data for download with specific headers
+    req.body.data = formattedData;
+    req.body.headers = [
+      { key: "dugaar", label: "№" },
+      { key: "ognoo", label: "Огноо" },
+      { key: "guilgeeniiUtga", label: "Гүйлгээний утга" },
+      { key: "guilgeeniiDun", label: "Гүйлгээний дүн" },
+      { key: "shiljuulsenDans", label: "Шилжүүлсэн данс" }
+    ];
     req.body.fileName = req.body.fileName || `bankniiGuilgee_${Date.now()}`;
     req.body.sheetName = req.body.sheetName || "Банкны гүйлгээ";
+    req.body.colWidths = [10, 15, 40, 15, 20]; // Column widths
     
     // Call downloadExcelList function directly
     return exports.downloadExcelList(req, res, next);
