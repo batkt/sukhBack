@@ -11,6 +11,8 @@ router.post(
   downloadNekhemjlekhiinTuukhExcel
 );
 
+crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
+
 router.get("/:id", tokenShalgakh, async (req, res, next) => {
   try {
     const { id } = req.params;
