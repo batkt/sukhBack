@@ -3,10 +3,11 @@ const GereeniiZagvar = require("../models/gereeniiZagvar");
 const Geree = require("../models/geree");
 const OrshinSuugch = require("../models/orshinSuugch");
 const Baiguullaga = require("../models/baiguullaga");
+const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const { toWords } = require("mon_num");
 
-// Helper function to get value from geree, orshinSuugch, or baiguullaga based on tag type
-function getVariableValue(tagType, geree, orshinSuugch, baiguullaga) {
+// Helper function to get value from geree, orshinSuugch, baiguullaga, or nekhemjlekh based on tag type
+function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh) {
   // Format date to Mongolian format (YYYY оны MM сарын DD)
   function formatDate(date) {
     if (!date) return "";
@@ -110,7 +111,8 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga) {
       value = geree?.gereeniiDugaar || "";
       break;
     case "gereeniiOgnoo":
-      value = geree?.gereeniiOgnoo || "";
+      // Get from nekhemjlekh.ognoo (invoice date) first, then fallback to geree.gereeniiOgnoo
+      value = nekhemjlekh?.ognoo || geree?.gereeniiOgnoo || "";
       if (value) return formatDate(value);
       return "";
     case "turul":
@@ -143,7 +145,15 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga) {
       if (value) return formatDate(value);
       return "";
     case "gereeniiKhugatsaa":
-      value = calculateKhugatsaa(geree?.ekhlekhOgnoo, geree?.duusakhOgnoo);
+      // Calculate from ekhlekhOgnoo and duusakhOgnoo
+      const ekhlekhOgnoo = geree?.ekhlekhOgnoo || geree?.gereeniiOgnoo;
+      const duusakhOgnoo = geree?.duusakhOgnoo;
+      if (ekhlekhOgnoo && duusakhOgnoo) {
+        value = calculateKhugatsaa(ekhlekhOgnoo, duusakhOgnoo);
+      } else if (geree?.khugatsaa) {
+        // Fallback to khugatsaa field if dates not available
+        value = `${geree.khugatsaa} сар`;
+      }
       if (value) return value;
       return "";
     case "TulultHiigdehOgnoo":
@@ -151,28 +161,58 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga) {
       if (value) return formatDate(value);
       return "";
 
-    // Payment
+    // Payment (from nekhemjlekh - invoice)
     case "suhTulbur":
-      value = geree?.suhTulbur || "";
-      break;
+      // Get suhTulbur from nekhemjlekh.medeelel.zardluud where zardliinTurul is "СӨХ"
+      if (nekhemjlekh?.medeelel?.zardluud) {
+        const suhZardal = nekhemjlekh.medeelel.zardluud.find(
+          (z) => z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh")
+        );
+        value = suhZardal?.tariff || suhZardal?.tulukhDun || 0;
+      } else {
+        value = geree?.suhTulbur || 0;
+      }
+      if (value || value === 0) return formatCurrency(value);
+      return "0";
     case "suhTulburUsgeer":
-      value = geree?.suhTulbur || "";
-      if (value) return numberToWords(value);
+      if (nekhemjlekh?.medeelel?.zardluud) {
+        const suhZardal = nekhemjlekh.medeelel.zardluud.find(
+          (z) => z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh")
+        );
+        value = suhZardal?.tariff || suhZardal?.tulukhDun || 0;
+      } else {
+        value = geree?.suhTulbur || 0;
+      }
+      if (value || value === 0) return numberToWords(value);
       return "";
     case "ashiglaltiinZardal":
-      value = geree?.ashiglaltiinZardal || "";
+      // Get ashiglaltiinZardal from nekhemjlekh.medeelel.zardluud (sum of all non-SUH zardluud)
+      if (nekhemjlekh?.medeelel?.zardluud) {
+        value = nekhemjlekh.medeelel.zardluud
+          .filter((z) => z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh"))
+          .reduce((sum, z) => sum + (z.tariff || z.tulukhDun || 0), 0);
+      } else {
+        value = geree?.ashiglaltiinZardal || 0;
+      }
       if (value || value === 0) return formatCurrency(value);
-      return "";
+      return "0";
     case "ashiglaltiinZardalUsgeer":
-      value = geree?.ashiglaltiinZardal || "";
+      if (nekhemjlekh?.medeelel?.zardluud) {
+        value = nekhemjlekh.medeelel.zardluud
+          .filter((z) => z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh"))
+          .reduce((sum, z) => sum + (z.tariff || z.tulukhDun || 0), 0);
+      } else {
+        value = geree?.ashiglaltiinZardal || 0;
+      }
       if (value || value === 0) return numberToWords(value);
       return "";
     case "niitTulbur":
-      value = geree?.niitTulbur || "";
+      // Get niitTulbur from nekhemjlekh.niitTulbur (total payment)
+      value = nekhemjlekh?.niitTulbur || geree?.niitTulbur || 0;
       if (value || value === 0) return formatCurrency(value);
-      return "";
+      return "0";
     case "niitTulburUsgeer":
-      value = geree?.niitTulbur || "";
+      value = nekhemjlekh?.niitTulbur || geree?.niitTulbur || 0;
       if (value || value === 0) return numberToWords(value);
       return "";
 
@@ -333,7 +373,7 @@ function extractVariableTags(htmlContent) {
 }
 
 // Main function to replace data-tag-type variables in HTML
-function replaceTemplateVariables(htmlContent, geree, orshinSuugch, baiguullaga) {
+function replaceTemplateVariables(htmlContent, geree, orshinSuugch, baiguullaga, nekhemjlekh) {
   if (!htmlContent) return "";
 
   // More flexible regex to match variable tags
@@ -356,7 +396,7 @@ function replaceTemplateVariables(htmlContent, geree, orshinSuugch, baiguullaga)
   // Replace all variable tags
   processedContent = processedContent.replace(tagRegex, (match, tagType) => {
     const trimmedTagType = tagType.trim();
-    const value = getVariableValue(trimmedTagType, geree, orshinSuugch, baiguullaga);
+    const value = getVariableValue(trimmedTagType, geree, orshinSuugch, baiguullaga, nekhemjlekh);
     
     // Debug logging
     if (value) {
@@ -476,43 +516,59 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
         );
       }
 
+      // Get latest nekhemjlekh (invoice) for this geree
+      let nekhemjlekh = null;
+      if (geree._id) {
+        nekhemjlekh = await NekhemjlekhiinTuukh(kholbolt)
+          .findOne({
+            gereeniiId: String(geree._id),
+          })
+          .sort({ createdAt: -1 }); // Get the latest invoice
+      }
+
       // Process all template fields
       return {
         aguulga: replaceTemplateVariables(
           zagvar.aguulga || "",
           geree,
           orshinSuugch,
-          baiguullaga
+          baiguullaga,
+          nekhemjlekh
         ),
         tolgoi: replaceTemplateVariables(
           zagvar.tolgoi || "",
           geree,
           orshinSuugch,
-          baiguullaga
+          baiguullaga,
+          nekhemjlekh
         ),
         baruunTolgoi: replaceTemplateVariables(
           zagvar.baruunTolgoi || "",
           geree,
           orshinSuugch,
-          baiguullaga
+          baiguullaga,
+          nekhemjlekh
         ),
         zuunTolgoi: replaceTemplateVariables(
           zagvar.zuunTolgoi || "",
           geree,
           orshinSuugch,
-          baiguullaga
+          baiguullaga,
+          nekhemjlekh
         ),
         baruunKhul: replaceTemplateVariables(
           zagvar.baruunKhul || "",
           geree,
           orshinSuugch,
-          baiguullaga
+          baiguullaga,
+          nekhemjlekh
         ),
         zuunKhul: replaceTemplateVariables(
           zagvar.zuunKhul || "",
           geree,
           orshinSuugch,
-          baiguullaga
+          baiguullaga,
+          nekhemjlekh
         ),
       };
     };
@@ -584,6 +640,26 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
         orshinSuugchMap.set(String(os._id), os);
       });
 
+      // Get all geree IDs to fetch nekhemjlekh in batch
+      const gereeniiIds = gereenuud.map((g) => String(g._id)).filter((id) => id);
+
+      // Fetch all latest nekhemjlekh for each geree
+      const nekhemjlekhuud = await NekhemjlekhiinTuukh(kholbolt)
+        .find({
+          gereeniiId: { $in: gereeniiIds },
+        })
+        .sort({ createdAt: -1 });
+
+      // Create a map for quick lookup (latest invoice per geree)
+      const nekhemjlekhMap = new Map();
+      nekhemjlekhuud.forEach((nk) => {
+        const gereeniiId = String(nk.gereeniiId);
+        // Only keep the latest invoice for each geree
+        if (!nekhemjlekhMap.has(gereeniiId)) {
+          nekhemjlekhMap.set(gereeniiId, nk);
+        }
+      });
+
       // Process each geree with its template
       const processedGereenuud = await Promise.all(
         gereenuud.map(async (geree) => {
@@ -591,43 +667,52 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
             ? orshinSuugchMap.get(String(geree.orshinSuugchId))
             : null;
 
+          // Get latest nekhemjlekh for this geree
+          const nekhemjlekh = nekhemjlekhMap.get(String(geree._id)) || null;
+
           // Process template
           const processedTemplate = {
             aguulga: replaceTemplateVariables(
               zagvar.aguulga || "",
               geree,
               orshinSuugch,
-              baiguullaga
+              baiguullaga,
+              nekhemjlekh
             ),
             tolgoi: replaceTemplateVariables(
               zagvar.tolgoi || "",
               geree,
               orshinSuugch,
-              baiguullaga
+              baiguullaga,
+              nekhemjlekh
             ),
             baruunTolgoi: replaceTemplateVariables(
               zagvar.baruunTolgoi || "",
               geree,
               orshinSuugch,
-              baiguullaga
+              baiguullaga,
+              nekhemjlekh
             ),
             zuunTolgoi: replaceTemplateVariables(
               zagvar.zuunTolgoi || "",
               geree,
               orshinSuugch,
-              baiguullaga
+              baiguullaga,
+              nekhemjlekh
             ),
             baruunKhul: replaceTemplateVariables(
               zagvar.baruunKhul || "",
               geree,
               orshinSuugch,
-              baiguullaga
+              baiguullaga,
+              nekhemjlekh
             ),
             zuunKhul: replaceTemplateVariables(
               zagvar.zuunKhul || "",
               geree,
               orshinSuugch,
-              baiguullaga
+              baiguullaga,
+              nekhemjlekh
             ),
           };
 
@@ -751,8 +836,18 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
         geree.baiguullagiinId
       );
 
+      // Get latest nekhemjlekh (invoice) for this geree
+      let nekhemjlekh = null;
+      if (geree._id) {
+        nekhemjlekh = await NekhemjlekhiinTuukh(kholbolt)
+          .findOne({
+            gereeniiId: String(geree._id),
+          })
+          .sort({ createdAt: -1 }); // Get the latest invoice
+      }
+
       // Get variable value
-      const value = getVariableValue(variableName, geree, orshinSuugch, baiguullaga);
+      const value = getVariableValue(variableName, geree, orshinSuugch, baiguullaga, nekhemjlekh);
 
       res.json({
         success: true,
@@ -771,6 +866,7 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
     let sampleGeree = null;
     let sampleOrshinSuugch = null;
     let sampleBaiguullaga = null;
+    let sampleNekhemjlekh = null;
 
     if (gereeniiId && kholbolt) {
       sampleGeree = await Geree(kholbolt).findById(gereeniiId);
@@ -785,6 +881,14 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
           sampleBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
             sampleGeree.baiguullagiinId
           );
+        }
+        // Get latest nekhemjlekh (invoice) for this geree
+        if (sampleGeree._id) {
+          sampleNekhemjlekh = await NekhemjlekhiinTuukh(kholbolt)
+            .findOne({
+              gereeniiId: String(sampleGeree._id),
+            })
+            .sort({ createdAt: -1 });
         }
       }
     } else if (finalBaiguullagiinId) {
@@ -849,9 +953,9 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
 
     // Get example values if sample geree exists
     const exampleValues = {};
-    if (sampleGeree || sampleOrshinSuugch || sampleBaiguullaga) {
+    if (sampleGeree || sampleOrshinSuugch || sampleBaiguullaga || sampleNekhemjlekh) {
       allVariables.forEach((varName) => {
-        const value = getVariableValue(varName, sampleGeree, sampleOrshinSuugch, sampleBaiguullaga);
+        const value = getVariableValue(varName, sampleGeree, sampleOrshinSuugch, sampleBaiguullaga, sampleNekhemjlekh);
         if (value) {
           exampleValues[varName] = value;
         }
