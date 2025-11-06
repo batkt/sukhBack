@@ -4,14 +4,19 @@ const { crud, UstsanBarimt, tokenShalgakh } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
 const { downloadNekhemjlekhiinTuukhExcel } = require("../controller/excelImportController");
 
-crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
-
-// Excel download route - MUST be before /:id route to avoid conflicts
+// Excel download route - MUST be before crud to avoid conflicts
 router.post(
   "/nekhemjlekhiinTuukhExcelDownload",
   tokenShalgakh,
   downloadNekhemjlekhiinTuukhExcel
 );
+
+// Test route to verify router is working
+router.get("/testExcelRoute", (req, res) => {
+  res.json({ message: "Route is working!", path: req.path });
+});
+
+crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
 router.get("/:id", tokenShalgakh, async (req, res, next) => {
   try {
