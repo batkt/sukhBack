@@ -831,6 +831,18 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
         await geree.save();
 
+        // Update davkhar with toot if provided
+        if (userObject.toot && userData.davkhar) {
+          const { updateDavkharWithToot } = require("./orshinSuugch");
+          await updateDavkharWithToot(
+            baiguullaga,
+            finalBarilgiinId,
+            userData.davkhar,
+            userObject.toot,
+            tukhainBaaziinKholbolt
+          );
+        }
+
         try {
           const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
             geree,

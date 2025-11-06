@@ -122,6 +122,152 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
   );
 }
 
+// Helper function to update davkhar with toot in baiguullaga
+exports.updateDavkharWithToot = async function updateDavkharWithToot(
+  baiguullaga,
+  barilgiinId,
+  davkhar,
+  toot,
+  tukhainBaaziinKholbolt
+) {
+  try {
+    const { db } = require("zevbackv2");
+    const targetBarilga = baiguullaga.barilguud?.find(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+
+    if (!targetBarilga) {
+      console.log("Барилга олдсонгүй");
+      return;
+    }
+
+    // Get or create davkhar array in tokhirgoo
+    const davkharArray = targetBarilga.tokhirgoo?.davkhar || [];
+
+    // Format: "1-р давхар - 102,103,104"
+    const davkharKey = `${davkhar}-р давхар`;
+
+    // Find existing entry for this floor
+    let existingIndex = -1;
+    for (let i = 0; i < davkharArray.length; i++) {
+      if (davkharArray[i].startsWith(davkharKey)) {
+        existingIndex = i;
+        break;
+      }
+    }
+
+    // Parse existing toot list or create new
+    let tootList = [];
+    if (existingIndex >= 0) {
+      const existingEntry = davkharArray[existingIndex];
+      const tootPart = existingEntry.split(" - ")[1];
+      if (tootPart) {
+        tootList = tootPart.split(",").map((t) => t.trim()).filter((t) => t);
+      }
+    }
+
+    // Add toot if not already present
+    if (toot && !tootList.includes(toot)) {
+      tootList.push(toot);
+      tootList.sort(); // Sort for consistency
+    }
+
+    // Create or update entry
+    const davkharEntry = `${davkharKey} - ${tootList.join(",")}`;
+
+    if (existingIndex >= 0) {
+      davkharArray[existingIndex] = davkharEntry;
+    } else {
+      davkharArray.push(davkharEntry);
+    }
+
+    // Update baiguullaga - find the building index first
+    const barilgaIndex = baiguullaga.barilguud.findIndex(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+
+    if (barilgaIndex >= 0) {
+      // Use Mongoose's positional operator for safer nested updates
+      // This ensures we only update the specific barilga without affecting others
+      const updatePath = `barilguud.${barilgaIndex}.tokhirgoo.davkhar`;
+      
+      await Baiguullaga(db.erunkhiiKholbolt).findByIdAndUpdate(
+        baiguullaga._id,
+        {
+          $set: {
+            [updatePath]: davkharArray,
+          },
+        },
+        { new: false } // Don't return updated doc, we'll reload it
+      );
+    }
+
+    // Reload baiguullaga to get latest davkhar data
+    const updatedBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      baiguullaga._id
+    );
+    const finalDavkharArray =
+      updatedBaiguullaga?.barilguud
+        ?.find((b) => String(b._id) === String(barilgiinId))
+        ?.tokhirgoo?.davkhar || davkharArray;
+
+    // Calculate and update liftShalgaya
+    await exports.calculateLiftShalgaya(
+      baiguullaga._id.toString(),
+      barilgiinId,
+      finalDavkharArray,
+      tukhainBaaziinKholbolt
+    );
+  } catch (error) {
+    console.error("Error updating davkhar with toot:", error);
+  }
+}
+
+// Helper function to calculate liftShalgaya based on davkhar entries
+exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
+  baiguullagiinId,
+  barilgiinId,
+  davkharArray,
+  tukhainBaaziinKholbolt
+) {
+  try {
+    const LiftShalgaya = require("../models/liftShalgaya");
+    const LiftShalgayaModel = LiftShalgaya(tukhainBaaziinKholbolt);
+
+    // Extract all unique floor numbers from davkhar entries
+    // Format: "1-р давхар - 102,103,104"
+    const choloolugdokhDavkhar = [];
+
+    davkharArray.forEach((entry) => {
+      if (entry && entry.includes("-р давхар")) {
+        const floorMatch = entry.match(/^(\d+)-р давхар/);
+        if (floorMatch) {
+          const floorNumber = floorMatch[1];
+          if (!choloolugdokhDavkhar.includes(floorNumber)) {
+            choloolugdokhDavkhar.push(floorNumber);
+          }
+        }
+      }
+    });
+
+    // Update or create liftShalgaya
+    await LiftShalgayaModel.findOneAndUpdate(
+      { baiguullagiinId: baiguullagiinId },
+      {
+        baiguullagiinId: baiguullagiinId,
+        choloolugdokhDavkhar: choloolugdokhDavkhar,
+      },
+      { upsert: true, new: true }
+    );
+
+    console.log(
+      `LiftShalgaya updated: ${choloolugdokhDavkhar.length} floors exempted`
+    );
+  } catch (error) {
+    console.error("Error calculating liftShalgaya:", error);
+  }
+}
+
 exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     console.log("Энэ рүү орлоо: orshinSuugchBurtgey");
@@ -301,6 +447,25 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
       await geree.save();
 
+      // Update davkhar with toot if provided from frontend
+      // Frontend should send: { toot: "102", davkhar: "1", barilgiinId: "..." }
+      if (orshinSuugch.toot && orshinSuugch.davkhar) {
+        console.log(
+          `Updating davkhar with toot: Floor ${orshinSuugch.davkhar}, Toot ${orshinSuugch.toot}, Building ${barilgiinId}`
+        );
+        await exports.updateDavkharWithToot(
+          baiguullaga,
+          barilgiinId,
+          orshinSuugch.davkhar,
+          orshinSuugch.toot,
+          tukhainBaaziinKholbolt
+        );
+      } else {
+        console.log(
+          `Skipping davkhar update - toot: ${orshinSuugch.toot}, davkhar: ${orshinSuugch.davkhar}`
+        );
+      }
+
       try {
         const {
           gereeNeesNekhemjlekhUusgekh,
@@ -378,6 +543,59 @@ exports.davhardsanOrshinSuugchShalgayy = asyncHandler(
   }
 );
 
+// Toot validation endpoint
+exports.tootShalgaya = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { toot, baiguullagiinId, utas } = req.body;
+
+    if (!toot) {
+      return res.status(400).json({
+        success: false,
+        message: "Тоот заавал оруулах шаардлагатай!",
+      });
+    }
+
+    if (!utas) {
+      return res.status(400).json({
+        success: false,
+        message: "Утасны дугаар заавал оруулах шаардлагатай!",
+      });
+    }
+
+    // Find user by utas
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      utas: utas,
+    });
+
+    if (!orshinSuugch) {
+      return res.status(404).json({
+        success: false,
+        message: "Бүртгэлгүй тоот байна",
+      });
+    }
+
+    // Check if provided toot matches registered toot
+    if (orshinSuugch.toot && orshinSuugch.toot.trim() === toot.trim()) {
+      return res.json({
+        success: true,
+        message: "Тоот зөв байна",
+        result: {
+          validated: true,
+          toot: orshinSuugch.toot,
+        },
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: "Бүртгэлгүй тоот байна",
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+});
+
 exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   try {
     const io = req.app.get("socketio");
@@ -392,6 +610,13 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     if (!orshinSuugch)
       throw new aldaa("Бүртгэлгүй хаяг байна.");
+
+    // Validate toot if provided
+    if (req.body.toot) {
+      if (!orshinSuugch.toot || orshinSuugch.toot.trim() !== req.body.toot.trim()) {
+        throw new aldaa("Бүртгэлгүй тоот байна");
+      }
+    }
 
     var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
