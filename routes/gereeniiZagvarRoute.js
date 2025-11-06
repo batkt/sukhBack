@@ -18,6 +18,10 @@ const {
   gereeniiZagvarTatya,
   gereeniiZagvarAvya,
 } = require("../controller/excel");
+const {
+  gereeniiZagvarSoliyo,
+  gereeniiZagvarHuvisagchAvya,
+} = require("../controller/gereeniiZagvarController");
 
 router
   .route("/gereeniiZaaltTatya")
@@ -26,5 +30,7 @@ router
   .route("/gereeniiZagvarTatya")
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiZagvarTatya);
 router.route("/gereeniiZagvarAvya").get(gereeniiZagvarAvya);
+router.post("/gereeniiZagvarSoliyo", tokenShalgakh, gereeniiZagvarSoliyo);
+router.post("/gereeniiZagvarHuvisagchAvya", tokenShalgakh, gereeniiZagvarHuvisagchAvya);
 
 module.exports = router;
