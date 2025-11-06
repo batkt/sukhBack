@@ -6,6 +6,13 @@ const { downloadNekhemjlekhiinTuukhExcel } = require("../controller/excelImportC
 
 crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
+// Excel download route - MUST be before /:id route to avoid conflicts
+router.post(
+  "/nekhemjlekhiinTuukhExcelDownload",
+  tokenShalgakh,
+  downloadNekhemjlekhiinTuukhExcel
+);
+
 router.get("/:id", tokenShalgakh, async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -34,12 +41,5 @@ router.get("/:id", tokenShalgakh, async (req, res, next) => {
     next(error);
   }
 });
-
-// Excel download route
-router.post(
-  "/nekhemjlekhiinTuukhExcelDownload",
-  tokenShalgakh,
-  downloadNekhemjlekhiinTuukhExcel
-);
 
 module.exports = router;
