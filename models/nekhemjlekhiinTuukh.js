@@ -57,6 +57,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
         tailbar: String,
       },
     ],
+    orts: String, // Web only field
   },
   {
     timestamps: true,

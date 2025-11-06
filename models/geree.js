@@ -113,6 +113,7 @@ const gereeSchema = new Schema(
     baiguullagiinNer: String,
     barilgiinId: String,
     temdeglel: String,
+    orts: String, // Web only field
     baritsaaniiUldegdel: {
       type: Number,
       default: 0,

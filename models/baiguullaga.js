@@ -14,6 +14,7 @@ const baiguullagaSchema = new Schema(
     zurgiinNer: String,
     dans: String,
     bankniiNer: String,
+    orts: String, // Web only field
     barilguud: [
       {
         bairshil: {
