@@ -118,6 +118,7 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
         "barilguud.tokhirgoo.sohNer": 1,
         "barilguud.tokhirgoo.horoo": 1,
         "barilguud.tokhirgoo.davkhar": 1,
+        "barilguud.tokhirgoo.davkhariinToonuud": 1,
       }
     )
     .then((result) => {
@@ -133,6 +134,7 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
             sohNer: tokhirgoo?.sohNer || "",
             horoo: tokhirgoo?.horoo || {},
             davkhar: Array.isArray(tokhirgoo?.davkhar) ? tokhirgoo.davkhar : (tokhirgoo?.davkhar ? [tokhirgoo.davkhar] : []),
+            davkhariinToonuud: tokhirgoo?.davkhariinToonuud || {}, // Include davkhariinToonuud structure
           };
         });
 
