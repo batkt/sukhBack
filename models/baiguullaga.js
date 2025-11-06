@@ -49,8 +49,8 @@ const baiguullagaSchema = new Schema(
             kod: String,
           },
           sohNer: String, // СӨХ код
-          davkhar: [String], // Давхар
-          toot: [String], // Тоот
+          davkhar: [String], // Давхар - array of floor numbers like ["1", "2", "3"]
+          davkhariinToonuud: Schema.Types.Mixed, // Давхрын тоонууд - object like {1: ["103,104,105"], 2: ["201,202"]}
           nuatTulukhEsekh: Boolean,
           zogsoolMsgIlgeekh: Boolean,
           tooluurAutomatTatakhToken: String,
