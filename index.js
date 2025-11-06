@@ -77,7 +77,7 @@ app.use(bankniiGuilgeeRoute);
 app.use(dansRoute);
 app.use(ebarimtRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
-app.use(nekhemjlekhRoute);
+app.use("/nekhemjlekhiinTuukh", nekhemjlekhRoute);
 app.use(qpayRoute);
 app.use(tailanRoute);
 app.use(pdfRoute);
