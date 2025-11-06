@@ -2,10 +2,11 @@ const asyncHandler = require("express-async-handler");
 const GereeniiZagvar = require("../models/gereeniiZagvar");
 const Geree = require("../models/geree");
 const OrshinSuugch = require("../models/orshinSuugch");
+const Baiguullaga = require("../models/baiguullaga");
 const { toWords } = require("mon_num");
 
-// Helper function to get value from geree or orshinSuugch based on tag type
-function getVariableValue(tagType, geree, orshinSuugch) {
+// Helper function to get value from geree, orshinSuugch, or baiguullaga based on tag type
+function getVariableValue(tagType, geree, orshinSuugch, baiguullaga) {
   // Format date to Mongolian format (YYYY оны MM сарын DD)
   function formatDate(date) {
     if (!date) return "";
@@ -116,19 +117,20 @@ function getVariableValue(tagType, geree, orshinSuugch) {
       value = geree?.turul || "";
       break;
 
-    // SUH information
+    // SUH information (from baiguullaga - baiguullaga is SUH)
     case "suhNer":
-      value = geree?.suhNer || "";
+      value = baiguullaga?.ner || geree?.suhNer || "";
       break;
     case "suhRegister":
-      value = geree?.suhRegister || "";
+      value = baiguullaga?.register || geree?.suhRegister || "";
       break;
     case "suhUtas":
-      value = geree?.suhUtas || "";
+      value = baiguullaga?.utas || geree?.suhUtas || "";
       if (Array.isArray(value)) value = formatArray(value);
       break;
     case "suhMail":
-      value = geree?.suhMail || "";
+      value = baiguullaga?.mail || geree?.suhMail || "";
+      if (Array.isArray(value)) value = formatArray(value);
       break;
 
     // Duration
@@ -331,7 +333,7 @@ function extractVariableTags(htmlContent) {
 }
 
 // Main function to replace data-tag-type variables in HTML
-function replaceTemplateVariables(htmlContent, geree, orshinSuugch) {
+function replaceTemplateVariables(htmlContent, geree, orshinSuugch, baiguullaga) {
   if (!htmlContent) return "";
 
   // More flexible regex to match variable tags
@@ -354,7 +356,7 @@ function replaceTemplateVariables(htmlContent, geree, orshinSuugch) {
   // Replace all variable tags
   processedContent = processedContent.replace(tagRegex, (match, tagType) => {
     const trimmedTagType = tagType.trim();
-    const value = getVariableValue(trimmedTagType, geree, orshinSuugch);
+    const value = getVariableValue(trimmedTagType, geree, orshinSuugch, baiguullaga);
     
     // Debug logging
     if (value) {
@@ -459,6 +461,11 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // Get baiguullaga (SUH) data
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      finalBaiguullagiinId
+    );
+
     // Helper function to process a single geree
     const processGeree = async (geree) => {
       // Get orshinSuugch if orshinSuugchId exists
@@ -474,32 +481,38 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
         aguulga: replaceTemplateVariables(
           zagvar.aguulga || "",
           geree,
-          orshinSuugch
+          orshinSuugch,
+          baiguullaga
         ),
         tolgoi: replaceTemplateVariables(
           zagvar.tolgoi || "",
           geree,
-          orshinSuugch
+          orshinSuugch,
+          baiguullaga
         ),
         baruunTolgoi: replaceTemplateVariables(
           zagvar.baruunTolgoi || "",
           geree,
-          orshinSuugch
+          orshinSuugch,
+          baiguullaga
         ),
         zuunTolgoi: replaceTemplateVariables(
           zagvar.zuunTolgoi || "",
           geree,
-          orshinSuugch
+          orshinSuugch,
+          baiguullaga
         ),
         baruunKhul: replaceTemplateVariables(
           zagvar.baruunKhul || "",
           geree,
-          orshinSuugch
+          orshinSuugch,
+          baiguullaga
         ),
         zuunKhul: replaceTemplateVariables(
           zagvar.zuunKhul || "",
           geree,
-          orshinSuugch
+          orshinSuugch,
+          baiguullaga
         ),
       };
     };
@@ -583,32 +596,38 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
             aguulga: replaceTemplateVariables(
               zagvar.aguulga || "",
               geree,
-              orshinSuugch
+              orshinSuugch,
+              baiguullaga
             ),
             tolgoi: replaceTemplateVariables(
               zagvar.tolgoi || "",
               geree,
-              orshinSuugch
+              orshinSuugch,
+              baiguullaga
             ),
             baruunTolgoi: replaceTemplateVariables(
               zagvar.baruunTolgoi || "",
               geree,
-              orshinSuugch
+              orshinSuugch,
+              baiguullaga
             ),
             zuunTolgoi: replaceTemplateVariables(
               zagvar.zuunTolgoi || "",
               geree,
-              orshinSuugch
+              orshinSuugch,
+              baiguullaga
             ),
             baruunKhul: replaceTemplateVariables(
               zagvar.baruunKhul || "",
               geree,
-              orshinSuugch
+              orshinSuugch,
+              baiguullaga
             ),
             zuunKhul: replaceTemplateVariables(
               zagvar.zuunKhul || "",
               geree,
-              orshinSuugch
+              orshinSuugch,
+              baiguullaga
             ),
           };
 
@@ -727,8 +746,13 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
         );
       }
 
+      // Get baiguullaga (SUH) data
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        geree.baiguullagiinId
+      );
+
       // Get variable value
-      const value = getVariableValue(variableName, geree, orshinSuugch);
+      const value = getVariableValue(variableName, geree, orshinSuugch, baiguullaga);
 
       res.json({
         success: true,
@@ -746,14 +770,28 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
     // Get sample geree to show structure
     let sampleGeree = null;
     let sampleOrshinSuugch = null;
+    let sampleBaiguullaga = null;
 
     if (gereeniiId && kholbolt) {
       sampleGeree = await Geree(kholbolt).findById(gereeniiId);
-      if (sampleGeree && sampleGeree.orshinSuugchId) {
-        sampleOrshinSuugch = await OrshinSuugch(kholbolt).findById(
-          sampleGeree.orshinSuugchId
-        );
+      if (sampleGeree) {
+        if (sampleGeree.orshinSuugchId) {
+          sampleOrshinSuugch = await OrshinSuugch(kholbolt).findById(
+            sampleGeree.orshinSuugchId
+          );
+        }
+        // Get baiguullaga (SUH) data
+        if (sampleGeree.baiguullagiinId) {
+          sampleBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+            sampleGeree.baiguullagiinId
+          );
+        }
       }
+    } else if (finalBaiguullagiinId) {
+      // If only baiguullagiinId provided, get baiguullaga
+      sampleBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        finalBaiguullagiinId
+      );
     }
 
     // List of all available variables matching tagCategories structure
@@ -811,9 +849,9 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
 
     // Get example values if sample geree exists
     const exampleValues = {};
-    if (sampleGeree || sampleOrshinSuugch) {
+    if (sampleGeree || sampleOrshinSuugch || sampleBaiguullaga) {
       allVariables.forEach((varName) => {
-        const value = getVariableValue(varName, sampleGeree, sampleOrshinSuugch);
+        const value = getVariableValue(varName, sampleGeree, sampleOrshinSuugch, sampleBaiguullaga);
         if (value) {
           exampleValues[varName] = value;
         }
