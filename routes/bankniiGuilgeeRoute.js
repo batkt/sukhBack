@@ -4,6 +4,7 @@ const BankniiGuilgee = require("../models/bankniiGuilgee");
 const { bankniiGuilgeeToololtAvya } = require("../controller/toololt");
 //const UstsanBarimt = require("../models/ustsanBarimt");
 const { tokenShalgakh, crud, UstsanBarimt, Dans } = require("zevbackv2");
+const { downloadBankniiGuilgeeExcel } = require("../controller/excelImportController");
 //const { crud } = require('../components/crud');
 //const { tokenShalgakh } = require("../middlewares/tokenShalgakh");
 
@@ -310,5 +311,12 @@ router
       next(error);
     }
   });
+
+// Excel download route
+router.post(
+  "/bankniiGuilgeeExcelDownload",
+  tokenShalgakh,
+  downloadBankniiGuilgeeExcel
+);
 
 module.exports = router;

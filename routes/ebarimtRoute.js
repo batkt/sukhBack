@@ -11,6 +11,7 @@ const {
 const Baiguullaga = require("../models/baiguullaga");
 const EbarimtShine = require("../models/ebarimtShine");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+const { downloadEbarimtExcel } = require("../controller/excelImportController");
 
 function nuatBodyo(bodokhDun) {
   var nuatguiDun = bodokhDun / 1.1;
@@ -345,6 +346,13 @@ router.post(
       next(error);
     }
   }
+);
+
+// Excel download route
+router.post(
+  "/ebarimtExcelDownload",
+  tokenShalgakh,
+  downloadEbarimtExcel
 );
 
 module.exports = router;

@@ -19,6 +19,7 @@ const {
   gereeniiExcelAvya,
   gereeniiExcelTatya,
 } = require("../controller/excel");
+const { downloadGuilgeeniiTuukhExcel } = require("../controller/excelImportController");
 
 const storage = multer.memoryStorage();
 const uploadFile = multer({ storage: storage });
@@ -544,5 +545,12 @@ router
       next(err);
     }
   });
+
+// GuilgeeniiTuukh Excel download route (combines geree, orshinSuugch, nekhemjlekhiinTuukh)
+router.post(
+  "/guilgeeniiTuukhExcelDownload",
+  tokenShalgakh,
+  downloadGuilgeeniiTuukhExcel
+);
 
 module.exports = router;

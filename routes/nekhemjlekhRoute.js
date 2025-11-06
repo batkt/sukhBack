@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { crud, UstsanBarimt, tokenShalgakh } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
+const { downloadNekhemjlekhiinTuukhExcel } = require("../controller/excelImportController");
 
 crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
@@ -33,5 +34,12 @@ router.get("/:id", tokenShalgakh, async (req, res, next) => {
     next(error);
   }
 });
+
+// Excel download route
+router.post(
+  "/nekhemjlekhiinTuukhExcelDownload",
+  tokenShalgakh,
+  downloadNekhemjlekhiinTuukhExcel
+);
 
 module.exports = router;

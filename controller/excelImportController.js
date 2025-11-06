@@ -7,40 +7,9 @@ const aldaa = require("../components/aldaa");
 const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
 
 /**
- * Generic Excel download service - Auto-detects fields from dynamic data
- * 
- * Frontend Usage Examples:
- * 
- * // EASIEST - Just pass data, headers auto-detected!
- * {
- *   data: [
- *     { ner: "Ганболд", ovog: "Баяржавхлан", utas: "99112233", mail: "test@example.com" },
- *     { ner: "Бат", ovog: "Эрдэнэ", utas: "99223344", mail: "bat@example.com" }
- *   ],
- *   fileName: "my_export"
- * }
- * // Automatically creates columns: ner, ovog, utas, mail
- * 
- * // With custom headers (optional)
- * {
- *   data: [{ ner: "Ганболд", ovog: "Баяржавхлан" }],
- *   headers: ["ner", "ovog"], // Only export these fields
- *   fileName: "my_export"
- * }
- * 
- * // With custom labels (optional)
- * {
- *   data: [{ ner: "Ганболд", ovog: "Баяржавхлан" }],
- *   headers: [
- *     { key: "ner", label: "Нэр" },
- *     { key: "ovog", label: "Овог" }
- *   ],
- *   fileName: "my_export"
- * }
  * 
  * @param {Array} data - Array of objects to export (REQUIRED)
  * @param {Array} headers - Optional: Array of header strings OR objects with 'key' and 'label'
- *                         If not provided, all fields are auto-detected from data
  * @param {String} fileName - Name of the file (without extension)
  * @param {String} sheetName - Name of the Excel sheet
  * @param {Array} colWidths - Optional array of column widths
@@ -54,16 +23,291 @@ function extractAllKeys(obj, prefix = '') {
     Object.keys(obj).forEach((key) => {
       const fullKey = prefix ? `${prefix}.${key}` : key;
       if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key]) && !(obj[key] instanceof Date)) {
-        // Nested object - recurse
         keys.push(...extractAllKeys(obj[key], fullKey));
       } else {
-        // Leaf property
         keys.push(fullKey);
       }
     });
   }
   return keys;
 }
+
+// NekhemjlekhiinTuukh Excel Download
+exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+    
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболтын мэдээлэл олдсонгүй!");
+    }
+
+    const { baiguullagiinId, barilgiinId, filters } = req.body;
+    
+    // Build query
+    const query = {};
+    if (baiguullagiinId) query.baiguullagiinId = baiguullagiinId;
+    if (barilgiinId) query.barilgiinId = barilgiinId;
+    
+    // Apply additional filters if provided
+    if (filters) {
+      Object.assign(query, filters);
+    }
+
+    // Fetch nekhemjlekhiinTuukh data
+    const nekhemjlekhiinTuukhList = await NekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+      .find(query)
+      .lean()
+      .sort({ createdAt: -1 });
+
+    if (!nekhemjlekhiinTuukhList || nekhemjlekhiinTuukhList.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Нэхэмжлэхийн мэдээлэл олдсонгүй",
+      });
+    }
+
+    // Set data for download
+    req.body.data = nekhemjlekhiinTuukhList;
+    req.body.fileName = req.body.fileName || `nekhemjlekhiinTuukh_${Date.now()}`;
+    req.body.sheetName = req.body.sheetName || "Нэхэмжлэх";
+    
+    // Call downloadExcelList function directly
+    return exports.downloadExcelList(req, res, next);
+  } catch (error) {
+    console.error("Error downloading nekhemjlekhiinTuukh Excel:", error);
+    next(error);
+  }
+});
+
+// Ebarimt Excel Download
+exports.downloadEbarimtExcel = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const EbarimtShine = require("../models/ebarimtShine");
+    
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболтын мэдээлэл олдсонгүй!");
+    }
+
+    const { baiguullagiinId, barilgiinId, filters } = req.body;
+    
+    // Build query
+    const query = {};
+    if (baiguullagiinId) query.baiguullagiinId = baiguullagiinId;
+    if (barilgiinId) query.barilgiinId = barilgiinId;
+    
+    // Apply additional filters if provided
+    if (filters) {
+      Object.assign(query, filters);
+    }
+
+    // Fetch ebarimt data
+    const ebarimtList = await EbarimtShine(tukhainBaaziinKholbolt)
+      .find(query)
+      .lean()
+      .sort({ createdAt: -1 });
+
+    if (!ebarimtList || ebarimtList.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "E-Barimt мэдээлэл олдсонгүй",
+      });
+    }
+
+    // Set data for download
+    req.body.data = ebarimtList;
+    req.body.fileName = req.body.fileName || `ebarimt_${Date.now()}`;
+    req.body.sheetName = req.body.sheetName || "E-Barimt";
+    
+    // Call downloadExcelList function directly
+    return exports.downloadExcelList(req, res, next);
+  } catch (error) {
+    console.error("Error downloading ebarimt Excel:", error);
+    next(error);
+  }
+});
+
+// BankniiGuilgee Excel Download
+exports.downloadBankniiGuilgeeExcel = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const BankniiGuilgee = require("../models/bankniiGuilgee");
+    
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболтын мэдээлэл олдсонгүй!");
+    }
+
+    const { baiguullagiinId, barilgiinId, filters, historical = false } = req.body;
+    
+    // Build query
+    const query = {};
+    if (baiguullagiinId) query.baiguullagiinId = baiguullagiinId;
+    if (barilgiinId) query.barilgiinId = barilgiinId;
+    
+    // Apply additional filters if provided
+    if (filters) {
+      Object.assign(query, filters);
+    }
+
+    // Fetch bankniiGuilgee data
+    const bankniiGuilgeeList = await BankniiGuilgee(tukhainBaaziinKholbolt, historical)
+      .find(query)
+      .lean()
+      .sort({ tranDate: -1 });
+
+    if (!bankniiGuilgeeList || bankniiGuilgeeList.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Банкны гүйлгээний мэдээлэл олдсонгүй",
+      });
+    }
+
+    // Set data for download
+    req.body.data = bankniiGuilgeeList;
+    req.body.fileName = req.body.fileName || `bankniiGuilgee_${Date.now()}`;
+    req.body.sheetName = req.body.sheetName || "Банкны гүйлгээ";
+    
+    // Call downloadExcelList function directly
+    return exports.downloadExcelList(req, res, next);
+  } catch (error) {
+    console.error("Error downloading bankniiGuilgee Excel:", error);
+    next(error);
+  }
+});
+
+// GuilgeeniiTuukh Excel Download (combines geree, orshinSuugch, nekhemjlekhiinTuukh)
+exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const Geree = require("../models/geree");
+    const OrshinSuugch = require("../models/orshinSuugch");
+    const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+    
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболтын мэдээлэл олдсонгүй!");
+    }
+
+    const { baiguullagiinId, barilgiinId, gereeniiId, filters } = req.body;
+    
+    // Build query for geree
+    const gereeQuery = {};
+    if (baiguullagiinId) gereeQuery.baiguullagiinId = baiguullagiinId;
+    if (barilgiinId) gereeQuery.barilgiinId = barilgiinId;
+    if (gereeniiId) gereeQuery._id = gereeniiId;
+    
+    // Apply additional filters if provided
+    if (filters) {
+      Object.assign(gereeQuery, filters);
+    }
+
+    // Fetch geree records
+    const gereeList = await Geree(tukhainBaaziinKholbolt)
+      .find(gereeQuery)
+      .lean()
+      .sort({ createdAt: -1 });
+
+    if (!gereeList || gereeList.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Гэрээний мэдээлэл олдсонгүй",
+      });
+    }
+
+    // Expand guilgeenuud and join with related data
+    const guilgeeniiTuukhList = [];
+    
+    for (const geree of gereeList) {
+      if (geree.guilgeenuud && Array.isArray(geree.guilgeenuud) && geree.guilgeenuud.length > 0) {
+        // Get orshinSuugch data
+        let orshinSuugch = null;
+        if (geree.orshinSuugchId) {
+          orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+            .findById(geree.orshinSuugchId)
+            .lean();
+        }
+
+        // Get nekhemjlekhiinTuukh data
+        let nekhemjlekhiinTuukh = null;
+        if (geree._id) {
+          nekhemjlekhiinTuukh = await NekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+            .findOne({ gereeniiId: geree._id.toString() })
+            .lean()
+            .sort({ createdAt: -1 });
+        }
+
+        // Expand each guilgee entry
+        for (const guilgee of geree.guilgeenuud) {
+          guilgeeniiTuukhList.push({
+            // Geree fields
+            gereeniiId: geree._id?.toString(),
+            gereeniiDugaar: geree.gereeniiDugaar,
+            gereeniiOgnoo: geree.gereeniiOgnoo,
+            gereeOvog: geree.ovog,
+            gereeNer: geree.ner,
+            gereeUtas: Array.isArray(geree.utas) ? geree.utas.join(", ") : geree.utas,
+            gereeMail: geree.mail,
+            gereeBairNer: geree.bairNer,
+            gereeDavkhar: geree.davkhar,
+            gereeToot: geree.toot,
+            gereeBaiguullagiinNer: geree.baiguullagiinNer,
+            
+            // OrshinSuugch fields
+            orshinSuugchNer: orshinSuugch?.ner || "",
+            orshinSuugchOvog: orshinSuugch?.ovog || "",
+            orshinSuugchUtas: orshinSuugch?.utas || "",
+            orshinSuugchMail: orshinSuugch?.mail || "",
+            
+            // NekhemjlekhiinTuukh fields
+            nekhemjlekhiinDugaar: nekhemjlekhiinTuukh?.dugaalaltDugaar || "",
+            nekhemjlekhiinOgnoo: nekhemjlekhiinTuukh?.nekhemjlekhiinOgnoo || "",
+            nekhemjlekhiinTuluv: nekhemjlekhiinTuukh?.tuluv || "",
+            nekhemjlekhiinNiitTulbur: nekhemjlekhiinTuukh?.niitTulbur || 0,
+            
+            // Guilgee fields
+            guilgeeniiOgnoo: guilgee.ognoo,
+            guilgeeniiTurul: guilgee.turul,
+            guilgeeniiTailbar: guilgee.tailbar,
+            guilgeeniiNemeltTailbar: guilgee.nemeltTailbar,
+            guilgeeniiUndsenDun: guilgee.undsenDun || 0,
+            guilgeeniiTulukhDun: guilgee.tulukhDun || 0,
+            guilgeeniiTulukhAldangi: guilgee.tulukhAldangi || 0,
+            guilgeeniiTulsunDun: guilgee.tulsunDun || 0,
+            guilgeeniiTulsunAldangi: guilgee.tulsunAldangi || 0,
+            guilgeeniiUldegdel: guilgee.uldegdel || 0,
+            guilgeeniiTariff: guilgee.tariff || 0,
+            guilgeeniiZardliinTurul: guilgee.zardliinTurul || "",
+            guilgeeniiZardliinNer: guilgee.zardliinNer || "",
+            guilgeeniiKhiisenAjiltniiNer: guilgee.guilgeeKhiisenAjiltniiNer || "",
+            guilgeeniiKhiisenOgnoo: guilgee.guilgeeKhiisenOgnoo,
+          });
+        }
+      }
+    }
+
+    if (guilgeeniiTuukhList.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Гүйлгээний мэдээлэл олдсонгүй",
+      });
+    }
+
+    // Set data for download
+    req.body.data = guilgeeniiTuukhList;
+    req.body.fileName = req.body.fileName || `guilgeeniiTuukh_${Date.now()}`;
+    req.body.sheetName = req.body.sheetName || "Гүйлгээний түүх";
+    
+    // Call downloadExcelList function directly
+    return exports.downloadExcelList(req, res, next);
+  } catch (error) {
+    console.error("Error downloading guilgeeniiTuukh Excel:", error);
+    next(error);
+  }
+});
 
 exports.downloadExcelList = asyncHandler(async (req, res, next) => {
   try {
@@ -76,7 +320,6 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
     let headerLabels = [];
     let headerKeys = [];
 
-    // If headers provided, use them
     if (headers && Array.isArray(headers) && headers.length > 0) {
       headers.forEach((h) => {
         if (typeof h === 'string') {
@@ -88,8 +331,6 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
         }
       });
     } else {
-      // Auto-detect headers from data (dynamic)
-      // Get all unique keys from all objects in the data array
       const allKeysSet = new Set();
       
       data.forEach((item) => {
@@ -99,15 +340,12 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
         }
       });
 
-      // Convert to sorted array for consistent ordering
       headerKeys = Array.from(allKeysSet).sort();
-      headerLabels = headerKeys; // Use keys as labels by default
+      headerLabels = headerKeys;
     }
 
-    // Create data rows
     let rows = data.map((item) => {
       return headerKeys.map((key) => {
-        // Handle nested properties (e.g., "user.name" or "horoo.ner")
         let value;
         if (key.includes('.')) {
           value = key.split('.').reduce((obj, prop) => {
@@ -117,11 +355,9 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
             return null;
           }, item);
         } else {
-          // Direct property access
           value = item[key];
         }
 
-        // Format the value
         if (value === null || value === undefined) {
           return '';
         }
@@ -129,7 +365,6 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
           return value.join(', ');
         }
         if (typeof value === 'object' && !(value instanceof Date)) {
-          // For objects like { ner: "Test", kod: "01" }, format nicely
           if (value.ner && value.kod) {
             return `${value.ner} (${value.kod})`;
           }
@@ -142,28 +377,22 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
       });
     });
 
-    // Create workbook and worksheet
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([headerLabels, ...rows]);
 
-    // Set column widths if provided
     if (colWidths && Array.isArray(colWidths)) {
       ws["!cols"] = colWidths.map((w) => ({ wch: typeof w === 'number' ? w : 15 }));
     } else {
-      // Auto-width based on headers
       ws["!cols"] = headerLabels.map(() => ({ wch: 15 }));
     }
 
-    // Add sheet to workbook
     XLSX.utils.book_append_sheet(wb, ws, sheetName || "Sheet1");
 
-    // Generate Excel buffer
     const excelBuffer = XLSX.write(wb, {
       type: "buffer",
       bookType: "xlsx",
     });
 
-    // Set response headers
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -371,8 +600,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
         const finalBarilgiinId = barilgiinId || defaultBarilgiinId;
 
-        // Check for duplicate user within the same barilga (barilgiinId)
-        // Same phone number can exist in different barilga, but not in the same barilga
         const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
           utas: userData.utas,
           barilgiinId: finalBarilgiinId,
@@ -539,11 +766,11 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
     res.json({
       success: true,
-      message: `${results.success.length} хэрэглэгч амжилттай, ${results.failed.length} хэрэглэгч алдаатай`,
+      message: `${results.success.length} хэрэглэгчийн бүртгэл амжилттай орлоо, ${results.failed.length} хэрэглэгчийн бүртгэл алдаатай байна`,
       result: results,
     });
   } catch (error) {
-    console.error("Error importing users from Excel:", error);
+    console.error("Excel оруулахад алдаа гарлаа:", error);
     next(error);
   }
 });
