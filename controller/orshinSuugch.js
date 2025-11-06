@@ -298,6 +298,46 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         ? String(baiguullaga.barilguud[0]._id)
         : null);
 
+    // Automatically determine davkhar from toot if toot is provided
+    let determinedDavkhar = req.body.davkhar || "";
+    
+    if (req.body.toot && barilgiinId) {
+      const targetBarilga = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+
+      if (targetBarilga) {
+        const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+        const tootToFind = req.body.toot.trim();
+        let foundFloor = null;
+
+        // Search through all floors to find which floor contains this toot
+        for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+          if (tootArray && tootArray[0]) {
+            const tootList = tootArray[0]
+              .split(",")
+              .map((t) => t.trim())
+              .filter((t) => t);
+            
+            if (tootList.includes(tootToFind)) {
+              foundFloor = floorKey;
+              break;
+            }
+          }
+        }
+
+        // If toot is found in davkhariinToonuud, use that floor automatically
+        if (foundFloor) {
+          determinedDavkhar = foundFloor;
+        } else if (Object.keys(davkhariinToonuud).length > 0) {
+          // If davkhariinToonuud has registered toots but this toot is not found
+          throw new aldaa("Бүртгэлгүй тоот байна");
+        }
+        // If davkhariinToonuud is empty (first user), use davkhar from frontend if provided
+        // If not provided, determinedDavkhar will remain empty string
+      }
+    }
+
     const userData = {
       ...req.body,
       baiguullagiinId: baiguullaga._id,
@@ -309,6 +349,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       horoo: req.body.horoo,
       soh: req.body.soh,
       nevtrekhNer: req.body.utas,
+      toot: req.body.toot || "",
+      davkhar: determinedDavkhar, // Automatically determined from toot
     };
 
     const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
@@ -591,14 +633,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       });
 
     if (!orshinSuugch)
-      throw new aldaa("Бүртгэлгүй хаяг байна.");
-
-    // Validate toot if provided
-    if (req.body.toot) {
-      if (!orshinSuugch.toot || orshinSuugch.toot.trim() !== req.body.toot.trim()) {
-        throw new aldaa("Бүртгэлгүй тоот байна");
-      }
-    }
+      throw new aldaa("Бүртгэлгүй хаяг байна.");   
 
     var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
