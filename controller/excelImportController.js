@@ -296,10 +296,27 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Set data for download
-    req.body.data = guilgeeniiTuukhList;
+    // Format data with only required columns: №, Нэр, Гэрээний дугаар, Төлбөр, Төлөв
+    const formattedData = guilgeeniiTuukhList.map((item, index) => ({
+      dugaar: index + 1, // № (row number)
+      ner: item.gereeNer || item.orshinSuugchNer || "", // Нэр (name from geree or orshinSuugch)
+      gereeniiDugaar: item.gereeniiDugaar || "", // Гэрээний дугаар (contract number)
+      tulbur: item.guilgeeniiTulukhDun || item.nekhemjlekhiinNiitTulbur || 0, // Төлбөр (payment amount)
+      tuluv: item.nekhemjlekhiinTuluv || "", // Төлөв (status)
+    }));
+
+    // Set data for download with specific headers
+    req.body.data = formattedData;
+    req.body.headers = [
+      { key: "dugaar", label: "№" },
+      { key: "ner", label: "Нэр" },
+      { key: "gereeniiDugaar", label: "Гэрээний дугаар" },
+      { key: "tulbur", label: "Төлбөр" },
+      { key: "tuluv", label: "Төлөв" }
+    ];
     req.body.fileName = req.body.fileName || `guilgeeniiTuukh_${Date.now()}`;
     req.body.sheetName = req.body.sheetName || "Гүйлгээний түүх";
+    req.body.colWidths = [10, 25, 20, 15, 15]; // Column widths
     
     // Call downloadExcelList function directly
     return exports.downloadExcelList(req, res, next);
