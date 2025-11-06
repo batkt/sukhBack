@@ -50,6 +50,7 @@ const baiguullagaSchema = new Schema(
           },
           sohNer: String, // СӨХ код
           davkhar: [String], // Давхар
+          toot: [String], // Тоот
           nuatTulukhEsekh: Boolean,
           zogsoolMsgIlgeekh: Boolean,
           tooluurAutomatTatakhToken: String,
