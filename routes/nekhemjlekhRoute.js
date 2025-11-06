@@ -11,13 +11,6 @@ router.post(
   downloadNekhemjlekhiinTuukhExcel
 );
 
-// Test route to verify router is working
-router.get("/testExcelRoute", (req, res) => {
-  res.json({ message: "Route is working!", path: req.path });
-});
-
-crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
-
 router.get("/:id", tokenShalgakh, async (req, res, next) => {
   try {
     const { id } = req.params;
