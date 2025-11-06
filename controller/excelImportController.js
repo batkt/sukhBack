@@ -292,10 +292,24 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
     }
 
     // Expand guilgeenuud and join with related data
+    // Note: guilgeenuud might be nested in avlagiinTurul or directly on geree
     const guilgeeniiTuukhList = [];
     
     for (const geree of gereeList) {
-      if (geree.guilgeenuud && Array.isArray(geree.guilgeenuud) && geree.guilgeenuud.length > 0) {
+      // Check both geree.guilgeenuud and geree.avlagiinTurul?.guilgeenuud
+      let guilgeenuud = geree.guilgeenuud;
+      if (!guilgeenuud && geree.avlagiinTurul && geree.avlagiinTurul.guilgeenuud) {
+        guilgeenuud = geree.avlagiinTurul.guilgeenuud;
+      }
+      
+      // If no guilgeenuud, create one entry per geree with nekhemjlekhiinTuukh data
+      if (!guilgeenuud || !Array.isArray(guilgeenuud) || guilgeenuud.length === 0) {
+        // Create one row per geree even if no guilgeenuud exists
+        const guilgeenuudArray = [{}]; // Empty guilgee object
+        guilgeenuud = guilgeenuudArray;
+      }
+      
+      if (Array.isArray(guilgeenuud) && guilgeenuud.length > 0) {
         // Get orshinSuugch data
         let orshinSuugch = null;
         if (geree.orshinSuugchId) {
@@ -314,7 +328,7 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
         }
 
         // Expand each guilgee entry
-        for (const guilgee of geree.guilgeenuud) {
+        for (const guilgee of guilgeenuud) {
           guilgeeniiTuukhList.push({
             // Geree fields
             gereeniiId: geree._id?.toString(),
