@@ -31,6 +31,13 @@ router
   .route("/gereeniiExcelTatya")
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiExcelTatya);
 
+// GuilgeeniiTuukh Excel download route - MUST be before crud to avoid conflicts
+router.post(
+  "/guilgeeniiTuukhExcelDownload",
+  tokenShalgakh,
+  downloadGuilgeeniiTuukhExcel
+);
+
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
 crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
@@ -545,12 +552,5 @@ router
       next(err);
     }
   });
-
-// GuilgeeniiTuukh Excel download route (combines geree, orshinSuugch, nekhemjlekhiinTuukh)
-router.post(
-  "/guilgeeniiTuukhExcelDownload",
-  tokenShalgakh,
-  downloadGuilgeeniiTuukhExcel
-);
 
 module.exports = router;
