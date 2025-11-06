@@ -183,13 +183,52 @@ exports.downloadBankniiGuilgeeExcel = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // Fetch Dans (account registry) information for all unique combinations of baiguullagiinId and dansniiDugaar
+    const { Dans } = require("zevbackv2");
+    const dansModel = Dans(tukhainBaaziinKholbolt);
+    
+    // Get unique combinations of baiguullagiinId and dansniiDugaar
+    const uniqueDansCombinations = new Map();
+    bankniiGuilgeeList.forEach(item => {
+      if (item.dansniiDugaar && item.baiguullagiinId) {
+        const key = `${item.baiguullagiinId}_${item.dansniiDugaar}`;
+        if (!uniqueDansCombinations.has(key)) {
+          uniqueDansCombinations.set(key, {
+            baiguullagiinId: item.baiguullagiinId,
+            dansniiDugaar: item.dansniiDugaar
+          });
+        }
+      }
+    });
+    
+    // Create a map of baiguullagiinId_dansniiDugaar -> dans field from Dans model
+    const dansMap = {};
+    for (const [key, combo] of uniqueDansCombinations) {
+      try {
+        const dans = await dansModel.findOne({
+          baiguullagiinId: combo.baiguullagiinId.toString(),
+          dugaar: combo.dansniiDugaar,
+        }).lean();
+        
+        if (dans) {
+          // Use 'dans' field from Dans model, fallback to dansniiNer or dugaar if dans doesn't exist
+          dansMap[key] = dans.dans || dans.dansniiNer || dans.dugaar || "";
+        }
+      } catch (dansError) {
+        console.error(`Error fetching dans for ${key}:`, dansError);
+        dansMap[key] = "";
+      }
+    }
+
     // Format data with only required columns: №, Огноо, Гүйлгээний утга, Гүйлгээний дүн, Шилжүүлсэн данс
     const formattedData = bankniiGuilgeeList.map((item, index) => ({
       dugaar: index + 1, // № (row number)
       ognoo: item.tranDate ? new Date(item.tranDate).toISOString().split('T')[0] : "", // Огноо (date)
       guilgeeniiUtga: item.description || "", // Гүйлгээний утга (transaction description)
       guilgeeniiDun: item.amount || 0, // Гүйлгээний дүн (transaction amount)
-      shiljuulsenDans: item.relatedAccount || "", // Шилжүүлсэн данс (transferred account)
+      shiljuulsenDans: (item.dansniiDugaar && item.baiguullagiinId) 
+        ? (dansMap[`${item.baiguullagiinId}_${item.dansniiDugaar}`] || "") 
+        : (item.relatedAccount || ""), // Шилжүүлсэн данс (from Dans model dans field)
     }));
 
     // Set data for download with specific headers
