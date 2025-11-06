@@ -68,10 +68,27 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(async (req, res, next) =
       });
     }
 
-    // Set data for download
-    req.body.data = nekhemjlekhiinTuukhList;
+    // Format data with only required columns: №, Нэр, Гэрээний дугаар, Төлбөр, Төлөв
+    const formattedData = nekhemjlekhiinTuukhList.map((item, index) => ({
+      dugaar: index + 1, // № (row number)
+      ner: item.ner || "", // Нэр (name)
+      gereeniiDugaar: item.gereeniiDugaar || "", // Гэрээний дугаар (contract number)
+      tulbur: item.niitTulbur || 0, // Төлбөр (payment amount)
+      tuluv: item.tuluv || "", // Төлөв (status)
+    }));
+
+    // Set data for download with specific headers
+    req.body.data = formattedData;
+    req.body.headers = [
+      { key: "dugaar", label: "№" },
+      { key: "ner", label: "Нэр" },
+      { key: "gereeniiDugaar", label: "Гэрээний дугаар" },
+      { key: "tulbur", label: "Төлбөр" },
+      { key: "tuluv", label: "Төлөв" }
+    ];
     req.body.fileName = req.body.fileName || `nekhemjlekhiinTuukh_${Date.now()}`;
     req.body.sheetName = req.body.sheetName || "Нэхэмжлэх";
+    req.body.colWidths = [10, 25, 20, 15, 15]; // Column widths
     
     // Call downloadExcelList function directly
     return exports.downloadExcelList(req, res, next);
