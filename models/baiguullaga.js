@@ -14,7 +14,6 @@ const baiguullagaSchema = new Schema(
     zurgiinNer: String,
     dans: String,
     bankniiNer: String,
-    orts: String, // Web only field
     barilguud: [
       {
         bairshil: {
@@ -50,6 +49,7 @@ const baiguullagaSchema = new Schema(
             kod: String,
           },
           sohNer: String, // СӨХ код
+          orts: String, // Ортсоор тооцох эсэх
           davkhar: [String], // Давхар - array of floor numbers like ["1", "2", "3"]
           davkhariinToonuud: Schema.Types.Mixed, // Давхрын тоонууд - object like {1: ["103,104,105"], 2: ["201,202"]}
           nuatTulukhEsekh: Boolean,
