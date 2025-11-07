@@ -593,9 +593,10 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       "Нэр",
       "Утас",
       "Имэйл",
+      "Орц",
+
       "Давхар",
       "Тоот",
-      "Орц",
     ];
 
     const wb = XLSX.utils.book_new();
