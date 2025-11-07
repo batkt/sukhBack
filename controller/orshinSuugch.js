@@ -530,12 +530,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         });
       }
 
-      const barilgiinId =
-        req.body.barilgiinId ||
-        (baiguullaga.barilguud && baiguullaga.barilguud.length > 0
-          ? String(baiguullaga.barilguud[0]._id)
-          : null);
-
+      // barilgiinId is already declared above (line 337), reuse it here
       const targetBarilga = barilgiinId
         ? baiguullaga.barilguud?.find(
             (b) => String(b._id) === String(barilgiinId)
