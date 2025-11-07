@@ -394,34 +394,54 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       } else {
         console.log(
           `⚠️  Building name "${bairniiNerToFind}" not found in baiguullaga, available buildings:`,
-          baiguullaga.barilguud.map(b => b.ner).join(", ")
+          baiguullaga.barilguud.map((b) => b.ner).join(", ")
         );
       }
     }
-    
+
     // If still no barilgiinId, try to match by location (duureg, horoo, sohNer)
-    if (!barilgiinId && req.body.duureg && req.body.horoo && req.body.soh && baiguullaga.barilguud) {
+    if (
+      !barilgiinId &&
+      req.body.duureg &&
+      req.body.horoo &&
+      req.body.soh &&
+      baiguullaga.barilguud
+    ) {
       const duuregToFind = req.body.duureg.toString().trim();
       const horooToFind = req.body.horoo.toString().trim();
       const sohToFind = req.body.soh.toString().trim();
-      const sohNerToFind = req.body.sohNer ? req.body.sohNer.toString().trim() : null;
-      
-      console.log(`🔍 Trying to find building by location: duureg=${duuregToFind}, horoo=${horooToFind}, soh=${sohToFind}, sohNer=${sohNerToFind}`);
-      
+      const sohNerToFind = req.body.sohNer
+        ? req.body.sohNer.toString().trim()
+        : null;
+
+      console.log(
+        `🔍 Trying to find building by location: duureg=${duuregToFind}, horoo=${horooToFind}, soh=${sohToFind}, sohNer=${sohNerToFind}`
+      );
+
       const barilgaByLocation = baiguullaga.barilguud.find((b) => {
         const tokhirgoo = b.tokhirgoo || {};
-        const barilgaDuureg = tokhirgoo.duuregNer ? String(tokhirgoo.duuregNer).trim() : "";
-        const barilgaHoroo = tokhirgoo.horoo?.ner ? String(tokhirgoo.horoo.ner).trim() : "";
-        const barilgaSohNer = tokhirgoo.sohNer ? String(tokhirgoo.sohNer).trim() : "";
-        
+        const barilgaDuureg = tokhirgoo.duuregNer
+          ? String(tokhirgoo.duuregNer).trim()
+          : "";
+        const barilgaHoroo = tokhirgoo.horoo?.ner
+          ? String(tokhirgoo.horoo.ner).trim()
+          : "";
+        const barilgaSohNer = tokhirgoo.sohNer
+          ? String(tokhirgoo.sohNer).trim()
+          : "";
+
         // Match on duureg, horoo, and sohNer if provided
         const duuregMatch = !barilgaDuureg || barilgaDuureg === duuregToFind;
         const horooMatch = !barilgaHoroo || barilgaHoroo === horooToFind;
-        const sohMatch = !sohNerToFind || !barilgaSohNer || barilgaSohNer === sohNerToFind || barilgaSohNer === sohToFind;
-        
+        const sohMatch =
+          !sohNerToFind ||
+          !barilgaSohNer ||
+          barilgaSohNer === sohNerToFind ||
+          barilgaSohNer === sohToFind;
+
         return duuregMatch && horooMatch && sohMatch;
       });
-      
+
       if (barilgaByLocation) {
         barilgiinId = String(barilgaByLocation._id);
         console.log(
