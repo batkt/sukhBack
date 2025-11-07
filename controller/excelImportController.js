@@ -448,7 +448,7 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
     let headerLabels = [];
     let headerKeys = [];
 
-    // Priority: headers > fields > extract all keys
+    // Priority: headers > fields > require specification
     if (headers && Array.isArray(headers) && headers.length > 0) {
       // Use headers if provided (supports both string and object format)
       headers.forEach((h) => {
@@ -465,18 +465,8 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
       headerKeys = fields;
       headerLabels = fields;
     } else {
-      // Fallback: extract all keys from data (only if neither headers nor fields provided)
-      const allKeysSet = new Set();
-      
-      data.forEach((item) => {
-        if (item && typeof item === 'object') {
-          const keys = extractAllKeys(item);
-          keys.forEach(key => allKeysSet.add(key));
-        }
-      });
-
-      headerKeys = Array.from(allKeysSet).sort();
-      headerLabels = headerKeys;
+      // Require headers or fields to be specified - don't extract all keys automatically
+      throw new aldaa("Та 'headers' эсвэл 'fields' заавал зааж өгөх шаардлагатай! (headers: [{key: 'field', label: 'Label'}] эсвэл fields: ['field1', 'field2'])");
     }
 
     // Helper function to format row data
