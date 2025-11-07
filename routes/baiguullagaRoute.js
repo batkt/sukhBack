@@ -23,24 +23,6 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
         ner: baiguullaga.ner,
         khayag: baiguullaga.khayag,
         register: baiguullaga.register,
-        niitTalbai: 0,
-        bairshil: {
-          type: "Point",
-          coordinates: [],
-        },
-        tokhirgoo: {
-          duuregNer: "",
-          districtCode: "",
-          horoo: {
-            ner: "",
-            kod: "",
-          },
-          sohNer: "",
-          orts: "",
-          davkhar: [],
-          davkhariinToonuud: {},
-        },
-        davkharuud: [],
       },
     ];
     baiguullaga
