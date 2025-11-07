@@ -20,12 +20,18 @@
 */
 
 // Change to project root directory
-process.chdir(__dirname + "/..");
+const path = require("path");
+const projectRoot = path.resolve(__dirname, "..");
+process.chdir(projectRoot);
 
 const { db } = require("zevbackv2");
-const nekhemjlekhiinTuukh = require("./models/nekhemjlekhiinTuukh");
-const Geree = require("./models/geree");
-const OrshinSuugch = require("./models/orshinSuugch");
+const nekhemjlekhiinTuukh = require(path.join(
+  projectRoot,
+  "models",
+  "nekhemjlekhiinTuukh"
+));
+const Geree = require(path.join(projectRoot, "models", "geree"));
+const OrshinSuugch = require(path.join(projectRoot, "models", "orshinSuugch"));
 
 const BAIGULLAGIIN_ID = process.env.BAIGULLAGIIN_ID;
 const BARILGIIN_ID = process.env.BARILGIIN_ID || null;
