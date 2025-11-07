@@ -72,6 +72,11 @@ const gereeSchema = new Schema(
     gereeniiDugaar: String,
     gereeniiOgnoo: Date,
     turul: String,
+    tuluv: {
+      type: String,
+      enum: ["Идэвхитэй", "Цуцалсан"],
+      default: "Идэвхитэй",
+    },
     ovog: String,
     ner: String,
     suhNer: String,
