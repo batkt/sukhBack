@@ -334,16 +334,22 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // First, try to determine barilgiinId from toot (and davkhar+orts if available)
-    // This ensures users get assigned to the correct building
-    let barilgiinId = req.body.barilgiinId || null;
+    // Use barilgiinId from request if provided - RESPECT IT!
+    // Only search if barilgiinId is NOT provided
+    let barilgiinId =
+      req.body.barilgiinId && req.body.barilgiinId.toString().trim()
+        ? req.body.barilgiinId.toString().trim()
+        : null;
 
-    if (
-      !barilgiinId &&
+    // If barilgiinId is provided, use it directly - don't search!
+    if (barilgiinId) {
+      console.log(`✅ Using provided barilgiinId: ${barilgiinId}`);
+    } else if (
       req.body.toot &&
       baiguullaga.barilguud &&
       baiguullaga.barilguud.length > 1
     ) {
+      // Only search for building if barilgiinId is NOT provided in the request
       const tootToFind = req.body.toot.trim();
       const davkharToFind = req.body.davkhar ? req.body.davkhar.trim() : null;
       const ortsToFind = req.body.orts ? req.body.orts.trim() : "1";
