@@ -99,6 +99,13 @@ const baiguullagaSchema = new Schema(
           liftShalgaya: {
             choloolugdokhDavkhar: [String],
           },
+          /** Дансны мэдээлэл - барилга тус бүрт тусдаа */
+          dans: {
+            dugaar: String, // Дансны дугаар
+            dansniiNer: String, // Дансны нэр
+            bank: String, // Банкны нэр
+            ibanDugaar: String, // IBAN дугаар
+          },
         },
         davkharuud: [
           {

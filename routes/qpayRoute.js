@@ -216,19 +216,25 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
       }
 
       // Handle multiple invoices payment
-      if (req.body.nekhemjlekhiinTuukh && Array.isArray(req.body.nekhemjlekhiinTuukh)) {
+      if (
+        req.body.nekhemjlekhiinTuukh &&
+        Array.isArray(req.body.nekhemjlekhiinTuukh)
+      ) {
         // Multiple invoices payment
         if (!req.body.tukhainBaaziinKholbolt) {
           req.body.tukhainBaaziinKholbolt = db.kholboltuud.find(
-            (k) => String(k.baiguullagiinId) === String(req.body.baiguullagiinId)
+            (k) =>
+              String(k.baiguullagiinId) === String(req.body.baiguullagiinId)
           );
         }
 
         const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
         const invoiceIds = req.body.nekhemjlekhiinTuukh;
-        
+
         // Fetch all invoices
-        const invoices = await nekhemjlekhiinTuukh(req.body.tukhainBaaziinKholbolt)
+        const invoices = await nekhemjlekhiinTuukh(
+          req.body.tukhainBaaziinKholbolt
+        )
           .find({ _id: { $in: invoiceIds } })
           .lean();
 
@@ -255,6 +261,9 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         if (!req.body.dansniiDugaar && firstInvoice.dansniiDugaar) {
           req.body.dansniiDugaar = firstInvoice.dansniiDugaar;
         }
+
+        // For multiple invoices, use the barilgiinId from the first invoice
+        // The QpayKhariltsagch lookup below will handle getting the correct bank account
 
         // Create callback URL with comma-separated invoice IDs
         const invoiceIdsString = invoiceIds.join(",");
@@ -303,6 +312,65 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         }
       }
 
+      // Fetch QpayKhariltsagch to get building-specific bank account
+      // This should happen after barilgiinId is determined
+      if (req.body.barilgiinId && req.body.tukhainBaaziinKholbolt) {
+        try {
+          const qpayKhariltsagch = new QpayKhariltsagch(
+            req.body.tukhainBaaziinKholbolt
+          );
+          const qpayConfig = await qpayKhariltsagch
+            .findOne({
+              baiguullagiinId: req.body.baiguullagiinId,
+            })
+            .lean();
+
+          if (
+            qpayConfig &&
+            qpayConfig.salbaruud &&
+            Array.isArray(qpayConfig.salbaruud)
+          ) {
+            // Find the salbar that matches barilgiinId (salbariinId)
+            const targetSalbar = qpayConfig.salbaruud.find(
+              (salbar) =>
+                String(salbar.salbariinId) === String(req.body.barilgiinId)
+            );
+
+            if (
+              targetSalbar &&
+              targetSalbar.bank_accounts &&
+              Array.isArray(targetSalbar.bank_accounts) &&
+              targetSalbar.bank_accounts.length > 0
+            ) {
+              // Use the first bank account from this salbar
+              const bankAccount = targetSalbar.bank_accounts[0];
+              req.body.dansniiDugaar =
+                bankAccount.account_number || req.body.dansniiDugaar;
+              req.body.burtgeliinDugaar =
+                bankAccount.account_bank_code || req.body.burtgeliinDugaar;
+
+              console.log(
+                `✅ Using building-specific bank account for barilga ${req.body.barilgiinId}: ${bankAccount.account_number} (${bankAccount.account_name})`
+              );
+            } else {
+              console.log(
+                `⚠️  No bank_accounts found for salbar ${req.body.barilgiinId}, using existing dansniiDugaar`
+              );
+            }
+          } else {
+            console.log(
+              `⚠️  QpayKhariltsagch not found or has no salbaruud, using existing dansniiDugaar`
+            );
+          }
+        } catch (qpayConfigError) {
+          console.error(
+            "❌ Error fetching QpayKhariltsagch for bank account:",
+            qpayConfigError.message
+          );
+          // Continue with existing dansniiDugaar if error occurs
+        }
+      }
+
       const khariu = await qpayGargaya(
         req.body,
         callback_url,
@@ -310,7 +378,11 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
       );
 
       // Handle saving QPay info for multiple invoices
-      if (req.body.nekhemjlekhiinTuukh && Array.isArray(req.body.nekhemjlekhiinTuukh) && khariu) {
+      if (
+        req.body.nekhemjlekhiinTuukh &&
+        Array.isArray(req.body.nekhemjlekhiinTuukh) &&
+        khariu
+      ) {
         try {
           const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
           const kholbolt = db.kholboltuud.find(
@@ -341,7 +413,9 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             }
           );
 
-          console.log(`✅ Updated ${req.body.nekhemjlekhiinTuukh.length} invoices with QPay info`);
+          console.log(
+            `✅ Updated ${req.body.nekhemjlekhiinTuukh.length} invoices with QPay info`
+          );
         } catch (saveErr) {
           console.error(
             "❌ Error saving QPay info to multiple invoices:",
@@ -923,7 +997,7 @@ router.get(
 
       const baiguullagiinId = req.params.baiguullagiinId;
       const invoiceIdsString = req.params.invoiceIds;
-      const invoiceIds = invoiceIdsString.split(",").filter(id => id.trim());
+      const invoiceIds = invoiceIdsString.split(",").filter((id) => id.trim());
 
       if (invoiceIds.length === 0) {
         return res.status(400).send("No invoice IDs provided");
@@ -941,7 +1015,7 @@ router.get(
       // Convert invoice IDs to ObjectId if needed
       const mongoose = require("mongoose");
       const ObjectId = mongoose.Types.ObjectId;
-      const invoiceObjectIds = invoiceIds.map(id => {
+      const invoiceObjectIds = invoiceIds.map((id) => {
         try {
           return ObjectId(id);
         } catch (e) {
@@ -1004,13 +1078,17 @@ router.get(
           console.log(`💰 Updating invoice ${nekhemjlekh._id} to paid status`);
 
           // Use findByIdAndUpdate to ensure the update is applied
-          const updatedInvoice = await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
+          const updatedInvoice = await nekhemjlekhiinTuukh(
+            kholbolt
+          ).findByIdAndUpdate(
             nekhemjlekh._id,
             {
               $set: {
                 tuluv: "Төлсөн",
                 tulsunOgnoo: new Date(),
-                ...(paymentTransactionId && { qpayPaymentId: paymentTransactionId }),
+                ...(paymentTransactionId && {
+                  qpayPaymentId: paymentTransactionId,
+                }),
               },
               $push: {
                 paymentHistory: {
@@ -1018,7 +1096,9 @@ router.get(
                   dun: nekhemjlekh.niitTulbur || 0,
                   turul: "qpay",
                   guilgeeniiId:
-                    paymentTransactionId || nekhemjlekh.qpayInvoiceId || "unknown",
+                    paymentTransactionId ||
+                    nekhemjlekh.qpayInvoiceId ||
+                    "unknown",
                   tailbar: "QPay төлбөр (Олон нэхэмжлэх)",
                 },
               },
@@ -1032,7 +1112,7 @@ router.get(
           }
 
           console.log(`✅ Invoice ${updatedInvoice._id} updated successfully`);
-          
+
           // Use the updated invoice for further operations
           nekhemjlekh = updatedInvoice;
 
@@ -1051,8 +1131,10 @@ router.get(
               bankGuilgee.accName = nekhemjlekh.nekhemjlekhiinDansniiNer || "";
               bankGuilgee.accNum = nekhemjlekh.nekhemjlekhiinDans || "";
 
-              bankGuilgee.record = paymentTransactionId || nekhemjlekh.qpayInvoiceId || "";
-              bankGuilgee.tranId = paymentTransactionId || nekhemjlekh.qpayInvoiceId || "";
+              bankGuilgee.record =
+                paymentTransactionId || nekhemjlekh.qpayInvoiceId || "";
+              bankGuilgee.tranId =
+                paymentTransactionId || nekhemjlekh.qpayInvoiceId || "";
               bankGuilgee.balance = 0;
               bankGuilgee.requestId = nekhemjlekh.qpayInvoiceId || "";
 
@@ -1101,9 +1183,13 @@ router.get(
 
             if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
               if (!tuxainSalbar.merchantTin) {
-                console.error(`⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: merchantTin is required`);
+                console.error(
+                  `⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: merchantTin is required`
+                );
               } else if (!tuxainSalbar.districtCode) {
-                console.error(`⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: districtCode is missing`);
+                console.error(
+                  `⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: districtCode is missing`
+                );
               } else {
                 const {
                   nekhemjlekheesEbarimtShineUusgye,
@@ -1136,7 +1222,8 @@ router.get(
                     }
 
                     var shineBarimt = new EbarimtShine(kholbolt)(d);
-                    shineBarimt.nekhemjlekhiinId = ebarimtObject.nekhemjlekhiinId;
+                    shineBarimt.nekhemjlekhiinId =
+                      ebarimtObject.nekhemjlekhiinId;
                     shineBarimt.baiguullagiinId = ebarimtObject.baiguullagiinId;
                     shineBarimt.barilgiinId = ebarimtObject.barilgiinId;
                     shineBarimt.gereeniiDugaar = ebarimtObject.gereeniiDugaar;
@@ -1153,7 +1240,12 @@ router.get(
                       ebarimtObject.nekhemjlekhiinId
                     );
                   } catch (err) {
-                    console.error(`❌ Failed to save e-barimt for invoice ${ebarimtObject?.nekhemjlekhiinId || 'unknown'}:`, err.message);
+                    console.error(
+                      `❌ Failed to save e-barimt for invoice ${
+                        ebarimtObject?.nekhemjlekhiinId || "unknown"
+                      }:`,
+                      err.message
+                    );
                   }
                 };
 
@@ -1162,10 +1254,13 @@ router.get(
                 ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
               }
             } else {
-              console.log(`ℹ️  E-barimt creation skipped for invoice ${updatedInvoice._id}:`, {
-                hasSalbar: !!tuxainSalbar,
-                eBarimtShine: tuxainSalbar?.eBarimtShine,
-              });
+              console.log(
+                `ℹ️  E-barimt creation skipped for invoice ${updatedInvoice._id}:`,
+                {
+                  hasSalbar: !!tuxainSalbar,
+                  eBarimtShine: tuxainSalbar?.eBarimtShine,
+                }
+              );
             }
           } catch (ebarimtError) {
             console.error(
@@ -1177,12 +1272,15 @@ router.get(
           // Emit socket event for each invoice
           req.app
             .get("socketio")
-            .emit(`nekhemjlekhPayment/${baiguullagiinId}/${updatedInvoice._id}`, {
-              status: "success",
-              tuluv: "Төлсөн",
-              tulsunOgnoo: updatedInvoice.tulsunOgnoo,
-              paymentId: updatedInvoice.qpayPaymentId,
-            });
+            .emit(
+              `nekhemjlekhPayment/${baiguullagiinId}/${updatedInvoice._id}`,
+              {
+                status: "success",
+                tuluv: "Төлсөн",
+                tulsunOgnoo: updatedInvoice.tulsunOgnoo,
+                paymentId: updatedInvoice.qpayPaymentId,
+              }
+            );
         } catch (invoiceErr) {
           console.error(
             `❌ Error updating invoice ${nekhemjlekh._id}:`,

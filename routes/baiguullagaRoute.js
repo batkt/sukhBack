@@ -294,6 +294,7 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
       const existingZardluud =
         firstBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
       const existingLiftShalgaya = firstBarilga.tokhirgoo?.liftShalgaya || {};
+      const existingDans = firstBarilga.tokhirgoo?.dans || null;
 
       // Copy to new barilga's tokhirgoo
       if (existingZardluud && existingZardluud.length > 0) {
@@ -323,6 +324,13 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
           ) {
             baiguullaga.barilguud[newBarilgaIndex].tokhirgoo.liftShalgaya =
               JSON.parse(JSON.stringify(existingLiftShalgaya));
+          }
+
+          // Also copy dans (bank account info)
+          if (existingDans) {
+            baiguullaga.barilguud[newBarilgaIndex].tokhirgoo.dans = JSON.parse(
+              JSON.stringify(existingDans)
+            );
           }
 
           await baiguullaga.save();
