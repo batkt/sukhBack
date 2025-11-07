@@ -21,8 +21,13 @@
 
 // Change to project root directory
 const path = require("path");
+const dotenv = require("dotenv");
+const express = require("express");
 const projectRoot = path.resolve(__dirname, "..");
 process.chdir(projectRoot);
+
+// Load environment variables
+dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 
 const { db } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require(path.join(
@@ -32,6 +37,14 @@ const nekhemjlekhiinTuukh = require(path.join(
 ));
 const Geree = require(path.join(projectRoot, "models", "geree"));
 const OrshinSuugch = require(path.join(projectRoot, "models", "orshinSuugch"));
+
+// Initialize database connection (same as index.js)
+const app = express();
+db.kholboltUusgey(
+  app,
+  process.env.MONGODB_URI ||
+    "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
+);
 
 const BAIGULLAGIIN_ID = process.env.BAIGULLAGIIN_ID;
 const BARILGIIN_ID = process.env.BARILGIIN_ID || null;
@@ -52,6 +65,9 @@ if (!BAIGULLAGIIN_ID) {
 
 async function createOverdueInvoices() {
   try {
+    // Wait a bit for database connection to initialize
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     console.log("🚀 Starting overdue invoice creation...");
     console.log(`📋 Config:`, {
       baiguullagiinId: BAIGULLAGIIN_ID,
