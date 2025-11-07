@@ -221,6 +221,7 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
 };
 
 // Helper function to calculate liftShalgaya based on davkhar entries
+// Now saves to baiguullaga.barilguud[].tokhirgoo.liftShalgaya
 exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
   baiguullagiinId,
   barilgiinId,
@@ -228,8 +229,8 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
   tukhainBaaziinKholbolt
 ) {
   try {
-    const LiftShalgaya = require("../models/liftShalgaya");
-    const LiftShalgayaModel = LiftShalgaya(tukhainBaaziinKholbolt);
+    const { db } = require("zevbackv2");
+    const Baiguullaga = require("../models/baiguullaga");
 
     // davkharArray is already an array of floor numbers like ["1", "2", "3"]
     // Extract all unique floor numbers
@@ -237,23 +238,37 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
       ...new Set(davkharArray.map((f) => String(f))),
     ];
 
-    // Update or create liftShalgaya
-    await LiftShalgayaModel.findOneAndUpdate(
-      {
-        baiguullagiinId: baiguullagiinId,
-        barilgiinId: barilgiinId || "",
-      },
-      {
-        baiguullagiinId: baiguullagiinId,
-        barilgiinId: barilgiinId || "",
-        choloolugdokhDavkhar: choloolugdokhDavkhar,
-      },
-      { upsert: true, new: true }
+    // Update liftShalgaya in baiguullaga.barilguud[].tokhirgoo
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      baiguullagiinId
+    );
+    if (!baiguullaga) {
+      console.error("Байгууллага олдсонгүй");
+      return;
+    }
+
+    const barilgaIndex = baiguullaga.barilguud.findIndex(
+      (b) => String(b._id) === String(barilgiinId)
     );
 
-    console.log(
-      `LiftShalgaya updated: ${choloolugdokhDavkhar.length} floors exempted`
-    );
+    if (barilgaIndex >= 0) {
+      if (!baiguullaga.barilguud[barilgaIndex].tokhirgoo) {
+        baiguullaga.barilguud[barilgaIndex].tokhirgoo = {};
+      }
+      if (!baiguullaga.barilguud[barilgaIndex].tokhirgoo.liftShalgaya) {
+        baiguullaga.barilguud[barilgaIndex].tokhirgoo.liftShalgaya = {};
+      }
+      baiguullaga.barilguud[
+        barilgaIndex
+      ].tokhirgoo.liftShalgaya.choloolugdokhDavkhar = choloolugdokhDavkhar;
+      await baiguullaga.save();
+
+      console.log(
+        `LiftShalgaya updated: ${choloolugdokhDavkhar.length} floors exempted`
+      );
+    } else {
+      console.error("Барилга олдсонгүй");
+    }
   } catch (error) {
     console.error("Error calculating liftShalgaya:", error);
   }
@@ -435,21 +450,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
       }
 
-      const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
-      const ashiglaltiinZardluudData = await AshiglaltiinZardluud(
-        tukhainBaaziinKholbolt
-      ).find({
-        baiguullagiinId: baiguullaga._id.toString(),
-      });
+      // Get ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo
+      const targetBarilgaForZardluud = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+      const ashiglaltiinZardluudData =
+        targetBarilgaForZardluud?.tokhirgoo?.ashiglaltiinZardluud || [];
 
-      const LiftShalgaya = require("../models/liftShalgaya");
-      const liftShalgayaData = await LiftShalgaya(
-        tukhainBaaziinKholbolt
-      ).findOne({
-        baiguullagiinId: baiguullaga._id.toString(),
-        barilgiinId: barilgiinId || "",
-      });
-
+      // Get liftShalgaya from baiguullaga.barilguud[].tokhirgoo
+      const liftShalgayaData =
+        targetBarilgaForZardluud?.tokhirgoo?.liftShalgaya;
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
 
       const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({

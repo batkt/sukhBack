@@ -696,14 +696,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын холболтын мэдээлэл олдсонгүй!");
     }
 
-    const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
-    const LiftShalgaya = require("../models/liftShalgaya");
-
-    const ashiglaltiinZardluudData = await AshiglaltiinZardluud(
-      tukhainBaaziinKholbolt
-    ).find({
-      baiguullagiinId: baiguullaga._id.toString(),
-    });
+    // Note: ashiglaltiinZardluudData will be fetched per row from baiguullaga.barilguud[].tokhirgoo
 
     const results = {
       success: [],
@@ -794,14 +787,14 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           );
         }
 
-        // Query liftShalgaya for this specific barilgiinId
-        const liftShalgayaData = await LiftShalgaya(
-          tukhainBaaziinKholbolt
-        ).findOne({
-          baiguullagiinId: baiguullaga._id.toString(),
-          barilgiinId: finalBarilgiinId || "",
-        });
+        // Get ashiglaltiinZardluud and liftShalgaya from baiguullaga.barilguud[].tokhirgoo
+        const targetBarilgaForRow = baiguullaga.barilguud?.find(
+          (b) => String(b._id) === String(finalBarilgiinId)
+        );
 
+        const ashiglaltiinZardluudData =
+          targetBarilgaForRow?.tokhirgoo?.ashiglaltiinZardluud || [];
+        const liftShalgayaData = targetBarilgaForRow?.tokhirgoo?.liftShalgaya;
         const choloolugdokhDavkhar =
           liftShalgayaData?.choloolugdokhDavkhar || [];
 

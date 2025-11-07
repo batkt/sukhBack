@@ -159,16 +159,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     let filteredZardluud = tempData.zardluud || [];
     if (tempData.davkhar) {
+      // Get liftShalgaya from baiguullaga.barilguud[].tokhirgoo
       const { db } = require("zevbackv2");
-      const LiftShalgaya = require("../models/liftShalgaya");
-
-      const liftShalgayaData = await LiftShalgaya(
-        tukhainBaaziinKholbolt
-      ).findOne({
-        baiguullagiinId: tempData.baiguullagiinId,
-        barilgiinId: tempData.barilgiinId || "",
-      });
-
+      const Baiguullaga = require("../models/baiguullaga");
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        tempData.baiguullagiinId
+      );
+      
+      const targetBarilga = baiguullaga?.barilguud?.find(
+        (b) => String(b._id) === String(tempData.barilgiinId || "")
+      );
+      
+      const liftShalgayaData = targetBarilga?.tokhirgoo?.liftShalgaya;
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
 
       if (choloolugdokhDavkhar.includes(tempData.davkhar)) {
