@@ -432,7 +432,7 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
 
 exports.downloadExcelList = asyncHandler(async (req, res, next) => {
   try {
-    const { data, headers, fileName, sheetName, colWidths } = req.body;
+    const { data, headers, fields, fileName, sheetName, colWidths } = req.body;
 
     if (!data || !Array.isArray(data)) {
       throw new aldaa("Мэдээлэл оруулах шаардлагатай!");
@@ -448,7 +448,9 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
     let headerLabels = [];
     let headerKeys = [];
 
+    // Priority: headers > fields > extract all keys
     if (headers && Array.isArray(headers) && headers.length > 0) {
+      // Use headers if provided (supports both string and object format)
       headers.forEach((h) => {
         if (typeof h === 'string') {
           headerKeys.push(h);
@@ -458,7 +460,12 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
           headerLabels.push(h.label || h.key || h.field || '');
         }
       });
+    } else if (fields && Array.isArray(fields) && fields.length > 0) {
+      // Use fields array if provided (simple field names)
+      headerKeys = fields;
+      headerLabels = fields;
     } else {
+      // Fallback: extract all keys from data (only if neither headers nor fields provided)
       const allKeysSet = new Set();
       
       data.forEach((item) => {
@@ -594,7 +601,6 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       "Утас",
       "Имэйл",
       "Орц",
-
       "Давхар",
       "Тоот",
     ];
