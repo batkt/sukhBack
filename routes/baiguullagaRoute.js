@@ -18,13 +18,8 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
     const baiguullaga = new Baiguullaga(db.erunkhiiKholbolt)(req.body);
     console.log("------------->" + JSON.stringify(baiguullaga));
     baiguullaga.isNew = !baiguullaga.zasakhEsekh;
-    baiguullaga.barilguud = [
-      {
-        ner: baiguullaga.ner,
-        khayag: baiguullaga.khayag,
-        register: baiguullaga.register,
-      },
-    ];
+    // Don't create default barilga - only create when explicitly requested from frontend
+    // If barilguud is provided in req.body, it will be used, otherwise it will be empty
     baiguullaga
       .save()
       .then((result) => {
