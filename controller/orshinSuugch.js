@@ -425,32 +425,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
     await orshinSuugch.save();
 
-    // If there's a cancelled geree, reactivate it and link it to the new user
-    if (existingCancelledGeree && tukhainBaaziinKholbolt) {
-      isReactivating = true;
-      const GereeModel = Geree(tukhainBaaziinKholbolt);
-
-      // Reactivate the cancelled geree and link it to the new user
-      await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
-        $set: {
-          tuluv: "Идэвхитэй", // Reactivate from "Цуцалсан" to "Идэвхитэй"
-          gereeniiOgnoo: new Date(), // Update contract date
-          orshinSuugchId: orshinSuugch._id.toString(), // Link to new user
-          // Update user info in geree if needed
-          ovog: req.body.ovog || existingCancelledGeree.ovog,
-          ner: req.body.ner || existingCancelledGeree.ner,
-          register: req.body.register || existingCancelledGeree.register,
-          utas: [req.body.utas],
-          mail: req.body.mail || existingCancelledGeree.mail,
-          toot: orshinSuugch.toot || existingCancelledGeree.toot,
-          davkhar: orshinSuugch.davkhar || existingCancelledGeree.davkhar,
-          duureg: req.body.duureg || existingCancelledGeree.duureg,
-          horoo: req.body.horoo || existingCancelledGeree.horoo,
-          sohNer: req.body.soh || existingCancelledGeree.sohNer,
-        },
-      });
-    }
-
     try {
       // Reuse tukhainBaaziinKholbolt from above (already declared)
       if (!tukhainBaaziinKholbolt) {
@@ -509,6 +483,37 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
         return total + tariff;
       }, 0);
+
+      // If there's a cancelled geree, reactivate it and link it to the new user
+      // Do this AFTER fetching charges so we can update zardluud with current charges
+      if (existingCancelledGeree && tukhainBaaziinKholbolt) {
+        isReactivating = true;
+        const GereeModel = Geree(tukhainBaaziinKholbolt);
+
+        // Reactivate the cancelled geree and link it to the new user
+        // Update with current charges (zardluud) and niitTulbur
+        await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
+          $set: {
+            tuluv: "Идэвхитэй", // Reactivate from "Цуцалсан" to "Идэвхитэй"
+            gereeniiOgnoo: new Date(), // Update contract date
+            orshinSuugchId: orshinSuugch._id.toString(), // Link to new user
+            zardluud: zardluudArray, // Update with current charges
+            niitTulbur: niitTulbur, // Update with current total
+            ashiglaltiinZardal: 0, // Reset to 0
+            // Update user info in geree if needed
+            ovog: req.body.ovog || existingCancelledGeree.ovog,
+            ner: req.body.ner || existingCancelledGeree.ner,
+            register: req.body.register || existingCancelledGeree.register,
+            utas: [req.body.utas],
+            mail: req.body.mail || existingCancelledGeree.mail,
+            toot: orshinSuugch.toot || existingCancelledGeree.toot,
+            davkhar: orshinSuugch.davkhar || existingCancelledGeree.davkhar,
+            duureg: req.body.duureg || existingCancelledGeree.duureg,
+            horoo: req.body.horoo || existingCancelledGeree.horoo,
+            sohNer: req.body.soh || existingCancelledGeree.sohNer,
+          },
+        });
+      }
 
       const barilgiinId =
         req.body.barilgiinId ||
@@ -604,7 +609,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         }
       }
 
-      // If reactivating, get the reactivated geree for invoice creation
+      // If reactivating, check if today is the scheduled invoice creation date
+      // Only create invoice if today matches nekhemjlekhCron date
+      // Otherwise, let the cron job handle invoice creation on the scheduled date
+      // This ensures invoices are created according to the schedule, not immediately on reactivation
       if (isReactivating && existingCancelledGeree && tukhainBaaziinKholbolt) {
         const GereeModel = Geree(tukhainBaaziinKholbolt);
         const reactivatedGeree = await GereeModel.findById(
@@ -613,22 +621,65 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
         if (reactivatedGeree) {
           try {
-            const {
-              gereeNeesNekhemjlekhUusgekh,
-            } = require("./nekhemjlekhController");
+            // Check if today matches the nekhemjlekhCron scheduled date
+            const NekhemjlekhCron = require("../models/cronSchedule");
+            const cronSchedule = await NekhemjlekhCron(
+              tukhainBaaziinKholbolt
+            ).findOne({
+              baiguullagiinId: baiguullaga._id.toString(),
+              idevkhitei: true,
+            });
 
-            const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
-              reactivatedGeree,
-              baiguullaga,
-              tukhainBaaziinKholbolt,
-              "automataar"
-            );
+            const today = new Date();
+            const todayDate = today.getDate();
+            const shouldCreateInvoice =
+              cronSchedule &&
+              cronSchedule.nekhemjlekhUusgekhOgnoo === todayDate;
 
-            if (!invoiceResult.success) {
-              console.error("Invoice creation failed:", invoiceResult.error);
+            if (shouldCreateInvoice) {
+              // Today is the scheduled date, create invoice (or return existing unpaid)
+              const {
+                gereeNeesNekhemjlekhUusgekh,
+              } = require("./nekhemjlekhController");
+
+              // This will check for existing unpaid invoices in current month
+              // If found, it returns the existing invoice (preserving payment status)
+              // If not found, it creates a new invoice
+              const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+                reactivatedGeree,
+                baiguullaga,
+                tukhainBaaziinKholbolt,
+                "automataar"
+              );
+
+              if (!invoiceResult.success) {
+                console.error("Invoice creation failed:", invoiceResult.error);
+              } else if (invoiceResult.alreadyExists) {
+                console.log(
+                  "Existing unpaid invoice found and preserved for reactivated geree:",
+                  invoiceResult.nekhemjlekh._id
+                );
+              } else {
+                console.log(
+                  "New invoice created for reactivated geree on scheduled date:",
+                  invoiceResult.nekhemjlekh._id
+                );
+              }
+            } else {
+              // Not the scheduled date, skip invoice creation
+              // The cron job will create invoices on the scheduled date
+              // Geree already has current month's ashiglaltiinZardluud updated
+              console.log(
+                `Skipping invoice creation - today (${todayDate}) is not the scheduled date (${
+                  cronSchedule?.nekhemjlekhUusgekhOgnoo || "not set"
+                }). Cron job will handle it.`
+              );
             }
           } catch (invoiceError) {
-            console.error("Error creating invoice:", invoiceError.message);
+            console.error(
+              "Error checking/creating invoice:",
+              invoiceError.message
+            );
           }
         }
       }
