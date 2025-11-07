@@ -316,6 +316,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
       // This should happen after barilgiinId is determined
       if (req.body.barilgiinId && req.body.tukhainBaaziinKholbolt) {
         try {
+          const { Dans } = require("zevbackv2");
           const qpayKhariltsagch = new QpayKhariltsagch(
             req.body.tukhainBaaziinKholbolt
           );
@@ -344,14 +345,65 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             ) {
               // Use the first bank account from this salbar
               const bankAccount = targetSalbar.bank_accounts[0];
-              req.body.dansniiDugaar =
+              const newDansniiDugaar =
                 bankAccount.account_number || req.body.dansniiDugaar;
-              req.body.burtgeliinDugaar =
-                bankAccount.account_bank_code || req.body.burtgeliinDugaar;
 
-              console.log(
-                `✅ Using building-specific bank account for barilga ${req.body.barilgiinId}: ${bankAccount.account_number} (${bankAccount.account_name})`
-              );
+              // Check if this account exists in Dans model with merchant credentials
+              const dansModel = Dans(req.body.tukhainBaaziinKholbolt);
+              const dansWithMerchant = await dansModel
+                .findOne({
+                  dugaar: newDansniiDugaar,
+                  baiguullagiinId: req.body.baiguullagiinId,
+                })
+                .lean();
+
+              if (dansWithMerchant && dansWithMerchant.qpayAshiglakhEsekh) {
+                // Account exists in Dans with QPay enabled, use it
+                req.body.dansniiDugaar = newDansniiDugaar;
+                req.body.burtgeliinDugaar =
+                  bankAccount.account_bank_code || req.body.burtgeliinDugaar;
+
+                console.log(
+                  `✅ Using building-specific bank account for barilga ${req.body.barilgiinId}: ${bankAccount.account_number} (${bankAccount.account_name}) with merchant credentials`
+                );
+              } else {
+                // Account doesn't exist in Dans or doesn't have QPay enabled
+                // Try to find a Dans entry for this barilga with QPay enabled
+                let fallbackDans = await dansModel
+                  .findOne({
+                    baiguullagiinId: req.body.baiguullagiinId,
+                    barilgiinId: req.body.barilgiinId,
+                    qpayAshiglakhEsekh: true,
+                  })
+                  .lean();
+
+                if (!fallbackDans) {
+                  // Try organization-level Dans (without barilgiinId filter)
+                  fallbackDans = await dansModel
+                    .findOne({
+                      baiguullagiinId: req.body.baiguullagiinId,
+                      qpayAshiglakhEsekh: true,
+                    })
+                    .lean();
+                }
+
+                if (fallbackDans) {
+                  // Use the Dans account number for merchant credentials lookup
+                  // But we can still use building-specific account for display if needed
+                  req.body.dansniiDugaar = fallbackDans.dugaar;
+                  req.body.burtgeliinDugaar =
+                    bankAccount.account_bank_code || req.body.burtgeliinDugaar;
+
+                  console.log(
+                    `⚠️  Building-specific account ${newDansniiDugaar} not configured in Dans, using Dans account ${fallbackDans.dugaar} for merchant credentials (barilga: ${req.body.barilgiinId})`
+                  );
+                } else {
+                  console.log(
+                    `⚠️  No QPay-enabled Dans found for building ${req.body.barilgiinId}, keeping existing dansniiDugaar: ${req.body.dansniiDugaar}`
+                  );
+                  // Don't change dansniiDugaar if no valid Dans found
+                }
+              }
             } else {
               console.log(
                 `⚠️  No bank_accounts found for salbar ${req.body.barilgiinId}, using existing dansniiDugaar`
