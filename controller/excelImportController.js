@@ -961,3 +961,265 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
     next(error);
   }
 });
+
+// TootBurtgel Excel Template Download
+exports.generateTootBurtgelExcelTemplate = asyncHandler(
+  async (req, res, next) => {
+    try {
+      const headers = ["Давхар", "Орц", "Тоот"];
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([headers]);
+
+      const colWidths = [
+        { wch: 12 }, // Давхар (floor)
+        { wch: 12 }, // Орц (entrance)
+        { wch: 15 }, // Тоот (apartment number)
+      ];
+      ws["!cols"] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, "Тоот бүртгэл");
+
+      const excelBuffer = XLSX.write(wb, {
+        type: "buffer",
+        bookType: "xlsx",
+      });
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="tootBurtgel_import_template_${Date.now()}.xlsx"`
+      );
+
+      res.send(excelBuffer);
+    } catch (error) {
+      console.error("Error generating tootBurtgel Excel template:", error);
+      next(error);
+    }
+  }
+);
+
+// TootBurtgel Excel Import
+exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const TootBurtgel = require("../models/tootBurtgel");
+    const Baiguullaga = require("../models/baiguullaga");
+    const { updateDavkharWithToot } = require("./orshinSuugch");
+
+    const { baiguullagiinId, barilgiinId } = req.body;
+
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+    }
+
+    if (!req.file) {
+      throw new aldaa("Excel файл оруулах шаардлагатай!");
+    }
+
+    const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet, { raw: false });
+
+    if (!data || data.length === 0) {
+      throw new aldaa("Excel файл хоосон байна!");
+    }
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      baiguullagiinId
+    );
+
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+    }
+
+    const defaultBarilgiinId =
+      barilgiinId ||
+      (baiguullaga.barilguud && baiguullaga.barilguud.length > 0
+        ? String(baiguullaga.barilguud[0]._id)
+        : null);
+
+    if (!defaultBarilgiinId) {
+      throw new aldaa("Барилгын ID олдсонгүй!");
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Байгууллагын холболтын мэдээлэл олдсонгүй!");
+    }
+
+    // Get target barilga
+    const targetBarilga = baiguullaga.barilguud?.find(
+      (b) => String(b._id) === String(defaultBarilgiinId)
+    );
+
+    if (!targetBarilga) {
+      throw new aldaa("Барилга олдсонгүй!");
+    }
+
+    // Get or initialize davkhar array and davkhariinToonuud object
+    const barilgaIndex = baiguullaga.barilguud.findIndex(
+      (b) => String(b._id) === String(defaultBarilgiinId)
+    );
+
+    if (!targetBarilga.tokhirgoo) {
+      targetBarilga.tokhirgoo = {};
+    }
+
+    let davkharArray = targetBarilga.tokhirgoo.davkhar || [];
+    let davkhariinToonuud = targetBarilga.tokhirgoo.davkhariinToonuud || {};
+
+    const results = {
+      success: [],
+      failed: [],
+      total: data.length,
+    };
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNumber = i + 2;
+
+      try {
+        const toot = row["Тоот"]?.toString().trim() || "";
+        const davkhar = row["Давхар"]?.toString().trim() || "";
+        const orts = row["Орц"]?.toString().trim() || "";
+
+        const tootBurtgelData = {
+          kharagdakhDugaar: toot,
+          zaalt: "",
+          khamragdsanGereenuud: [],
+          khamaarakhKheseg: "",
+          ashilgakhEsekh: "",
+          baiguullagiinId: baiguullaga._id.toString(),
+          baiguullagiinNer: baiguullaga.ner || "",
+          barilgiinId: defaultBarilgiinId || "",
+        };
+
+        const validationErrors = [];
+
+        if (!toot) {
+          validationErrors.push("Тоот хоосон байна!");
+        }
+
+        if (!davkhar) {
+          validationErrors.push("Давхар хоосон байна!");
+        }
+
+        if (validationErrors.length > 0) {
+          throw new Error(validationErrors.join(" "));
+        }
+
+        // Save tootBurtgel
+        const tootBurtgel = new TootBurtgel(tukhainBaaziinKholbolt)(
+          tootBurtgelData
+        );
+        await tootBurtgel.save();
+
+        // Update davkhar and davkhariinToonuud if davkhar and orts are provided
+        if (davkhar && toot) {
+          const davkharStr = String(davkhar).trim();
+          const ortsStr = orts ? String(orts).trim() : "1"; // Default to "1" if orts not provided
+
+          // Create key format: "davkhar::orts" (e.g., "1::1", "2::1")
+          const floorKey = `${davkharStr}::${ortsStr}`;
+
+          // Ensure davkhar is in the array
+          if (!davkharArray.includes(davkharStr)) {
+            davkharArray.push(davkharStr);
+            davkharArray.sort((a, b) => parseInt(a) - parseInt(b));
+          }
+
+          // Get or create toot array for this floor::entrance combination
+          if (!davkhariinToonuud[floorKey]) {
+            davkhariinToonuud[floorKey] = [];
+          }
+
+          // Get existing toot string for this floor::entrance
+          const existingToonuud = davkhariinToonuud[floorKey][0] || "";
+          let tootList = existingToonuud
+            ? existingToonuud
+                .split(",")
+                .map((t) => t.trim())
+                .filter((t) => t)
+            : [];
+
+          // Add toot if not already present
+          if (toot && !tootList.includes(toot)) {
+            tootList.push(toot);
+            tootList.sort((a, b) => {
+              // Sort numerically if possible, otherwise alphabetically
+              const numA = parseInt(a);
+              const numB = parseInt(b);
+              if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+              }
+              return a.localeCompare(b);
+            });
+          }
+
+          // Update davkhariinToonuud - store as array with comma-separated string
+          davkhariinToonuud[floorKey] = [tootList.join(",")];
+        }
+
+        results.success.push({
+          row: rowNumber,
+          toot: tootBurtgelData.kharagdakhDugaar,
+          davkhar: davkhar || "",
+          orts: orts || "",
+          id: tootBurtgel._id.toString(),
+        });
+      } catch (error) {
+        results.failed.push({
+          row: rowNumber,
+          error: error.message || "Алдаа гарлаа",
+          data: row,
+        });
+      }
+    }
+
+    // Update baiguullaga with davkhar and davkhariinToonuud
+    if (barilgaIndex >= 0) {
+      const davkharPath = `barilguud.${barilgaIndex}.tokhirgoo.davkhar`;
+      const toonuudPath = `barilguud.${barilgaIndex}.tokhirgoo.davkhariinToonuud`;
+
+      await Baiguullaga(db.erunkhiiKholbolt).findByIdAndUpdate(
+        baiguullaga._id,
+        {
+          $set: {
+            [davkharPath]: davkharArray,
+            [toonuudPath]: davkhariinToonuud,
+          },
+        }
+      );
+
+      // Recalculate liftShalgaya
+      try {
+        const { calculateLiftShalgaya } = require("./orshinSuugch");
+        await calculateLiftShalgaya(
+          baiguullaga._id.toString(),
+          defaultBarilgiinId,
+          davkharArray,
+          tukhainBaaziinKholbolt
+        );
+      } catch (liftError) {
+        console.error("Error calculating liftShalgaya:", liftError);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${results.success.length} тоот бүртгэл амжилттай импорт хийгдлээ`,
+      results: results,
+    });
+  } catch (error) {
+    console.error("Error importing tootBurtgel from Excel:", error);
+    next(error);
+  }
+});
