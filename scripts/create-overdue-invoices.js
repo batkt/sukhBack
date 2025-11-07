@@ -21,6 +21,7 @@
 const { db } = require("../zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
+const OrshinSuugch = require("../models/orshinSuugch");
 
 const BAIGULLAGIIN_ID = process.env.BAIGULLAGIIN_ID;
 const BARILGIIN_ID = process.env.BARILGIIN_ID || null;
@@ -150,10 +151,27 @@ async function createOverdueInvoices() {
         await invoice.save();
         createdThisMonth++;
 
+        // Get user information from geree
+        let userInfo = "No user";
+        if (geree.orshinSuugchId) {
+          try {
+            const user = await OrshinSuugch(db.erunkhiiKholbolt)
+              .findById(geree.orshinSuugchId)
+              .lean();
+            if (user) {
+              userInfo = `${user.ovog || ""} ${user.ner || ""} (${
+                user.utas || ""
+              })`.trim();
+            }
+          } catch (userError) {
+            // User might not exist, that's okay
+          }
+        }
+
         console.log(
           `  ✅ Created invoice for ${geree.gereeniiDugaar} (${
             geree.ner
-          }) - Due: ${
+          }) - User: ${userInfo} - Due: ${
             dueDate.toISOString().split("T")[0]
           } (${monthsAgo} months ago)`
         );
@@ -173,15 +191,52 @@ async function createOverdueInvoices() {
       dueDate.setDate(15);
       dueDate.setHours(0, 0, 0, 0);
 
-      const count = await NekhemjlekhiinTuukhModel.countDocuments({
+      const invoices = await NekhemjlekhiinTuukhModel.find({
         baiguullagiinId: String(BAIGULLAGIIN_ID),
         tulukhOgnoo: dueDate,
         tuluv: { $ne: "Төлсөн" },
-      });
+      })
+        .lean()
+        .limit(10); // Show first 10 for details
 
-      console.log(`  ${monthsAgo} months ago: ${count} unpaid invoices`);
+      console.log(
+        `\n  ${monthsAgo} months ago: ${invoices.length} unpaid invoices`
+      );
+
+      // Show user details for each invoice
+      for (const inv of invoices) {
+        let userInfo = "No user";
+        if (inv.gereeniiId) {
+          try {
+            const geree = await GereeModel.findById(inv.gereeniiId).lean();
+            if (geree && geree.orshinSuugchId) {
+              const user = await OrshinSuugch(db.erunkhiiKholbolt)
+                .findById(geree.orshinSuugchId)
+                .lean();
+              if (user) {
+                userInfo = `${user.ovog || ""} ${user.ner || ""} (${
+                  user.utas || ""
+                })`.trim();
+              }
+            }
+          } catch (err) {
+            // Skip if error
+          }
+        }
+        console.log(
+          `    - Invoice ${inv.gereeniiDugaar || inv._id}: ${
+            inv.ner || ""
+          } | User: ${userInfo} | Amount: ${inv.niitTulbur || 0}`
+        );
+      }
     }
 
+    console.log("\n💡 To find which user an invoice belongs to:");
+    console.log("   1. Invoice has gereeniiId → Get geree from gereeniiId");
+    console.log(
+      "   2. Geree has orshinSuugchId → Get user from orshinSuugchId"
+    );
+    console.log("   3. Or use invoice.utas to find user by phone number");
     console.log("\n🎉 Done! You can now test the overdue receivables report.");
   } catch (error) {
     console.error("❌ Error:", error.message);
