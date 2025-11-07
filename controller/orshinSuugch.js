@@ -239,9 +239,13 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
 
     // Update or create liftShalgaya
     await LiftShalgayaModel.findOneAndUpdate(
-      { baiguullagiinId: baiguullagiinId },
       {
         baiguullagiinId: baiguullagiinId,
+        barilgiinId: barilgiinId || "",
+      },
+      {
+        baiguullagiinId: baiguullagiinId,
+        barilgiinId: barilgiinId || "",
         choloolugdokhDavkhar: choloolugdokhDavkhar,
       },
       { upsert: true, new: true }
@@ -443,6 +447,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         tukhainBaaziinKholbolt
       ).findOne({
         baiguullagiinId: baiguullaga._id.toString(),
+        barilgiinId: barilgiinId || "",
       });
 
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];

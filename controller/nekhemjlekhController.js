@@ -166,6 +166,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
         tukhainBaaziinKholbolt
       ).findOne({
         baiguullagiinId: tempData.baiguullagiinId,
+        barilgiinId: tempData.barilgiinId || "",
       });
 
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];

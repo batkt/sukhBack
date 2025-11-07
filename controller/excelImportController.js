@@ -705,14 +705,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
       baiguullagiinId: baiguullaga._id.toString(),
     });
 
-    const liftShalgayaData = await LiftShalgaya(tukhainBaaziinKholbolt).findOne(
-      {
-        baiguullagiinId: baiguullaga._id.toString(),
-      }
-    );
-
-    const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
-
     const results = {
       success: [],
       failed: [],
@@ -801,6 +793,17 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             `Барилга олдсонгүй. Барилгын ID: ${finalBarilgiinId}`
           );
         }
+
+        // Query liftShalgaya for this specific barilgiinId
+        const liftShalgayaData = await LiftShalgaya(
+          tukhainBaaziinKholbolt
+        ).findOne({
+          baiguullagiinId: baiguullaga._id.toString(),
+          barilgiinId: finalBarilgiinId || "",
+        });
+
+        const choloolugdokhDavkhar =
+          liftShalgayaData?.choloolugdokhDavkhar || [];
 
         const duuregNer = targetBarilga.tokhirgoo?.duuregNer || "";
         const horooData = targetBarilga.tokhirgoo?.horoo || {};
