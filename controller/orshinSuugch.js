@@ -310,31 +310,72 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
         const tootToFind = req.body.toot.trim();
         let foundFloor = null;
+        let foundOrts = null;
 
         // Search through all floors to find which floor contains this toot
+        // Key format: 'davkhar::orts' (e.g., '1::1' = Floor 1, Entrance 1)
         for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
-          if (tootArray && tootArray[0]) {
-            const tootList = tootArray[0]
-              .split(",")
-              .map((t) => t.trim())
-              .filter((t) => t);
+          // Skip invalid entries that don't have :: separator (like '456')
+          if (!floorKey.includes('::')) {
+            continue;
+          }
+
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let tootList = [];
+            
+            // Handle both formats:
+            // Format 1: ['101,102,103'] - comma-separated string in first element
+            // Format 2: ['101', '102', '103'] - array of individual strings
+            if (typeof tootArray[0] === 'string' && tootArray[0].includes(',')) {
+              // Comma-separated format
+              tootList = tootArray[0]
+                .split(",")
+                .map((t) => t.trim())
+                .filter((t) => t);
+            } else {
+              // Array of individual strings format
+              tootList = tootArray
+                .map((t) => String(t).trim())
+                .filter((t) => t);
+            }
             
             if (tootList.includes(tootToFind)) {
-              foundFloor = floorKey;
+              // Parse key format: 'davkhar::orts' (e.g., '1::1' or '2::1')
+              const parts = floorKey.split('::');
+              if (parts.length === 2) {
+                foundFloor = parts[0].trim(); // davkhar (floor)
+                foundOrts = parts[1].trim();  // orts (entrance)
+              }
               break;
             }
           }
         }
 
-        // If toot is found in davkhariinToonuud, use that floor automatically
+        // If toot is found in davkhariinToonuud, use that floor and orts automatically
         if (foundFloor) {
           determinedDavkhar = foundFloor;
-        } else if (Object.keys(davkhariinToonuud).length > 0) {
-          // If davkhariinToonuud has registered toots but this toot is not found
-          throw new aldaa("Бүртгэлгүй тоот байна");
+          // Also set orts if found (unless already provided from frontend)
+          if (foundOrts && !req.body.orts) {
+            req.body.orts = foundOrts;
+          }
+        } else {
+          // If toot is not found in davkhariinToonuud:
+          // - If davkhar is provided from frontend, use it (allow new toot registration)
+          // - If davkhariinToonuud has registered toots but no davkhar provided, throw error
+          // - If davkhariinToonuud is empty, use davkhar from frontend if provided
+          // Count only valid entries (those with :: separator)
+          const validEntries = Object.keys(davkhariinToonuud).filter(key => key.includes('::'));
+          if (validEntries.length > 0 && !req.body.davkhar) {
+            // Only throw error if there are registered toots AND no davkhar was provided
+            throw new aldaa("Бүртгэлгүй тоот байна");
+          }
+          // If davkhar is provided from frontend, use it (allows new toot registration)
+          if (req.body.davkhar) {
+            determinedDavkhar = req.body.davkhar;
+          }
+          // If davkhariinToonuud is empty (first user), use davkhar from frontend if provided
+          // If not provided, determinedDavkhar will remain empty string
         }
-        // If davkhariinToonuud is empty (first user), use davkhar from frontend if provided
-        // If not provided, determinedDavkhar will remain empty string
       }
     }
 
@@ -351,6 +392,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       nevtrekhNer: req.body.utas,
       toot: req.body.toot || "",
       davkhar: determinedDavkhar, // Automatically determined from toot
+      orts: req.body.orts || "", // Automatically determined from toot if found
     };
 
     const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
