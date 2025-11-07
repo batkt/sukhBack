@@ -712,9 +712,9 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           ner: row["Нэр"]?.toString().trim() || "",
           utas: row["Утас"]?.toString().trim() || "",
           mail: row["Имэйл"]?.toString().trim() || "",
+          orts: row["Орц"]?.toString().trim() || "",
           davkhar: row["Давхар"]?.toString().trim() || "",
           toot: row["Тоот"]?.toString().trim() || "",
-          orts: row["Орц"]?.toString().trim() || "",
         };
 
         const validationErrors = [];
