@@ -435,17 +435,8 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
         }
       });
     } else {
-      const allKeysSet = new Set();
-      
-      data.forEach((item) => {
-        if (item && typeof item === 'object') {
-          const keys = extractAllKeys(item);
-          keys.forEach(key => allKeysSet.add(key));
-        }
-      });
-
-      headerKeys = Array.from(allKeysSet).sort();
-      headerLabels = headerKeys;
+      // Require headers to be specified - don't extract all keys automatically
+      throw new aldaa("'headers' заавал зааж өгөх шаардлагатай! (headers: [{key: 'field', label: 'Label'}] эсвэл ['field1', 'field2'])");
     }
 
     // Helper function to format row data
