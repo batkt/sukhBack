@@ -277,6 +277,18 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
 exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     console.log("Энэ рүү орлоо: orshinSuugchBurtgey");
+    console.log("📥 REQUEST BODY:", {
+      barilgiinId: req.body.barilgiinId,
+      baiguullagiinId: req.body.baiguullagiinId,
+      toot: req.body.toot,
+      davkhar: req.body.davkhar,
+      orts: req.body.orts,
+      duureg: req.body.duureg,
+      horoo: req.body.horoo,
+      soh: req.body.soh,
+      sohNer: req.body.sohNer,
+      bairniiNer: req.body.bairniiNer,
+    });
     const { db } = require("zevbackv2");
 
     if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
@@ -335,21 +347,49 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     // Use barilgiinId from request if provided - RESPECT IT!
-    // Only search if barilgiinId is NOT provided
+    // Check all possible fields where barilgiinId might be sent
     let barilgiinId =
-      req.body.barilgiinId && req.body.barilgiinId.toString().trim()
-        ? req.body.barilgiinId.toString().trim()
-        : null;
+      (req.body.barilgiinId && req.body.barilgiinId.toString().trim()) ||
+      (req.body.barilgaId && req.body.barilgaId.toString().trim()) ||
+      (req.body.barilgiinId && String(req.body.barilgiinId).trim()) ||
+      null;
+
+    console.log(`🔍 barilgiinId check:`, {
+      "req.body.barilgiinId": req.body.barilgiinId,
+      "req.body.barilgaId": req.body.barilgaId,
+      "final barilgiinId": barilgiinId,
+      type: typeof req.body.barilgiinId,
+      isTruthy: !!req.body.barilgiinId,
+    });
 
     // If barilgiinId is provided, use it directly - don't search!
     if (barilgiinId) {
-      console.log(`✅ Using provided barilgiinId: ${barilgiinId}`);
-    } else if (
+      // Validate that this barilgiinId exists in baiguullaga
+      const providedBarilga = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+      if (providedBarilga) {
+        console.log(
+          `✅ Using provided barilgiinId: ${barilgiinId} (${providedBarilga.ner})`
+        );
+      } else {
+        console.log(
+          `⚠️  Provided barilgiinId ${barilgiinId} not found in baiguullaga, will search instead`
+        );
+        barilgiinId = null; // Reset to null so we can search
+      }
+    }
+
+    // Only search for building if barilgiinId is NOT provided in the request
+    if (
+      !barilgiinId &&
       req.body.toot &&
       baiguullaga.barilguud &&
       baiguullaga.barilguud.length > 1
     ) {
-      // Only search for building if barilgiinId is NOT provided in the request
+      console.log(
+        `🔍 Searching for building because barilgiinId was not provided...`
+      );
       const tootToFind = req.body.toot.trim();
       const davkharToFind = req.body.davkhar ? req.body.davkhar.trim() : null;
       const ortsToFind = req.body.orts ? req.body.orts.trim() : "1";
