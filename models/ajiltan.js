@@ -120,19 +120,67 @@ ajiltanSchema.methods.zochinTokenUusgye = function (
 };
 ajiltanSchema.pre("save", async function () {
   this.indexTalbar = this.register + this.nevtrekhNer;
-  const salt = await bcrypt.genSalt(12);
-  this.nuutsUg = await bcrypt.hash(this.nuutsUg, salt);
+  // Only hash if password is provided and not already hashed
+  if (this.nuutsUg && !/^\$2[aby]\$\d+\$/.test(this.nuutsUg)) {
+    const salt = await bcrypt.genSalt(12);
+    this.nuutsUg = await bcrypt.hash(this.nuutsUg, salt);
+  }
 });
 
 ajiltanSchema.pre("updateOne", async function () {
   this.indexTalbar = this._update.register + this._update.nevtrekhNer;
-  const salt = await bcrypt.genSalt(12);
-  if (this._update.nuutsUg)
+  // Only hash if password is provided and not already hashed
+  if (this._update.nuutsUg && !/^\$2[aby]\$\d+\$/.test(this._update.nuutsUg)) {
+    const salt = await bcrypt.genSalt(12);
     this._update.nuutsUg = await bcrypt.hash(this._update.nuutsUg, salt);
+  }
 });
 
 ajiltanSchema.methods.passwordShalgaya = async function (pass) {
-  return await bcrypt.compare(pass, this.nuutsUg);
+  console.log("🔍 passwordShalgaya called");
+  console.log("🔍 Input password type:", typeof pass, "length:", pass?.length);
+  console.log("🔍 Stored password type:", typeof this.nuutsUg, "length:", this.nuutsUg?.length);
+  console.log("🔍 Stored password preview:", this.nuutsUg ? (this.nuutsUg.substring(0, 20) + "...") : "null/undefined");
+  
+  if (!this.nuutsUg) {
+    console.log("❌ Stored password is null/undefined");
+    return false;
+  }
+  
+  if (!pass) {
+    console.log("❌ Input password is null/undefined");
+    return false;
+  }
+  
+  // Check if the stored password is a bcrypt hash (starts with $2a$, $2b$, or $2y$)
+  const isHashed = /^\$2[aby]\$\d+\$/.test(this.nuutsUg);
+  console.log("🔍 Is password hashed?", isHashed);
+  
+  if (isHashed) {
+    // Password is hashed, use bcrypt.compare
+    console.log("🔍 Using bcrypt.compare for hashed password");
+    const result = await bcrypt.compare(pass, this.nuutsUg);
+    console.log("🔍 bcrypt.compare result:", result);
+    return result;
+  } else {
+    // Password is plain text (for backward compatibility), compare directly
+    console.log("🔍 Comparing plain text passwords");
+    console.log("🔍 Input:", JSON.stringify(pass));
+    console.log("🔍 Stored:", JSON.stringify(this.nuutsUg));
+    const match = pass === this.nuutsUg;
+    console.log("🔍 Plain text comparison result:", match);
+    
+    if (match) {
+      // Hash the password and save it for future logins
+      console.log("🔍 Password matches, hashing and saving...");
+      const salt = await bcrypt.genSalt(12);
+      this.nuutsUg = await bcrypt.hash(pass, salt);
+      await this.save();
+      console.log("✅ Password hashed and saved successfully");
+      return true;
+    }
+    return false;
+  }
 };
 
 module.exports = function a(conn) {
