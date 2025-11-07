@@ -14,17 +14,26 @@
   Environment variables:
     BAIGULLAGIIN_ID=<organizationId> (required)
     BARILGIIN_ID=<buildingId> (optional)
+    USER_IDS=<userId1,userId2,userId3> (optional - comma-separated user IDs to create invoices for)
     COUNT=10 (number of invoices per month, default: 5)
     MONTHS=[2,3,4,6] (comma-separated list of months ago, default: 2,3,4,6)
 */
 
-const { db } = require("../zevbackv2");
-const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
-const Geree = require("../models/geree");
-const OrshinSuugch = require("../models/orshinSuugch");
+// Change to project root directory
+process.chdir(__dirname + "/..");
+
+const { db } = require("zevbackv2");
+const nekhemjlekhiinTuukh = require("./models/nekhemjlekhiinTuukh");
+const Geree = require("./models/geree");
+const OrshinSuugch = require("./models/orshinSuugch");
 
 const BAIGULLAGIIN_ID = process.env.BAIGULLAGIIN_ID;
 const BARILGIIN_ID = process.env.BARILGIIN_ID || null;
+const USER_IDS = process.env.USER_IDS
+  ? process.env.USER_IDS.split(",")
+      .map((id) => id.trim())
+      .filter((id) => id)
+  : null;
 const COUNT_PER_MONTH = Number(process.env.COUNT || 5);
 const MONTHS_AGO = process.env.MONTHS
   ? process.env.MONTHS.split(",").map((m) => parseInt(m.trim()))
@@ -41,6 +50,7 @@ async function createOverdueInvoices() {
     console.log(`📋 Config:`, {
       baiguullagiinId: BAIGULLAGIIN_ID,
       barilgiinId: BARILGIIN_ID || "all buildings",
+      userIds: USER_IDS || "all users",
       countPerMonth: COUNT_PER_MONTH,
       monthsAgo: MONTHS_AGO,
     });
@@ -65,6 +75,12 @@ async function createOverdueInvoices() {
 
     if (BARILGIIN_ID) {
       gereeMatch.barilgiinId = String(BARILGIIN_ID);
+    }
+
+    // If USER_IDS specified, filter gerees by those users
+    if (USER_IDS && USER_IDS.length > 0) {
+      gereeMatch.orshinSuugchId = { $in: USER_IDS };
+      console.log(`🔍 Filtering by user IDs: ${USER_IDS.join(", ")}`);
     }
 
     const activeGerees = await GereeModel.find(gereeMatch)
