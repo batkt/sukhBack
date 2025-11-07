@@ -360,21 +360,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           }
         } else {
           // If toot is not found in davkhariinToonuud:
-          // - If davkhar is provided from frontend, use it (allow new toot registration)
-          // - If davkhariinToonuud has registered toots but no davkhar provided, throw error
-          // - If davkhariinToonuud is empty, use davkhar from frontend if provided
-          // Count only valid entries (those with :: separator)
-          const validEntries = Object.keys(davkhariinToonuud).filter(key => key.includes('::'));
-          if (validEntries.length > 0 && !req.body.davkhar) {
-            // Only throw error if there are registered toots AND no davkhar was provided
-            throw new aldaa("Бүртгэлгүй тоот байна");
-          }
+          // For registration, always allow new toots to be registered
+          // - If davkhar is provided from frontend, use it (allows new toot registration)
+          // - If davkhar is not provided, allow registration anyway (will be set later or remain empty)
+          // - The toot will be registered in the system when updateDavkharWithToot is called
+          
           // If davkhar is provided from frontend, use it (allows new toot registration)
           if (req.body.davkhar) {
             determinedDavkhar = req.body.davkhar;
           }
-          // If davkhariinToonuud is empty (first user), use davkhar from frontend if provided
-          // If not provided, determinedDavkhar will remain empty string
+          // If davkhar is not provided, determinedDavkhar will remain as empty string or use req.body.davkhar
+          // This allows registration of new toots that aren't in the system yet
         }
       }
     }
