@@ -522,6 +522,7 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       "Имэйл",
       "Давхар",
       "Тоот",
+      "Орц",
     ];
 
     const wb = XLSX.utils.book_new();
@@ -532,6 +533,7 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       { wch: 15 },
       { wch: 12 },
       { wch: 25 },
+      { wch: 10 },
       { wch: 10 },
       { wch: 10 },
     ];
@@ -639,6 +641,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           mail: row["Имэйл"]?.toString().trim() || "",
           davkhar: row["Давхар"]?.toString().trim() || "",
           toot: row["Тоот"]?.toString().trim() || "",
+          orts: row["Орц"]?.toString().trim() || "",
         };
 
         const validationErrors = [];
@@ -661,20 +664,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             validationErrors.push("Утасны дугаар зөвхөн тоо байх ёстой!");
           } else if (userData.utas.length !== 8) {
             validationErrors.push("Утасны дугаар 8 оронтой байх ёстой!");
-          }
-        }
-
-        if (!userData.mail || userData.mail.length === 0) {
-          validationErrors.push("Имэйл хоосон байна!");
-        } else {
-          userData.mail = userData.mail.replace(/\s/g, "");
-          if (userData.mail.length === 0) {
-            validationErrors.push("Имэйл талбарт хоосон зай байна!");
-          } else {
-            const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailPattern.test(userData.mail)) {
-              validationErrors.push("Имэйл формат буруу байна! (жишээ: name@gmail.com, name@yahoo.com)");
-            }
           }
         }
 
@@ -745,6 +734,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           davkhar: userData.davkhar,
           bairniiNer: targetBarilga.ner || "",
           toot: userData.toot || "",
+          orts: userData.orts || "",
         };
 
         const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
@@ -818,6 +808,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           duureg: duuregNer,
           horoo: horooData,
           sohNer: sohNer,
+          orts: userData.orts || "",
           burtgesenAjiltan: orshinSuugch._id,
           orshinSuugchId: orshinSuugch._id.toString(),
           temdeglel: "Excel файлаас автоматаар үүссэн гэрээ",

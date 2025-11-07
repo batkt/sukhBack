@@ -56,18 +56,10 @@ async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
 }
 
 exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
-  console.log("🔍 ajiltanNevtrey called with:", {
-    nevtrekhNer: req.body.nevtrekhNer,
-    hasPassword: !!req.body.nuutsUg,
-  });
+  console.log("Энэ рүү орлоо");
 
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
-
-  console.log(
-    "🔍 Searching for employee with nevtrekhNer:",
-    req.body.nevtrekhNer
-  );
 
   const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
     .findOne()
@@ -75,46 +67,22 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     .where("nevtrekhNer")
     .equals(req.body.nevtrekhNer)
     .catch((err) => {
-      console.error("❌ Error finding employee:", err);
       next(err);
     });
 
-  console.log(
-    "🔍 Found employee:",
-    ajiltan
-      ? { id: ajiltan._id, ner: ajiltan.ner, nevtrekhNer: ajiltan.nevtrekhNer }
-      : "NOT FOUND"
-  );
-
   if (!ajiltan) {
-    console.log("❌ Employee not found, throwing error");
     throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
 
-  console.log("🔍 Verifying password...");
   var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
-  console.log("🔍 Password verification result:", ok ? "SUCCESS" : "FAILED");
 
   if (!ok) {
-    console.log("❌ Password verification failed, throwing error");
     throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
-
-  console.log("🔍 Finding organization with ID:", ajiltan.baiguullagiinId);
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
     ajiltan.baiguullagiinId
   );
 
-  console.log(
-    "🔍 Found organization:",
-    baiguullaga
-      ? {
-          id: baiguullaga._id,
-          ner: baiguullaga.ner,
-          register: baiguullaga.register,
-        }
-      : "NOT FOUND"
-  );
   var butsaakhObject = {
     result: ajiltan,
     success: true,
@@ -125,19 +93,12 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
       type: "logout",
     });
   }
-  console.log("🔍 Calling duusakhOgnooAvya with:", {
-    register: baiguullaga.register,
-    system: "sukh",
-  });
 
   duusakhOgnooAvya(
     { register: baiguullaga.register, system: "sukh" },
     async (khariu) => {
       try {
-        console.log("🔍 duusakhOgnooAvya response:", khariu);
-
         if (khariu.success) {
-          console.log("✅ duusakhOgnooAvya successful, processing branches...");
           if (!!khariu.salbaruud) {
             var butsaakhSalbaruud = [];
             butsaakhSalbaruud.push({
@@ -159,12 +120,10 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
             }
             butsaakhObject.salbaruud = butsaakhSalbaruud;
           }
-          console.log("🔍 Generating JWT token...");
           const jwt = await ajiltan.tokenUusgeye(
             khariu.duusakhOgnoo,
             butsaakhObject.salbaruud
           );
-          console.log("🔍 JWT token generated:", jwt ? "SUCCESS" : "FAILED");
 
           butsaakhObject.duusakhOgnoo = khariu.duusakhOgnoo;
           if (!!butsaakhObject.result) {
@@ -199,20 +158,13 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           tuukh.useragent = ua;
           tuukh.baiguullagiinId = ajiltan.baiguullagiinId;
           tuukh.baiguullagiinRegister = baiguullaga.register;
-          console.log("🔍 Saving login history...");
           await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
-          console.log("✅ Login history saved successfully");
 
-          console.log(
-            "✅ ajiltanNevtrey completed successfully, sending response"
-          );
           res.status(200).json(butsaakhObject);
         } else {
-          console.log("❌ duusakhOgnooAvya failed:", khariu.msg);
           throw new Error(khariu.msg);
         }
       } catch (err) {
-        console.error("❌ ajiltanNevtrey callback error:", err);
         next(err);
       }
     },

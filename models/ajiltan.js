@@ -137,47 +137,47 @@ ajiltanSchema.pre("updateOne", async function () {
 });
 
 ajiltanSchema.methods.passwordShalgaya = async function (pass) {
-  console.log("🔍 passwordShalgaya called");
-  console.log("🔍 Input password type:", typeof pass, "length:", pass?.length);
-  console.log("🔍 Stored password type:", typeof this.nuutsUg, "length:", this.nuutsUg?.length);
-  console.log("🔍 Stored password preview:", this.nuutsUg ? (this.nuutsUg.substring(0, 20) + "...") : "null/undefined");
+  console.log("Энэ рүү орлоо");
   
   if (!this.nuutsUg) {
-    console.log("❌ Stored password is null/undefined");
     return false;
   }
   
   if (!pass) {
-    console.log("❌ Input password is null/undefined");
     return false;
   }
   
+  // Convert to string and trim to handle any whitespace issues
+  const inputPassword = String(pass).trim();
+  const storedPassword = String(this.nuutsUg).trim();
+  
   // Check if the stored password is a bcrypt hash (starts with $2a$, $2b$, or $2y$)
-  const isHashed = /^\$2[aby]\$\d+\$/.test(this.nuutsUg);
-  console.log("🔍 Is password hashed?", isHashed);
+  const isHashed = /^\$2[aby]\$\d+\$/.test(storedPassword);
   
   if (isHashed) {
     // Password is hashed, use bcrypt.compare
-    console.log("🔍 Using bcrypt.compare for hashed password");
-    const result = await bcrypt.compare(pass, this.nuutsUg);
-    console.log("🔍 bcrypt.compare result:", result);
-    return result;
+    try {
+      const result = await bcrypt.compare(inputPassword, storedPassword);
+      return result;
+    } catch (error) {
+      return false;
+    }
   } else {
     // Password is plain text (for backward compatibility), compare directly
-    console.log("🔍 Comparing plain text passwords");
-    console.log("🔍 Input:", JSON.stringify(pass));
-    console.log("🔍 Stored:", JSON.stringify(this.nuutsUg));
-    const match = pass === this.nuutsUg;
-    console.log("🔍 Plain text comparison result:", match);
+    const match = inputPassword === storedPassword;
     
     if (match) {
       // Hash the password and save it for future logins
-      console.log("🔍 Password matches, hashing and saving...");
-      const salt = await bcrypt.genSalt(12);
-      this.nuutsUg = await bcrypt.hash(pass, salt);
-      await this.save();
-      console.log("✅ Password hashed and saved successfully");
-      return true;
+      try {
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(inputPassword, salt);
+        this.nuutsUg = hashedPassword;
+        await this.save({ validateBeforeSave: false });
+        return true;
+      } catch (error) {
+        // Still return true since the password matched
+        return true;
+      }
     }
     return false;
   }
