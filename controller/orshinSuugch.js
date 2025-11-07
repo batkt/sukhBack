@@ -283,13 +283,31 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    // Check for existing user by utas only (mail is not required)
+    // Check for existing user by utas
+    // If user exists and has a cancelled geree, we'll reactivate it
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       utas: req.body.utas,
     });
 
+    let existingCancelledGeree = null;
     if (existingUser) {
-      throw new aldaa("Утасны дугаар давхардаж байна!");
+      // Check if there's a cancelled geree for this user
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+      );
+      
+      if (tukhainBaaziinKholbolt) {
+        const GereeModel = Geree(tukhainBaaziinKholbolt);
+        existingCancelledGeree = await GereeModel.findOne({
+          orshinSuugchId: String(existingUser._id),
+          turul: "Цуцалсан",
+        });
+      }
+      
+      // If no cancelled geree exists, throw error (user already exists)
+      if (!existingCancelledGeree) {
+        throw new aldaa("Утасны дугаар давхардаж байна!");
+      }
     }
 
     const barilgiinId =
@@ -375,24 +393,72 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       }
     }
 
-    const userData = {
-      ...req.body,
-      baiguullagiinId: baiguullaga._id,
-      baiguullagiinNer: baiguullaga.ner,
-      barilgiinId: barilgiinId,
-      mail: req.body.mail,
-      erkh: "OrshinSuugch",
-      duureg: req.body.duureg,
-      horoo: req.body.horoo,
-      soh: req.body.soh,
-      nevtrekhNer: req.body.utas,
-      toot: req.body.toot || "",
-      davkhar: determinedDavkhar, // Automatically determined from toot
-      orts: req.body.orts || "", // Automatically determined from toot if found
-    };
+    let orshinSuugch;
+    let isReactivating = false;
 
-    const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
-    await orshinSuugch.save();
+    if (existingUser && existingCancelledGeree) {
+      // Reactivate existing user and geree
+      isReactivating = true;
+      
+      // Update existing user with new data
+      const userData = {
+        ...req.body,
+        baiguullagiinId: baiguullaga._id,
+        baiguullagiinNer: baiguullaga.ner,
+        barilgiinId: barilgiinId,
+        mail: req.body.mail,
+        erkh: "OrshinSuugch",
+        duureg: req.body.duureg,
+        horoo: req.body.horoo,
+        soh: req.body.soh,
+        nevtrekhNer: req.body.utas,
+        toot: req.body.toot || "",
+        davkhar: determinedDavkhar,
+        orts: req.body.orts || "",
+      };
+      
+      // Update existing user
+      await OrshinSuugch(db.erunkhiiKholbolt).findByIdAndUpdate(
+        existingUser._id,
+        userData
+      );
+      orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(existingUser._id);
+      
+      // Reactivate the cancelled geree
+      const tukhainBaaziinKholboltForReactivate = db.kholboltuud.find(
+        (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+      );
+      
+      if (tukhainBaaziinKholboltForReactivate) {
+        const GereeModel = Geree(tukhainBaaziinKholboltForReactivate);
+        await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
+          $set: { 
+            turul: "Үндсэн", // Reactivate from "Цуцалсан" to "Үндсэн"
+            gereeniiOgnoo: new Date(), // Update contract date
+          }
+        });
+      }
+    } else {
+      // Create new user
+      const userData = {
+        ...req.body,
+        baiguullagiinId: baiguullaga._id,
+        baiguullagiinNer: baiguullaga.ner,
+        barilgiinId: barilgiinId,
+        mail: req.body.mail,
+        erkh: "OrshinSuugch",
+        duureg: req.body.duureg,
+        horoo: req.body.horoo,
+        soh: req.body.soh,
+        nevtrekhNer: req.body.utas,
+        toot: req.body.toot || "",
+        davkhar: determinedDavkhar, // Automatically determined from toot
+        orts: req.body.orts || "", // Automatically determined from toot if found
+      };
+
+      orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+      await orshinSuugch.save();
+    }
 
     try {
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
@@ -474,10 +540,12 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
     const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
 
-      const contractData = {
-        gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
-        gereeniiOgnoo: new Date(),
-        turul: "Үндсэн",
+      // Only create new geree if not reactivating
+      if (!isReactivating) {
+        const contractData = {
+          gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+          gereeniiOgnoo: new Date(),
+          turul: "Үндсэн",
         ovog: req.body.ovog || "",
         ner: req.body.ner,
         register: req.body.register || "",
@@ -506,45 +574,68 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         khungulultuud: [],
       };
 
-      const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
-      await geree.save();
+        const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+        await geree.save();
 
-      // Update davkhar with toot if provided from frontend
-      // Frontend should send: { toot: "102", davkhar: "1", barilgiinId: "..." }
-      if (orshinSuugch.toot && orshinSuugch.davkhar) {
-        console.log(
-          `Updating davkhar with toot: Floor ${orshinSuugch.davkhar}, Toot ${orshinSuugch.toot}, Building ${barilgiinId}`
-        );
-        await exports.updateDavkharWithToot(
-          baiguullaga,
-          barilgiinId,
-          orshinSuugch.davkhar,
-          orshinSuugch.toot,
-          tukhainBaaziinKholbolt
-        );
-      } else {
-        console.log(
-          `Skipping davkhar update - toot: ${orshinSuugch.toot}, davkhar: ${orshinSuugch.davkhar}`
-        );
-      }
-
-      try {
-        const {
-          gereeNeesNekhemjlekhUusgekh,
-        } = require("./nekhemjlekhController");
-
-        const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
-          geree,
-          baiguullaga,
-          tukhainBaaziinKholbolt,
-          "automataar"
-        );
-
-        if (!invoiceResult.success) {
-          console.error("Invoice creation failed:", invoiceResult.error);
+        // Update davkhar with toot if provided from frontend
+        // Frontend should send: { toot: "102", davkhar: "1", barilgiinId: "..." }
+        if (orshinSuugch.toot && orshinSuugch.davkhar) {
+          console.log(
+            `Updating davkhar with toot: Floor ${orshinSuugch.davkhar}, Toot ${orshinSuugch.toot}, Building ${barilgiinId}`
+          );
+          await exports.updateDavkharWithToot(
+            baiguullaga,
+            barilgiinId,
+            orshinSuugch.davkhar,
+            orshinSuugch.toot,
+            tukhainBaaziinKholbolt
+          );
+        } else {
+          console.log(
+            `Skipping davkhar update - toot: ${orshinSuugch.toot}, davkhar: ${orshinSuugch.davkhar}`
+          );
         }
-      } catch (invoiceError) {
-        console.error("Error creating invoice:", invoiceError.message);
+
+        try {
+          const {
+            gereeNeesNekhemjlekhUusgekh,
+          } = require("./nekhemjlekhController");
+
+          const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+            geree,
+            baiguullaga,
+            tukhainBaaziinKholbolt,
+            "automataar"
+          );
+
+          if (!invoiceResult.success) {
+            console.error("Invoice creation failed:", invoiceResult.error);
+          }
+        } catch (invoiceError) {
+          console.error("Error creating invoice:", invoiceError.message);
+        }
+      } else if (isReactivating) {
+        // If reactivating, get the reactivated geree for invoice creation
+        const reactivatedGeree = await Geree(tukhainBaaziinKholbolt).findById(existingCancelledGeree._id);
+        
+        try {
+          const {
+            gereeNeesNekhemjlekhUusgekh,
+          } = require("./nekhemjlekhController");
+
+          const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+            reactivatedGeree,
+            baiguullaga,
+            tukhainBaaziinKholbolt,
+            "automataar"
+          );
+
+          if (!invoiceResult.success) {
+            console.error("Invoice creation failed:", invoiceResult.error);
+          }
+        } catch (invoiceError) {
+          console.error("Error creating invoice:", invoiceError.message);
+        }
       }
     } catch (contractError) {
       console.error("Error creating contract:", contractError.message);
@@ -552,8 +643,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     const response = {
       success: true,
-      message: "Амжилттай бүртгэгдлээ",
+      message: isReactivating 
+        ? "Хэрэглэгч болон гэрээ амжилттай дахин идэвхжүүллээ" 
+        : "Амжилттай бүртгэгдлээ",
       result: orshinSuugch,
+      isReactivated: isReactivating,
       hierarchy: {
         duureg: req.body.duureg,
         horoo: req.body.horoo,
@@ -1320,52 +1414,34 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
       throw new aldaa("Нууц код буруу байна!");
     }
 
-    // Delete all gerees (invoices/contracts) where orshinSuugchId matches
+    // Mark all gerees as "Цуцалсан" (Cancelled) instead of deleting
+    // Don't delete nekhemjlekhiinTuukh, ebarimt, or any other related data
     const GereeModel = Geree(db.erunkhiiKholbolt);
-    const gereesToDelete = await GereeModel.find({
+    const gereesToCancel = await GereeModel.find({
       orshinSuugchId: userIdString,
-    }).select("_id");
+    });
 
-    const gereesIds = gereesToDelete.map((g) => g._id);
-    const gereesIdsAsStrings = gereesIds.map((id) => String(id));
-
-    // Delete all related nekhemjlekhiinTuukh first (before deleting gerees)
-    const NekhemjlekhiinTuukhModel = NekhemjlekhiinTuukh(db.erunkhiiKholbolt);
-    if (gereesIdsAsStrings.length > 0) {
-      // Delete nekhemjlekhiinTuukh related to these gerees
-      await NekhemjlekhiinTuukhModel.deleteMany({
-        gereeniiId: { $in: gereesIdsAsStrings },
-      });
-      
-      // Delete the gerees
-      await GereeModel.deleteMany({
-        _id: { $in: gereesIds },
-      });
+    if (gereesToCancel.length > 0) {
+      // Mark all gerees as "Цуцалсан" (Cancelled)
+      await GereeModel.updateMany(
+        { orshinSuugchId: userIdString },
+        { $set: { turul: "Цуцалсан" } }
+      );
     }
 
-    // Delete nevtreltiinTuukh (login history) where orshinSuugchId matches
-    // Note: Check if nevtreltiinTuukh has orshinSuugchId field
-    // If not, we'll skip this step
-    try {
-      const NevtreltiinTuukhModel = NevtreltiinTuukh(db.erunkhiiKholbolt);
-      // Try to delete if the field exists (won't error if field doesn't exist)
-      await NevtreltiinTuukhModel.deleteMany({
-        orshinSuugchId: userIdString,
-      });
-    } catch (err) {
-      // Field might not exist, continue
-      console.log("Note: orshinSuugchId field may not exist in nevtreltiinTuukh");
-    }
-
-    // Finally, delete the orshinSuugch user itself
-    await OrshinSuugchModel.findByIdAndDelete(userId);
+    // Don't delete nekhemjlekhiinTuukh - keep all invoice history
+    // Don't delete nevtreltiinTuukh - keep login history
+    // Don't delete ebarimt - keep all receipts
+    
+    // Don't delete the orshinSuugch user - keep it so they can register again
+    // The geree is marked as "Цуцалсан" and can be reactivated when they register again
 
     res.status(200).json({
       success: true,
-      message: "Хэрэглэгч болон түүний бүх мэдээлэл амжилттай устгагдлаа",
+      message: "Хэрэглэгчийн гэрээ цуцлагдлаа. Бүх мэдээлэл хадгалагдсан байна.",
       data: {
-        deletedUserId: userId,
-        deletedGerees: gereesIds.length,
+        userId: userId,
+        cancelledGerees: gereesToCancel.length,
       },
     });
   } catch (error) {
