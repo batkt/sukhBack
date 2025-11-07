@@ -45,13 +45,9 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(async (req, res, next) =
 
     const { baiguullagiinId, barilgiinId, filters } = req.body;
     
-    // Require baiguullagiinId to prevent fetching all data
-    if (!baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
-    }
-    
     // Build query
-    const query = { baiguullagiinId };
+    const query = {};
+    if (baiguullagiinId) query.baiguullagiinId = baiguullagiinId;
     if (barilgiinId) query.barilgiinId = barilgiinId;
     
     // Apply additional filters if provided
@@ -115,13 +111,9 @@ exports.downloadEbarimtExcel = asyncHandler(async (req, res, next) => {
 
     const { baiguullagiinId, barilgiinId, filters } = req.body;
     
-    // Require baiguullagiinId to prevent fetching all data
-    if (!baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
-    }
-    
     // Build query
-    const query = { baiguullagiinId };
+    const query = {};
+    if (baiguullagiinId) query.baiguullagiinId = baiguullagiinId;
     if (barilgiinId) query.barilgiinId = barilgiinId;
     
     // Apply additional filters if provided
@@ -168,13 +160,9 @@ exports.downloadBankniiGuilgeeExcel = asyncHandler(async (req, res, next) => {
 
     const { baiguullagiinId, barilgiinId, filters, historical = false } = req.body;
     
-    // Require baiguullagiinId to prevent fetching all data
-    if (!baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
-    }
-    
     // Build query
-    const query = { baiguullagiinId };
+    const query = {};
+    if (baiguullagiinId) query.baiguullagiinId = baiguullagiinId;
     if (barilgiinId) query.barilgiinId = barilgiinId;
     
     // Apply additional filters if provided
@@ -278,11 +266,6 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
     }
 
     const { baiguullagiinId, barilgiinId, gereeniiId, filters } = req.body;
-    
-    // Require baiguullagiinId to prevent fetching all data (unless gereeniiId is provided)
-    if (!baiguullagiinId && !gereeniiId) {
-      throw new aldaa("Байгууллагын ID эсвэл Гэрээний ID заавал бөглөх шаардлагатай!");
-    }
     
     // Build query for geree
     const gereeQuery = {};
@@ -432,25 +415,16 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
 
 exports.downloadExcelList = asyncHandler(async (req, res, next) => {
   try {
-    const { data, headers, fields, fileName, sheetName, colWidths } = req.body;
+    const { data, headers, fileName, sheetName, colWidths } = req.body;
 
     if (!data || !Array.isArray(data)) {
       throw new aldaa("Мэдээлэл оруулах шаардлагатай!");
     }
 
-    if (data.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "Татаж авах мэдээлэл олдсонгүй!",
-      });
-    }
-
     let headerLabels = [];
     let headerKeys = [];
 
-    // Priority: headers > fields > require specification
     if (headers && Array.isArray(headers) && headers.length > 0) {
-      // Use headers if provided (supports both string and object format)
       headers.forEach((h) => {
         if (typeof h === 'string') {
           headerKeys.push(h);
@@ -460,13 +434,18 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
           headerLabels.push(h.label || h.key || h.field || '');
         }
       });
-    } else if (fields && Array.isArray(fields) && fields.length > 0) {
-      // Use fields array if provided (simple field names)
-      headerKeys = fields;
-      headerLabels = fields;
     } else {
-      // Require headers or fields to be specified - don't extract all keys automatically
-      throw new aldaa("Та 'headers' эсвэл 'fields' заавал зааж өгөх шаардлагатай! (headers: [{key: 'field', label: 'Label'}] эсвэл fields: ['field1', 'field2'])");
+      const allKeysSet = new Set();
+      
+      data.forEach((item) => {
+        if (item && typeof item === 'object') {
+          const keys = extractAllKeys(item);
+          keys.forEach(key => allKeysSet.add(key));
+        }
+      });
+
+      headerKeys = Array.from(allKeysSet).sort();
+      headerLabels = headerKeys;
     }
 
     // Helper function to format row data
@@ -590,9 +569,9 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       "Нэр",
       "Утас",
       "Имэйл",
-      "Орц",
       "Давхар",
       "Тоот",
+      "Орц",
     ];
 
     const wb = XLSX.utils.book_new();
@@ -709,9 +688,9 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           ner: row["Нэр"]?.toString().trim() || "",
           utas: row["Утас"]?.toString().trim() || "",
           mail: row["Имэйл"]?.toString().trim() || "",
-          orts: row["Орц"]?.toString().trim() || "",
           davkhar: row["Давхар"]?.toString().trim() || "",
           toot: row["Тоот"]?.toString().trim() || "",
+          orts: row["Орц"]?.toString().trim() || "",
         };
 
         const validationErrors = [];
