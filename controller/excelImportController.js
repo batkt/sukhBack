@@ -45,9 +45,13 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(async (req, res, next) =
 
     const { baiguullagiinId, barilgiinId, filters } = req.body;
     
+    // Require baiguullagiinId to prevent fetching all data
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+    }
+    
     // Build query
-    const query = {};
-    if (baiguullagiinId) query.baiguullagiinId = baiguullagiinId;
+    const query = { baiguullagiinId };
     if (barilgiinId) query.barilgiinId = barilgiinId;
     
     // Apply additional filters if provided
@@ -111,9 +115,13 @@ exports.downloadEbarimtExcel = asyncHandler(async (req, res, next) => {
 
     const { baiguullagiinId, barilgiinId, filters } = req.body;
     
+    // Require baiguullagiinId to prevent fetching all data
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+    }
+    
     // Build query
-    const query = {};
-    if (baiguullagiinId) query.baiguullagiinId = baiguullagiinId;
+    const query = { baiguullagiinId };
     if (barilgiinId) query.barilgiinId = barilgiinId;
     
     // Apply additional filters if provided
@@ -160,9 +168,13 @@ exports.downloadBankniiGuilgeeExcel = asyncHandler(async (req, res, next) => {
 
     const { baiguullagiinId, barilgiinId, filters, historical = false } = req.body;
     
+    // Require baiguullagiinId to prevent fetching all data
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+    }
+    
     // Build query
-    const query = {};
-    if (baiguullagiinId) query.baiguullagiinId = baiguullagiinId;
+    const query = { baiguullagiinId };
     if (barilgiinId) query.barilgiinId = barilgiinId;
     
     // Apply additional filters if provided
@@ -266,6 +278,11 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
     }
 
     const { baiguullagiinId, barilgiinId, gereeniiId, filters } = req.body;
+    
+    // Require baiguullagiinId to prevent fetching all data (unless gereeniiId is provided)
+    if (!baiguullagiinId && !gereeniiId) {
+      throw new aldaa("Байгууллагын ID эсвэл Гэрээний ID заавал бөглөх шаардлагатай!");
+    }
     
     // Build query for geree
     const gereeQuery = {};
@@ -419,6 +436,13 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
 
     if (!data || !Array.isArray(data)) {
       throw new aldaa("Мэдээлэл оруулах шаардлагатай!");
+    }
+
+    if (data.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Татаж авах мэдээлэл олдсонгүй!",
+      });
     }
 
     let headerLabels = [];
