@@ -613,6 +613,7 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
 
 exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
   try {
+    // Building detection is automatic based on davkhar + orts + toot combination
     const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Давхар", "Тоот", "Орц"];
 
     const wb = XLSX.utils.book_new();
@@ -766,31 +767,62 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           throw new Error(validationErrors.join(" "));
         }
 
-        // Determine the correct building for this user based on toot/davkhar/orts
-        // Similar to how orshinSuugchBurtgey does it
+        // Determine the correct building for this user
+        // Priority: 1) Excel "Барилга" column, 2) Match davkhar+orts+toot combination, 3) Default
         let finalBarilgiinId = barilgiinId || defaultBarilgiinId;
 
-        // If toot is provided, try to find which building contains this toot
-        if (
+        // Check if Excel has "Барилга" or "Барилгын ID" column
+        const excelBarilgaName =
+          row["Барилга"]?.toString().trim() ||
+          row["Барилгын нэр"]?.toString().trim() ||
+          "";
+        const excelBarilgiinId = row["Барилгын ID"]?.toString().trim() || "";
+
+        if (excelBarilgiinId) {
+          // If barilgiinId is provided in Excel, use it
+          const matchingBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === String(excelBarilgiinId)
+          );
+          if (matchingBarilga) {
+            finalBarilgiinId = String(matchingBarilga._id);
+            console.log(
+              `✅ Using building from Excel column: ${matchingBarilga.ner} (${finalBarilgiinId})`
+            );
+          }
+        } else if (excelBarilgaName) {
+          // If building name is provided in Excel, find by name
+          const matchingBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b.ner).trim() === excelBarilgaName
+          );
+          if (matchingBarilga) {
+            finalBarilgiinId = String(matchingBarilga._id);
+            console.log(
+              `✅ Found building by name from Excel: ${matchingBarilga.ner} (${finalBarilgiinId})`
+            );
+          }
+        } else if (
           userData.toot &&
+          userData.davkhar &&
           baiguullaga.barilguud &&
           baiguullaga.barilguud.length > 1
         ) {
+          // Match based on davkhar + orts + toot combination
+          // This ensures we find the exact building even if multiple buildings have the same toot
           const tootToFind = userData.toot.trim();
+          const davkharToFind = userData.davkhar.trim();
+          const ortsToFind = (userData.orts || "1").trim(); // Default to "1" if not provided
+          const floorKey = `${davkharToFind}::${ortsToFind}`;
+
           let foundBuilding = null;
 
-          // Search through all buildings to find which one contains this toot
+          // Search through all buildings to find which one contains this exact combination
           for (const barilga of baiguullaga.barilguud) {
             const davkhariinToonuud =
               barilga.tokhirgoo?.davkhariinToonuud || {};
 
-            // Search through all floors to find which floor contains this toot
-            for (const [floorKey, tootArray] of Object.entries(
-              davkhariinToonuud
-            )) {
-              if (!floorKey.includes("::")) {
-                continue;
-              }
+            // Check if this building has the exact floorKey (davkhar::orts)
+            if (davkhariinToonuud[floorKey]) {
+              const tootArray = davkhariinToonuud[floorKey];
 
               if (
                 tootArray &&
@@ -814,26 +846,23 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                     .filter((t) => t);
                 }
 
+                // If toot is found in this exact floorKey, we found the building
                 if (tootList.includes(tootToFind)) {
                   foundBuilding = barilga;
                   break;
                 }
               }
             }
-
-            if (foundBuilding) {
-              break;
-            }
           }
 
           if (foundBuilding) {
             finalBarilgiinId = String(foundBuilding._id);
             console.log(
-              `✅ Found building ${foundBuilding.ner} (${finalBarilgiinId}) for toot ${tootToFind}`
+              `✅ Found building ${foundBuilding.ner} (${finalBarilgiinId}) for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}`
             );
           } else {
             console.log(
-              `⚠️  Could not find building for toot ${tootToFind}, using default: ${finalBarilgiinId}`
+              `⚠️  Could not find building for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}, using default: ${finalBarilgiinId}`
             );
           }
         }

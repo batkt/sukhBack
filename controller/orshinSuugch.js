@@ -334,11 +334,121 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       });
     }
 
-    const barilgiinId =
-      req.body.barilgiinId ||
-      (baiguullaga.barilguud && baiguullaga.barilguud.length > 0
-        ? String(baiguullaga.barilguud[0]._id)
-        : null);
+    // First, try to determine barilgiinId from toot (and davkhar+orts if available)
+    // This ensures users get assigned to the correct building
+    let barilgiinId = req.body.barilgiinId || null;
+
+    if (
+      !barilgiinId &&
+      req.body.toot &&
+      baiguullaga.barilguud &&
+      baiguullaga.barilguud.length > 1
+    ) {
+      const tootToFind = req.body.toot.trim();
+      const davkharToFind = req.body.davkhar ? req.body.davkhar.trim() : null;
+      const ortsToFind = req.body.orts ? req.body.orts.trim() : "1";
+      const floorKey = davkharToFind ? `${davkharToFind}::${ortsToFind}` : null;
+
+      let foundBuilding = null;
+      let foundBuildings = []; // Track all matches if davkhar not provided
+
+      // Search through all buildings to find which one contains this toot
+      for (const barilga of baiguullaga.barilguud) {
+        const davkhariinToonuud = barilga.tokhirgoo?.davkhariinToonuud || {};
+
+        if (floorKey && davkhariinToonuud[floorKey]) {
+          // If davkhar is provided, match on exact floorKey
+          const tootArray = davkhariinToonuud[floorKey];
+
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let tootList = [];
+
+            if (
+              typeof tootArray[0] === "string" &&
+              tootArray[0].includes(",")
+            ) {
+              tootList = tootArray[0]
+                .split(",")
+                .map((t) => t.trim())
+                .filter((t) => t);
+            } else {
+              tootList = tootArray
+                .map((t) => String(t).trim())
+                .filter((t) => t);
+            }
+
+            if (tootList.includes(tootToFind)) {
+              foundBuilding = barilga;
+              break;
+            }
+          }
+        } else if (!floorKey) {
+          // If davkhar is NOT provided, search all floors for this toot
+          for (const [key, tootArray] of Object.entries(davkhariinToonuud)) {
+            if (!key.includes("::")) {
+              continue;
+            }
+
+            if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+              let tootList = [];
+
+              if (
+                typeof tootArray[0] === "string" &&
+                tootArray[0].includes(",")
+              ) {
+                tootList = tootArray[0]
+                  .split(",")
+                  .map((t) => t.trim())
+                  .filter((t) => t);
+              } else {
+                tootList = tootArray
+                  .map((t) => String(t).trim())
+                  .filter((t) => t);
+              }
+
+              if (tootList.includes(tootToFind)) {
+                foundBuildings.push(barilga);
+                break; // Found in this building, move to next building
+              }
+            }
+          }
+        }
+      }
+
+      // If davkhar was provided and we found a match, use it
+      if (foundBuilding) {
+        barilgiinId = String(foundBuilding._id);
+        console.log(
+          `✅ Found building ${foundBuilding.ner} (${barilgiinId}) for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}`
+        );
+      } else if (foundBuildings.length === 1) {
+        // If davkhar not provided but only one building has this toot, use it
+        barilgiinId = String(foundBuildings[0]._id);
+        console.log(
+          `✅ Found unique building ${foundBuildings[0].ner} (${barilgiinId}) for toot ${tootToFind}`
+        );
+      } else if (foundBuildings.length > 1) {
+        // Multiple buildings have this toot - use first one (original behavior)
+        barilgiinId = String(foundBuildings[0]._id);
+        console.log(
+          `⚠️  Multiple buildings found for toot ${tootToFind}, using first: ${foundBuildings[0].ner} (${barilgiinId})`
+        );
+      } else if (davkharToFind) {
+        console.log(
+          `⚠️  Could not find building for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}`
+        );
+      }
+    }
+
+    // If still no barilgiinId, use first building as fallback
+    if (
+      !barilgiinId &&
+      baiguullaga.barilguud &&
+      baiguullaga.barilguud.length > 0
+    ) {
+      barilgiinId = String(baiguullaga.barilguud[0]._id);
+      console.log(`⚠️  Using first building as fallback: ${barilgiinId}`);
+    }
 
     // Automatically determine davkhar from toot if toot is provided
     let determinedDavkhar = req.body.davkhar || "";
