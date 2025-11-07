@@ -825,25 +825,25 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
 
-    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      orshinSuugch.baiguullagiinId
-    );
-
-    const firstBarilgiinId =
-      baiguullaga?.barilguud && baiguullaga.barilguud.length > 0
-        ? String(baiguullaga.barilguud[0]._id)
-        : null;
-    if (
-      baiguullaga &&
-      firstBarilgiinId &&
-      firstBarilgiinId !== orshinSuugch.barilgiinId
-    ) {
-      console.log(
-        "Updating user barilgiinId from baiguullaga first building:",
-        firstBarilgiinId
+    // Only update barilgiinId if user doesn't have one
+    // Don't force users to use the first building - they should keep their assigned building
+    if (!orshinSuugch.barilgiinId) {
+      var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        orshinSuugch.baiguullagiinId
       );
-      orshinSuugch.barilgiinId = firstBarilgiinId;
-      await orshinSuugch.save();
+
+      const firstBarilgiinId =
+        baiguullaga?.barilguud && baiguullaga.barilguud.length > 0
+          ? String(baiguullaga.barilguud[0]._id)
+          : null;
+      if (baiguullaga && firstBarilgiinId) {
+        console.log(
+          "Setting user barilgiinId to first building (user had no barilgiinId):",
+          firstBarilgiinId
+        );
+        orshinSuugch.barilgiinId = firstBarilgiinId;
+        await orshinSuugch.save();
+      }
     }
 
     var butsaakhObject = {

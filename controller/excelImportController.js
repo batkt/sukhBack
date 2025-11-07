@@ -766,7 +766,77 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           throw new Error(validationErrors.join(" "));
         }
 
-        const finalBarilgiinId = barilgiinId || defaultBarilgiinId;
+        // Determine the correct building for this user based on toot/davkhar/orts
+        // Similar to how orshinSuugchBurtgey does it
+        let finalBarilgiinId = barilgiinId || defaultBarilgiinId;
+
+        // If toot is provided, try to find which building contains this toot
+        if (
+          userData.toot &&
+          baiguullaga.barilguud &&
+          baiguullaga.barilguud.length > 1
+        ) {
+          const tootToFind = userData.toot.trim();
+          let foundBuilding = null;
+
+          // Search through all buildings to find which one contains this toot
+          for (const barilga of baiguullaga.barilguud) {
+            const davkhariinToonuud =
+              barilga.tokhirgoo?.davkhariinToonuud || {};
+
+            // Search through all floors to find which floor contains this toot
+            for (const [floorKey, tootArray] of Object.entries(
+              davkhariinToonuud
+            )) {
+              if (!floorKey.includes("::")) {
+                continue;
+              }
+
+              if (
+                tootArray &&
+                Array.isArray(tootArray) &&
+                tootArray.length > 0
+              ) {
+                let tootList = [];
+
+                // Handle both formats: comma-separated string or array of strings
+                if (
+                  typeof tootArray[0] === "string" &&
+                  tootArray[0].includes(",")
+                ) {
+                  tootList = tootArray[0]
+                    .split(",")
+                    .map((t) => t.trim())
+                    .filter((t) => t);
+                } else {
+                  tootList = tootArray
+                    .map((t) => String(t).trim())
+                    .filter((t) => t);
+                }
+
+                if (tootList.includes(tootToFind)) {
+                  foundBuilding = barilga;
+                  break;
+                }
+              }
+            }
+
+            if (foundBuilding) {
+              break;
+            }
+          }
+
+          if (foundBuilding) {
+            finalBarilgiinId = String(foundBuilding._id);
+            console.log(
+              `✅ Found building ${foundBuilding.ner} (${finalBarilgiinId}) for toot ${tootToFind}`
+            );
+          } else {
+            console.log(
+              `⚠️  Could not find building for toot ${tootToFind}, using default: ${finalBarilgiinId}`
+            );
+          }
+        }
 
         const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
           utas: userData.utas,
