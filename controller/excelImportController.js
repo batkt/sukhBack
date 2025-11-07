@@ -448,7 +448,8 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
       headerLabels = headerKeys;
     }
 
-    let rows = data.map((item) => {
+    // Helper function to format row data
+    const formatRow = (item) => {
       return headerKeys.map((key) => {
         let value;
         if (key.includes('.')) {
@@ -479,18 +480,66 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
         }
         return String(value);
       });
-    });
+    };
 
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([headerLabels, ...rows]);
 
-    if (colWidths && Array.isArray(colWidths)) {
-      ws["!cols"] = colWidths.map((w) => ({ wch: typeof w === 'number' ? w : 15 }));
+    // Check if data has barilgiinId field and separate by it
+    const hasBarilgiinId = data.some(item => item && (item.barilgiinId !== undefined && item.barilgiinId !== null && item.barilgiinId !== ''));
+
+    if (hasBarilgiinId) {
+      // Group data by barilgiinId
+      const groupedData = {};
+      data.forEach((item) => {
+        const barilgiinId = item?.barilgiinId || 'Бусад';
+        if (!groupedData[barilgiinId]) {
+          groupedData[barilgiinId] = [];
+        }
+        groupedData[barilgiinId].push(item);
+      });
+
+      // Create a sheet for each barilgiinId
+      const barilgiinIds = Object.keys(groupedData).sort();
+      barilgiinIds.forEach((barilgiinId, index) => {
+        const groupData = groupedData[barilgiinId];
+        const rows = groupData.map(formatRow);
+        
+        const ws = XLSX.utils.aoa_to_sheet([headerLabels, ...rows]);
+
+        if (colWidths && Array.isArray(colWidths)) {
+          ws["!cols"] = colWidths.map((w) => ({ wch: typeof w === 'number' ? w : 15 }));
+        } else {
+          ws["!cols"] = headerLabels.map(() => ({ wch: 15 }));
+        }
+
+        // Create sheet name from barilgiinId (Excel sheet names have limitations)
+        let sheetNameForBarilga = barilgiinId;
+        if (sheetNameForBarilga.length > 31) {
+          sheetNameForBarilga = sheetNameForBarilga.substring(0, 28) + '...';
+        }
+        // Replace invalid characters for Excel sheet names
+        sheetNameForBarilga = sheetNameForBarilga.replace(/[\\\/\?\*\[\]:]/g, '_');
+        
+        // If we have a base sheetName, use it with barilgiinId
+        const finalSheetName = sheetName 
+          ? `${sheetName}_${index + 1}` 
+          : (barilgiinIds.length > 1 ? sheetNameForBarilga : (sheetName || "Sheet1"));
+
+        XLSX.utils.book_append_sheet(wb, ws, finalSheetName);
+      });
     } else {
-      ws["!cols"] = headerLabels.map(() => ({ wch: 15 }));
-    }
+      // No barilgiinId, create single sheet as before
+      const rows = data.map(formatRow);
+      const ws = XLSX.utils.aoa_to_sheet([headerLabels, ...rows]);
 
-    XLSX.utils.book_append_sheet(wb, ws, sheetName || "Sheet1");
+      if (colWidths && Array.isArray(colWidths)) {
+        ws["!cols"] = colWidths.map((w) => ({ wch: typeof w === 'number' ? w : 15 }));
+      } else {
+        ws["!cols"] = headerLabels.map(() => ({ wch: 15 }));
+      }
+
+      XLSX.utils.book_append_sheet(wb, ws, sheetName || "Sheet1");
+    }
 
     const excelBuffer = XLSX.write(wb, {
       type: "buffer",
