@@ -811,7 +811,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           const tootToFind = userData.toot.trim();
           const davkharToFind = userData.davkhar.trim();
           const ortsToFind = (userData.orts || "1").trim(); // Default to "1" if not provided
-          const floorKey = `${davkharToFind}::${ortsToFind}`;
+          const floorKey = `${ortsToFind}::${davkharToFind}`;
 
           let foundBuilding = null;
 
@@ -820,7 +820,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             const davkhariinToonuud =
               barilga.tokhirgoo?.davkhariinToonuud || {};
 
-            // Check if this building has the exact floorKey (davkhar::orts)
+            // First, try exact floorKey match (davkhar::orts)
             if (davkhariinToonuud[floorKey]) {
               const tootArray = davkhariinToonuud[floorKey];
 
@@ -852,6 +852,10 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                   break;
                 }
               }
+            }
+
+            if (foundBuilding) {
+              break;
             }
           }
 
@@ -888,11 +892,13 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           const tootToValidate = userData.toot.trim();
           const davkharToValidate = userData.davkhar.trim();
           const ortsToValidate = (userData.orts || "1").trim();
-          const floorKey = `${davkharToValidate}::${ortsToValidate}`;
+          const floorKey = `${ortsToValidate}::${davkharToValidate}`;
 
           const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
-          const tootArray = davkhariinToonuud[floorKey];
+          let tootArray = davkhariinToonuud[floorKey];
+          let foundToot = false;
 
+          // First, try exact floorKey match
           if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
             let registeredToonuud = [];
             
@@ -907,16 +913,13 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 .filter((t) => t);
             }
 
-            if (!registeredToonuud.includes(tootToValidate)) {
-              throw new Error(
-                `Бүртгэлгүй тоот байна`
-              );
+            if (registeredToonuud.includes(tootToValidate)) {
+              foundToot = true;
             }
-          } else {
-            // No toots registered for this floor
-            throw new Error(
-                `Бүртгэлгүй тоот байна`
-            );
+          }
+
+          if (!foundToot) {
+            throw new Error("Бүртгэлгүй тоот байна");
           }
         }
 
@@ -1260,8 +1263,8 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
           const davkharStr = String(davkhar).trim();
           const ortsStr = orts ? String(orts).trim() : "1"; // Default to "1" if orts not provided
 
-          // Create key format: "davkhar::orts" (e.g., "1::1", "2::1")
-          const floorKey = `${davkharStr}::${ortsStr}`;
+          // Create key format: "orts::davkhar" (e.g., "1::1", "1::2")
+          const floorKey = `${ortsStr}::${davkharStr}`;
 
           // Ensure davkhar is in the array
           if (!davkharArray.includes(davkharStr)) {

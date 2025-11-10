@@ -467,7 +467,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       const tootToFind = req.body.toot.trim();
       const davkharToFind = req.body.davkhar ? req.body.davkhar.trim() : null;
       const ortsToFind = req.body.orts ? req.body.orts.trim() : "1";
-      const floorKey = davkharToFind ? `${davkharToFind}::${ortsToFind}` : null;
+      const floorKey = davkharToFind ? `${ortsToFind}::${davkharToFind}` : null;
 
       let foundBuilding = null;
       let foundBuildings = []; // Track all matches if davkhar not provided
@@ -586,7 +586,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         let foundOrts = null;
 
         // Search through all floors to find which floor contains this toot
-        // Key format: 'davkhar::orts' (e.g., '1::1' = Floor 1, Entrance 1)
+        // Key format: 'orts::davkhar' (e.g., '1::1' = Entrance 1, Floor 1)
         for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
           // Skip invalid entries that don't have :: separator (like '456')
           if (!floorKey.includes("::")) {
@@ -616,11 +616,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
             }
 
             if (tootList.includes(tootToFind)) {
-              // Parse key format: 'davkhar::orts' (e.g., '1::1' or '2::1')
+              // Parse key format: 'orts::davkhar' (e.g., '1::1' or '1::2')
               const parts = floorKey.split("::");
               if (parts.length === 2) {
-                foundFloor = parts[0].trim(); // davkhar (floor)
-                foundOrts = parts[1].trim(); // orts (entrance)
+                foundOrts = parts[0].trim(); // orts (entrance)
+                foundFloor = parts[1].trim(); // davkhar (floor)
               }
               break;
             }
