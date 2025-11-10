@@ -614,19 +614,19 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
 exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
   try {
     // Building detection is automatic based on davkhar + orts + toot combination
-    const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Давхар", "Тоот", "Орц"];
+    const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Орц", "Давхар", "Тоот"];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([headers]);
 
     const colWidths = [
-      { wch: 15 },
-      { wch: 15 },
-      { wch: 12 },
-      { wch: 25 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 10 },
+      { wch: 15 }, // Овог
+      { wch: 15 }, // Нэр
+      { wch: 12 }, // Утас
+      { wch: 25 }, // Имэйл
+      { wch: 10 }, // Орц
+      { wch: 10 }, // Давхар
+      { wch: 10 }, // Тоот
     ];
     ws["!cols"] = colWidths;
 
@@ -820,7 +820,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             const davkhariinToonuud =
               barilga.tokhirgoo?.davkhariinToonuud || {};
 
-            // First, try exact floorKey match (davkhar::orts)
+            // First, try exact floorKey match (orts::davkhar)
             if (davkhariinToonuud[floorKey]) {
               const tootArray = davkhariinToonuud[floorKey];
 
