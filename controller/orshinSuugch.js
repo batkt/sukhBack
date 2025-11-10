@@ -669,6 +669,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       toot: req.body.toot || "",
       davkhar: determinedDavkhar, // Automatically determined from toot
       orts: req.body.orts || "", // Automatically determined from toot if found
+      ekhniiUldegdel: req.body.ekhniiUldegdel ? parseFloat(req.body.ekhniiUldegdel) || 0 : 0, // Optional: from frontend
     };
 
     orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
@@ -799,9 +800,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           sohNer: sohNer, // Save sohNer separately
           burtgesenAjiltan: orshinSuugch._id,
           orshinSuugchId: orshinSuugch._id.toString(),
-          temdeglel: "Автоматаар үүссэн гэрээ",
+          temdeglel: req.body.tailbar || "Автоматаар үүссэн гэрээ", // Optional: tailbar from frontend
           actOgnoo: new Date(),
           baritsaaniiUldegdel: 0,
+          ekhniiUldegdel: req.body.ekhniiUldegdel ? parseFloat(req.body.ekhniiUldegdel) || 0 : 0, // Optional: from frontend
           zardluud: zardluudArray,
           segmentuud: [],
           khungulultuud: [],
