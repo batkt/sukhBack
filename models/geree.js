@@ -105,6 +105,8 @@ const gereeSchema = new Schema(
     ashiglaltiinZardalUsgeer: String,
     niitTulbur: Number,
     niitTulburUsgeer: String,
+    ekhniiUldegdel : Number,
+    ekhniiUldegdelUsgeer: String,
     bairNer: String,
     sukhBairshil: String,
     duureg: String,

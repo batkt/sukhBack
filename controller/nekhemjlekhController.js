@@ -246,6 +246,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.maililgeesenAjiltniiNer =
       tempData.maililgeesenAjiltniiNer || tempData.ner;
     tuukh.nekhemjlekhiinZagvarId = tempData.nekhemjlekhiinZagvarId || "";
+    
+    // Save ekhniiUldegdel to invoice
+    tuukh.ekhniiUldegdel = tempData.ekhniiUldegdel || 0;
 
     let filteredZardluud = tempData.zardluud || [];
     if (tempData.davkhar) {
@@ -276,6 +279,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       khungulultuud: tempData.khungulultuud || [],
       toot: tempData.toot,
       temdeglel: tempData.temdeglel,
+      tailbar: tempData.temdeglel || "", // Save tailbar from geree temdeglel
       uusgegsenEsekh: uusgegsenEsekh,
       uusgegsenOgnoo: new Date(),
     };
@@ -290,22 +294,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
       return sum + (zardal.tariff || 0);
     }, 0);
 
-    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${filteredNiitTulbur}₮`;
-    tuukh.nekhemjlekhiinDans =
-      tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
-    tuukh.nekhemjlekhiinDansniiNer =
-      tempData.nekhemjlekhiinDansniiNer || dansInfo.dansniiNer || "";
-    tuukh.nekhemjlekhiinBank =
-      tempData.nekhemjlekhiinBank || dansInfo.bank || "";
-
-    tuukh.nekhemjlekhiinIbanDugaar =
-      tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
-    tuukh.nekhemjlekhiinOgnoo = new Date();
-    tuukh.niitTulbur = filteredNiitTulbur;
-
     // Set payment due date based on nekhemjlekhCron schedule
     // Get the cron schedule for this baiguullaga
     let tulukhOgnoo = null;
+    let shouldUseEkhniiUldegdel = false;
     try {
       const cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
         baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
@@ -332,6 +324,24 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
         // Create the date for next month's scheduled day
         tulukhOgnoo = new Date(nextYear, nextMonth, dayToUse, 0, 0, 0, 0);
+        
+        // Check if this is the first invoice and geree was created before cron date
+        // Check if any invoice exists for this geree
+        const existingInvoicesCount = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).countDocuments({
+          gereeniiId: tempData._id.toString(),
+        });
+        
+        // Check if geree was created before the cron date of current month
+        const gereeCreatedDate = tempData.createdAt || tempData.gereeniiOgnoo || new Date();
+        const currentMonthCronDate = new Date(currentYear, currentMonth, scheduledDay, 0, 0, 0, 0);
+        
+        // Use ekhniiUldegdel if:
+        // 1. This is the first invoice (no existing invoices)
+        // 2. Geree was created before the cron date of current month
+        // 3. ekhniiUldegdel value exists
+        if (existingInvoicesCount === 0 && gereeCreatedDate < currentMonthCronDate && (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0)) {
+          shouldUseEkhniiUldegdel = true;
+        }
       }
     } catch (error) {
       console.error("Error fetching nekhemjlekhCron schedule:", error.message);
@@ -339,6 +349,28 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // Fallback to 30 days from now if cron schedule not found
     tuukh.tulukhOgnoo = tulukhOgnoo || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    
+    // Use ekhniiUldegdel for first invoice if conditions are met, otherwise use normal charges
+    const finalNiitTulbur = shouldUseEkhniiUldegdel 
+      ? (tempData.ekhniiUldegdel || 0)
+      : filteredNiitTulbur;
+    
+    // Include tailbar in content if available
+    const tailbarText = tempData.temdeglel && tempData.temdeglel !== "Excel файлаас автоматаар үүссэн гэрээ" 
+      ? `\nТайлбар: ${tempData.temdeglel}` 
+      : "";
+    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${finalNiitTulbur}₮${tailbarText}`;
+    tuukh.nekhemjlekhiinDans =
+      tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
+    tuukh.nekhemjlekhiinDansniiNer =
+      tempData.nekhemjlekhiinDansniiNer || dansInfo.dansniiNer || "";
+    tuukh.nekhemjlekhiinBank =
+      tempData.nekhemjlekhiinBank || dansInfo.bank || "";
+
+    tuukh.nekhemjlekhiinIbanDugaar =
+      tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
+    tuukh.nekhemjlekhiinOgnoo = new Date();
+    tuukh.niitTulbur = finalNiitTulbur;
 
     // Initialize payment status
     tuukh.tuluv = "Төлөөгүй";

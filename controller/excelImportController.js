@@ -614,7 +614,7 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
 exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
   try {
     // Building detection is automatic based on davkhar + orts + toot combination
-    const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Орц", "Давхар", "Тоот"];
+    const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Орц", "Давхар", "Тоот", "Эхний үлдэгдэл", "Тайлбар"];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([headers]);
@@ -627,6 +627,8 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       { wch: 10 }, // Орц
       { wch: 10 }, // Давхар
       { wch: 10 }, // Тоот
+      { wch: 15 }, // Эхний үлдэгдэл
+      { wch: 30 }, // Тайлбар
     ];
     ws["!cols"] = colWidths;
 
@@ -718,6 +720,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           davkhar: row["Давхар"]?.toString().trim() || "",
           toot: row["Тоот"]?.toString().trim() || "",
           orts: row["Орц"]?.toString().trim() || "",
+          ekhniiUldegdel: row["Эхний үлдэгдэл"] ? parseFloat(row["Эхний үлдэгдэл"]) || 0 : 0,
+          tailbar: row["Тайлбар"]?.toString().trim() || "",
         };
 
         const validationErrors = [];
@@ -957,6 +961,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           bairniiNer: targetBarilga.ner || "",
           toot: userData.toot || "",
           orts: userData.orts || "",
+          ekhniiUldegdel: userData.ekhniiUldegdel || 0,
         };
 
         const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
@@ -1027,9 +1032,10 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           orts: userData.orts || "",
           burtgesenAjiltan: orshinSuugch._id,
           orshinSuugchId: orshinSuugch._id.toString(),
-          temdeglel: "Excel файлаас автоматаар үүссэн гэрээ",
+          temdeglel: userData.tailbar || "Excel файлаас автоматаар үүссэн гэрээ",
           actOgnoo: new Date(),
           baritsaaniiUldegdel: 0,
+          ekhniiUldegdel: userData.ekhniiUldegdel || 0,
           zardluud: zardluudArray,
           segmentuud: [],
           khungulultuud: [],

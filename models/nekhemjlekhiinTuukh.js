@@ -16,6 +16,8 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     turul: String,
     gereeniiId: String,
     gereeniiDugaar: String,
+    ekhniiUldegdel : Number,
+    ekhniiUldegdelUsgeer: String,
     davkhar: String,
     uldegdel: Number,
     daraagiinTulukhOgnoo: Date,
