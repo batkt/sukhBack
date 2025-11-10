@@ -849,6 +849,20 @@ router.get(
 
       await nekhemjlekh.save();
 
+      // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel
+      if (nekhemjlekh.ekhniiUldegdel && nekhemjlekh.ekhniiUldegdel > 0) {
+        try {
+          const gereeForUpdate = await Geree(kholbolt).findById(nekhemjlekh.gereeniiId);
+          if (gereeForUpdate) {
+            gereeForUpdate.ekhniiUldegdel = 0;
+            await gereeForUpdate.save();
+            console.log(`✅ Updated geree.ekhniiUldegdel to 0 for geree ${gereeForUpdate._id}`);
+          }
+        } catch (ekhniiUldegdelError) {
+          console.error("❌ Error updating geree.ekhniiUldegdel:", ekhniiUldegdelError.message);
+        }
+      }
+
       if (nekhemjlekh.qpayInvoiceId && nekhemjlekh._id) {
         try {
           const nekhemjlekhiinId = nekhemjlekh._id.toString();
@@ -1167,6 +1181,20 @@ router.get(
 
           // Use the updated invoice for further operations
           nekhemjlekh = updatedInvoice;
+
+          // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel
+          if (nekhemjlekh.ekhniiUldegdel && nekhemjlekh.ekhniiUldegdel > 0) {
+            try {
+              const gereeForUpdate = await Geree(kholbolt).findById(nekhemjlekh.gereeniiId);
+              if (gereeForUpdate) {
+                gereeForUpdate.ekhniiUldegdel = 0;
+                await gereeForUpdate.save();
+                console.log(`✅ Updated geree.ekhniiUldegdel to 0 for geree ${gereeForUpdate._id}`);
+              }
+            } catch (ekhniiUldegdelError) {
+              console.error("❌ Error updating geree.ekhniiUldegdel:", ekhniiUldegdelError.message);
+            }
+          }
 
           // Create bank payment record for each invoice
           try {

@@ -273,27 +273,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     }
 
-    tuukh.medeelel = {
-      zardluud: filteredZardluud,
-      segmentuud: tempData.segmentuud || [],
-      khungulultuud: tempData.khungulultuud || [],
-      toot: tempData.toot,
-      temdeglel: tempData.temdeglel,
-      tailbar: tempData.temdeglel || "", // Save tailbar from geree temdeglel
-      uusgegsenEsekh: uusgegsenEsekh,
-      uusgegsenOgnoo: new Date(),
-    };
-    tuukh.nekhemjlekh =
-      tempData.nekhemjlekh ||
-      (uusgegsenEsekh === "automataar"
-        ? "Автоматаар үүссэн нэхэмжлэх"
-        : "Гаран үүссэн нэхэмжлэх");
-    tuukh.zagvariinNer = tempData.zagvariinNer || org.ner;
-
-    const filteredNiitTulbur = filteredZardluud.reduce((sum, zardal) => {
-      return sum + (zardal.tariff || 0);
-    }, 0);
-
     // Set payment due date based on nekhemjlekhCron schedule
     // Get the cron schedule for this baiguullaga
     let tulukhOgnoo = null;
@@ -353,7 +332,30 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Use ekhniiUldegdel for first invoice if conditions are met, otherwise use normal charges
     const finalNiitTulbur = shouldUseEkhniiUldegdel 
       ? (tempData.ekhniiUldegdel || 0)
-      : filteredNiitTulbur;
+      : filteredZardluud.reduce((sum, zardal) => {
+          return sum + (zardal.tariff || 0);
+        }, 0);
+    
+    // When using ekhniiUldegdel, do NOT include zardluud charges in medeelel
+    // Only include zardluud when cron is activated (after first invoice)
+    const finalZardluud = shouldUseEkhniiUldegdel ? [] : filteredZardluud;
+
+    tuukh.medeelel = {
+      zardluud: finalZardluud,
+      segmentuud: tempData.segmentuud || [],
+      khungulultuud: tempData.khungulultuud || [],
+      toot: tempData.toot,
+      temdeglel: tempData.temdeglel,
+      tailbar: tempData.temdeglel || "", // Save tailbar from geree temdeglel
+      uusgegsenEsekh: uusgegsenEsekh,
+      uusgegsenOgnoo: new Date(),
+    };
+    tuukh.nekhemjlekh =
+      tempData.nekhemjlekh ||
+      (uusgegsenEsekh === "automataar"
+        ? "Автоматаар үүссэн нэхэмжлэх"
+        : "Гаран үүссэн нэхэмжлэх");
+    tuukh.zagvariinNer = tempData.zagvariinNer || org.ner;
     
     // Include tailbar in content if available
     const tailbarText = tempData.temdeglel && tempData.temdeglel !== "Excel файлаас автоматаар үүссэн гэрээ" 
