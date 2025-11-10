@@ -8,7 +8,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
   tempData,
   org,
   tukhainBaaziinKholbolt,
-  uusgegsenEsekh = "garan"
+  uusgegsenEsekh = "garan",
+  skipDuplicateCheck = false
 ) => {
   try {
     console.log("Энэ рүү орлоо: gereeNeesNekhemjlekhUusgekh");
@@ -58,9 +59,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
       console.error("Error checking ekhniiUldegdel:", error.message);
     }
 
-    // Only check for duplicate invoices if NOT using ekhniiUldegdel
-    // If using ekhniiUldegdel (first invoice), allow creating it even if one exists
-    if (!shouldUseEkhniiUldegdel) {
+    // Only check for duplicate invoices if NOT using ekhniiUldegdel AND not skipping duplicate check
+    // If using ekhniiUldegdel (first invoice) or skipDuplicateCheck is true, allow creating it even if one exists
+    if (!shouldUseEkhniiUldegdel && !skipDuplicateCheck) {
       // Check if invoice already exists for this contract in the current month
       // This prevents duplicate invoices regardless of when in the month they're created
       // (handles cases where invoices are scheduled for 2nd, 15th, 31st, etc.)
