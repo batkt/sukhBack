@@ -19,6 +19,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // First, check if we should use ekhniiUldegdel (before duplicate check)
     // This determines if we should skip duplicate checking for first invoice
+    // If geree has ekhniiUldegdel and was created before cron date, skip duplicate check
     let shouldUseEkhniiUldegdel = false;
     const NekhemjlekhCron = require("../models/cronSchedule");
     
@@ -29,14 +30,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
       if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
         const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
-        const existingInvoicesCount = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).countDocuments({
-          gereeniiId: tempData._id.toString(),
-        });
         
         const gereeCreatedDate = tempData.createdAt || tempData.gereeniiOgnoo || new Date();
         const currentMonthCronDate = new Date(currentYear, currentMonth, scheduledDay, 0, 0, 0, 0);
         
-        if (existingInvoicesCount === 0 && gereeCreatedDate < currentMonthCronDate && (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0)) {
+        // If geree was created before cron date and has ekhniiUldegdel, skip duplicate check
+        // This allows creating invoices with ekhniiUldegdel even if invoices already exist
+        if (gereeCreatedDate < currentMonthCronDate && (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0)) {
           shouldUseEkhniiUldegdel = true;
         }
       }
