@@ -13,79 +13,113 @@ const gereeNeesNekhemjlekhUusgekh = async (
   try {
     console.log("Энэ рүү орлоо: gereeNeesNekhemjlekhUusgekh");
 
-    // Check if invoice already exists for this contract in the current month
-    // This prevents duplicate invoices regardless of when in the month they're created
-    // (handles cases where invoices are scheduled for 2nd, 15th, 31st, etc.)
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth(); // 0-11 (0 = January)
 
-    // Get start and end of current calendar month (1st day 00:00:00 to last day 23:59:59)
-    const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(
-      currentYear,
-      currentMonth + 1,
-      0,
-      23,
-      59,
-      59,
-      999
-    );
+    // First, check if we should use ekhniiUldegdel (before duplicate check)
+    // This determines if we should skip duplicate checking for first invoice
+    let shouldUseEkhniiUldegdel = false;
+    const NekhemjlekhCron = require("../models/cronSchedule");
+    
+    try {
+      const cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
+        baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+      });
 
-    // Determine barilgiinId for the check (temporary variable)
-    let checkBarilgiinId = tempData.barilgiinId;
-    if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
-      checkBarilgiinId = String(org.barilguud[0]._id);
+      if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
+        const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
+        const existingInvoicesCount = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).countDocuments({
+          gereeniiId: tempData._id.toString(),
+        });
+        
+        const gereeCreatedDate = tempData.createdAt || tempData.gereeniiOgnoo || new Date();
+        const currentMonthCronDate = new Date(currentYear, currentMonth, scheduledDay, 0, 0, 0, 0);
+        
+        if (existingInvoicesCount === 0 && gereeCreatedDate < currentMonthCronDate && (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0)) {
+          shouldUseEkhniiUldegdel = true;
+        }
+      }
+    } catch (error) {
+      console.error("Error checking ekhniiUldegdel:", error.message);
     }
 
-    // Check for existing invoice in current calendar month
-    // Uses ognoo (invoice date) OR createdAt as fallback
-    const existingInvoiceQuery = {
-      gereeniiId: tempData._id.toString(),
-      $or: [
-        // Check by ognoo field (invoice date)
-        {
-          ognoo: {
-            $gte: monthStart,
-            $lte: monthEnd,
-          },
-        },
-        // Fallback: check by createdAt (when invoice was created in DB)
-        {
-          createdAt: {
-            $gte: monthStart,
-            $lte: monthEnd,
-          },
-        },
-      ],
-    };
-
-    // Add barilgiinId to query if available (for multi-barilga isolation)
-    if (checkBarilgiinId) {
-      existingInvoiceQuery.barilgiinId = checkBarilgiinId;
-    }
-
-    // Find the most recent invoice for this contract in current month
-    const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
-      .findOne(existingInvoiceQuery)
-      .sort({ ognoo: -1, createdAt: -1 });
-
-    if (existingInvoice) {
-      console.log(
-        `ℹ️  Invoice already exists for contract ${tempData.gereeniiDugaar} in current month:`,
-        existingInvoice._id
+    // Only check for duplicate invoices if NOT using ekhniiUldegdel
+    // If using ekhniiUldegdel (first invoice), allow creating it even if one exists
+    if (!shouldUseEkhniiUldegdel) {
+      // Check if invoice already exists for this contract in the current month
+      // This prevents duplicate invoices regardless of when in the month they're created
+      // (handles cases where invoices are scheduled for 2nd, 15th, 31st, etc.)
+      const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+      const monthEnd = new Date(
+        currentYear,
+        currentMonth + 1,
+        0,
+        23,
+        59,
+        59,
+        999
       );
 
-      // Return existing invoice without modifying the contract
-      // This preserves the original created date of the geree
-      return {
-        success: true,
-        nekhemjlekh: existingInvoice,
-        gereeniiId: tempData._id,
-        gereeniiDugaar: tempData.gereeniiDugaar,
-        tulbur: existingInvoice.niitTulbur,
-        alreadyExists: true,
+      // Determine barilgiinId for the check (temporary variable)
+      let checkBarilgiinId = tempData.barilgiinId;
+      if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
+        checkBarilgiinId = String(org.barilguud[0]._id);
+      }
+
+      // Check for existing invoice in current calendar month
+      // Uses ognoo (invoice date) OR createdAt as fallback
+      const existingInvoiceQuery = {
+        gereeniiId: tempData._id.toString(),
+        $or: [
+          // Check by ognoo field (invoice date)
+          {
+            ognoo: {
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          },
+          // Fallback: check by createdAt (when invoice was created in DB)
+          {
+            createdAt: {
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          },
+        ],
       };
+
+      // Add barilgiinId to query if available (for multi-barilga isolation)
+      if (checkBarilgiinId) {
+        existingInvoiceQuery.barilgiinId = checkBarilgiinId;
+      }
+
+      // Find the most recent invoice for this contract in current month
+      const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+        .findOne(existingInvoiceQuery)
+        .sort({ ognoo: -1, createdAt: -1 });
+
+      if (existingInvoice) {
+        console.log(
+          `ℹ️  Invoice already exists for contract ${tempData.gereeniiDugaar} in current month:`,
+          existingInvoice._id
+        );
+
+        // Return existing invoice without modifying the contract
+        // This preserves the original created date of the geree
+        return {
+          success: true,
+          nekhemjlekh: existingInvoice,
+          gereeniiId: tempData._id,
+          gereeniiDugaar: tempData.gereeniiDugaar,
+          tulbur: existingInvoice.niitTulbur,
+          alreadyExists: true,
+        };
+      }
+    } else {
+      console.log(
+        `ℹ️  Skipping duplicate check - using ekhniiUldegdel for first invoice (contract ${tempData.gereeniiDugaar})`
+      );
     }
 
     const tuukh = new nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)();
@@ -276,7 +310,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Set payment due date based on nekhemjlekhCron schedule
     // Get the cron schedule for this baiguullaga
     let tulukhOgnoo = null;
-    let shouldUseEkhniiUldegdel = false;
     try {
       const cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
         baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
@@ -303,24 +336,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
         // Create the date for next month's scheduled day
         tulukhOgnoo = new Date(nextYear, nextMonth, dayToUse, 0, 0, 0, 0);
-        
-        // Check if this is the first invoice and geree was created before cron date
-        // Check if any invoice exists for this geree
-        const existingInvoicesCount = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).countDocuments({
-          gereeniiId: tempData._id.toString(),
-        });
-        
-        // Check if geree was created before the cron date of current month
-        const gereeCreatedDate = tempData.createdAt || tempData.gereeniiOgnoo || new Date();
-        const currentMonthCronDate = new Date(currentYear, currentMonth, scheduledDay, 0, 0, 0, 0);
-        
-        // Use ekhniiUldegdel if:
-        // 1. This is the first invoice (no existing invoices)
-        // 2. Geree was created before the cron date of current month
-        // 3. ekhniiUldegdel value exists
-        if (existingInvoicesCount === 0 && gereeCreatedDate < currentMonthCronDate && (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0)) {
-          shouldUseEkhniiUldegdel = true;
-        }
       }
     } catch (error) {
       console.error("Error fetching nekhemjlekhCron schedule:", error.message);
