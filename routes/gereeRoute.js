@@ -19,7 +19,11 @@ const {
   gereeniiExcelAvya,
   gereeniiExcelTatya,
 } = require("../controller/excel");
-const { downloadGuilgeeniiTuukhExcel } = require("../controller/excelImportController");
+const {
+  downloadGuilgeeniiTuukhExcel,
+  generateTootBurtgelExcelTemplate,
+  importTootBurtgelFromExcel,
+} = require("../controller/excelImportController");
 
 const storage = multer.memoryStorage();
 const uploadFile = multer({ storage: storage });
@@ -560,5 +564,20 @@ router
       next(err);
     }
   });
+
+// TootBurtgel Excel Template Download
+router.get(
+  "/tootBurtgelExcelTemplate",
+  tokenShalgakh,
+  generateTootBurtgelExcelTemplate
+);
+
+// TootBurtgel Excel Import
+router.post(
+  "/tootBurtgelExcelImport",
+  tokenShalgakh,
+  uploadFile.single("excelFile"),
+  importTootBurtgelFromExcel
+);
 
 module.exports = router;

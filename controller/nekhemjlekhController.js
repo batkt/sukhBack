@@ -11,24 +11,32 @@ const gereeNeesNekhemjlekhUusgekh = async (
 ) => {
   try {
     console.log("Энэ рүү орлоо: gereeNeesNekhemjlekhUusgekh");
-    
+
     // Check if invoice already exists for this contract in the current month
     // This prevents duplicate invoices regardless of when in the month they're created
     // (handles cases where invoices are scheduled for 2nd, 15th, 31st, etc.)
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth(); // 0-11 (0 = January)
-    
+
     // Get start and end of current calendar month (1st day 00:00:00 to last day 23:59:59)
     const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
-    
+    const monthEnd = new Date(
+      currentYear,
+      currentMonth + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    );
+
     // Determine barilgiinId for the check (temporary variable)
     let checkBarilgiinId = tempData.barilgiinId;
     if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
       checkBarilgiinId = String(org.barilguud[0]._id);
     }
-    
+
     // Check for existing invoice in current calendar month
     // Uses ognoo (invoice date) OR createdAt as fallback
     const existingInvoiceQuery = {
@@ -50,23 +58,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
         },
       ],
     };
-    
+
     // Add barilgiinId to query if available (for multi-barilga isolation)
     if (checkBarilgiinId) {
       existingInvoiceQuery.barilgiinId = checkBarilgiinId;
     }
-    
+
     // Find the most recent invoice for this contract in current month
     const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
       .findOne(existingInvoiceQuery)
       .sort({ ognoo: -1, createdAt: -1 });
-    
+
     if (existingInvoice) {
       console.log(
         `ℹ️  Invoice already exists for contract ${tempData.gereeniiDugaar} in current month:`,
         existingInvoice._id
       );
-      
+
       // Return existing invoice without modifying the contract
       // This preserves the original created date of the geree
       return {
@@ -78,27 +86,108 @@ const gereeNeesNekhemjlekhUusgekh = async (
         alreadyExists: true,
       };
     }
-    
+
     const tuukh = new nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)();
 
-    let dansInfo = { dugaar: "", dansniiNer: "", bank: "" };
+    let dansInfo = { dugaar: "", dansniiNer: "", bank: "", ibanDugaar: "" };
     try {
       const { db } = require("zevbackv2");
       const { Dans } = require("zevbackv2");
 
-      if (tempData.baiguullagiinId) {
+      // First, try to get dans from barilga-specific tokhirgoo
+      let barilgaDans = null;
+      if (tempData.barilgiinId && org?.barilguud) {
+        const targetBarilga = org.barilguud.find(
+          (b) => String(b._id) === String(tempData.barilgiinId)
+        );
+        if (targetBarilga?.tokhirgoo?.dans) {
+          barilgaDans = targetBarilga.tokhirgoo.dans;
+          dansInfo = {
+            dugaar: barilgaDans.dugaar || "",
+            dansniiNer: barilgaDans.dansniiNer || "",
+            bank: barilgaDans.bank || "",
+            ibanDugaar: barilgaDans.ibanDugaar || "",
+          };
+          console.log(
+            `✅ Using barilga-specific dans: ${dansInfo.dugaar} for barilga ${tempData.barilgiinId}`
+          );
+        }
+      }
+
+      // If no barilga-specific dans, try to get from QpayKhariltsagch (building-specific bank accounts)
+      if (!barilgaDans && tempData.baiguullagiinId && tempData.barilgiinId) {
+        try {
+          const { QpayKhariltsagch } = require("quickqpaypackv2");
+          const qpayKhariltsagch = new QpayKhariltsagch(tukhainBaaziinKholbolt);
+          const qpayConfig = await qpayKhariltsagch
+            .findOne({
+              baiguullagiinId: tempData.baiguullagiinId.toString(),
+            })
+            .lean();
+
+          if (
+            qpayConfig &&
+            qpayConfig.salbaruud &&
+            Array.isArray(qpayConfig.salbaruud)
+          ) {
+            // Find the salbar that matches barilgiinId (salbariinId)
+            const targetSalbar = qpayConfig.salbaruud.find(
+              (salbar) =>
+                String(salbar.salbariinId) === String(tempData.barilgiinId)
+            );
+
+            if (
+              targetSalbar &&
+              targetSalbar.bank_accounts &&
+              Array.isArray(targetSalbar.bank_accounts) &&
+              targetSalbar.bank_accounts.length > 0
+            ) {
+              // Use the first bank account from this salbar
+              const bankAccount = targetSalbar.bank_accounts[0];
+              dansInfo = {
+                dugaar: bankAccount.account_number || "",
+                dansniiNer: bankAccount.account_name || "",
+                bank: bankAccount.account_bank_code || "",
+                ibanDugaar: "",
+              };
+              console.log(
+                `✅ Using QpayKhariltsagch bank account for barilga ${tempData.barilgiinId}: ${dansInfo.dugaar} (${dansInfo.dansniiNer})`
+              );
+            }
+          }
+        } catch (qpayError) {
+          console.error("Error fetching QpayKhariltsagch:", qpayError);
+        }
+      }
+
+      // If still no dans, try to get from Dans model (organization-level)
+      if (!barilgaDans && !dansInfo.dugaar && tempData.baiguullagiinId) {
         const dansModel = Dans(tukhainBaaziinKholbolt);
 
-        const dans = await dansModel.findOne({
-          baiguullagiinId: tempData.baiguullagiinId.toString(),
-        });
+        // Try to find dans with barilgiinId first (if Dans model supports it)
+        let dans = null;
+        if (tempData.barilgiinId) {
+          dans = await dansModel.findOne({
+            baiguullagiinId: tempData.baiguullagiinId.toString(),
+            barilgiinId: tempData.barilgiinId.toString(),
+          });
+        }
+
+        // If not found with barilgiinId, try without it (organization-level)
+        if (!dans) {
+          dans = await dansModel.findOne({
+            baiguullagiinId: tempData.baiguullagiinId.toString(),
+          });
+        }
 
         if (dans) {
           dansInfo = {
             dugaar: dans.dugaar || "",
             dansniiNer: dans.dansniiNer || "",
             bank: dans.bank || "",
+            ibanDugaar: dans.ibanDugaar || "",
           };
+          console.log(`✅ Using Dans model dans: ${dansInfo.dugaar}`);
         }
       }
     } catch (dansError) {
@@ -159,15 +248,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     let filteredZardluud = tempData.zardluud || [];
     if (tempData.davkhar) {
+      // Get liftShalgaya from baiguullaga.barilguud[].tokhirgoo
       const { db } = require("zevbackv2");
-      const LiftShalgaya = require("../models/liftShalgaya");
+      const Baiguullaga = require("../models/baiguullaga");
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        tempData.baiguullagiinId
+      );
 
-      const liftShalgayaData = await LiftShalgaya(
-        tukhainBaaziinKholbolt
-      ).findOne({
-        baiguullagiinId: tempData.baiguullagiinId,
-      });
+      const targetBarilga = baiguullaga?.barilguud?.find(
+        (b) => String(b._id) === String(tempData.barilgiinId || "")
+      );
 
+      const liftShalgayaData = targetBarilga?.tokhirgoo?.liftShalgaya;
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
 
       if (choloolugdokhDavkhar.includes(tempData.davkhar)) {
@@ -205,7 +297,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.nekhemjlekhiinBank =
       tempData.nekhemjlekhiinBank || dansInfo.bank || "";
 
-    tuukh.nekhemjlekhiinIbanDugaar = tempData.nekhemjlekhiinIbanDugaar || "";
+    tuukh.nekhemjlekhiinIbanDugaar =
+      tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = filteredNiitTulbur;
 

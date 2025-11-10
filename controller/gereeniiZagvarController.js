@@ -8,7 +8,14 @@ const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
 const { toWords } = require("mon_num");
 
 // Helper function to get value from geree, orshinSuugch, baiguullaga, nekhemjlekh, or ashiglaltiinZardluud based on tag type
-function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh, ashiglaltiinZardluud) {
+function getVariableValue(
+  tagType,
+  geree,
+  orshinSuugch,
+  baiguullaga,
+  nekhemjlekh,
+  ashiglaltiinZardluud
+) {
   // Format date to Mongolian format (YYYY оны MM сарын DD)
   function formatDate(date) {
     if (!date) return "";
@@ -77,7 +84,9 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh
     if (!ekhlekhOgnoo || !duusakhOgnoo) return "";
     const start = new Date(ekhlekhOgnoo);
     const end = new Date(duusakhOgnoo);
-    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    const months =
+      (end.getFullYear() - start.getFullYear()) * 12 +
+      (end.getMonth() - start.getMonth());
     return months > 0 ? `${months} сар` : "";
   }
 
@@ -167,11 +176,15 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh
       // Get suhTulbur from ashiglaltiinZardluud where zardliinTurul is "СӨХ"
       if (ashiglaltiinZardluud && Array.isArray(ashiglaltiinZardluud)) {
         value = ashiglaltiinZardluud
-          .filter((z) => z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh"))
+          .filter(
+            (z) =>
+              z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh")
+          )
           .reduce((sum, z) => sum + (z.tariff || z.dun || 0), 0);
       } else if (nekhemjlekh?.medeelel?.zardluud) {
         const suhZardal = nekhemjlekh.medeelel.zardluud.find(
-          (z) => z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh")
+          (z) =>
+            z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh")
         );
         value = suhZardal?.tariff || suhZardal?.tulukhDun || 0;
       } else {
@@ -182,11 +195,15 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh
     case "suhTulburUsgeer":
       if (ashiglaltiinZardluud && Array.isArray(ashiglaltiinZardluud)) {
         value = ashiglaltiinZardluud
-          .filter((z) => z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh"))
+          .filter(
+            (z) =>
+              z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh")
+          )
           .reduce((sum, z) => sum + (z.tariff || z.dun || 0), 0);
       } else if (nekhemjlekh?.medeelel?.zardluud) {
         const suhZardal = nekhemjlekh.medeelel.zardluud.find(
-          (z) => z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh")
+          (z) =>
+            z.zardliinTurul === "СӨХ" || z.ner?.toLowerCase().includes("suh")
         );
         value = suhZardal?.tariff || suhZardal?.tulukhDun || 0;
       } else {
@@ -198,11 +215,17 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh
       // Get ashiglaltiinZardal from ashiglaltiinZardluud (sum of all non-SUH zardluud)
       if (ashiglaltiinZardluud && Array.isArray(ashiglaltiinZardluud)) {
         value = ashiglaltiinZardluud
-          .filter((z) => z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh"))
+          .filter(
+            (z) =>
+              z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh")
+          )
           .reduce((sum, z) => sum + (z.tariff || z.dun || 0), 0);
       } else if (nekhemjlekh?.medeelel?.zardluud) {
         value = nekhemjlekh.medeelel.zardluud
-          .filter((z) => z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh"))
+          .filter(
+            (z) =>
+              z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh")
+          )
           .reduce((sum, z) => sum + (z.tariff || z.tulukhDun || 0), 0);
       } else {
         value = geree?.ashiglaltiinZardal || 0;
@@ -212,11 +235,17 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh
     case "ashiglaltiinZardalUsgeer":
       if (ashiglaltiinZardluud && Array.isArray(ashiglaltiinZardluud)) {
         value = ashiglaltiinZardluud
-          .filter((z) => z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh"))
+          .filter(
+            (z) =>
+              z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh")
+          )
           .reduce((sum, z) => sum + (z.tariff || z.dun || 0), 0);
       } else if (nekhemjlekh?.medeelel?.zardluud) {
         value = nekhemjlekh.medeelel.zardluud
-          .filter((z) => z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh"))
+          .filter(
+            (z) =>
+              z.zardliinTurul !== "СӨХ" && !z.ner?.toLowerCase().includes("suh")
+          )
           .reduce((sum, z) => sum + (z.tariff || z.tulukhDun || 0), 0);
       } else {
         value = geree?.ashiglaltiinZardal || 0;
@@ -226,7 +255,10 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh
     case "niitTulbur":
       // Get niitTulbur from ashiglaltiinZardluud (sum of all tariff/dun)
       if (ashiglaltiinZardluud && Array.isArray(ashiglaltiinZardluud)) {
-        value = ashiglaltiinZardluud.reduce((sum, z) => sum + (z.tariff || z.dun || 0), 0);
+        value = ashiglaltiinZardluud.reduce(
+          (sum, z) => sum + (z.tariff || z.dun || 0),
+          0
+        );
       } else if (nekhemjlekh?.niitTulbur) {
         value = nekhemjlekh.niitTulbur;
       } else {
@@ -236,7 +268,10 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh
       return "0";
     case "niitTulburUsgeer":
       if (ashiglaltiinZardluud && Array.isArray(ashiglaltiinZardluud)) {
-        value = ashiglaltiinZardluud.reduce((sum, z) => sum + (z.tariff || z.dun || 0), 0);
+        value = ashiglaltiinZardluud.reduce(
+          (sum, z) => sum + (z.tariff || z.dun || 0),
+          0
+        );
       } else if (nekhemjlekh?.niitTulbur) {
         value = nekhemjlekh.niitTulbur;
       } else {
@@ -346,13 +381,19 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh
   }
 
   // Handle empty strings for certain fields (return empty instead of "undefined")
-  if (value === "" && (tagType.includes("Tulbur") || tagType.includes("Zardal"))) {
+  if (
+    value === "" &&
+    (tagType.includes("Tulbur") || tagType.includes("Zardal"))
+  ) {
     return "0";
   }
 
   // Date formatting (for any remaining date fields)
   if (tagType.includes("Ognoo") || tagType.includes("ognoo")) {
-    if (value instanceof Date || (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/))) {
+    if (
+      value instanceof Date ||
+      (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/))
+    ) {
       return formatDate(value);
     }
   }
@@ -369,26 +410,33 @@ function getVariableValue(tagType, geree, orshinSuugch, baiguullaga, nekhemjlekh
 
   // Number formatting for currency fields (if not already formatted)
   if (
-    (tagType.includes("Tulbur") || tagType.includes("Zardal") || tagType.includes("Dun")) &&
+    (tagType.includes("Tulbur") ||
+      tagType.includes("Zardal") ||
+      tagType.includes("Dun")) &&
     !tagType.includes("Usgeer")
   ) {
-    if (typeof value === "number" || (typeof value === "string" && !isNaN(value) && value !== "")) {
+    if (
+      typeof value === "number" ||
+      (typeof value === "string" && !isNaN(value) && value !== "")
+    ) {
       return formatCurrency(value);
     }
   }
 
   // Return string value, but handle empty strings
   const stringValue = String(value);
-  return stringValue === "undefined" || stringValue === "null" ? "" : stringValue;
+  return stringValue === "undefined" || stringValue === "null"
+    ? ""
+    : stringValue;
 }
 
 // Helper function to extract all variable tags from HTML
 function extractVariableTags(htmlContent) {
   if (!htmlContent) return [];
-  
+
   const tagRegex =
     /<span\s+[^>]*data-tag-type=["']([^"']+)["'][^>]*class=["']custom-tag["'][^>]*\/?>\s*<\/span>/gi;
-  
+
   const tags = [];
   let match;
   while ((match = tagRegex.exec(htmlContent)) !== null) {
@@ -397,12 +445,19 @@ function extractVariableTags(htmlContent) {
       tags.push(tagType);
     }
   }
-  
+
   return tags;
 }
 
 // Main function to replace data-tag-type variables in HTML
-function replaceTemplateVariables(htmlContent, geree, orshinSuugch, baiguullaga, nekhemjlekh, ashiglaltiinZardluud) {
+function replaceTemplateVariables(
+  htmlContent,
+  geree,
+  orshinSuugch,
+  baiguullaga,
+  nekhemjlekh,
+  ashiglaltiinZardluud
+) {
   if (!htmlContent) return "";
 
   // More flexible regex to match variable tags
@@ -416,36 +471,55 @@ function replaceTemplateVariables(htmlContent, geree, orshinSuugch, baiguullaga,
 
   // Extract all variable tags first for debugging
   const foundTags = extractVariableTags(htmlContent);
-  console.log(`Found ${foundTags.length} variable tags in template:`, foundTags);
+  console.log(
+    `Found ${foundTags.length} variable tags in template:`,
+    foundTags
+  );
 
   let processedContent = htmlContent;
   let replacementCount = 0;
   const replacementLog = [];
-  
+
   // Replace all variable tags
   processedContent = processedContent.replace(tagRegex, (match, tagType) => {
     const trimmedTagType = tagType.trim();
-    const value = getVariableValue(trimmedTagType, geree, orshinSuugch, baiguullaga, nekhemjlekh, ashiglaltiinZardluud);
-    
+    const value = getVariableValue(
+      trimmedTagType,
+      geree,
+      orshinSuugch,
+      baiguullaga,
+      nekhemjlekh,
+      ashiglaltiinZardluud
+    );
+
     // Debug logging
     if (value) {
       replacementCount++;
-      replacementLog.push({ tag: trimmedTagType, value: value.substring(0, 50) });
-      console.log(`✓ Replacing [${trimmedTagType}] with: "${value.substring(0, 50)}${value.length > 50 ? '...' : ''}"`);
+      replacementLog.push({
+        tag: trimmedTagType,
+        value: value.substring(0, 50),
+      });
+      console.log(
+        `✓ Replacing [${trimmedTagType}] with: "${value.substring(0, 50)}${
+          value.length > 50 ? "..." : ""
+        }"`
+      );
     } else {
       replacementLog.push({ tag: trimmedTagType, value: null });
       console.log(`✗ Variable [${trimmedTagType}] not found or empty`);
     }
-    
+
     return value || ""; // Return empty string if value not found
   });
 
   console.log(`Total replacements: ${replacementCount}/${foundTags.length}`);
   if (replacementCount < foundTags.length) {
-    const missing = foundTags.filter(tag => !replacementLog.find(r => r.tag === tag && r.value));
+    const missing = foundTags.filter(
+      (tag) => !replacementLog.find((r) => r.tag === tag && r.value)
+    );
     console.log(`Missing values for:`, missing);
   }
-  
+
   return processedContent;
 }
 
@@ -519,9 +593,7 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
     }
 
     // Get template
-    const zagvar = await GereeniiZagvar(kholbolt).findById(
-      gereeniiZagvariinId
-    );
+    const zagvar = await GereeniiZagvar(kholbolt).findById(gereeniiZagvariinId);
 
     if (!zagvar) {
       return res.status(404).json({
@@ -555,13 +627,17 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
           .sort({ createdAt: -1 }); // Get the latest invoice
       }
 
-      // Get ashiglaltiinZardluud (expense/charge configuration) for this barilga
+      // Get ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo
       let ashiglaltiinZardluud = [];
       if (geree.baiguullagiinId && geree.barilgiinId) {
-        ashiglaltiinZardluud = await AshiglaltiinZardluud(kholbolt).find({
-          baiguullagiinId: String(geree.baiguullagiinId),
-          barilgiinId: String(geree.barilgiinId),
-        });
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+          geree.baiguullagiinId
+        );
+        const targetBarilga = baiguullaga?.barilguud?.find(
+          (b) => String(b._id) === String(geree.barilgiinId)
+        );
+        ashiglaltiinZardluud =
+          targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
       }
 
       // Process all template fields
@@ -685,7 +761,9 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
       });
 
       // Get all geree IDs to fetch nekhemjlekh in batch
-      const gereeniiIds = gereenuud.map((g) => String(g._id)).filter((id) => id);
+      const gereeniiIds = gereenuud
+        .map((g) => String(g._id))
+        .filter((id) => id);
 
       // Fetch all latest nekhemjlekh for each geree
       const nekhemjlekhuud = await NekhemjlekhiinTuukh(kholbolt)
@@ -712,18 +790,33 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
         }
       });
 
-      // Fetch all ashiglaltiinZardluud in batch
+      // Fetch all ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo in batch
       const ashiglaltiinZardluudArray = [];
+      const baiguullagaMap = new Map();
+
       for (const combo of barilgaCombinations) {
         const [baiguullagiinId, barilgiinId] = combo.split("|");
-        const zardluud = await AshiglaltiinZardluud(kholbolt).find({
-          baiguullagiinId: baiguullagiinId,
-          barilgiinId: barilgiinId,
-        });
-        ashiglaltiinZardluudArray.push(...zardluud.map((z) => ({
-          ...z.toObject(),
-          key: combo,
-        })));
+
+        // Get baiguullaga if not already fetched
+        if (!baiguullagaMap.has(baiguullagiinId)) {
+          const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+            baiguullagiinId
+          );
+          baiguullagaMap.set(baiguullagiinId, baiguullaga);
+        }
+
+        const baiguullaga = baiguullagaMap.get(baiguullagiinId);
+        const targetBarilga = baiguullaga?.barilguud?.find(
+          (b) => String(b._id) === String(barilgiinId)
+        );
+        const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
+
+        ashiglaltiinZardluudArray.push(
+          ...zardluud.map((z) => ({
+            ...z,
+            key: combo,
+          }))
+        );
       }
 
       // Create a map for quick lookup (ashiglaltiinZardluud per barilga)
@@ -748,9 +841,10 @@ exports.gereeniiZagvarSoliyo = asyncHandler(async (req, res, next) => {
           const nekhemjlekh = nekhemjlekhMap.get(String(geree._id)) || null;
 
           // Get ashiglaltiinZardluud for this barilga
-          const ashiglaltiinZardluudKey = geree.baiguullagiinId && geree.barilgiinId
-            ? `${geree.baiguullagiinId}|${geree.barilgiinId}`
-            : null;
+          const ashiglaltiinZardluudKey =
+            geree.baiguullagiinId && geree.barilgiinId
+              ? `${geree.baiguullagiinId}|${geree.barilgiinId}`
+              : null;
           const ashiglaltiinZardluud = ashiglaltiinZardluudKey
             ? ashiglaltiinZardluudMap.get(ashiglaltiinZardluudKey) || []
             : [];
@@ -947,7 +1041,14 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
       }
 
       // Get variable value
-      const value = getVariableValue(variableName, geree, orshinSuugch, baiguullaga, nekhemjlekh, ashiglaltiinZardluud);
+      const value = getVariableValue(
+        variableName,
+        geree,
+        orshinSuugch,
+        baiguullaga,
+        nekhemjlekh,
+        ashiglaltiinZardluud
+      );
 
       res.json({
         success: true,
@@ -991,12 +1092,16 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
             })
             .sort({ createdAt: -1 });
         }
-        // Get ashiglaltiinZardluud (expense/charge configuration) for this barilga
+        // Get ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo
         if (sampleGeree.baiguullagiinId && sampleGeree.barilgiinId) {
-          sampleAshiglaltiinZardluud = await AshiglaltiinZardluud(kholbolt).find({
-            baiguullagiinId: String(sampleGeree.baiguullagiinId),
-            barilgiinId: String(sampleGeree.barilgiinId),
-          });
+          const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+            sampleGeree.baiguullagiinId
+          );
+          const targetBarilga = baiguullaga?.barilguud?.find(
+            (b) => String(b._id) === String(sampleGeree.barilgiinId)
+          );
+          sampleAshiglaltiinZardluud =
+            targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
         }
       }
     } else if (finalBaiguullagiinId) {
@@ -1051,19 +1156,46 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
     ];
 
     // Variables that can come from both geree and orshinSuugch
-    const sharedVariables = ["ovog", "ner", "utas", "mail", "toot", "davkhar", "duureg", "horoo", "orts"];
+    const sharedVariables = [
+      "ovog",
+      "ner",
+      "utas",
+      "mail",
+      "toot",
+      "davkhar",
+      "duureg",
+      "horoo",
+      "orts",
+    ];
 
     // Variables specific to geree
-    const gereeVariables = allVariables.filter(v => !sharedVariables.includes(v) || v === "register");
+    const gereeVariables = allVariables.filter(
+      (v) => !sharedVariables.includes(v) || v === "register"
+    );
 
     // Variables specific to orshinSuugch (these are already in sharedVariables)
-    const orshinSuugchVariables = sharedVariables.filter(v => v !== "register");
+    const orshinSuugchVariables = sharedVariables.filter(
+      (v) => v !== "register"
+    );
 
     // Get example values if sample geree exists
     const exampleValues = {};
-    if (sampleGeree || sampleOrshinSuugch || sampleBaiguullaga || sampleNekhemjlekh || sampleAshiglaltiinZardluud.length > 0) {
+    if (
+      sampleGeree ||
+      sampleOrshinSuugch ||
+      sampleBaiguullaga ||
+      sampleNekhemjlekh ||
+      sampleAshiglaltiinZardluud.length > 0
+    ) {
       allVariables.forEach((varName) => {
-        const value = getVariableValue(varName, sampleGeree, sampleOrshinSuugch, sampleBaiguullaga, sampleNekhemjlekh, sampleAshiglaltiinZardluud);
+        const value = getVariableValue(
+          varName,
+          sampleGeree,
+          sampleOrshinSuugch,
+          sampleBaiguullaga,
+          sampleNekhemjlekh,
+          sampleAshiglaltiinZardluud
+        );
         if (value) {
           exampleValues[varName] = value;
         }
@@ -1090,8 +1222,10 @@ exports.gereeniiZagvarHuvisagchAvya = asyncHandler(async (req, res, next) => {
           exampleValue: exampleValues[name] || null,
         })),
         usage: {
-          singleValue: "POST with gereeniiId and variableName to get specific value",
-          allVariables: "POST with gereeniiId (optional) to get list of all variables",
+          singleValue:
+            "POST with gereeniiId and variableName to get specific value",
+          allVariables:
+            "POST with gereeniiId (optional) to get list of all variables",
         },
       },
     });
@@ -1151,4 +1285,3 @@ function getVariableDescription(variableName) {
 // Export helper function for use in other controllers
 exports.replaceTemplateVariables = replaceTemplateVariables;
 exports.getVariableValue = getVariableValue;
-

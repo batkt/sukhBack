@@ -128,7 +128,11 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
             districtCode: tokhirgoo?.districtCode || "",
             sohNer: tokhirgoo?.sohNer || "",
             horoo: tokhirgoo?.horoo || {},
-            davkhar: Array.isArray(tokhirgoo?.davkhar) ? tokhirgoo.davkhar : (tokhirgoo?.davkhar ? [tokhirgoo.davkhar] : []),
+            davkhar: Array.isArray(tokhirgoo?.davkhar)
+              ? tokhirgoo.davkhar
+              : tokhirgoo?.davkhar
+              ? [tokhirgoo.davkhar]
+              : [],
             davkhariinToonuud: tokhirgoo?.davkhariinToonuud || {}, // Include davkhariinToonuud structure
           };
         });
@@ -263,7 +267,11 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
     if (newBarilga.tokhirgoo) {
       newBarilga.tokhirgoo.sohNer = sohNer;
       if (davkhar !== undefined) {
-        newBarilga.tokhirgoo.davkhar = Array.isArray(davkhar) ? davkhar : (davkhar ? [davkhar] : []);
+        newBarilga.tokhirgoo.davkhar = Array.isArray(davkhar)
+          ? davkhar
+          : davkhar
+          ? [davkhar]
+          : [];
       }
     }
 
@@ -272,9 +280,8 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
     await baiguullaga.save();
 
     // Get the newly created barilga ID (last one in the array)
-    const newBarilgiinId = baiguullaga.barilguud[
-      baiguullaga.barilguud.length - 1
-    ]._id.toString();
+    const newBarilgiinId =
+      baiguullaga.barilguud[baiguullaga.barilguud.length - 1]._id.toString();
 
     // Find the company's database connection
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
@@ -282,35 +289,52 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
     );
 
     if (tukhainBaaziinKholbolt) {
-      // Copy ashiglaltiinZardluud from first barilga to new barilga
-      const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
+      // Copy ashiglaltiinZardluud from first barilga tokhirgoo to new barilga tokhirgoo
       const firstBarilgiinId = firstBarilga._id.toString();
+      const existingZardluud =
+        firstBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+      const existingLiftShalgaya = firstBarilga.tokhirgoo?.liftShalgaya || {};
+      const existingDans = firstBarilga.tokhirgoo?.dans || null;
 
-      // Find all ashiglaltiinZardluud entries for the first barilga
-      const existingZardluud = await AshiglaltiinZardluud(
-        tukhainBaaziinKholbolt
-      ).find({
-        baiguullagiinId: baiguullagiinId,
-        barilgiinId: firstBarilgiinId,
-      });
-
-      // Create copies for the new barilga
+      // Copy to new barilga's tokhirgoo
       if (existingZardluud && existingZardluud.length > 0) {
         const newZardluudArray = existingZardluud.map((zardal) => {
-          const zardalObj = zardal.toObject();
-          delete zardalObj._id;
-          delete zardalObj.__v;
-          delete zardalObj.createdAt;
-          delete zardalObj.updatedAt;
-          return {
-            ...zardalObj,
-            barilgiinId: newBarilgiinId,
-          };
+          // Create a clean copy without Mongoose metadata
+          const zardalCopy = JSON.parse(JSON.stringify(zardal));
+          return zardalCopy;
         });
 
-        await AshiglaltiinZardluud(tukhainBaaziinKholbolt).insertMany(
-          newZardluudArray
+        // Find the new barilga index and update its tokhirgoo
+        const newBarilgaIndex = baiguullaga.barilguud.findIndex(
+          (b) => String(b._id) === String(newBarilgiinId)
         );
+
+        if (newBarilgaIndex >= 0) {
+          if (!baiguullaga.barilguud[newBarilgaIndex].tokhirgoo) {
+            baiguullaga.barilguud[newBarilgaIndex].tokhirgoo = {};
+          }
+          baiguullaga.barilguud[
+            newBarilgaIndex
+          ].tokhirgoo.ashiglaltiinZardluud = newZardluudArray;
+
+          // Also copy liftShalgaya
+          if (
+            existingLiftShalgaya &&
+            Object.keys(existingLiftShalgaya).length > 0
+          ) {
+            baiguullaga.barilguud[newBarilgaIndex].tokhirgoo.liftShalgaya =
+              JSON.parse(JSON.stringify(existingLiftShalgaya));
+          }
+
+          // Also copy dans (bank account info)
+          if (existingDans) {
+            baiguullaga.barilguud[newBarilgaIndex].tokhirgoo.dans = JSON.parse(
+              JSON.stringify(existingDans)
+            );
+          }
+
+          await baiguullaga.save();
+        }
       }
     }
 
@@ -323,7 +347,7 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         ner: ner,
         sohNer: sohNer,
         bairniiNer: ner, // Барилгын нэр comes from barilga.ner
-        davkhar: Array.isArray(davkhar) ? davkhar : (davkhar ? [davkhar] : []),
+        davkhar: Array.isArray(davkhar) ? davkhar : davkhar ? [davkhar] : [],
       },
     });
   } catch (error) {
