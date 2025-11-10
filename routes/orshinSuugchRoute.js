@@ -260,12 +260,14 @@ router.post(
         });
       }
 
-      // Create invoice
+      // Create invoice - force creation by passing skipDuplicateCheck flag
+      // This endpoint should always create a new invoice, ignoring duplicate checks
       const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
         geree,
         baiguullaga,
         kholbolt,
-        "garan"
+        "garan",
+        true // skipDuplicateCheck = true
       );
 
       if (!invoiceResult.success) {
