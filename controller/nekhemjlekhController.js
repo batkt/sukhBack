@@ -19,7 +19,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // First, check if we should use ekhniiUldegdel (before duplicate check)
     // This determines if we should skip duplicate checking for first invoice
-    // If geree has ekhniiUldegdel and was created before cron date, skip duplicate check
+    // Only use ekhniiUldegdel if:
+    // 1. Geree was created before cron date
+    // 2. Geree has ekhniiUldegdel
+    // 3. NO existing invoices with ekhniiUldegdel exist (first invoice only)
     let shouldUseEkhniiUldegdel = false;
     const NekhemjlekhCron = require("../models/cronSchedule");
     
@@ -34,9 +37,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
         const gereeCreatedDate = tempData.createdAt || tempData.gereeniiOgnoo || new Date();
         const currentMonthCronDate = new Date(currentYear, currentMonth, scheduledDay, 0, 0, 0, 0);
         
-        // If geree was created before cron date and has ekhniiUldegdel, skip duplicate check
-        // This allows creating invoices with ekhniiUldegdel even if invoices already exist
-        if (gereeCreatedDate < currentMonthCronDate && (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0)) {
+        // Check if there are any existing invoices with ekhniiUldegdel for this geree
+        // Only use ekhniiUldegdel if NO invoices with ekhniiUldegdel exist yet
+        const existingEkhniiUldegdelInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).countDocuments({
+          gereeniiId: tempData._id.toString(),
+          ekhniiUldegdel: { $exists: true, $gt: 0 }, // Has ekhniiUldegdel > 0
+        });
+        
+        // Only use ekhniiUldegdel if:
+        // 1. Geree was created before cron date
+        // 2. Geree has ekhniiUldegdel
+        // 3. NO existing invoices with ekhniiUldegdel (first invoice only)
+        if (gereeCreatedDate < currentMonthCronDate && 
+            (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0) &&
+            existingEkhniiUldegdelInvoices === 0) {
           shouldUseEkhniiUldegdel = true;
         }
       }
