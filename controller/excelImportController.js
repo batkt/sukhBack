@@ -886,6 +886,45 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           );
         }
 
+        // Validate that toot is registered in the building's davkhariinToonuud
+        if (userData.toot && userData.davkhar) {
+          const tootToValidate = userData.toot.trim();
+          const davkharToValidate = userData.davkhar.trim();
+          const ortsToValidate = (userData.orts || "1").trim();
+          const floorKey = `${davkharToValidate}::${ortsToValidate}`;
+
+          const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+          const tootArray = davkhariinToonuud[floorKey];
+
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let registeredToonuud = [];
+            
+            // Handle both formats: comma-separated string or array of strings
+            if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+              registeredToonuud = tootArray[0]
+                .split(",")
+                .map((t) => t.trim())
+                .filter((t) => t);
+            } else {
+              registeredToonuud = tootArray
+                .map((t) => String(t).trim())
+                .filter((t) => t);
+            }
+
+            // Check if toot exists in registered toots
+            if (!registeredToonuud.includes(tootToValidate)) {
+              throw new Error(
+                `Тоот "${tootToValidate}" энэ барилгын ${davkharToValidate} давхарт бүртгэгдээгүй байна! Бүртгэлтэй тоотууд: ${registeredToonuud.join(", ") || "байхгүй"}`
+              );
+            }
+          } else {
+            // No toots registered for this floor
+            throw new Error(
+              `${davkharToValidate} давхарт бүртгэлтэй тоот байхгүй байна! Эхлээд тоот бүртгэх шаардлагатай.`
+            );
+          }
+        }
+
         // Get ashiglaltiinZardluud and liftShalgaya from baiguullaga.barilguud[].tokhirgoo
         const targetBarilgaForRow = baiguullaga.barilguud?.find(
           (b) => String(b._id) === String(finalBarilgiinId)

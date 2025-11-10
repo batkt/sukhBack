@@ -106,7 +106,15 @@ crud(
         isNew: true,
       });
 
-      req.body.gereeniiDugaar = req.body.gereeniiDugaar + maxDugaar;
+      // Only append maxDugaar suffix if it's greater than 1 (multiple contracts on same day)
+      // Format: ГД-12345678 (for first contract) or ГД-12345678-2 (for subsequent contracts)
+      // This prevents "-0" or "-1" suffixes from appearing
+      if (maxDugaar && maxDugaar > 1) {
+        req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
+      }
+      
+      // Set orshinSuugchId in req.body so geree can reference it
+      req.body.orshinSuugchId = orshinSuugch._id.toString();
 
       try {
         await orshinSuugch.save();
@@ -336,7 +344,11 @@ router.route("/gereeKhadgalya").post(tokenShalgakh, async (req, res, next) => {
       ognoo: unuudur,
       isNew: true,
     });
-    req.body.gereeniiDugaar = req.body.gereeniiDugaar + maxDugaar;
+    // Only append maxDugaar suffix if it's greater than 1 (multiple contracts on same day)
+    // This prevents "-0" or "-1" suffixes from appearing
+    if (maxDugaar && maxDugaar > 1) {
+      req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
+    }
     dugaarlalt.save();
   }
 
