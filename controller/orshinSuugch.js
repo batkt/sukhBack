@@ -738,26 +738,36 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
         // Reactivate the cancelled geree and link it to the new user
         // Update with current charges (zardluud) and niitTulbur
+        const updateData = {
+          tuluv: "Идэвхитэй", // Reactivate from "Цуцалсан" to "Идэвхитэй"
+          gereeniiOgnoo: new Date(), // Update contract date
+          orshinSuugchId: orshinSuugch._id.toString(), // Link to new user
+          zardluud: zardluudArray, // Update with current charges
+          niitTulbur: niitTulbur, // Update with current total
+          ashiglaltiinZardal: 0, // Reset to 0
+          // Update user info in geree if needed
+          ovog: req.body.ovog || existingCancelledGeree.ovog,
+          ner: req.body.ner || existingCancelledGeree.ner,
+          register: req.body.register || existingCancelledGeree.register,
+          utas: [req.body.utas],
+          mail: req.body.mail || existingCancelledGeree.mail,
+          toot: orshinSuugch.toot || existingCancelledGeree.toot,
+          davkhar: orshinSuugch.davkhar || existingCancelledGeree.davkhar,
+          duureg: req.body.duureg || existingCancelledGeree.duureg,
+          horoo: req.body.horoo || existingCancelledGeree.horoo,
+          sohNer: req.body.soh || existingCancelledGeree.sohNer,
+        };
+        
+        // Add optional fields from frontend if provided
+        if (req.body.tailbar) {
+          updateData.temdeglel = req.body.tailbar;
+        }
+        if (req.body.ekhniiUldegdel !== undefined) {
+          updateData.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
+        }
+        
         await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
-          $set: {
-            tuluv: "Идэвхитэй", // Reactivate from "Цуцалсан" to "Идэвхитэй"
-            gereeniiOgnoo: new Date(), // Update contract date
-            orshinSuugchId: orshinSuugch._id.toString(), // Link to new user
-            zardluud: zardluudArray, // Update with current charges
-            niitTulbur: niitTulbur, // Update with current total
-            ashiglaltiinZardal: 0, // Reset to 0
-            // Update user info in geree if needed
-            ovog: req.body.ovog || existingCancelledGeree.ovog,
-            ner: req.body.ner || existingCancelledGeree.ner,
-            register: req.body.register || existingCancelledGeree.register,
-            utas: [req.body.utas],
-            mail: req.body.mail || existingCancelledGeree.mail,
-            toot: orshinSuugch.toot || existingCancelledGeree.toot,
-            davkhar: orshinSuugch.davkhar || existingCancelledGeree.davkhar,
-            duureg: req.body.duureg || existingCancelledGeree.duureg,
-            horoo: req.body.horoo || existingCancelledGeree.horoo,
-            sohNer: req.body.soh || existingCancelledGeree.sohNer,
-          },
+          $set: updateData,
         });
       }
 
