@@ -659,11 +659,11 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
     const { baiguullagiinId, barilgiinId } = req.body;
 
     if (!baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+      throw new aldaa("Байгууллагын ID хоосон");
     }
 
     if (!req.file) {
-      throw new aldaa("Excel файл оруулах шаардлагатай!");
+      throw new aldaa("Excel файл оруулах");
     }
 
     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
@@ -672,7 +672,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
     const data = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
     if (!data || data.length === 0) {
-      throw new aldaa("Excel файл хоосон байна!");
+      throw new aldaa("Excel хоосон");
     }
 
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
@@ -680,7 +680,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
     );
 
     if (!baiguullaga) {
-      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+      throw new aldaa("Байгууллага олдсонгүй");
     }
 
     const defaultBarilgiinId =
@@ -694,7 +694,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
     );
 
     if (!tukhainBaaziinKholbolt) {
-      throw new aldaa("Байгууллагын холболтын мэдээлэл олдсонгүй!");
+      throw new aldaa("Холболт олдсонгүй");
     }
 
     // Note: ashiglaltiinZardluudData will be fetched per row from baiguullaga.barilguud[].tokhirgoo
@@ -723,48 +723,48 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         const validationErrors = [];
 
         if (!userData.ovog || userData.ovog.length === 0) {
-          validationErrors.push("Овог хоосон байна!");
+          validationErrors.push("Овог");
         }
 
         if (!userData.ner || userData.ner.length === 0) {
-          validationErrors.push("Нэр хоосон байна!");
+          validationErrors.push("Нэр");
         }
 
         if (!userData.utas || userData.utas.length === 0) {
-          validationErrors.push("Утасны дугаар хоосон байна!");
+          validationErrors.push("Утас");
         } else {
           userData.utas = userData.utas.replace(/\s/g, "");
           if (userData.utas.length === 0) {
-            validationErrors.push("Утасны дугаарт хоосон зай байна!");
+            validationErrors.push("Утас");
           } else if (!/^\d+$/.test(userData.utas)) {
-            validationErrors.push("Утасны дугаар зөвхөн тоо байх ёстой!");
+            validationErrors.push("Утас буруу");
           } else if (userData.utas.length !== 8) {
-            validationErrors.push("Утасны дугаар 8 оронтой байх ёстой!");
+            validationErrors.push("Утас 8 орон");
           }
         }
 
         if (!userData.davkhar || userData.davkhar.length === 0) {
-          validationErrors.push("Давхар хоосон байна!");
+          validationErrors.push("Давхар");
         } else {
           userData.davkhar = userData.davkhar.replace(/\s/g, "");
           if (userData.davkhar.length === 0) {
-            validationErrors.push("Давхар талбарт хоосон зай байна!");
+            validationErrors.push("Давхар");
           } else if (!/^\d+$/.test(userData.davkhar)) {
-            validationErrors.push("Давхар зөвхөн тоо байх ёстой!");
+            validationErrors.push("Давхар буруу");
           }
         }
 
         if (!userData.toot || userData.toot.length === 0) {
-          validationErrors.push("Тоот хоосон байна!");
+          validationErrors.push("Тоот");
         } else {
           userData.toot = userData.toot.trim();
           if (userData.toot.length === 0) {
-            validationErrors.push("Тоот талбарт хоосон байна!");
+            validationErrors.push("Тоот");
           }
         }
 
         if (validationErrors.length > 0) {
-          throw new Error(validationErrors.join(" "));
+          throw new Error(validationErrors.join(", ") + " хоосон эсвэл буруу");
         }
 
         // Determine the correct building for this user
@@ -873,7 +873,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         });
 
         if (existingUser) {
-          throw new Error("Энэ барилгад утасны дугаар давхардаж байна!");
+          throw new Error("Утас давхардаж байна");
         }
 
         const targetBarilga = baiguullaga.barilguud?.find(
@@ -881,9 +881,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         );
 
         if (!targetBarilga) {
-          throw new Error(
-            `Барилга олдсонгүй. Барилгын ID: ${finalBarilgiinId}`
-          );
+          throw new Error("Барилга олдсонгүй");
         }
 
         if (userData.toot && userData.davkhar) {
@@ -1148,11 +1146,11 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     const { baiguullagiinId, barilgiinId } = req.body;
 
     if (!baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+      throw new aldaa("Байгууллагын ID хоосон");
     }
 
     if (!req.file) {
-      throw new aldaa("Excel файл оруулах шаардлагатай!");
+      throw new aldaa("Excel файл оруулах");
     }
 
     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
@@ -1161,7 +1159,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     const data = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
     if (!data || data.length === 0) {
-      throw new aldaa("Excel файл хоосон байна!");
+      throw new aldaa("Excel хоосон");
     }
 
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
@@ -1169,7 +1167,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     );
 
     if (!baiguullaga) {
-      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+      throw new aldaa("Байгууллага олдсонгүй");
     }
 
     const defaultBarilgiinId =
@@ -1179,7 +1177,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
         : null);
 
     if (!defaultBarilgiinId) {
-      throw new aldaa("Барилгын ID олдсонгүй!");
+      throw new aldaa("Барилгын ID олдсонгүй");
     }
 
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
@@ -1187,7 +1185,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     );
 
     if (!tukhainBaaziinKholbolt) {
-      throw new aldaa("Байгууллагын холболтын мэдээлэл олдсонгүй!");
+      throw new aldaa("Холболт олдсонгүй");
     }
 
     // Get target barilga
@@ -1196,7 +1194,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     );
 
     if (!targetBarilga) {
-      throw new aldaa("Барилга олдсонгүй!");
+      throw new aldaa("Барилга олдсонгүй");
     }
 
     // Get or initialize davkhar array and davkhariinToonuud object
@@ -1240,15 +1238,15 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
         const validationErrors = [];
 
         if (!toot) {
-          validationErrors.push("Тоот хоосон байна!");
+          validationErrors.push("Тоот");
         }
 
         if (!davkhar) {
-          validationErrors.push("Давхар хоосон байна!");
+          validationErrors.push("Давхар");
         }
 
         if (validationErrors.length > 0) {
-          throw new Error(validationErrors.join(" "));
+          throw new Error(validationErrors.join(", ") + " хоосон");
         }
 
         // Save tootBurtgel
