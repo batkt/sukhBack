@@ -51,7 +51,7 @@ crud(
     try {
       const { db } = require("zevbackv2");
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
-        (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
+        (kholbolt) => String(kholbolt.baiguullagiinId) === String(req.body.baiguullagiinId)
       );
 
       if (!tukhainBaaziinKholbolt) {
@@ -111,8 +111,18 @@ crud(
     if (req.method === "GET") {
       try {
         const { db } = require("zevbackv2");
+        const body = req.query;
+        const baiguullagiinId = body.baiguullagiinId || req.body?.baiguullagiinId;
+        
+        if (!baiguullagiinId) {
+          return res.status(400).json({
+            success: false,
+            aldaa: "Байгууллагын ID заавал бөглөх шаардлагатай!",
+          });
+        }
+        
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
+          (kholbolt) => String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
         );
 
         if (!tukhainBaaziinKholbolt) {
@@ -121,8 +131,6 @@ crud(
             aldaa: "Холболтын мэдээлэл олдсонгүй!",
           });
         }
-
-        const body = req.query;
         const {
           query = {},
           order,
