@@ -62,7 +62,15 @@ crud(
         return next(new Error("Холболтын мэдээлэл олдсонгүй!"));
       }
 
-      const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)(req.body);
+      // Normalize utas field: convert array to string for OrshinSuugch model
+      const orshinSuugchData = { ...req.body };
+      if (Array.isArray(orshinSuugchData.utas) && orshinSuugchData.utas.length > 0) {
+        orshinSuugchData.utas = orshinSuugchData.utas[0];
+      } else if (!orshinSuugchData.utas) {
+        orshinSuugchData.utas = "";
+      }
+
+      const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)(orshinSuugchData);
       orshinSuugch.id;
 
       var unuudur = new Date();
@@ -565,14 +573,12 @@ router
     }
   });
 
-// TootBurtgel Excel Template Download
 router.get(
   "/tootBurtgelExcelTemplate",
   tokenShalgakh,
   generateTootBurtgelExcelTemplate
 );
 
-// TootBurtgel Excel Import
 router.post(
   "/tootBurtgelExcelImport",
   tokenShalgakh,
