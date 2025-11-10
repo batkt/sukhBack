@@ -1,6 +1,7 @@
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
+const NekhemjlekhCron = require("../models/cronSchedule");
 
 // Гэрээнээс нэхэмжлэх үүсгэх функц
 const gereeNeesNekhemjlekhUusgekh = async (
@@ -302,8 +303,42 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = filteredNiitTulbur;
 
-    // Set payment due date (30 days from creation)
-    tuukh.tulukhOgnoo = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    // Set payment due date based on nekhemjlekhCron schedule
+    // Get the cron schedule for this baiguullaga
+    let tulukhOgnoo = null;
+    try {
+      const cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
+        baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+      });
+
+      if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
+        // Calculate next month's scheduled date
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth(); // 0-11
+        const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo; // 1-31
+
+        // Calculate next month
+        let nextMonth = currentMonth + 1;
+        let nextYear = currentYear;
+        if (nextMonth > 11) {
+          nextMonth = 0;
+          nextYear = currentYear + 1;
+        }
+
+        // Get the last day of next month to handle edge cases (e.g., Feb 31 -> Feb 28/29)
+        const lastDayOfNextMonth = new Date(nextYear, nextMonth + 1, 0).getDate();
+        const dayToUse = Math.min(scheduledDay, lastDayOfNextMonth);
+
+        // Create the date for next month's scheduled day
+        tulukhOgnoo = new Date(nextYear, nextMonth, dayToUse, 0, 0, 0, 0);
+      }
+    } catch (error) {
+      console.error("Error fetching nekhemjlekhCron schedule:", error.message);
+    }
+
+    // Fallback to 30 days from now if cron schedule not found
+    tuukh.tulukhOgnoo = tulukhOgnoo || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     // Initialize payment status
     tuukh.tuluv = "Төлөөгүй";
