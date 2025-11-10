@@ -886,7 +886,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           );
         }
 
-        // Validate that toot is registered in the building's davkhariinToonuud
         if (userData.toot && userData.davkhar) {
           const tootToValidate = userData.toot.trim();
           const davkharToValidate = userData.davkhar.trim();
@@ -899,7 +898,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
             let registeredToonuud = [];
             
-            // Handle both formats: comma-separated string or array of strings
             if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
               registeredToonuud = tootArray[0]
                 .split(",")
@@ -911,16 +909,15 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 .filter((t) => t);
             }
 
-            // Check if toot exists in registered toots
             if (!registeredToonuud.includes(tootToValidate)) {
               throw new Error(
-                `Тоот "${tootToValidate}" энэ барилгын ${davkharToValidate} давхарт бүртгэгдээгүй байна! Бүртгэлтэй тоотууд: ${registeredToonuud.join(", ") || "байхгүй"}`
+                `Бүртгэлгүй тоот байна`
               );
             }
           } else {
             // No toots registered for this floor
             throw new Error(
-              `${davkharToValidate} давхарт бүртгэлтэй тоот байхгүй байна! Эхлээд тоот бүртгэх шаардлагатай.`
+                `Бүртгэлгүй тоот байна`
             );
           }
         }
