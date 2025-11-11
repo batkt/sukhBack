@@ -655,24 +655,11 @@ async function sendInvoiceSmsToOrshinSuugch(
       return; // No phone number available
     }
 
-    // Get SMS settings from baiguullaga tokhirgoo
-    console.log("📱 [SMS] Checking baiguullaga tokhirgoo for SMS settings...");
-    console.log("📱 [SMS] Baiguullaga tokhirgoo exists:", !!baiguullaga?.tokhirgoo);
-    console.log("📱 [SMS] msgIlgeekhKey:", baiguullaga?.tokhirgoo?.msgIlgeekhKey ? "EXISTS" : "MISSING");
-    console.log("📱 [SMS] msgIlgeekhDugaar:", baiguullaga?.tokhirgoo?.msgIlgeekhDugaar ? "EXISTS" : "MISSING");
-
-    if (
-      !baiguullaga?.tokhirgoo?.msgIlgeekhKey ||
-      !baiguullaga?.tokhirgoo?.msgIlgeekhDugaar
-    ) {
-      console.log("❌ [SMS] SMS not configured for this organization (missing msgIlgeekhKey or msgIlgeekhDugaar)");
-      return; // SMS not configured for this organization
-    }
-
-    const msgIlgeekhKey = baiguullaga.tokhirgoo.msgIlgeekhKey;
-    const msgIlgeekhDugaar = baiguullaga.tokhirgoo.msgIlgeekhDugaar;
-
-    console.log("✅ [SMS] SMS settings found - Key:", msgIlgeekhKey.substring(0, 10) + "...", "Dugaar:", msgIlgeekhDugaar);
+    // Hardcode SMS settings (same as dugaarBatalgaajuulya)
+    var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
+    var msgIlgeekhDugaar = "72002002";
+    
+    console.log("✅ [SMS] Using hardcoded SMS settings - Key:", msgIlgeekhKey.substring(0, 10) + "...", "Dugaar:", msgIlgeekhDugaar);
 
     // Create SMS message
     const smsText = `Tany ${nekhemjlekh.gereeniiDugaar} gereend, ${nekhemjlekh.niitTulbur}₮ nekhemjlekh uuslee, tulukh ognoo ${new Date(nekhemjlekh.tulukhOgnoo).toLocaleDateString("mn-MN")}`;
