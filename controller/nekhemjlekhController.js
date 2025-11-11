@@ -359,17 +359,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Fallback to 30 days from now if cron schedule not found
     tuukh.tulukhOgnoo = tulukhOgnoo || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     
-    // Use ekhniiUldegdel for first invoice if conditions are met, otherwise use normal charges
-    const finalNiitTulbur = shouldUseEkhniiUldegdel 
-      ? (tempData.ekhniiUldegdel || 0)
-      : filteredZardluud.reduce((sum, zardal) => {
-          return sum + (zardal.tariff || 0);
-        }, 0);
-    
-    // When using ekhniiUldegdel, do NOT include zardluud charges in medeelel
-    // Only include zardluud when cron is activated (after first invoice)
-    const finalZardluud = shouldUseEkhniiUldegdel ? [] : filteredZardluud;
-
     // Get guilgeenuudForNekhemjlekh (one-time guilgeenuud that should appear in invoice)
     // These are guilgeenuud that have been added to geree and should appear once in an invoice
     let guilgeenuudForNekhemjlekh = [];
@@ -381,6 +370,27 @@ const gereeNeesNekhemjlekhUusgekh = async (
     } catch (error) {
       console.error("Error fetching guilgeenuudForNekhemjlekh:", error);
     }
+
+    // Calculate guilgeenuud total (tulukhDun from avlaga guilgeenuud)
+    const guilgeenuudTotal = guilgeenuudForNekhemjlekh.reduce((sum, guilgee) => {
+      return sum + (guilgee.tulukhDun || 0);
+    }, 0);
+    
+    // Use ekhniiUldegdel for first invoice if conditions are met, otherwise use normal charges
+    const zardluudTotal = shouldUseEkhniiUldegdel 
+      ? 0
+      : filteredZardluud.reduce((sum, zardal) => {
+          return sum + (zardal.tariff || 0);
+        }, 0);
+    
+    // Final total includes zardluud + guilgeenuud (or ekhniiUldegdel for first invoice)
+    const finalNiitTulbur = shouldUseEkhniiUldegdel 
+      ? (tempData.ekhniiUldegdel || 0) + guilgeenuudTotal
+      : zardluudTotal + guilgeenuudTotal;
+    
+    // When using ekhniiUldegdel, do NOT include zardluud charges in medeelel
+    // Only include zardluud when cron is activated (after first invoice)
+    const finalZardluud = shouldUseEkhniiUldegdel ? [] : filteredZardluud;
 
     tuukh.medeelel = {
       zardluud: finalZardluud,
