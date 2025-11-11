@@ -624,33 +624,59 @@ async function sendInvoiceSmsToOrshinSuugch(
   tukhainBaaziinKholbolt
 ) {
   try {
+    console.log("📱 [SMS] Starting SMS sending process...");
+    console.log("📱 [SMS] Invoice ID:", nekhemjlekh._id);
+    console.log("📱 [SMS] Geree ID:", geree._id);
+    console.log("📱 [SMS] Baiguullaga ID:", baiguullaga?._id);
+
     // Get orshinSuugch from geree
     if (!geree.orshinSuugchId) {
+      console.log("❌ [SMS] No orshinSuugchId found in geree");
       return; // No orshinSuugch linked to this geree
     }
+
+    console.log("✅ [SMS] Found orshinSuugchId:", geree.orshinSuugchId);
 
     const { db } = require("zevbackv2");
     const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
       geree.orshinSuugchId
     );
 
-    if (!orshinSuugch || !orshinSuugch.utas) {
+    if (!orshinSuugch) {
+      console.log("❌ [SMS] OrshinSuugch not found with ID:", geree.orshinSuugchId);
+      return; // No orshinSuugch found
+    }
+
+    console.log("✅ [SMS] Found orshinSuugch:", orshinSuugch.ner);
+    console.log("📱 [SMS] Phone number (utas):", orshinSuugch.utas);
+
+    if (!orshinSuugch.utas) {
+      console.log("❌ [SMS] No phone number (utas) found for orshinSuugch");
       return; // No phone number available
     }
 
     // Get SMS settings from baiguullaga tokhirgoo
+    console.log("📱 [SMS] Checking baiguullaga tokhirgoo for SMS settings...");
+    console.log("📱 [SMS] Baiguullaga tokhirgoo exists:", !!baiguullaga?.tokhirgoo);
+    console.log("📱 [SMS] msgIlgeekhKey:", baiguullaga?.tokhirgoo?.msgIlgeekhKey ? "EXISTS" : "MISSING");
+    console.log("📱 [SMS] msgIlgeekhDugaar:", baiguullaga?.tokhirgoo?.msgIlgeekhDugaar ? "EXISTS" : "MISSING");
+
     if (
       !baiguullaga?.tokhirgoo?.msgIlgeekhKey ||
       !baiguullaga?.tokhirgoo?.msgIlgeekhDugaar
     ) {
+      console.log("❌ [SMS] SMS not configured for this organization (missing msgIlgeekhKey or msgIlgeekhDugaar)");
       return; // SMS not configured for this organization
     }
 
     const msgIlgeekhKey = baiguullaga.tokhirgoo.msgIlgeekhKey;
     const msgIlgeekhDugaar = baiguullaga.tokhirgoo.msgIlgeekhDugaar;
 
+    console.log("✅ [SMS] SMS settings found - Key:", msgIlgeekhKey.substring(0, 10) + "...", "Dugaar:", msgIlgeekhDugaar);
+
     // Create SMS message
     const smsText = `Tany ${nekhemjlekh.gereeniiDugaar} gereend, ${nekhemjlekh.niitTulbur}₮ nekhemjlekh uuslee, tulukh ognoo ${new Date(nekhemjlekh.tulukhOgnoo).toLocaleDateString("mn-MN")}`;
+    console.log("📱 [SMS] SMS text:", smsText);
 
     // Send SMS
     const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
@@ -667,11 +693,19 @@ async function sendInvoiceSmsToOrshinSuugch(
       smsText;
 
     url = encodeURI(url);
+    console.log("📱 [SMS] Sending SMS to:", orshinSuugch.utas);
+    console.log("📱 [SMS] SMS Server:", msgServer);
+    console.log("📱 [SMS] Full URL (without key):", url.replace(msgIlgeekhKey, "***HIDDEN***"));
 
     request(url, { json: true }, (err1, res1, body) => {
       if (err1) {
-        console.error("SMS sending error:", err1);
+        console.error("❌ [SMS] SMS sending error:", err1);
+        console.error("❌ [SMS] Error details:", err1.message);
       } else {
+        console.log("✅ [SMS] SMS sent successfully!");
+        console.log("📱 [SMS] Response status:", res1?.statusCode);
+        console.log("📱 [SMS] Response body:", JSON.stringify(body));
+        
         // Save message to MsgTuukh
         try {
           const msg = new MsgTuukh(tukhainBaaziinKholbolt)();
@@ -681,14 +715,19 @@ async function sendInvoiceSmsToOrshinSuugch(
           msg.msg = smsText;
           msg.msgIlgeekhKey = msgIlgeekhKey;
           msg.msgIlgeekhDugaar = msgIlgeekhDugaar;
-          msg.save();
+          msg.save().then(() => {
+            console.log("✅ [SMS] Message saved to MsgTuukh");
+          }).catch((saveErr) => {
+            console.error("❌ [SMS] Error saving SMS to MsgTuukh:", saveErr);
+          });
         } catch (saveError) {
-          console.error("Error saving SMS to MsgTuukh:", saveError);
+          console.error("❌ [SMS] Error saving SMS to MsgTuukh:", saveError);
         }
       }
     });
   } catch (error) {
-    console.error("Error in sendInvoiceSmsToOrshinSuugch:", error);
+    console.error("❌ [SMS] Error in sendInvoiceSmsToOrshinSuugch:", error);
+    console.error("❌ [SMS] Error stack:", error.stack);
     throw error;
   }
 }
