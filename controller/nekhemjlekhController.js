@@ -370,8 +370,21 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Only include zardluud when cron is activated (after first invoice)
     const finalZardluud = shouldUseEkhniiUldegdel ? [] : filteredZardluud;
 
+    // Get guilgeenuudForNekhemjlekh (one-time guilgeenuud that should appear in invoice)
+    // These are guilgeenuud that have been added to geree and should appear once in an invoice
+    let guilgeenuudForNekhemjlekh = [];
+    try {
+      const gereeWithGuilgee = await Geree(tukhainBaaziinKholbolt, true)
+        .findById(tempData._id)
+        .select("+guilgeenuudForNekhemjlekh");
+      guilgeenuudForNekhemjlekh = gereeWithGuilgee?.guilgeenuudForNekhemjlekh || [];
+    } catch (error) {
+      console.error("Error fetching guilgeenuudForNekhemjlekh:", error);
+    }
+
     tuukh.medeelel = {
       zardluud: finalZardluud,
+      guilgeenuud: guilgeenuudForNekhemjlekh, // Include one-time guilgeenuud
       segmentuud: tempData.segmentuud || [],
       khungulultuud: tempData.khungulultuud || [],
       toot: tempData.toot,
@@ -417,6 +430,26 @@ const gereeNeesNekhemjlekhUusgekh = async (
       suuliinDugaar && !isNaN(suuliinDugaar) ? suuliinDugaar + 1 : 1;
 
     await tuukh.save();
+
+    // Remove guilgeenuudForNekhemjlekh from geree after including them in invoice (one-time)
+    // This ensures they only appear once in an invoice
+    if (guilgeenuudForNekhemjlekh.length > 0) {
+      try {
+        await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
+          tempData._id,
+          {
+            $set: {
+              guilgeenuudForNekhemjlekh: [], // Clear the array after including in invoice
+            },
+          },
+          {
+            runValidators: false,
+          }
+        );
+      } catch (error) {
+        console.error("Error clearing guilgeenuudForNekhemjlekh:", error);
+      }
+    }
 
     // Гэрээг нэхэмжлэхийн огноогоор шинэчлэх
     // Use $set to only update nekhemjlekhiinOgnoo without affecting timestamps

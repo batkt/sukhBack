@@ -24,6 +24,7 @@ const {
   generateTootBurtgelExcelTemplate,
   importTootBurtgelFromExcel,
 } = require("../controller/excelImportController");
+const { gereeniiGuilgeeKhadgalya } = require("../controller/gereeController");
 
 const storage = multer.memoryStorage();
 const uploadFile = multer({ storage: storage });
@@ -383,6 +384,10 @@ router.route("/gereeKhadgalya").post(tokenShalgakh, async (req, res, next) => {
   });
   res.send("Amjilttai");
 });
+
+router
+  .route("/gereeniiGuilgeeKhadgalya")
+  .post(tokenShalgakh, gereeniiGuilgeeKhadgalya);
 
 router
   .route("/zaaltOlnoorOruulya")
