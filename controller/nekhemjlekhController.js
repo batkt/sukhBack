@@ -299,8 +299,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.maililgeesenAjiltniiNer || tempData.ner;
     tuukh.nekhemjlekhiinZagvarId = tempData.nekhemjlekhiinZagvarId || "";
     
-    // Save ekhniiUldegdel to invoice
-    tuukh.ekhniiUldegdel = tempData.ekhniiUldegdel || 0;
+    // Save ekhniiUldegdel to invoice (preserve 0 value if it exists)
+    console.log("💰 [INVOICE] ekhniiUldegdel from geree:", tempData.ekhniiUldegdel);
+    console.log("💰 [INVOICE] ekhniiUldegdel type:", typeof tempData.ekhniiUldegdel);
+    console.log("💰 [INVOICE] ekhniiUldegdel undefined?", tempData.ekhniiUldegdel === undefined);
+    console.log("💰 [INVOICE] ekhniiUldegdel null?", tempData.ekhniiUldegdel === null);
+    
+    tuukh.ekhniiUldegdel = tempData.ekhniiUldegdel !== undefined && tempData.ekhniiUldegdel !== null 
+      ? tempData.ekhniiUldegdel 
+      : 0;
+    
+    console.log("💰 [INVOICE] ekhniiUldegdel saved to invoice:", tuukh.ekhniiUldegdel);
+    
+    // Also save ekhniiUldegdelUsgeer if it exists
+    if (tempData.ekhniiUldegdelUsgeer !== undefined) {
+      tuukh.ekhniiUldegdelUsgeer = tempData.ekhniiUldegdelUsgeer;
+      console.log("💰 [INVOICE] ekhniiUldegdelUsgeer saved:", tuukh.ekhniiUldegdelUsgeer);
+    }
 
     let filteredZardluud = tempData.zardluud || [];
     if (tempData.davkhar) {
@@ -390,6 +405,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
     const finalNiitTulbur = shouldUseEkhniiUldegdel 
       ? (tempData.ekhniiUldegdel || 0) + guilgeenuudTotal
       : zardluudTotal + guilgeenuudTotal;
+    
+    // Don't create invoice if total amount is 0 (for new users with no charges)
+    if (finalNiitTulbur === 0 && guilgeenuudTotal === 0) {
+      console.log("⚠️ [INVOICE] Skipping invoice creation - total amount is 0 MNT");
+      return {
+        success: false,
+        error: "Нийт төлбөр 0₮ байна. Нэхэмжлэх үүсгэх шаардлагагүй.",
+        gereeniiId: tempData._id,
+        gereeniiDugaar: tempData.gereeniiDugaar,
+        skipReason: "zero_amount",
+      };
+    }
     
     // When using ekhniiUldegdel, do NOT include zardluud charges in medeelel
     // Only include zardluud when cron is activated (after first invoice)
