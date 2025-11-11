@@ -841,24 +841,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           );
         }
 
-        try {
-          const {
-            gereeNeesNekhemjlekhUusgekh,
-          } = require("./nekhemjlekhController");
-
-          const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
-            geree,
-            baiguullaga,
-            tukhainBaaziinKholbolt,
-            "automataar"
-          );
-
-          if (!invoiceResult.success) {
-            console.error("Invoice creation failed:", invoiceResult.error);
-          }
-        } catch (invoiceError) {
-          console.error("Error creating invoice:", invoiceError.message);
-        }
+        // Invoice will be created by cron job on scheduled date
+        // Do not create invoice immediately for new users
       }
 
       // If reactivating, check if today is the scheduled invoice creation date
