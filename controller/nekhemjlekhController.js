@@ -2,6 +2,9 @@ const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const NekhemjlekhCron = require("../models/cronSchedule");
+const OrshinSuugch = require("../models/orshinSuugch");
+const MsgTuukh = require("../models/msgTuukh");
+const request = require("request");
 
 // Гэрээнээс нэхэмжлэх үүсгэх функц
 const gereeNeesNekhemjlekhUusgekh = async (
@@ -476,6 +479,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     );
 
+    // Send SMS to orshinSuugch when invoice is created
+    try {
+      await sendInvoiceSmsToOrshinSuugch(
+        tuukh,
+        tempData,
+        org,
+        tukhainBaaziinKholbolt
+      );
+    } catch (smsError) {
+      console.error("Error sending SMS to orshinSuugch:", smsError);
+      // Don't fail the invoice creation if SMS fails
+    }
+
     return {
       success: true,
       nekhemjlekh: tuukh,
@@ -599,6 +615,83 @@ const updateGereeAndNekhemjlekhFromZardluud = async (
     return { success: false, error: error.message };
   }
 };
+
+// Helper function to send SMS to orshinSuugch when invoice is created
+async function sendInvoiceSmsToOrshinSuugch(
+  nekhemjlekh,
+  geree,
+  baiguullaga,
+  tukhainBaaziinKholbolt
+) {
+  try {
+    // Get orshinSuugch from geree
+    if (!geree.orshinSuugchId) {
+      return; // No orshinSuugch linked to this geree
+    }
+
+    const { db } = require("zevbackv2");
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+      geree.orshinSuugchId
+    );
+
+    if (!orshinSuugch || !orshinSuugch.utas) {
+      return; // No phone number available
+    }
+
+    // Get SMS settings from baiguullaga tokhirgoo
+    if (
+      !baiguullaga?.tokhirgoo?.msgIlgeekhKey ||
+      !baiguullaga?.tokhirgoo?.msgIlgeekhDugaar
+    ) {
+      return; // SMS not configured for this organization
+    }
+
+    const msgIlgeekhKey = baiguullaga.tokhirgoo.msgIlgeekhKey;
+    const msgIlgeekhDugaar = baiguullaga.tokhirgoo.msgIlgeekhDugaar;
+
+    // Create SMS message
+    const smsText = `Tany ${nekhemjlekh.gereeniiDugaar} gereend, ${nekhemjlekh.niitTulbur}₮ nekhemjlekh uuslee, tulukh ognoo ${new Date(nekhemjlekh.tulukhOgnoo).toLocaleDateString("mn-MN")}`;
+
+    // Send SMS
+    const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
+    let url =
+      msgServer +
+      "/send" +
+      "?key=" +
+      msgIlgeekhKey +
+      "&from=" +
+      msgIlgeekhDugaar +
+      "&to=" +
+      orshinSuugch.utas.toString() +
+      "&text=" +
+      smsText;
+
+    url = encodeURI(url);
+
+    request(url, { json: true }, (err1, res1, body) => {
+      if (err1) {
+        console.error("SMS sending error:", err1);
+      } else {
+        // Save message to MsgTuukh
+        try {
+          const msg = new MsgTuukh(tukhainBaaziinKholbolt)();
+          msg.baiguullagiinId = baiguullaga._id.toString();
+          msg.dugaar = orshinSuugch.utas;
+          msg.gereeniiId = geree._id.toString();
+          msg.msg = smsText;
+          msg.msgIlgeekhKey = msgIlgeekhKey;
+          msg.msgIlgeekhDugaar = msgIlgeekhDugaar;
+          msg.save();
+        } catch (saveError) {
+          console.error("Error saving SMS to MsgTuukh:", saveError);
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error in sendInvoiceSmsToOrshinSuugch:", error);
+    throw error;
+  }
+}
 
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
