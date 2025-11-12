@@ -1067,6 +1067,13 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     if (!orshinSuugch) throw new aldaa("Бүртгэлгүй хаяг байна.");
 
+    // Validate toot if provided
+    if (req.body.toot) {
+      if (!orshinSuugch.toot || orshinSuugch.toot.trim() !== req.body.toot.trim()) {
+        throw new aldaa("Бүртгэлгүй тоот байна");
+      }
+    }
+
     var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
 
