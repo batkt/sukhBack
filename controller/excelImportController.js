@@ -1166,6 +1166,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     const TootBurtgel = require("../models/tootBurtgel");
     const Baiguullaga = require("../models/baiguullaga");
     const { updateDavkharWithToot } = require("./orshinSuugch");
+    const { shalguurValidate } = require("../components/shalguur");
 
     const { baiguullagiinId, barilgiinId } = req.body;
 
@@ -1263,6 +1264,12 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
         if (!toot) {
           validationErrors.push("Тоот");
+        } else {
+          // Validate toot (kharagdakhDugaar) - only allow alphanumeric, hyphens, and slashes
+          const tootValidationError = shalguurValidate(toot, "Тоот");
+          if (tootValidationError) {
+            validationErrors.push(tootValidationError);
+          }
         }
 
         if (!davkhar) {
@@ -1270,7 +1277,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
         }
 
         if (validationErrors.length > 0) {
-          throw new Error(validationErrors.join(", ") + " хоосон");
+          throw new Error(validationErrors.join(" "));
         }
 
         // Save tootBurtgel

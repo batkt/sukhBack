@@ -1,5 +1,70 @@
 const Ajiltan = require("../models/ajiltan");
 
+/**
+ * Validates that a value only contains alphanumeric characters, hyphens (-), and slashes (/)
+ * Does not allow dots (.) or other special characters like !@#$%^&*() etc.
+ * @param {string} value - The value to validate
+ * @param {string} fieldName - The name of the field being validated (for error messages)
+ * @returns {string} - Error message if invalid, null if valid
+ */
+function shalguurValidate(value, fieldName = "Талбар") {
+  if (!value || typeof value !== "string") {
+    return null; // Allow empty/null values, let required validation handle that
+  }
+
+  // Only allow: letters (a-z, A-Z, Mongolian Cyrillic), numbers (0-9), hyphens (-), and slashes (/)
+  // Regex: ^[a-zA-Z0-9А-Яа-яӨөҮүёЁ\-\/]+$
+  const validPattern = /^[a-zA-Z0-9А-Яа-яӨөҮүёЁ\-\/]+$/;
+
+  if (!validPattern.test(value)) {
+    return `${fieldName} талбарт зөвхөн үсэг, тоо, таслал (-) болон зураас (/) ашиглах боломжтой. Цэг (.) болон бусад тусгай тэмдэгт ашиглахыг хориглоно.`;
+  }
+
+  return null; // Valid
+}
+
+/**
+ * Middleware to validate shalguur fields in request body
+ * Validates fields specified in the fields array
+ */
+function shalguurFieldValidate(fields = ["register", "dans", "dansDugaar", "ibanDugaar"]) {
+  return (req, res, next) => {
+    const errors = [];
+
+    for (const field of fields) {
+      let value = req.body[field];
+      let fieldName = field;
+
+      // Handle nested fields like dans.dugaar
+      if (field.includes(".")) {
+        const parts = field.split(".");
+        let nested = req.body;
+        for (let i = 0; i < parts.length - 1; i++) {
+          nested = nested?.[parts[i]];
+        }
+        value = nested?.[parts[parts.length - 1]];
+        fieldName = field;
+      }
+
+      if (value) {
+        const error = shalguurValidate(value, fieldName);
+        if (error) {
+          errors.push(error);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        aldaa: errors.join(" "),
+      });
+    }
+
+    next();
+  };
+}
+
 async function gereeZasakhShalguur(req, res, next) {
   const { db } = require("zevbackv2");
   if (req.body.nevtersenAjiltniiToken && req.body.barilgiinId) {
@@ -96,4 +161,6 @@ module.exports = {
   gereeSergeekhShalguur,
   gereeTsutslakhShalguur,
   guilgeeUstgakhShalguur,
+  shalguurValidate,
+  shalguurFieldValidate,
 };
