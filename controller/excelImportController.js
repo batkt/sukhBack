@@ -1245,49 +1245,77 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
       const rowNumber = i + 2;
 
       try {
-        const toot = row["Тоот"]?.toString().trim() || "";
+        const tootRaw = row["Тоот"]?.toString().trim() || "";
         const davkhar = row["Давхар"]?.toString().trim() || "";
         const orts = row["Орц"]?.toString().trim() || "";
 
-        const tootBurtgelData = {
-          kharagdakhDugaar: toot,
-          zaalt: "",
-          khamragdsanGereenuud: [],
-          khamaarakhKheseg: "",
-          ashilgakhEsekh: "",
-          baiguullagiinId: baiguullaga._id.toString(),
-          baiguullagiinNer: baiguullaga.ner || "",
-          barilgiinId: defaultBarilgiinId || "",
-        };
-
         const validationErrors = [];
 
-        if (!toot) {
-          validationErrors.push("Тоот");
-        } else {
-          // Validate toot (kharagdakhDugaar) - only allow alphanumeric, hyphens, and slashes
-          const tootValidationError = shalguurValidate(toot, "Тоот");
-          if (tootValidationError) {
-            validationErrors.push(tootValidationError);
-          }
+        if (!tootRaw) {
+          validationErrors.push("Тоот хоосон");
         }
 
         if (!davkhar) {
-          validationErrors.push("Давхар");
+          validationErrors.push("Давхар хоосон");
+        }
+
+        if (validationErrors.length > 0) {
+          throw new Error(validationErrors.join(", "));
+        }
+
+        // Split toot by comma to handle multiple toots in one field (e.g., "1,2,3,4,5")
+        // Also handle spaces, semicolons, and pipes as separators
+        // Split first, then validate each individual toot (commas are separators, not part of the toot value)
+        const tootList = tootRaw
+          .split(/[,;\s|]+/)
+          .map((t) => t.trim())
+          .filter((t) => t && t.length > 0); // Filter out empty strings
+
+        if (tootList.length === 0) {
+          throw new Error("Тоот хоосон");
+        }
+
+        // Validate each individual toot (after splitting, so commas are not in the individual toots)
+        // Each toot should only contain alphanumeric, hyphens, and slashes
+        for (const toot of tootList) {
+          if (!toot || typeof toot !== "string") {
+            validationErrors.push(`Тоот "${toot}" буруу форматтай байна`);
+            continue;
+          }
+          const tootValidationError = shalguurValidate(toot, "Тоот");
+          if (tootValidationError) {
+            validationErrors.push(`${tootValidationError} (Тоот: "${toot}")`);
+          }
         }
 
         if (validationErrors.length > 0) {
           throw new Error(validationErrors.join(" "));
         }
 
-        // Save tootBurtgel
-        const tootBurtgel = new TootBurtgel(tukhainBaaziinKholbolt)(
-          tootBurtgelData
-        );
-        await tootBurtgel.save();
+        // Create a separate tootBurtgel record for each toot
+        const createdTootBurtgelIds = [];
+        for (const toot of tootList) {
+          const tootBurtgelData = {
+            kharagdakhDugaar: toot,
+            zaalt: "",
+            khamragdsanGereenuud: [],
+            khamaarakhKheseg: "",
+            ashilgakhEsekh: "",
+            baiguullagiinId: baiguullaga._id.toString(),
+            baiguullagiinNer: baiguullaga.ner || "",
+            barilgiinId: defaultBarilgiinId || "",
+          };
+
+          // Save tootBurtgel
+          const tootBurtgel = new TootBurtgel(tukhainBaaziinKholbolt)(
+            tootBurtgelData
+          );
+          await tootBurtgel.save();
+          createdTootBurtgelIds.push(tootBurtgel._id.toString());
+        }
 
         // Update davkhar and davkhariinToonuud if davkhar and orts are provided
-        if (davkhar && toot) {
+        if (davkhar && tootList.length > 0) {
           const davkharStr = String(davkhar).trim();
           const ortsStr = orts ? String(orts).trim() : "1"; // Default to "1" if orts not provided
 
@@ -1307,37 +1335,41 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
           // Get existing toot string for this floor::entrance
           const existingToonuud = davkhariinToonuud[floorKey][0] || "";
-          let tootList = existingToonuud
+          let existingTootList = existingToonuud
             ? existingToonuud
                 .split(",")
                 .map((t) => t.trim())
                 .filter((t) => t)
             : [];
 
-          // Add toot if not already present
-          if (toot && !tootList.includes(toot)) {
-            tootList.push(toot);
-            tootList.sort((a, b) => {
-              // Sort numerically if possible, otherwise alphabetically
-              const numA = parseInt(a);
-              const numB = parseInt(b);
-              if (!isNaN(numA) && !isNaN(numB)) {
-                return numA - numB;
-              }
-              return a.localeCompare(b);
-            });
+          // Add all toots from the list if not already present
+          for (const toot of tootList) {
+            if (!existingTootList.includes(toot)) {
+              existingTootList.push(toot);
+            }
           }
 
+          // Sort toots
+          existingTootList.sort((a, b) => {
+            // Sort numerically if possible, otherwise alphabetically
+            const numA = parseInt(a);
+            const numB = parseInt(b);
+            if (!isNaN(numA) && !isNaN(numB)) {
+              return numA - numB;
+            }
+            return a.localeCompare(b);
+          });
+
           // Update davkhariinToonuud - store as array with comma-separated string
-          davkhariinToonuud[floorKey] = [tootList.join(",")];
+          davkhariinToonuud[floorKey] = [existingTootList.join(",")];
         }
 
         results.success.push({
           row: rowNumber,
-          toot: tootBurtgelData.kharagdakhDugaar,
+          toot: tootList.join(","), // Show all toots in result
           davkhar: davkhar || "",
           orts: orts || "",
-          id: tootBurtgel._id.toString(),
+          id: createdTootBurtgelIds.join(","), // Show all created IDs
         });
       } catch (error) {
         results.failed.push({
