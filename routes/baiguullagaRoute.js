@@ -10,57 +10,6 @@ const axios = require("axios");
 const request = require("request");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 
-// Custom PUT handler to prevent _id immutable field errors
-// Must be defined BEFORE crud() so it takes precedence
-router.put("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
-  try {
-    const { db } = require("zevbackv2");
-    const { id } = req.params;
-    const updateData = { ...req.body };
-
-    // Remove _id from main document if present (immutable field)
-    delete updateData._id;
-
-    // For nested barilguud array, we need to handle _id fields carefully
-    // Mongoose uses _id to match subdocuments, but we can't update _id itself
-    if (updateData.barilguud && Array.isArray(updateData.barilguud)) {
-      // Convert to plain objects and remove _id to prevent immutable field errors
-      // Mongoose will match by position/index when _id is not present
-      updateData.barilguud = updateData.barilguud.map((barilga) => {
-        const cleanBarilga = JSON.parse(JSON.stringify(barilga)); // Deep clone to plain object
-        delete cleanBarilga._id; // Remove _id to prevent immutable field error
-
-        // Clean any nested _id fields in tokhirgoo or other nested objects
-        if (cleanBarilga.tokhirgoo && typeof cleanBarilga.tokhirgoo === 'object') {
-          delete cleanBarilga.tokhirgoo._id;
-        }
-
-        return cleanBarilga;
-      });
-    }
-
-    // Use findByIdAndUpdate with $set to update the document
-    // Mongoose will handle the array update properly without trying to modify _id
-    const updatedBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findByIdAndUpdate(
-      id,
-      { $set: updateData },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedBaiguullaga) {
-      return res.status(404).json({
-        success: false,
-        aldaa: "Байгууллага олдсонгүй",
-      });
-    }
-
-    res.json(updatedBaiguullaga);
-  } catch (error) {
-    console.error("Error updating baiguullaga:", error);
-    next(error);
-  }
-});
-
 crud(router, "baiguullaga", Baiguullaga, UstsanBarimt);
 
 router.post("/baiguullagaBurtgekh", async (req, res, next) => {
