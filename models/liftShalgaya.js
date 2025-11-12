@@ -5,6 +5,7 @@ mongoose.pluralize(null);
 const liftShalgayaSchema = new Schema(
   {
     baiguullagiinId: String,
+    barilgiinId: String,
     choloolugdokhDavkhar: [String],
   },
   { timestamps: true }

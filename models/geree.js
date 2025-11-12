@@ -72,6 +72,11 @@ const gereeSchema = new Schema(
     gereeniiDugaar: String,
     gereeniiOgnoo: Date,
     turul: String,
+    tuluv: {
+      type: String,
+      enum: ["Идэвхитэй", "Цуцалсан"],
+      default: "Идэвхитэй",
+    },
     ovog: String,
     ner: String,
     suhNer: String,
@@ -81,7 +86,7 @@ const gereeSchema = new Schema(
     suhGariinUseg: String,
     suhTamga: String,
     register: String,
-    aimag : String,
+    aimag: String,
     utas: [String],
     mail: String,
     baingiinKhayag: String,
@@ -100,6 +105,9 @@ const gereeSchema = new Schema(
     ashiglaltiinZardalUsgeer: String,
     niitTulbur: Number,
     niitTulburUsgeer: String,
+    ekhniiUldegdel : Number,
+    ekhniiUldegdelUsgeer: String,
+    avlaga: { type: avlagiinTurul, select: false },
     bairNer: String,
     sukhBairshil: String,
     duureg: String,
@@ -108,11 +116,12 @@ const gereeSchema = new Schema(
     toot: String,
     davkhar: String,
     burtgesenAjiltan: String,
-    orshinSuugchId: String, 
+    orshinSuugchId: String,
     baiguullagiinId: String,
     baiguullagiinNer: String,
     barilgiinId: String,
     temdeglel: String,
+    orts: String, // Web only field
     baritsaaniiUldegdel: {
       type: Number,
       default: 0,
@@ -161,11 +170,133 @@ const gereeSchema = new Schema(
         key: String,
       },
     ],
+    // Track guilgeenuud that should appear in nekhemjlekh (one-time)
+    // Once included in an invoice, they are removed from this array
+    guilgeenuudForNekhemjlekh: [
+      {
+        ognoo: Date,
+        undsenDun: Number,
+        tulukhDun: Number,
+        tulukhAldangi: Number,
+        tulsunDun: Number,
+        tulsunAldangi: Number,
+        uldegdel: Number,
+        tariff: Number,
+        tailbar: String,
+        nemeltTailbar: String,
+        turul: String,
+        aldangiinTurul: String,
+        nuatBodokhEsekh: Boolean,
+        zardliinTurul: String,
+        zardliinId: String,
+        zardliinNer: String,
+        gereeniiId: String,
+        guilgeeniiId: String,
+        dansniiDugaar: String,
+        tulsunDans: String,
+        guilgeeKhiisenOgnoo: Date,
+        guilgeeKhiisenAjiltniiNer: String,
+        guilgeeKhiisenAjiltniiId: String,
+        zaaltTog: Number,
+        zaaltUs: Number,
+        suuliinZaalt: Number,
+        umnukhZaalt: Number,
+        bokhirUsDun: Number,
+        tseverUsDun: Number,
+        usKhalaasanDun: Number,
+        suuriKhuraamj: Number,
+        tsakhilgaanUrjver: Number,
+        tsakhilgaanKBTST: Number,
+        guidliinKoep: Number,
+        bichiltKhonog: Number,
+        tsekhDun: Number,
+        chadalDun: Number,
+        sekhDemjikhTulburDun: Number,
+        khonogTootsokhEsekh: Boolean,
+        togtmolUtga: Number,
+        tooluuriinDugaar: String,
+        tulukhNUAT: Number,
+        tulukhNuatgui: Number,
+        // Track which avlaga.guilgeenuud index this came from
+        avlagaGuilgeeIndex: Number,
+      },
+    ],
   },
   {
     timestamps: true,
   }
 );
+
+// Post-save hook to track guilgeenuud for nekhemjlekh (one-time)
+// When a guilgee is added to avlaga.guilgeenuud, add it to guilgeenuudForNekhemjlekh
+gereeSchema.post("findOneAndUpdate", async function (result) {
+  if (result && result.avlaga && result.avlaga.guilgeenuud) {
+    await handleGuilgeeForNekhemjlekh(result, this.model);
+  }
+});
+
+gereeSchema.post("updateOne", async function () {
+  const doc = await this.model.findOne(this.getQuery()).select("+avlaga");
+  if (doc && doc.avlaga && doc.avlaga.guilgeenuud) {
+    await handleGuilgeeForNekhemjlekh(doc, this.model);
+  }
+});
+
+async function handleGuilgeeForNekhemjlekh(doc, GereeModel) {
+  try {
+    if (!doc || !doc.avlaga || !doc.avlaga.guilgeenuud) {
+      return;
+    }
+
+    const { db } = require("zevbackv2");
+
+    const kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == doc.baiguullagiinId
+    );
+
+    if (!kholbolt) return;
+
+    // Get the latest geree document to check guilgeenuudForNekhemjlekh
+    const latestGeree = await GereeModel
+      .findById(doc._id)
+      .select("+avlaga +guilgeenuudForNekhemjlekh");
+
+    if (!latestGeree) return;
+
+    const guilgeenuudForNekhemjlekh = latestGeree.guilgeenuudForNekhemjlekh || [];
+    const avlagaGuilgeenuud = latestGeree.avlaga?.guilgeenuud || [];
+
+    // Find new guilgeenuud that aren't yet in guilgeenuudForNekhemjlekh
+    // Match by ognoo, turul, tailbar, and tulukhDun to identify unique guilgeenuud
+    const existingGuilgeeIds = new Set();
+    guilgeenuudForNekhemjlekh.forEach((g) => {
+      const key = `${g.ognoo?.getTime()}_${g.turul}_${g.tailbar}_${g.tulukhDun}`;
+      existingGuilgeeIds.add(key);
+    });
+
+    const newGuilgeenuud = [];
+    avlagaGuilgeenuud.forEach((guilgee, index) => {
+      const key = `${guilgee.ognoo?.getTime()}_${guilgee.turul}_${guilgee.tailbar}_${guilgee.tulukhDun}`;
+      if (!existingGuilgeeIds.has(key)) {
+        // Create a copy for tracking (keep all fields)
+        const guilgeeForNekhemjlekh = { ...guilgee };
+        guilgeeForNekhemjlekh.avlagaGuilgeeIndex = index;
+        newGuilgeenuud.push(guilgeeForNekhemjlekh);
+      }
+    });
+
+    // Add new guilgeenuud to guilgeenuudForNekhemjlekh
+    if (newGuilgeenuud.length > 0) {
+      await GereeModel.findByIdAndUpdate(doc._id, {
+        $push: {
+          guilgeenuudForNekhemjlekh: { $each: newGuilgeenuud },
+        },
+      });
+    }
+  } catch (error) {
+    console.error("Error updating guilgeenuudForNekhemjlekh:", error);
+  }
+}
 
 module.exports = function a(conn, read = false) {
   if (!conn || !conn.kholbolt)

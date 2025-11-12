@@ -44,12 +44,14 @@ const baiguullagaSchema = new Schema(
           merchantTin: String,
           duuregNer: String,
           districtCode: String,
-          horoo : {
+          horoo: {
             ner: String,
             kod: String,
           },
-          sohNer: String, // СӨХ код
-          davkhar: [String], // Давхар
+          sohNer: String,
+          orts: String,
+          davkhar: [String],
+          davkhariinToonuud: Schema.Types.Mixed,
           nuatTulukhEsekh: Boolean,
           zogsoolMsgIlgeekh: Boolean,
           tooluurAutomatTatakhToken: String,
@@ -69,6 +71,41 @@ const baiguullagaSchema = new Schema(
             Boolean /** гэрээ дуусах үед талбайн төлбөр нэмэх эсэх */,
           gereeDuusakhTulbur: Number,
           zochinUrikhUneguiMinut: Number,
+          /** Ашиглалтын зардлууд - барилга тус бүрт тусдаа */
+          ashiglaltiinZardluud: [
+            {
+              ner: String,
+              turul: String,
+              bodokhArga: String,
+              tseverUsDun: Number,
+              bokhirUsDun: Number,
+              usKhalaasniiDun: Number,
+              tsakhilgaanUrjver: Number,
+              tsakhilgaanChadal: Number,
+              tsakhilgaanDemjikh: Number,
+              tariff: Number,
+              tariffUsgeer: String,
+              suuriKhuraamj: Number,
+              nuatNemekhEsekh: Boolean,
+              togtmolUtga: Number,
+              choloolugdsonDavkhar: Boolean,
+              zardliinTurul: String,
+              dun: Number,
+              ognoonuud: [Date],
+              nuatBodokhEsekh: Boolean,
+            },
+          ],
+          /** Лифт шалгая - хөлөгдсөн давхрууд */
+          liftShalgaya: {
+            choloolugdokhDavkhar: [String],
+          },
+          /** Дансны мэдээлэл - барилга тус бүрт тусдаа */
+          dans: {
+            dugaar: String, // Дансны дугаар
+            dansniiNer: String, // Дансны нэр
+            bank: String, // Банкны нэр
+            ibanDugaar: String, // IBAN дугаар
+          },
         },
         davkharuud: [
           {

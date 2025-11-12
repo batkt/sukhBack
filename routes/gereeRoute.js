@@ -19,7 +19,12 @@ const {
   gereeniiExcelAvya,
   gereeniiExcelTatya,
 } = require("../controller/excel");
-const { downloadGuilgeeniiTuukhExcel } = require("../controller/excelImportController");
+const {
+  downloadGuilgeeniiTuukhExcel,
+  generateTootBurtgelExcelTemplate,
+  importTootBurtgelFromExcel,
+} = require("../controller/excelImportController");
+const { gereeniiGuilgeeKhadgalya } = require("../controller/gereeController");
 
 const storage = multer.memoryStorage();
 const uploadFile = multer({ storage: storage });
@@ -51,14 +56,22 @@ crud(
     try {
       const { db } = require("zevbackv2");
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
-        (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
+        (kholbolt) => String(kholbolt.baiguullagiinId) === String(req.body.baiguullagiinId)
       );
 
       if (!tukhainBaaziinKholbolt) {
         return next(new Error("Холболтын мэдээлэл олдсонгүй!"));
       }
 
-      const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)(req.body);
+      // Normalize utas field: convert array to string for OrshinSuugch model
+      const orshinSuugchData = { ...req.body };
+      if (Array.isArray(orshinSuugchData.utas) && orshinSuugchData.utas.length > 0) {
+        orshinSuugchData.utas = orshinSuugchData.utas[0];
+      } else if (!orshinSuugchData.utas) {
+        orshinSuugchData.utas = "";
+      }
+
+      const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)(orshinSuugchData);
       orshinSuugch.id;
 
       var unuudur = new Date();
@@ -94,7 +107,15 @@ crud(
         isNew: true,
       });
 
-      req.body.gereeniiDugaar = req.body.gereeniiDugaar + maxDugaar;
+      // Only append maxDugaar suffix if it's greater than 1 (multiple contracts on same day)
+      // Format: ГД-12345678 (for first contract) or ГД-12345678-2 (for subsequent contracts)
+      // This prevents "-0" or "-1" suffixes from appearing
+      if (maxDugaar && maxDugaar > 1) {
+        req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
+      }
+      
+      // Set orshinSuugchId in req.body so geree can reference it
+      req.body.orshinSuugchId = orshinSuugch._id.toString();
 
       try {
         await orshinSuugch.save();
@@ -111,8 +132,18 @@ crud(
     if (req.method === "GET") {
       try {
         const { db } = require("zevbackv2");
+        const body = req.query;
+        const baiguullagiinId = body.baiguullagiinId || req.body?.baiguullagiinId;
+        
+        if (!baiguullagiinId) {
+          return res.status(400).json({
+            success: false,
+            aldaa: "Байгууллагын ID заавал бөглөх шаардлагатай!",
+          });
+        }
+        
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          (kholbolt) => kholbolt.baiguullagiinId === req.body.baiguullagiinId
+          (kholbolt) => String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
         );
 
         if (!tukhainBaaziinKholbolt) {
@@ -121,8 +152,6 @@ crud(
             aldaa: "Холболтын мэдээлэл олдсонгүй!",
           });
         }
-
-        const body = req.query;
         const {
           query = {},
           order,
@@ -316,7 +345,11 @@ router.route("/gereeKhadgalya").post(tokenShalgakh, async (req, res, next) => {
       ognoo: unuudur,
       isNew: true,
     });
-    req.body.gereeniiDugaar = req.body.gereeniiDugaar + maxDugaar;
+    // Only append maxDugaar suffix if it's greater than 1 (multiple contracts on same day)
+    // This prevents "-0" or "-1" suffixes from appearing
+    if (maxDugaar && maxDugaar > 1) {
+      req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
+    }
     dugaarlalt.save();
   }
 
@@ -351,6 +384,10 @@ router.route("/gereeKhadgalya").post(tokenShalgakh, async (req, res, next) => {
   });
   res.send("Amjilttai");
 });
+
+router
+  .route("/gereeniiGuilgeeKhadgalya")
+  .post(tokenShalgakh, gereeniiGuilgeeKhadgalya);
 
 router
   .route("/zaaltOlnoorOruulya")
@@ -552,5 +589,18 @@ router
       next(err);
     }
   });
+
+router.get(
+  "/tootBurtgelExcelTemplate",
+  tokenShalgakh,
+  generateTootBurtgelExcelTemplate
+);
+
+router.post(
+  "/tootBurtgelExcelImport",
+  tokenShalgakh,
+  uploadFile.single("excelFile"),
+  importTootBurtgelFromExcel
+);
 
 module.exports = router;

@@ -16,6 +16,8 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     turul: String,
     gereeniiId: String,
     gereeniiDugaar: String,
+    ekhniiUldegdel : Number,
+    ekhniiUldegdelUsgeer: String,
     davkhar: String,
     uldegdel: Number,
     daraagiinTulukhOgnoo: Date,
@@ -57,6 +59,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
         tailbar: String,
       },
     ],
+    orts: String, // Web only field
   },
   {
     timestamps: true,

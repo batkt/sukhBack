@@ -33,6 +33,9 @@ const orshinSuugchSchema = new Schema(
     duureg: String,
     horoo: String,
     soh: String,
+    orts: String, // Web only field
+    ekhniiUldegdel : Number,
+    ekhniiUldegdelUsgeer: String,
   },
   {
     timestamps: true,

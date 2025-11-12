@@ -32,18 +32,9 @@ const ajiltanSchema = new Schema(
     baiguullagiinNer: String,
     erkh: String,
     firebaseToken: String,
-    albanTushaal: String,
     zurgiinId: String,
     nevtrekhNer: String,
-    porool: String,
-    departmentAssignments: [
-      {
-        level: Number,
-        departmentId: { type: String, default: null },
-        departmentName: String,
-        departmentValue: String,
-      },
-    ],
+  
 
     tokhirgoo: {
       gereeKharakhErkh: [String], //barilgiin id-nuud
@@ -120,19 +111,67 @@ ajiltanSchema.methods.zochinTokenUusgye = function (
 };
 ajiltanSchema.pre("save", async function () {
   this.indexTalbar = this.register + this.nevtrekhNer;
-  const salt = await bcrypt.genSalt(12);
-  this.nuutsUg = await bcrypt.hash(this.nuutsUg, salt);
+  // Only hash if password is provided and not already hashed
+  if (this.nuutsUg && !/^\$2[aby]\$\d+\$/.test(this.nuutsUg)) {
+    const salt = await bcrypt.genSalt(12);
+    this.nuutsUg = await bcrypt.hash(this.nuutsUg, salt);
+  }
 });
 
 ajiltanSchema.pre("updateOne", async function () {
   this.indexTalbar = this._update.register + this._update.nevtrekhNer;
-  const salt = await bcrypt.genSalt(12);
-  if (this._update.nuutsUg)
+  // Only hash if password is provided and not already hashed
+  if (this._update.nuutsUg && !/^\$2[aby]\$\d+\$/.test(this._update.nuutsUg)) {
+    const salt = await bcrypt.genSalt(12);
     this._update.nuutsUg = await bcrypt.hash(this._update.nuutsUg, salt);
+  }
 });
 
 ajiltanSchema.methods.passwordShalgaya = async function (pass) {
-  return await bcrypt.compare(pass, this.nuutsUg);
+  console.log("Энэ рүү орлоо");
+  
+  if (!this.nuutsUg) {
+    return false;
+  }
+  
+  if (!pass) {
+    return false;
+  }
+  
+  // Convert to string and trim to handle any whitespace issues
+  const inputPassword = String(pass).trim();
+  const storedPassword = String(this.nuutsUg).trim();
+  
+  // Check if the stored password is a bcrypt hash (starts with $2a$, $2b$, or $2y$)
+  const isHashed = /^\$2[aby]\$\d+\$/.test(storedPassword);
+  
+  if (isHashed) {
+    // Password is hashed, use bcrypt.compare
+    try {
+      const result = await bcrypt.compare(inputPassword, storedPassword);
+      return result;
+    } catch (error) {
+      return false;
+    }
+  } else {
+    // Password is plain text (for backward compatibility), compare directly
+    const match = inputPassword === storedPassword;
+    
+    if (match) {
+      // Hash the password and save it for future logins
+      try {
+        const salt = await bcrypt.genSalt(12);
+        const hashedPassword = await bcrypt.hash(inputPassword, salt);
+        this.nuutsUg = hashedPassword;
+        await this.save({ validateBeforeSave: false });
+        return true;
+      } catch (error) {
+        // Still return true since the password matched
+        return true;
+      }
+    }
+    return false;
+  }
 };
 
 module.exports = function a(conn) {

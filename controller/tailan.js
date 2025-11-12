@@ -538,6 +538,223 @@ exports.tailanUliral = asyncHandler(async (req, res, next) => {
   }
 });
 
+// Төлөгдөөгүй удсан авлага 2+ сар
+exports.tailanUdsanAvlaga = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const source = req.params.baiguullagiinId
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
+    const { baiguullagiinId, barilgiinId } = source || {};
+
+    if (!baiguullagiinId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    }
+
+    const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+
+    // Calculate date 2 months ago
+    const today = new Date();
+    const twoMonthsAgo = new Date(today);
+    twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
+    twoMonthsAgo.setHours(0, 0, 0, 0);
+
+    // Find unpaid invoices where payment due date (tulukhOgnoo) is more than 2 months ago
+    const match = {
+      baiguullagiinId: String(baiguullagiinId),
+      tuluv: { $ne: "Төлсөн" }, // Not paid
+      tulukhOgnoo: { $lt: twoMonthsAgo }, // Due date is more than 2 months ago
+    };
+
+    if (barilgiinId) match.barilgiinId = String(barilgiinId);
+
+    const docs = await NekhemjlekhiinTuukh(kholbolt)
+      .find(match)
+      .lean()
+      .sort({ tulukhOgnoo: 1 }); // Sort by due date, oldest first
+
+    const result = [];
+    let totalSum = 0;
+
+    for (const d of docs) {
+      // Calculate months overdue
+      const dueDate = new Date(d.tulukhOgnoo);
+      const monthsOverdue = Math.floor(
+        (today - dueDate) / (1000 * 60 * 60 * 24 * 30)
+      );
+
+      const row = {
+        gereeniiDugaar: d.gereeniiDugaar || "",
+        ovog: d.ovog || "",
+        ner: d.ner || "",
+        utas: Array.isArray(d.utas) ? d.utas.join(", ") : d.utas || "",
+        toot: d.toot || "",
+        davkhar: d.davkhar || "",
+        bairNer: d.bairNer || "",
+        ognoo: d.ognoo || null,
+        tulukhOgnoo: d.tulukhOgnoo || null,
+        niitTulbur: d.niitTulbur || 0,
+        tuluv: d.tuluv || "Төлөөгүй",
+        monthsOverdue: monthsOverdue,
+        dugaalaltDugaar: d.dugaalaltDugaar || null,
+      };
+
+      result.push(row);
+      totalSum += d.niitTulbur || 0;
+    }
+
+    res.json({
+      success: true,
+      total: result.length,
+      sum: totalSum,
+      list: result,
+      filterDate: twoMonthsAgo,
+      currentDate: today,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Цуцлагдсан гэрээний авлага
+exports.tailanTsutslasanGereeniiAvlaga = asyncHandler(
+  async (req, res, next) => {
+    try {
+      const { db } = require("zevbackv2");
+      const source = req.params.baiguullagiinId
+        ? {
+            baiguullagiinId: req.params.baiguullagiinId,
+            ...(req.method === "GET" ? req.query : req.body),
+          }
+        : req.method === "GET"
+        ? req.query
+        : req.body;
+      const { baiguullagiinId, barilgiinId } = source || {};
+
+      if (!baiguullagiinId) {
+        return res
+          .status(400)
+          .json({ success: false, message: "baiguullagiinId is required" });
+      }
+
+      const kholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      );
+      if (!kholbolt) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+      }
+
+      const Geree = require("../models/geree");
+      const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+
+      // Find all cancelled gerees
+      const gereeMatch = {
+        baiguullagiinId: String(baiguullagiinId),
+        tuluv: "Цуцалсан", // Cancelled contracts
+      };
+
+      if (barilgiinId) gereeMatch.barilgiinId = String(barilgiinId);
+
+      const cancelledGerees = await Geree(kholbolt)
+        .find(gereeMatch)
+        .select("_id gereeniiDugaar ovog ner utas toot davkhar bairNer")
+        .lean();
+
+      if (cancelledGerees.length === 0) {
+        return res.json({
+          success: true,
+          total: 0,
+          sum: 0,
+          list: [],
+          message: "Цуцлагдсан гэрээ олдсонгүй",
+        });
+      }
+
+      // Get gereeniiId list
+      const gereeniiIdList = cancelledGerees.map((g) => g._id.toString());
+
+      // Find unpaid invoices for these cancelled gerees
+      const nekhemjlekhMatch = {
+        baiguullagiinId: String(baiguullagiinId),
+        gereeniiId: { $in: gereeniiIdList },
+        tuluv: { $ne: "Төлсөн" }, // Not paid
+      };
+
+      if (barilgiinId) nekhemjlekhMatch.barilgiinId = String(barilgiinId);
+
+      const unpaidInvoices = await NekhemjlekhiinTuukh(kholbolt)
+        .find(nekhemjlekhMatch)
+        .lean()
+        .sort({ ognoo: -1 });
+
+      // Create a map of gereeniiId to geree info
+      const gereeMap = {};
+      cancelledGerees.forEach((g) => {
+        gereeMap[g._id.toString()] = g;
+      });
+
+      const result = [];
+      let totalSum = 0;
+
+      for (const invoice of unpaidInvoices) {
+        const geree = gereeMap[invoice.gereeniiId] || {};
+
+        const row = {
+          gereeniiDugaar: invoice.gereeniiDugaar || geree.gereeniiDugaar || "",
+          ovog: invoice.ovog || geree.ovog || "",
+          ner: invoice.ner || geree.ner || "",
+          utas: Array.isArray(invoice.utas)
+            ? invoice.utas.join(", ")
+            : invoice.utas || Array.isArray(geree.utas)
+            ? geree.utas.join(", ")
+            : geree.utas || "",
+          toot: invoice.toot || geree.toot || "",
+          davkhar: invoice.davkhar || geree.davkhar || "",
+          bairNer: invoice.bairNer || geree.bairNer || "",
+          ognoo: invoice.ognoo || null,
+          tulukhOgnoo: invoice.tulukhOgnoo || null,
+          niitTulbur: invoice.niitTulbur || 0,
+          tuluv: invoice.tuluv || "Төлөөгүй",
+          gereeniiTuluv: "Цуцалсан",
+          dugaalaltDugaar: invoice.dugaalaltDugaar || null,
+          gereeniiId: invoice.gereeniiId || "",
+        };
+
+        result.push(row);
+        totalSum += invoice.niitTulbur || 0;
+      }
+
+      res.json({
+        success: true,
+        total: result.length,
+        sum: totalSum,
+        list: result,
+        cancelledGereesCount: cancelledGerees.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 exports.tailanExport = asyncHandler(async (req, res, next) => {
   try {
     const source = req.params.baiguullagiinId

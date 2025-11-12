@@ -197,4 +197,101 @@ router.post(
   orshinSuugchOorooUstgakh
 );
 
+// Create invoice for specific orshinSuugch
+router.post(
+  "/orshinSuugch/:orshinSuugchId/nekhemjlekhUusgekh",
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      const { db } = require("zevbackv2");
+      const Geree = require("../models/geree");
+      const Baiguullaga = require("../models/baiguullaga");
+      const { gereeNeesNekhemjlekhUusgekh } = require("../controller/nekhemjlekhController");
+
+      const { orshinSuugchId } = req.params;
+      const { baiguullagiinId } = req.body;
+
+      if (!baiguullagiinId) {
+        return res.status(400).json({
+          success: false,
+          aldaa: "baiguullagiinId шаардлагатай",
+        });
+      }
+
+      // Find the connection
+      const kholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      );
+
+      if (!kholbolt) {
+        return res.status(404).json({
+          success: false,
+          aldaa: "Холболтын мэдээлэл олдсонгүй!",
+        });
+      }
+
+      // Find orshinSuugch
+      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugchId);
+      if (!orshinSuugch) {
+        return res.status(404).json({
+          success: false,
+          aldaa: "Оршин суугч олдсонгүй!",
+        });
+      }
+
+      // Find geree for this orshinSuugch
+      const geree = await Geree(kholbolt).findOne({
+        orshinSuugchId: orshinSuugchId,
+        baiguullagiinId: baiguullagiinId,
+        tuluv: "Идэвхитэй", // Only active contracts
+      }).sort({ createdAt: -1 }); // Get the most recent contract
+
+      if (!geree) {
+        return res.status(404).json({
+          success: false,
+          aldaa: "Идэвхитэй гэрээ олдсонгүй!",
+        });
+      }
+
+      // Get baiguullaga
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+      if (!baiguullaga) {
+        return res.status(404).json({
+          success: false,
+          aldaa: "Байгууллага олдсонгүй!",
+        });
+      }
+
+      // Create invoice - force creation by passing skipDuplicateCheck flag
+      // This endpoint should always create a new invoice, ignoring duplicate checks
+      const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+        geree,
+        baiguullaga,
+        kholbolt,
+        "garan",
+        true // skipDuplicateCheck = true
+      );
+
+      if (!invoiceResult.success) {
+        return res.status(400).json({
+          success: false,
+          aldaa: invoiceResult.error || "Нэхэмжлэх үүсгэхэд алдаа гарлаа",
+        });
+      }
+
+      res.json({
+        success: true,
+        data: invoiceResult.nekhemjlekh,
+        gereeniiId: invoiceResult.gereeniiId,
+        gereeniiDugaar: invoiceResult.gereeniiDugaar,
+        tulbur: invoiceResult.tulbur,
+        alreadyExists: invoiceResult.alreadyExists || false,
+      });
+    } catch (error) {
+      console.error("Error creating invoice for orshinSuugch:", error);
+      next(error);
+    }
+  }
+);
+
 module.exports = router;

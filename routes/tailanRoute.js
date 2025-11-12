@@ -10,6 +10,8 @@ const {
   tailanSariin,
   tailanUliral,
   tailanExport,
+  tailanUdsanAvlaga,
+  tailanTsutslasanGereeniiAvlaga,
 } = require("../controller/tailan");
 
 router.get("/tailan/summary/:baiguullagiinId", tokenShalgakh, tailanSummary);
@@ -61,5 +63,17 @@ router.get("/tailan/uliral", tokenShalgakh, tailanUliral);
 router.post("/tailan/uliral", tokenShalgakh, tailanUliral);
 router.get("/tailan/export", tokenShalgakh, tailanExport);
 router.post("/tailan/export", tokenShalgakh, tailanExport);
+
+// Төлөгдөөгүй удсан авлага 2+ сар
+router.get("/tailan/udsan-avlaga/:baiguullagiinId", tokenShalgakh, tailanUdsanAvlaga);
+router.post("/tailan/udsan-avlaga/:baiguullagiinId", tokenShalgakh, tailanUdsanAvlaga);
+router.get("/tailan/udsan-avlaga", tokenShalgakh, tailanUdsanAvlaga);
+router.post("/tailan/udsan-avlaga", tokenShalgakh, tailanUdsanAvlaga);
+
+// Цуцлагдсан гэрээний авлага
+router.get("/tailan/tsutslasan-gereenii-avlaga/:baiguullagiinId", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
+router.post("/tailan/tsutslasan-gereenii-avlaga/:baiguullagiinId", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
+router.get("/tailan/tsutslasan-gereenii-avlaga", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
+router.post("/tailan/tsutslasan-gereenii-avlaga", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
 
 module.exports = router;

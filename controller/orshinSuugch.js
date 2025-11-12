@@ -123,6 +123,7 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
 }
 
 // Helper function to update davkhar with toot in baiguullaga
+// Structure: davkhar: ["1", "2", "3"], davkhariinToonuud: {1: ["103,104,105"], 2: ["201,202"]}
 exports.updateDavkharWithToot = async function updateDavkharWithToot(
   baiguullaga,
   barilgiinId,
@@ -141,45 +142,40 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
       return;
     }
 
-    // Get or create davkhar array in tokhirgoo
+    // Get or create davkhar array and davkhariinToonuud object
     const davkharArray = targetBarilga.tokhirgoo?.davkhar || [];
+    const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
 
-    // Format: "1-р давхар - 102,103,104"
-    const davkharKey = `${davkhar}-р давхар`;
-
-    // Find existing entry for this floor
-    let existingIndex = -1;
-    for (let i = 0; i < davkharArray.length; i++) {
-      if (davkharArray[i].startsWith(davkharKey)) {
-        existingIndex = i;
-        break;
-      }
+    // Ensure davkhar (floor number) is in the array
+    const davkharStr = String(davkhar);
+    if (!davkharArray.includes(davkharStr)) {
+      davkharArray.push(davkharStr);
+      davkharArray.sort((a, b) => parseInt(a) - parseInt(b)); // Sort numerically
     }
 
-    // Parse existing toot list or create new
-    let tootList = [];
-    if (existingIndex >= 0) {
-      const existingEntry = davkharArray[existingIndex];
-      const tootPart = existingEntry.split(" - ")[1];
-      if (tootPart) {
-        tootList = tootPart.split(",").map((t) => t.trim()).filter((t) => t);
-      }
+    // Get or create toot array for this floor
+    const floorKey = parseInt(davkharStr); // Use number as key
+    if (!davkhariinToonuud[floorKey]) {
+      davkhariinToonuud[floorKey] = [];
     }
+
+    // Get existing toot string for this floor
+    const existingToonuud = davkhariinToonuud[floorKey][0] || "";
+    let tootList = existingToonuud
+      ? existingToonuud
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t)
+      : [];
 
     // Add toot if not already present
     if (toot && !tootList.includes(toot)) {
       tootList.push(toot);
-      tootList.sort(); // Sort for consistency
+      tootList.sort((a, b) => parseInt(a) - parseInt(b)); // Sort numerically
     }
 
-    // Create or update entry
-    const davkharEntry = `${davkharKey} - ${tootList.join(",")}`;
-
-    if (existingIndex >= 0) {
-      davkharArray[existingIndex] = davkharEntry;
-    } else {
-      davkharArray.push(davkharEntry);
-    }
+    // Update davkhariinToonuud - store as array with comma-separated string
+    davkhariinToonuud[floorKey] = [tootList.join(",")];
 
     // Update baiguullaga - find the building index first
     const barilgaIndex = baiguullaga.barilguud.findIndex(
@@ -188,28 +184,29 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
 
     if (barilgaIndex >= 0) {
       // Use Mongoose's positional operator for safer nested updates
-      // This ensures we only update the specific barilga without affecting others
-      const updatePath = `barilguud.${barilgaIndex}.tokhirgoo.davkhar`;
-      
+      const davkharPath = `barilguud.${barilgaIndex}.tokhirgoo.davkhar`;
+      const toonuudPath = `barilguud.${barilgaIndex}.tokhirgoo.davkhariinToonuud`;
+
       await Baiguullaga(db.erunkhiiKholbolt).findByIdAndUpdate(
         baiguullaga._id,
         {
           $set: {
-            [updatePath]: davkharArray,
+            [davkharPath]: davkharArray,
+            [toonuudPath]: davkhariinToonuud,
           },
         },
-        { new: false } // Don't return updated doc, we'll reload it
+        { new: false }
       );
     }
 
-    // Reload baiguullaga to get latest davkhar data
+    // Reload baiguullaga to get latest data
     const updatedBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       baiguullaga._id
     );
     const finalDavkharArray =
-      updatedBaiguullaga?.barilguud
-        ?.find((b) => String(b._id) === String(barilgiinId))
-        ?.tokhirgoo?.davkhar || davkharArray;
+      updatedBaiguullaga?.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      )?.tokhirgoo?.davkhar || davkharArray;
 
     // Calculate and update liftShalgaya
     await exports.calculateLiftShalgaya(
@@ -221,9 +218,10 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
   } catch (error) {
     console.error("Error updating davkhar with toot:", error);
   }
-}
+};
 
 // Helper function to calculate liftShalgaya based on davkhar entries
+// Now saves to baiguullaga.barilguud[].tokhirgoo.liftShalgaya
 exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
   baiguullagiinId,
   barilgiinId,
@@ -231,46 +229,66 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
   tukhainBaaziinKholbolt
 ) {
   try {
-    const LiftShalgaya = require("../models/liftShalgaya");
-    const LiftShalgayaModel = LiftShalgaya(tukhainBaaziinKholbolt);
+    const { db } = require("zevbackv2");
+    const Baiguullaga = require("../models/baiguullaga");
 
-    // Extract all unique floor numbers from davkhar entries
-    // Format: "1-р давхар - 102,103,104"
-    const choloolugdokhDavkhar = [];
+    // davkharArray is already an array of floor numbers like ["1", "2", "3"]
+    // Extract all unique floor numbers
+    const choloolugdokhDavkhar = [
+      ...new Set(davkharArray.map((f) => String(f))),
+    ];
 
-    davkharArray.forEach((entry) => {
-      if (entry && entry.includes("-р давхар")) {
-        const floorMatch = entry.match(/^(\d+)-р давхар/);
-        if (floorMatch) {
-          const floorNumber = floorMatch[1];
-          if (!choloolugdokhDavkhar.includes(floorNumber)) {
-            choloolugdokhDavkhar.push(floorNumber);
-          }
-        }
+    // Update liftShalgaya in baiguullaga.barilguud[].tokhirgoo
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      baiguullagiinId
+    );
+    if (!baiguullaga) {
+      console.error("Байгууллага олдсонгүй");
+      return;
+    }
+
+    const barilgaIndex = baiguullaga.barilguud.findIndex(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+
+    if (barilgaIndex >= 0) {
+      if (!baiguullaga.barilguud[barilgaIndex].tokhirgoo) {
+        baiguullaga.barilguud[barilgaIndex].tokhirgoo = {};
       }
-    });
+      if (!baiguullaga.barilguud[barilgaIndex].tokhirgoo.liftShalgaya) {
+        baiguullaga.barilguud[barilgaIndex].tokhirgoo.liftShalgaya = {};
+      }
+      baiguullaga.barilguud[
+        barilgaIndex
+      ].tokhirgoo.liftShalgaya.choloolugdokhDavkhar = choloolugdokhDavkhar;
+      await baiguullaga.save();
 
-    // Update or create liftShalgaya
-    await LiftShalgayaModel.findOneAndUpdate(
-      { baiguullagiinId: baiguullagiinId },
-      {
-        baiguullagiinId: baiguullagiinId,
-        choloolugdokhDavkhar: choloolugdokhDavkhar,
-      },
-      { upsert: true, new: true }
-    );
-
-    console.log(
-      `LiftShalgaya updated: ${choloolugdokhDavkhar.length} floors exempted`
-    );
+      console.log(
+        `LiftShalgaya updated: ${choloolugdokhDavkhar.length} floors exempted`
+      );
+    } else {
+      console.error("Барилга олдсонгүй");
+    }
   } catch (error) {
     console.error("Error calculating liftShalgaya:", error);
   }
-}
+};
 
 exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
     console.log("Энэ рүү орлоо: orshinSuugchBurtgey");
+    console.log("📥 REQUEST BODY:", {
+      barilgiinId: req.body.barilgiinId,
+      baiguullagiinId: req.body.baiguullagiinId,
+      toot: req.body.toot,
+      davkhar: req.body.davkhar,
+      orts: req.body.orts,
+      duureg: req.body.duureg,
+      horoo: req.body.horoo,
+      soh: req.body.soh,
+      sohNer: req.body.sohNer,
+      bairniiNer: req.body.bairniiNer,
+    });
     const { db } = require("zevbackv2");
 
     if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
@@ -301,21 +319,357 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    // Check for existing user by utas only (mail is not required)
+    // Check for existing user by utas
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       utas: req.body.utas,
     });
 
+    // If user exists and is active (not deleted), throw error
     if (existingUser) {
       throw new aldaa("Утасны дугаар давхардаж байна!");
     }
 
-    const barilgiinId =
-      req.body.barilgiinId ||
-      (baiguullaga.barilguud && baiguullaga.barilguud.length > 0
-        ? String(baiguullaga.barilguud[0]._id)
-        : null);
+    // Check for cancelled gerees by utas (user might have been deleted but gerees still exist)
+    // This allows restoring data when re-registering
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
 
+    let existingCancelledGeree = null;
+    if (tukhainBaaziinKholbolt) {
+      const GereeModel = Geree(tukhainBaaziinKholbolt);
+      // Find cancelled geree by utas (not by orshinSuugchId since user was deleted)
+      existingCancelledGeree = await GereeModel.findOne({
+        utas: { $in: [req.body.utas] }, // utas is an array in geree
+        tuluv: "Цуцалсан",
+        baiguullagiinId: baiguullaga._id.toString(),
+      });
+    }
+
+    // Use barilgiinId from request if provided - RESPECT IT!
+    // Check all possible fields where barilgiinId might be sent
+    let barilgiinId =
+      (req.body.barilgiinId && req.body.barilgiinId.toString().trim()) ||
+      (req.body.barilgaId && req.body.barilgaId.toString().trim()) ||
+      null;
+
+    console.log(`🔍 barilgiinId check:`, {
+      "req.body.barilgiinId": req.body.barilgiinId,
+      "req.body.barilgaId": req.body.barilgaId,
+      "req.body.bairniiNer": req.body.bairniiNer,
+      "final barilgiinId": barilgiinId,
+      type: typeof req.body.barilgiinId,
+      isTruthy: !!req.body.barilgiinId,
+    });
+
+    // If barilgiinId is provided, use it directly - don't search!
+    if (barilgiinId) {
+      // Validate that this barilgiinId exists in baiguullaga
+      const providedBarilga = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+      if (providedBarilga) {
+        console.log(
+          `✅ Using provided barilgiinId: ${barilgiinId} (${providedBarilga.ner})`
+        );
+      } else {
+        console.log(
+          `⚠️  Provided barilgiinId ${barilgiinId} not found in baiguullaga, will search instead`
+        );
+        barilgiinId = null; // Reset to null so we can search
+      }
+    }
+
+    // If barilgiinId not provided but bairniiNer (building name) is provided, find by name
+    if (!barilgiinId && req.body.bairniiNer && baiguullaga.barilguud) {
+      const bairniiNerToFind = req.body.bairniiNer.toString().trim();
+      const barilgaByName = baiguullaga.barilguud.find(
+        (b) => String(b.ner).trim() === bairniiNerToFind
+      );
+      if (barilgaByName) {
+        barilgiinId = String(barilgaByName._id);
+        console.log(
+          `✅ Found building by name (bairniiNer): ${bairniiNerToFind} -> ${barilgiinId} (${barilgaByName.ner})`
+        );
+      } else {
+        console.log(
+          `⚠️  Building name "${bairniiNerToFind}" not found in baiguullaga, available buildings:`,
+          baiguullaga.barilguud.map((b) => b.ner).join(", ")
+        );
+      }
+    }
+
+    // If still no barilgiinId, try to match by location (duureg, horoo, sohNer)
+    if (
+      !barilgiinId &&
+      req.body.duureg &&
+      req.body.horoo &&
+      req.body.soh &&
+      baiguullaga.barilguud
+    ) {
+      const duuregToFind = req.body.duureg.toString().trim();
+      const horooToFind = req.body.horoo.toString().trim();
+      const sohToFind = req.body.soh.toString().trim();
+      const sohNerToFind = req.body.sohNer
+        ? req.body.sohNer.toString().trim()
+        : null;
+
+      console.log(
+        `🔍 Trying to find building by location: duureg=${duuregToFind}, horoo=${horooToFind}, soh=${sohToFind}, sohNer=${sohNerToFind}`
+      );
+
+      const barilgaByLocation = baiguullaga.barilguud.find((b) => {
+        const tokhirgoo = b.tokhirgoo || {};
+        const barilgaDuureg = tokhirgoo.duuregNer
+          ? String(tokhirgoo.duuregNer).trim()
+          : "";
+        const barilgaHoroo = tokhirgoo.horoo?.ner
+          ? String(tokhirgoo.horoo.ner).trim()
+          : "";
+        const barilgaSohNer = tokhirgoo.sohNer
+          ? String(tokhirgoo.sohNer).trim()
+          : "";
+
+        // Match on duureg, horoo, and sohNer if provided
+        const duuregMatch = !barilgaDuureg || barilgaDuureg === duuregToFind;
+        const horooMatch = !barilgaHoroo || barilgaHoroo === horooToFind;
+        const sohMatch =
+          !sohNerToFind ||
+          !barilgaSohNer ||
+          barilgaSohNer === sohNerToFind ||
+          barilgaSohNer === sohToFind;
+
+        return duuregMatch && horooMatch && sohMatch;
+      });
+
+      if (barilgaByLocation) {
+        barilgiinId = String(barilgaByLocation._id);
+        console.log(
+          `✅ Found building by location: ${barilgiinId} (${barilgaByLocation.ner})`
+        );
+      } else {
+        console.log(
+          `⚠️  No building found matching location: duureg=${duuregToFind}, horoo=${horooToFind}, soh=${sohToFind}`
+        );
+      }
+    }
+
+    // Only search for building if barilgiinId is NOT provided in the request
+    if (
+      !barilgiinId &&
+      req.body.toot &&
+      baiguullaga.barilguud &&
+      baiguullaga.barilguud.length > 1
+    ) {
+      console.log(
+        `🔍 Searching for building because barilgiinId was not provided...`
+      );
+      const tootToFind = req.body.toot.trim();
+      const davkharToFind = req.body.davkhar ? req.body.davkhar.trim() : null;
+      const ortsToFind = req.body.orts ? req.body.orts.trim() : "1";
+      const floorKey = davkharToFind ? `${ortsToFind}::${davkharToFind}` : null;
+
+      let foundBuilding = null;
+      let foundBuildings = []; // Track all matches if davkhar not provided
+
+      // Search through all buildings to find which one contains this toot
+      for (const barilga of baiguullaga.barilguud) {
+        const davkhariinToonuud = barilga.tokhirgoo?.davkhariinToonuud || {};
+
+        if (floorKey && davkhariinToonuud[floorKey]) {
+          // If davkhar is provided, match on exact floorKey
+          const tootArray = davkhariinToonuud[floorKey];
+
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let tootList = [];
+
+            if (
+              typeof tootArray[0] === "string" &&
+              tootArray[0].includes(",")
+            ) {
+              tootList = tootArray[0]
+                .split(",")
+                .map((t) => t.trim())
+                .filter((t) => t);
+            } else {
+              tootList = tootArray
+                .map((t) => String(t).trim())
+                .filter((t) => t);
+            }
+
+            if (tootList.includes(tootToFind)) {
+              foundBuilding = barilga;
+              break;
+            }
+          }
+        } else if (!floorKey) {
+          // If davkhar is NOT provided, search all floors for this toot
+          for (const [key, tootArray] of Object.entries(davkhariinToonuud)) {
+            if (!key.includes("::")) {
+              continue;
+            }
+
+            if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+              let tootList = [];
+
+              if (
+                typeof tootArray[0] === "string" &&
+                tootArray[0].includes(",")
+              ) {
+                tootList = tootArray[0]
+                  .split(",")
+                  .map((t) => t.trim())
+                  .filter((t) => t);
+              } else {
+                tootList = tootArray
+                  .map((t) => String(t).trim())
+                  .filter((t) => t);
+              }
+
+              if (tootList.includes(tootToFind)) {
+                foundBuildings.push(barilga);
+                break; // Found in this building, move to next building
+              }
+            }
+          }
+        }
+      }
+
+      // If davkhar was provided and we found a match, use it
+      if (foundBuilding) {
+        barilgiinId = String(foundBuilding._id);
+        console.log(
+          `✅ Found building ${foundBuilding.ner} (${barilgiinId}) for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}`
+        );
+      } else if (foundBuildings.length === 1) {
+        // If davkhar not provided but only one building has this toot, use it
+        barilgiinId = String(foundBuildings[0]._id);
+        console.log(
+          `✅ Found unique building ${foundBuildings[0].ner} (${barilgiinId}) for toot ${tootToFind}`
+        );
+      } else if (foundBuildings.length > 1) {
+        // Multiple buildings have this toot - use first one (original behavior)
+        barilgiinId = String(foundBuildings[0]._id);
+        console.log(
+          `⚠️  Multiple buildings found for toot ${tootToFind}, using first: ${foundBuildings[0].ner} (${barilgiinId})`
+        );
+      } else if (davkharToFind) {
+        console.log(
+          `⚠️  Could not find building for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}`
+        );
+      }
+    }
+
+    // If still no barilgiinId, use first building as fallback
+    if (
+      !barilgiinId &&
+      baiguullaga.barilguud &&
+      baiguullaga.barilguud.length > 0
+    ) {
+      barilgiinId = String(baiguullaga.barilguud[0]._id);
+      console.log(`⚠️  Using first building as fallback: ${barilgiinId}`);
+    }
+
+    // Check if toot already has a registered user (1:1 relationship - one toot can only have one user)
+    if (req.body.toot && barilgiinId) {
+      const tootToCheck = req.body.toot.trim();
+      const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+        toot: tootToCheck,
+        barilgiinId: barilgiinId,
+      });
+
+      if (existingTootUser) {
+        throw new aldaa(
+          `Энэ тоот (${tootToCheck}) аль хэдийн бүртгэгдсэн байна! Нэг тоотод зөвхөн нэг хэрэглэгч бүртгэх боломжтой.`
+        );
+      }
+    }
+
+    // Automatically determine davkhar from toot if toot is provided
+    let determinedDavkhar = req.body.davkhar || "";
+
+    if (req.body.toot && barilgiinId) {
+      const targetBarilga = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+
+      if (targetBarilga) {
+        const davkhariinToonuud =
+          targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+        const tootToFind = req.body.toot.trim();
+        let foundFloor = null;
+        let foundOrts = null;
+
+        // Search through all floors to find which floor contains this toot
+        // Key format: 'orts::davkhar' (e.g., '1::1' = Entrance 1, Floor 1)
+        for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+          // Skip invalid entries that don't have :: separator (like '456')
+          if (!floorKey.includes("::")) {
+            continue;
+          }
+
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let tootList = [];
+
+            // Handle both formats:
+            // Format 1: ['101,102,103'] - comma-separated string in first element
+            // Format 2: ['101', '102', '103'] - array of individual strings
+            if (
+              typeof tootArray[0] === "string" &&
+              tootArray[0].includes(",")
+            ) {
+              // Comma-separated format
+              tootList = tootArray[0]
+                .split(",")
+                .map((t) => t.trim())
+                .filter((t) => t);
+            } else {
+              // Array of individual strings format
+              tootList = tootArray
+                .map((t) => String(t).trim())
+                .filter((t) => t);
+            }
+
+            if (tootList.includes(tootToFind)) {
+              // Parse key format: 'orts::davkhar' (e.g., '1::1' or '1::2')
+              const parts = floorKey.split("::");
+              if (parts.length === 2) {
+                foundOrts = parts[0].trim(); // orts (entrance)
+                foundFloor = parts[1].trim(); // davkhar (floor)
+              }
+              break;
+            }
+          }
+        }
+
+        // If toot is found in davkhariinToonuud, use that floor and orts automatically
+        if (foundFloor) {
+          determinedDavkhar = foundFloor;
+          // Also set orts if found (unless already provided from frontend)
+          if (foundOrts && !req.body.orts) {
+            req.body.orts = foundOrts;
+          }
+        } else {
+          // If toot is not found in davkhariinToonuud:
+          // For registration, always allow new toots to be registered
+          // - If davkhar is provided from frontend, use it (allows new toot registration)
+          // - If davkhar is not provided, allow registration anyway (will be set later or remain empty)
+          // - The toot will be registered in the system when updateDavkharWithToot is called
+
+          // If davkhar is provided from frontend, use it (allows new toot registration)
+          if (req.body.davkhar) {
+            determinedDavkhar = req.body.davkhar;
+          }
+          // If davkhar is not provided, determinedDavkhar will remain as empty string or use req.body.davkhar
+          // This allows registration of new toots that aren't in the system yet
+        }
+      }
+    }
+
+    let orshinSuugch;
+    let isReactivating = false;
+
+    // Create new user (existing user check already handled above)
     const userData = {
       ...req.body,
       baiguullagiinId: baiguullaga._id,
@@ -327,34 +681,33 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       horoo: req.body.horoo,
       soh: req.body.soh,
       nevtrekhNer: req.body.utas,
+      toot: req.body.toot || "",
+      davkhar: determinedDavkhar, // Automatically determined from toot
+      orts: req.body.orts || "", // Automatically determined from toot if found
+      ekhniiUldegdel: req.body.ekhniiUldegdel
+        ? parseFloat(req.body.ekhniiUldegdel) || 0
+        : 0, // Optional: from frontend
     };
 
-    const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
     await orshinSuugch.save();
 
     try {
-      const tukhainBaaziinKholbolt = db.kholboltuud.find(
-        (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
-      );
-
+      // Reuse tukhainBaaziinKholbolt from above (already declared)
       if (!tukhainBaaziinKholbolt) {
         throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
       }
 
-      const AshiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
-      const ashiglaltiinZardluudData = await AshiglaltiinZardluud(
-        tukhainBaaziinKholbolt
-      ).find({
-        baiguullagiinId: baiguullaga._id.toString(),
-      });
+      // Get ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo
+      const targetBarilgaForZardluud = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+      const ashiglaltiinZardluudData =
+        targetBarilgaForZardluud?.tokhirgoo?.ashiglaltiinZardluud || [];
 
-      const LiftShalgaya = require("../models/liftShalgaya");
-      const liftShalgayaData = await LiftShalgaya(
-        tukhainBaaziinKholbolt
-      ).findOne({
-        baiguullagiinId: baiguullaga._id.toString(),
-      });
-
+      // Get liftShalgaya from baiguullaga.barilguud[].tokhirgoo
+      const liftShalgayaData =
+        targetBarilgaForZardluud?.tokhirgoo?.liftShalgaya;
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
 
       const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
@@ -394,95 +747,196 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         return total + tariff;
       }, 0);
 
-      const barilgiinId =
-      req.body.barilgiinId ||
-      (baiguullaga.barilguud && baiguullaga.barilguud.length > 0
-        ? String(baiguullaga.barilguud[0]._id)
-        : null);
+      // If there's a cancelled geree, reactivate it and link it to the new user
+      // Do this AFTER fetching charges so we can update zardluud with current charges
+      if (existingCancelledGeree && tukhainBaaziinKholbolt) {
+        isReactivating = true;
+        const GereeModel = Geree(tukhainBaaziinKholbolt);
 
-    const targetBarilga = barilgiinId
-      ? baiguullaga.barilguud?.find(
-          (b) => String(b._id) === String(barilgiinId)
-        )
-      : null;
+        // Reactivate the cancelled geree and link it to the new user
+        // Update with current charges (zardluud) and niitTulbur
+        const updateData = {
+          tuluv: "Идэвхитэй", // Reactivate from "Цуцалсан" to "Идэвхитэй"
+          gereeniiOgnoo: new Date(), // Update contract date
+          orshinSuugchId: orshinSuugch._id.toString(), // Link to new user
+          zardluud: zardluudArray, // Update with current charges
+          niitTulbur: niitTulbur, // Update with current total
+          ashiglaltiinZardal: 0, // Reset to 0
+          // Update user info in geree if needed
+          ovog: req.body.ovog || existingCancelledGeree.ovog,
+          ner: req.body.ner || existingCancelledGeree.ner,
+          register: req.body.register || existingCancelledGeree.register,
+          utas: [req.body.utas],
+          mail: req.body.mail || existingCancelledGeree.mail,
+          toot: orshinSuugch.toot || existingCancelledGeree.toot,
+          davkhar: orshinSuugch.davkhar || existingCancelledGeree.davkhar,
+          duureg: req.body.duureg || existingCancelledGeree.duureg,
+          horoo: req.body.horoo || existingCancelledGeree.horoo,
+          sohNer: req.body.soh || existingCancelledGeree.sohNer,
+        };
 
-    const duuregNer =
-      targetBarilga?.tokhirgoo?.duuregNer || req.body.duureg || "";
-    const horooData =
-      targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
-    const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
+        // Add optional fields from frontend if provided
+        if (req.body.tailbar) {
+          updateData.temdeglel = req.body.tailbar;
+        }
+        if (req.body.ekhniiUldegdel !== undefined) {
+          updateData.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
+        }
 
-      const contractData = {
-        gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
-        gereeniiOgnoo: new Date(),
-        turul: "Үндсэн",
-        ovog: req.body.ovog || "",
-        ner: req.body.ner,
-        register: req.body.register || "",
-        utas: [req.body.utas],
-        mail: req.body.mail || "",
-        baiguullagiinId: baiguullaga._id,
-        baiguullagiinNer: baiguullaga.ner,
-        barilgiinId: barilgiinId || "",
-        tulukhOgnoo: new Date(),
-        ashiglaltiinZardal: 0,
-        niitTulbur: niitTulbur,
-        toot: orshinSuugch.toot || "",
-        davkhar: orshinSuugch.davkhar || "",
-        bairNer: req.body.bairniiNer || "",
-        sukhBairshil: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
-        duureg: duuregNer, // Save separately
-        horoo: horooData, // Save horoo object separately
-        sohNer: sohNer, // Save sohNer separately
-        burtgesenAjiltan: orshinSuugch._id,
-        orshinSuugchId: orshinSuugch._id.toString(),
-        temdeglel: "Автоматаар үүссэн гэрээ",
-        actOgnoo: new Date(),
-        baritsaaniiUldegdel: 0,
-        zardluud: zardluudArray,
-        segmentuud: [],
-        khungulultuud: [],
-      };
-
-      const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
-      await geree.save();
-
-      // Update davkhar with toot if provided from frontend
-      // Frontend should send: { toot: "102", davkhar: "1", barilgiinId: "..." }
-      if (orshinSuugch.toot && orshinSuugch.davkhar) {
-        console.log(
-          `Updating davkhar with toot: Floor ${orshinSuugch.davkhar}, Toot ${orshinSuugch.toot}, Building ${barilgiinId}`
-        );
-        await exports.updateDavkharWithToot(
-          baiguullaga,
-          barilgiinId,
-          orshinSuugch.davkhar,
-          orshinSuugch.toot,
-          tukhainBaaziinKholbolt
-        );
-      } else {
-        console.log(
-          `Skipping davkhar update - toot: ${orshinSuugch.toot}, davkhar: ${orshinSuugch.davkhar}`
-        );
+        await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
+          $set: updateData,
+        });
       }
 
-      try {
-        const {
-          gereeNeesNekhemjlekhUusgekh,
-        } = require("./nekhemjlekhController");
+      // barilgiinId is already declared above (line 337), reuse it here
+      const targetBarilga = barilgiinId
+        ? baiguullaga.barilguud?.find(
+            (b) => String(b._id) === String(barilgiinId)
+          )
+        : null;
 
-        const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
-          geree,
-          baiguullaga,
-          tukhainBaaziinKholbolt,
-          "automataar"
+      const duuregNer =
+        targetBarilga?.tokhirgoo?.duuregNer || req.body.duureg || "";
+      const horooData = targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
+      const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
+
+      // Only create new geree if not reactivating (no cancelled geree found)
+      if (!isReactivating) {
+        const contractData = {
+          gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+          gereeniiOgnoo: new Date(),
+          turul: "Үндсэн",
+          tuluv: "Идэвхитэй",
+          ovog: req.body.ovog || "",
+          ner: req.body.ner,
+          register: req.body.register || "",
+          utas: [req.body.utas],
+          mail: req.body.mail || "",
+          baiguullagiinId: baiguullaga._id,
+          baiguullagiinNer: baiguullaga.ner,
+          barilgiinId: barilgiinId || "",
+          tulukhOgnoo: new Date(),
+          ashiglaltiinZardal: 0,
+          niitTulbur: niitTulbur,
+          toot: orshinSuugch.toot || "",
+          davkhar: orshinSuugch.davkhar || "",
+          bairNer: req.body.bairniiNer || "",
+          sukhBairshil: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
+          duureg: duuregNer, // Save separately
+          horoo: horooData, // Save horoo object separately
+          sohNer: sohNer, // Save sohNer separately
+          burtgesenAjiltan: orshinSuugch._id,
+          orshinSuugchId: orshinSuugch._id.toString(),
+          temdeglel: req.body.tailbar || "Автоматаар үүссэн гэрээ", // Optional: tailbar from frontend
+          actOgnoo: new Date(),
+          baritsaaniiUldegdel: 0,
+          ekhniiUldegdel: req.body.ekhniiUldegdel
+            ? parseFloat(req.body.ekhniiUldegdel) || 0
+            : 0, // Optional: from frontend
+          zardluud: zardluudArray,
+          segmentuud: [],
+          khungulultuud: [],
+        };
+
+        const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+        await geree.save();
+
+        // Update davkhar with toot if provided from frontend
+        // Frontend should send: { toot: "102", davkhar: "1", barilgiinId: "..." }
+        if (orshinSuugch.toot && orshinSuugch.davkhar) {
+          console.log(
+            `Updating davkhar with toot: Floor ${orshinSuugch.davkhar}, Toot ${orshinSuugch.toot}, Building ${barilgiinId}`
+          );
+          await exports.updateDavkharWithToot(
+            baiguullaga,
+            barilgiinId,
+            orshinSuugch.davkhar,
+            orshinSuugch.toot,
+            tukhainBaaziinKholbolt
+          );
+        } else {
+          console.log(
+            `Skipping davkhar update - toot: ${orshinSuugch.toot}, davkhar: ${orshinSuugch.davkhar}`
+          );
+        }
+
+        // Invoice will be created by cron job on scheduled date
+        // Do not create invoice immediately for new users
+      }
+
+      // If reactivating, check if today is the scheduled invoice creation date
+      // Only create invoice if today matches nekhemjlekhCron date
+      // Otherwise, let the cron job handle invoice creation on the scheduled date
+      // This ensures invoices are created according to the schedule, not immediately on reactivation
+      if (isReactivating && existingCancelledGeree && tukhainBaaziinKholbolt) {
+        const GereeModel = Geree(tukhainBaaziinKholbolt);
+        const reactivatedGeree = await GereeModel.findById(
+          existingCancelledGeree._id
         );
 
-        if (!invoiceResult.success) {
-          console.error("Invoice creation failed:", invoiceResult.error);
+        if (reactivatedGeree) {
+          try {
+            // Check if today matches the nekhemjlekhCron scheduled date
+            const NekhemjlekhCron = require("../models/cronSchedule");
+            const cronSchedule = await NekhemjlekhCron(
+              tukhainBaaziinKholbolt
+            ).findOne({
+              baiguullagiinId: baiguullaga._id.toString(),
+              idevkhitei: true,
+            });
+
+            const today = new Date();
+            const todayDate = today.getDate();
+            const shouldCreateInvoice =
+              cronSchedule &&
+              cronSchedule.nekhemjlekhUusgekhOgnoo === todayDate;
+
+            if (shouldCreateInvoice) {
+              // Today is the scheduled date, create invoice (or return existing unpaid)
+              const {
+                gereeNeesNekhemjlekhUusgekh,
+              } = require("./nekhemjlekhController");
+
+              // This will check for existing unpaid invoices in current month
+              // If found, it returns the existing invoice (preserving payment status)
+              // If not found, it creates a new invoice
+              const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+                reactivatedGeree,
+                baiguullaga,
+                tukhainBaaziinKholbolt,
+                "automataar"
+              );
+
+              if (!invoiceResult.success) {
+                console.error("Invoice creation failed:", invoiceResult.error);
+              } else if (invoiceResult.alreadyExists) {
+                console.log(
+                  "Existing unpaid invoice found and preserved for reactivated geree:",
+                  invoiceResult.nekhemjlekh._id
+                );
+              } else {
+                console.log(
+                  "New invoice created for reactivated geree on scheduled date:",
+                  invoiceResult.nekhemjlekh._id
+                );
+              }
+            } else {
+              // Not the scheduled date, skip invoice creation
+              // The cron job will create invoices on the scheduled date
+              // Geree already has current month's ashiglaltiinZardluud updated
+              console.log(
+                `Skipping invoice creation - today (${todayDate}) is not the scheduled date (${
+                  cronSchedule?.nekhemjlekhUusgekhOgnoo || "not set"
+                }). Cron job will handle it.`
+              );
+            }
+          } catch (invoiceError) {
+            console.error(
+              "Error checking/creating invoice:",
+              invoiceError.message
+            );
+          }
         }
-      } catch (invoiceError) {
-        console.error("Error creating invoice:", invoiceError.message);
       }
     } catch (contractError) {
       console.error("Error creating contract:", contractError.message);
@@ -490,8 +944,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     const response = {
       success: true,
-      message: "Амжилттай бүртгэгдлээ",
+      message: isReactivating
+        ? "Хэрэглэгч болон гэрээ амжилттай дахин идэвхжүүллээ"
+        : "Амжилттай бүртгэгдлээ",
       result: orshinSuugch,
+      isReactivated: isReactivating,
       hierarchy: {
         duureg: req.body.duureg,
         horoo: req.body.horoo,
@@ -608,8 +1065,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         next(err);
       });
 
-    if (!orshinSuugch)
-      throw new aldaa("Бүртгэлгүй хаяг байна.");
+    if (!orshinSuugch) throw new aldaa("Бүртгэлгүй хаяг байна.");
 
     // Validate toot if provided
     if (req.body.toot) {
@@ -621,25 +1077,25 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
 
-    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      orshinSuugch.baiguullagiinId
-    );
-
-    const firstBarilgiinId =
-      baiguullaga?.barilguud && baiguullaga.barilguud.length > 0
-        ? String(baiguullaga.barilguud[0]._id)
-        : null;
-    if (
-      baiguullaga &&
-      firstBarilgiinId &&
-      firstBarilgiinId !== orshinSuugch.barilgiinId
-    ) {
-      console.log(
-        "Updating user barilgiinId from baiguullaga first building:",
-        firstBarilgiinId
+    // Only update barilgiinId if user doesn't have one
+    // Don't force users to use the first building - they should keep their assigned building
+    if (!orshinSuugch.barilgiinId) {
+      var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        orshinSuugch.baiguullagiinId
       );
-      orshinSuugch.barilgiinId = firstBarilgiinId;
-      await orshinSuugch.save();
+
+      const firstBarilgiinId =
+        baiguullaga?.barilguud && baiguullaga.barilguud.length > 0
+          ? String(baiguullaga.barilguud[0]._id)
+          : null;
+      if (baiguullaga && firstBarilgiinId) {
+        console.log(
+          "Setting user barilgiinId to first building (user had no barilgiinId):",
+          firstBarilgiinId
+        );
+        orshinSuugch.barilgiinId = firstBarilgiinId;
+        await orshinSuugch.save();
+      }
     }
 
     var butsaakhObject = {
@@ -1219,7 +1675,7 @@ exports.getVerificationCodeStatus = asyncHandler(async (req, res, next) => {
 exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    
+
     // Verify password is provided
     const nuutsUg = req.body.nuutsUg;
     if (!nuutsUg) {
@@ -1242,19 +1698,19 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
         }
       }
     }
-    
+
     if (!userId) {
       throw new aldaa("Хэрэглэгчийн мэдээлэл олдсонгүй!");
     }
 
-    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
     const userIdString = String(userId);
 
     // Verify user exists and get user with password
     const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
-    const orshinSuugch = await OrshinSuugchModel.findById(userId)
-      .select("+nuutsUg");
-    
+    const orshinSuugch = await OrshinSuugchModel.findById(userId).select(
+      "+nuutsUg"
+    );
+
     if (!orshinSuugch) {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
@@ -1265,52 +1721,43 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
       throw new aldaa("Нууц код буруу байна!");
     }
 
-    // Delete all gerees (invoices/contracts) where orshinSuugchId matches
-    const GereeModel = Geree(db.erunkhiiKholbolt);
-    const gereesToDelete = await GereeModel.find({
-      orshinSuugchId: userIdString,
-    }).select("_id");
+    // Mark all gerees as "Цуцалсан" (Cancelled) instead of deleting
+    // Don't delete nekhemjlekhiinTuukh, ebarimt, or any other related data
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) =>
+        kholbolt.baiguullagiinId === orshinSuugch.baiguullagiinId?.toString()
+    );
 
-    const gereesIds = gereesToDelete.map((g) => g._id);
-    const gereesIdsAsStrings = gereesIds.map((id) => String(id));
-
-    // Delete all related nekhemjlekhiinTuukh first (before deleting gerees)
-    const NekhemjlekhiinTuukhModel = NekhemjlekhiinTuukh(db.erunkhiiKholbolt);
-    if (gereesIdsAsStrings.length > 0) {
-      // Delete nekhemjlekhiinTuukh related to these gerees
-      await NekhemjlekhiinTuukhModel.deleteMany({
-        gereeniiId: { $in: gereesIdsAsStrings },
-      });
-      
-      // Delete the gerees
-      await GereeModel.deleteMany({
-        _id: { $in: gereesIds },
-      });
-    }
-
-    // Delete nevtreltiinTuukh (login history) where orshinSuugchId matches
-    // Note: Check if nevtreltiinTuukh has orshinSuugchId field
-    // If not, we'll skip this step
-    try {
-      const NevtreltiinTuukhModel = NevtreltiinTuukh(db.erunkhiiKholbolt);
-      // Try to delete if the field exists (won't error if field doesn't exist)
-      await NevtreltiinTuukhModel.deleteMany({
+    let gereesToCancel = [];
+    if (tukhainBaaziinKholbolt) {
+      const GereeModel = Geree(tukhainBaaziinKholbolt);
+      gereesToCancel = await GereeModel.find({
         orshinSuugchId: userIdString,
       });
-    } catch (err) {
-      // Field might not exist, continue
-      console.log("Note: orshinSuugchId field may not exist in nevtreltiinTuukh");
+
+      if (gereesToCancel.length > 0) {
+        // Mark all gerees as "Цуцалсан" (Cancelled) - update tuluv field, keep turul unchanged
+        await GereeModel.updateMany(
+          { orshinSuugchId: userIdString },
+          { $set: { tuluv: "Цуцалсан" } }
+        );
+      }
     }
 
-    // Finally, delete the orshinSuugch user itself
+    // Don't delete nekhemjlekhiinTuukh - keep all invoice history
+    // Don't delete nevtreltiinTuukh - keep login history
+    // Don't delete ebarimt - keep all receipts
+
+    // Actually delete the orshinSuugch user account
+    // The gerees are marked as "Цуцалсан" and can be restored when they register again with the same utas
     await OrshinSuugchModel.findByIdAndDelete(userId);
 
     res.status(200).json({
       success: true,
-      message: "Хэрэглэгч болон түүний бүх мэдээлэл амжилттай устгагдлаа",
+      message: "Хэрэглэгчийн данс устгагдлаа. Бүх мэдээлэл хадгалагдсан байна.",
       data: {
-        deletedUserId: userId,
-        deletedGerees: gereesIds.length,
+        userId: userId,
+        cancelledGerees: gereesToCancel?.length || 0,
       },
     });
   } catch (error) {
