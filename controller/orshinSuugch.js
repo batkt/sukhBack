@@ -580,7 +580,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       if (existingTootUser) {
         throw new aldaa(
-          `Энэ тоот (${tootToCheck}) аль хэдийн бүртгэгдсэн байна! Нэг тоотод зөвхөн нэг хэрэглэгч бүртгэх боломжтой.`
+          `(${tootToCheck}) тоот бүртгэл үүссэн байна`
         );
       }
     }

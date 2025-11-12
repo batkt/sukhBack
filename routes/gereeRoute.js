@@ -603,4 +603,11 @@ router.post(
   importTootBurtgelFromExcel
 );
 
+router.put(
+  "/tootBurtgelExcelImport",
+  tokenShalgakh,
+  uploadFile.single("excelFile"),
+  importTootBurtgelFromExcel
+);
+
 module.exports = router;
