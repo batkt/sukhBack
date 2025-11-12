@@ -884,6 +884,21 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           throw new Error("Утас давхардаж байна");
         }
 
+        // Check if toot already has a registered user (1:1 relationship - one toot can only have one user)
+        if (userData.toot && finalBarilgiinId) {
+          const tootToCheck = userData.toot.trim();
+          const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+            toot: tootToCheck,
+            barilgiinId: finalBarilgiinId,
+          });
+
+          if (existingTootUser) {
+            throw new Error(
+              `Энэ тоот (${tootToCheck}) аль хэдийн бүртгэгдсэн байна! Нэг тоотод зөвхөн нэг хэрэглэгч бүртгэх боломжтой.`
+            );
+          }
+        }
+
         const targetBarilga = baiguullaga.barilguud?.find(
           (b) => String(b._id) === String(finalBarilgiinId)
         );

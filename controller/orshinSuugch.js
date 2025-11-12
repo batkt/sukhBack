@@ -570,6 +570,21 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       console.log(`⚠️  Using first building as fallback: ${barilgiinId}`);
     }
 
+    // Check if toot already has a registered user (1:1 relationship - one toot can only have one user)
+    if (req.body.toot && barilgiinId) {
+      const tootToCheck = req.body.toot.trim();
+      const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+        toot: tootToCheck,
+        barilgiinId: barilgiinId,
+      });
+
+      if (existingTootUser) {
+        throw new aldaa(
+          `Энэ тоот (${tootToCheck}) аль хэдийн бүртгэгдсэн байна! Нэг тоотод зөвхөн нэг хэрэглэгч бүртгэх боломжтой.`
+        );
+      }
+    }
+
     // Automatically determine davkhar from toot if toot is provided
     let determinedDavkhar = req.body.davkhar || "";
 
@@ -669,7 +684,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       toot: req.body.toot || "",
       davkhar: determinedDavkhar, // Automatically determined from toot
       orts: req.body.orts || "", // Automatically determined from toot if found
-      ekhniiUldegdel: req.body.ekhniiUldegdel ? parseFloat(req.body.ekhniiUldegdel) || 0 : 0, // Optional: from frontend
+      ekhniiUldegdel: req.body.ekhniiUldegdel
+        ? parseFloat(req.body.ekhniiUldegdel) || 0
+        : 0, // Optional: from frontend
     };
 
     orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
@@ -757,7 +774,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           horoo: req.body.horoo || existingCancelledGeree.horoo,
           sohNer: req.body.soh || existingCancelledGeree.sohNer,
         };
-        
+
         // Add optional fields from frontend if provided
         if (req.body.tailbar) {
           updateData.temdeglel = req.body.tailbar;
@@ -765,7 +782,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         if (req.body.ekhniiUldegdel !== undefined) {
           updateData.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
         }
-        
+
         await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
           $set: updateData,
         });
@@ -813,7 +830,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           temdeglel: req.body.tailbar || "Автоматаар үүссэн гэрээ", // Optional: tailbar from frontend
           actOgnoo: new Date(),
           baritsaaniiUldegdel: 0,
-          ekhniiUldegdel: req.body.ekhniiUldegdel ? parseFloat(req.body.ekhniiUldegdel) || 0 : 0, // Optional: from frontend
+          ekhniiUldegdel: req.body.ekhniiUldegdel
+            ? parseFloat(req.body.ekhniiUldegdel) || 0
+            : 0, // Optional: from frontend
           zardluud: zardluudArray,
           segmentuud: [],
           khungulultuud: [],
