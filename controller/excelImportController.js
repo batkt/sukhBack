@@ -1302,6 +1302,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
         // Create a separate tootBurtgel record for each toot
         const createdTootBurtgelIds = [];
+        console.log("📝 [TOOT IMPORT] Creating", tootList.length, "tootBurtgel records...");
         for (const toot of tootList) {
           const tootBurtgelData = {
             kharagdakhDugaar: toot,
@@ -1320,7 +1321,9 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
           );
           await tootBurtgel.save();
           createdTootBurtgelIds.push(tootBurtgel._id.toString());
+          console.log("✅ [TOOT IMPORT] Created tootBurtgel for toot:", toot, "ID:", tootBurtgel._id.toString());
         }
+        console.log("📝 [TOOT IMPORT] Total records created:", createdTootBurtgelIds.length);
 
         // Update davkhar and davkhariinToonuud if davkhar and orts are provided
         if (davkhar && tootList.length > 0) {
