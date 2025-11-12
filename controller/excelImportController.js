@@ -1264,12 +1264,16 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
         }
 
         // Split toot by comma to handle multiple toots in one field (e.g., "1,2,3,4,5")
-        // Also handle spaces, semicolons, and pipes as separators
         // Split first, then validate each individual toot (commas are separators, not part of the toot value)
+        // Use simple comma split - commas are the separator, not part of the value
         const tootList = tootRaw
-          .split(/[,;\s|]+/)
+          .split(",")
           .map((t) => t.trim())
           .filter((t) => t && t.length > 0); // Filter out empty strings
+
+        console.log("🔍 [TOOT IMPORT] Raw toot:", tootRaw);
+        console.log("🔍 [TOOT IMPORT] Split tootList:", tootList);
+        console.log("🔍 [TOOT IMPORT] tootList length:", tootList.length);
 
         if (tootList.length === 0) {
           throw new Error("Тоот хоосон");
@@ -1282,9 +1286,13 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
             validationErrors.push(`Тоот "${toot}" буруу форматтай байна`);
             continue;
           }
+          console.log("🔍 [TOOT IMPORT] Validating individual toot:", toot);
           const tootValidationError = shalguurValidate(toot, "Тоот");
           if (tootValidationError) {
+            console.log("❌ [TOOT IMPORT] Validation failed for toot:", toot, "Error:", tootValidationError);
             validationErrors.push(`${tootValidationError} (Тоот: "${toot}")`);
+          } else {
+            console.log("✅ [TOOT IMPORT] Validation passed for toot:", toot);
           }
         }
 

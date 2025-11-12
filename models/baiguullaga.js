@@ -42,6 +42,12 @@ const baiguullagaSchema = new Schema(
           eBarimtBugdShivikh: Boolean, //Bux barimtand ebarimt shiwix odoogoor zuwxun zogsool deer xiilee
           eBarimtMessageIlgeekhEsekh: Boolean,
           merchantTin: String,
+          EbarimtDuuregNer: String,
+          EbarimtDistrictCode: String,
+          EbarimtDHoroo: {
+            ner: String,
+            kod: String,
+          },
           duuregNer: String,
           districtCode: String,
           horoo: {
