@@ -6,7 +6,7 @@ const {
   tailanSariinTulbur,
   tailanNekhemjlekhiinTuukh,
   tailanAvlagiinNasjilt,
-  tailanGuitsegtgel,
+  tailanGuitsetgel,
   tailanUdsanAvlaga,
   tailanTsutslasanGereeniiAvlaga,
   tailanExport,
@@ -25,7 +25,7 @@ router.all("/tailan/nekhemjlekhiin-tuukh", tokenShalgakh, tailanNekhemjlekhiinTu
 router.all("/tailan/avlagiin-nasjilt", tokenShalgakh, tailanAvlagiinNasjilt);
 
 // Гүйцэтгэлийн тайлан (Сарын төлөвлөгөөт орлого vs бодит орлого г.м ба Зардлын төсөв vs бодит зардал г.м)
-router.all("/tailan/guitsegtgel", tokenShalgakh, tailanGuitsegtgel);
+router.all("/tailan/guitsetgel", tokenShalgakh, tailanGuitsetgel);
 
 // Төлөгдөөгүй удсан авлага 2+ сар
 router.all("/tailan/udsan-avlaga", tokenShalgakh, tailanUdsanAvlaga);
