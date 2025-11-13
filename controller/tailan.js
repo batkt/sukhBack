@@ -833,7 +833,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
       "sariin-tulbur": exports.tailanSariinTulbur,
       "nekhemjlekhiin-tuukh": exports.tailanNekhemjlekhiinTuukh,
       "avlagiin-nasjilt": exports.tailanAvlagiinNasjilt,
-      "guitsetgel": exports.tailanguitsetgel,
+      "guitsegtgel": exports.tailanGuitsegtgel,
       "udsan-avlaga": exports.tailanUdsanAvlaga,
       "tsutslasan-gereenii-avlaga": exports.tailanTsutslasanGereeniiAvlaga,
     };
@@ -1205,7 +1205,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
 });
 
 // Гүйцэтгэлийн тайлан (Сарын төлөвлөгөөт орлого vs бодит орлого г.м ба Зардлын төсөв vs бодит зардал г.м)
-exports.tailanguitsetgel = asyncHandler(async (req, res, next) => {
+exports.tailanGuitsegtgel = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const source = req.params.baiguullagiinId
