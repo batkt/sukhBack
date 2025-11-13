@@ -1764,3 +1764,72 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * DELETE /orshinSuugch/:id - Admin delete orshinSuugch
+ * Same behavior as oorooUstgakh but without password verification (admin action)
+ * Marks all gerees as "Цуцалсан" and deletes the user account
+ */
+exports.orshinSuugchUstgakh = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const Geree = require("../models/geree");
+
+    const userId = req.params.id;
+    if (!userId) {
+      throw new aldaa("Хэрэглэгчийн ID заавал оруулах шаардлагатай!");
+    }
+
+    const userIdString = String(userId);
+
+    // Verify user exists
+    const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+    const orshinSuugch = await OrshinSuugchModel.findById(userId);
+
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    // Mark all gerees as "Цуцалсан" (Cancelled) instead of deleting
+    // Don't delete nekhemjlekhiinTuukh, ebarimt, or any other related data
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) =>
+        kholbolt.baiguullagiinId === orshinSuugch.baiguullagiinId?.toString()
+    );
+
+    let gereesToCancel = [];
+    if (tukhainBaaziinKholbolt) {
+      const GereeModel = Geree(tukhainBaaziinKholbolt);
+      gereesToCancel = await GereeModel.find({
+        orshinSuugchId: userIdString,
+      });
+
+      if (gereesToCancel.length > 0) {
+        // Mark all gerees as "Цуцалсан" (Cancelled) - update tuluv field, keep turul unchanged
+        await GereeModel.updateMany(
+          { orshinSuugchId: userIdString },
+          { $set: { tuluv: "Цуцалсан" } }
+        );
+      }
+    }
+
+    // Don't delete nekhemjlekhiinTuukh - keep all invoice history
+    // Don't delete nevtreltiinTuukh - keep login history
+    // Don't delete ebarimt - keep all receipts
+
+    // Actually delete the orshinSuugch user account
+    // The gerees are marked as "Цуцалсан" and can be restored when they register again with the same utas
+    await OrshinSuugchModel.findByIdAndDelete(userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Хэрэглэгчийн данс устгагдлаа. Бүх мэдээлэл хадгалагдсан байна.",
+      data: {
+        userId: userId,
+        cancelledGerees: gereesToCancel?.length || 0,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});

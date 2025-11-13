@@ -833,7 +833,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
       "sariin-tulbur": exports.tailanSariinTulbur,
       "nekhemjlekhiin-tuukh": exports.tailanNekhemjlekhiinTuukh,
       "avlagiin-nasjilt": exports.tailanAvlagiinNasjilt,
-      "guitsegtgel": exports.tailanGuitsegtgel,
+      "guitsetgel": exports.tailanguitsetgel,
       "udsan-avlaga": exports.tailanUdsanAvlaga,
       "tsutslasan-gereenii-avlaga": exports.tailanTsutslasanGereeniiAvlaga,
     };
@@ -1111,7 +1111,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         r.dugaalaltDugaar || "",
       ]);
       fileName = "tsutslasan_gereenii_avlaga";
-    } else if (report === "guitsegtgel") {
+    } else if (report === "guitsetgel") {
       headers = [
         "Улирал/Сар",
         "Төлөвлөгөөт орлого",
@@ -1138,7 +1138,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         (item.plannedIncome || 0) - (item.plannedExpenses || 0),
         (item.actualIncome || 0) - (item.actualExpenses || 0),
       ]);
-      fileName = "guitsegtgel";
+      fileName = "guitsetgel";
     } else {
       return res.status(400).json({
         success: false,
@@ -1205,7 +1205,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
 });
 
 // Гүйцэтгэлийн тайлан (Сарын төлөвлөгөөт орлого vs бодит орлого г.м ба Зардлын төсөв vs бодит зардал г.м)
-exports.tailanGuitsegtgel = asyncHandler(async (req, res, next) => {
+exports.tailanguitsetgel = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const source = req.params.baiguullagiinId
