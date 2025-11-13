@@ -243,13 +243,13 @@ router.post(
       const geree = await Geree(kholbolt).findOne({
         orshinSuugchId: orshinSuugchId,
         baiguullagiinId: baiguullagiinId,
-        tuluv: "Идэвхитэй", // Only active contracts
+        tuluv: "Идэвхтэй", // Only active contracts
       }).sort({ createdAt: -1 }); // Get the most recent contract
 
       if (!geree) {
         return res.status(404).json({
           success: false,
-          aldaa: "Идэвхитэй гэрээ олдсонгүй!",
+          aldaa: "Идэвхтэй гэрээ олдсонгүй!",
         });
       }
 

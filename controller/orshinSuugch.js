@@ -756,7 +756,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         // Reactivate the cancelled geree and link it to the new user
         // Update with current charges (zardluud) and niitTulbur
         const updateData = {
-          tuluv: "Идэвхитэй", // Reactivate from "Цуцалсан" to "Идэвхитэй"
+          tuluv: "Идэвхтэй", // Reactivate from "Цуцалсан" to "Идэвхтэй"
           gereeniiOgnoo: new Date(), // Update contract date
           orshinSuugchId: orshinSuugch._id.toString(), // Link to new user
           zardluud: zardluudArray, // Update with current charges
@@ -806,7 +806,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
           gereeniiOgnoo: new Date(),
           turul: "Үндсэн",
-          tuluv: "Идэвхитэй",
+          tuluv: "Идэвхтэй",
           ovog: req.body.ovog || "",
           ner: req.body.ner,
           register: req.body.register || "",
