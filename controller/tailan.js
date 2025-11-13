@@ -833,6 +833,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
       "sariin-tulbur": exports.tailanSariinTulbur,
       "nekhemjlekhiin-tuukh": exports.tailanNekhemjlekhiinTuukh,
       "avlagiin-nasjilt": exports.tailanAvlagiinNasjilt,
+      "guitsegtgel": exports.tailanGuitsegtgel,
       "udsan-avlaga": exports.tailanUdsanAvlaga,
       "tsutslasan-gereenii-avlaga": exports.tailanTsutslasanGereeniiAvlaga,
     };
@@ -1110,6 +1111,34 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         r.dugaalaltDugaar || "",
       ]);
       fileName = "tsutslasan_gereenii_avlaga";
+    } else if (report === "guitsegtgel") {
+      headers = [
+        "Улирал/Сар",
+        "Төлөвлөгөөт орлого",
+        "Бодит орлого",
+        "Орлогын зөрүү",
+        "Орлогын зөрүү %",
+        "Төлөвлөгөөт зардал",
+        "Бодит зардал",
+        "Зардлын зөрүү",
+        "Зардлын зөрүү %",
+        "Цэвэр орлого (төлөвлөгөө)",
+        "Цэвэр орлого (бодит)",
+      ];
+      rows = (data.summary || []).map((item) => [
+        item.period || "",
+        item.plannedIncome || 0,
+        item.actualIncome || 0,
+        item.incomeVariance || 0,
+        `${item.incomeVariancePercent || "0.00"}%`,
+        item.plannedExpenses || 0,
+        item.actualExpenses || 0,
+        item.expensesVariance || 0,
+        `${item.expensesVariancePercent || "0.00"}%`,
+        (item.plannedIncome || 0) - (item.plannedExpenses || 0),
+        (item.actualIncome || 0) - (item.actualExpenses || 0),
+      ]);
+      fileName = "guitsegtgel";
     } else {
       return res.status(400).json({
         success: false,
@@ -1170,6 +1199,246 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         message: "Энэ төрлийн экспорт одоогоор дэмжигдээгүй",
       });
     }
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Гүйцэтгэлийн тайлан (Сарын төлөвлөгөөт орлого vs бодит орлого г.м ба Зардлын төсөв vs бодит зардал г.м)
+exports.tailanGuitsegtgel = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const source = req.params.baiguullagiinId
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
+    const {
+      baiguullagiinId,
+      barilgiinId,
+      ekhlekhOgnoo,
+      duusakhOgnoo,
+      turul = "sar", // "sar" (month) or "uliral" (quarter)
+    } = source || {};
+
+    if (!baiguullagiinId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    }
+
+    const Geree = require("../models/geree");
+    const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+    const BankniiGuilgee = require("../models/bankniiGuilgee");
+
+    // Date range
+    const startDate = ekhlekhOgnoo
+      ? new Date(ekhlekhOgnoo)
+      : new Date(new Date().getFullYear(), 0, 1); // Start of year
+    const endDate = duusakhOgnoo
+      ? new Date(duusakhOgnoo)
+      : new Date(); // Today
+
+    // Get all active contracts
+    const gereeMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      tuluv: "Идэвхтэй",
+    };
+    if (barilgiinId) gereeMatch.barilgiinId = String(barilgiinId);
+
+    const activeGerees = await Geree(kholbolt).find(gereeMatch).lean();
+
+    // Calculate planned monthly income from active contracts
+    // For each contract, use niitTulbur as monthly expected income
+    const plannedMonthlyIncome = activeGerees.reduce((sum, g) => {
+      return sum + (g.niitTulbur || 0);
+    }, 0);
+
+    // Group by month or quarter
+    const periods = {};
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      let periodKey;
+
+      if (turul === "uliral") {
+        const quarter = Math.ceil(month / 3);
+        periodKey = `${year}-Q${quarter}`;
+        // Move to next quarter
+        currentDate.setMonth(currentDate.getMonth() + 3);
+      } else {
+        periodKey = `${year}-${String(month).padStart(2, "0")}`;
+        // Move to next month
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+
+      if (!periods[periodKey]) {
+        periods[periodKey] = {
+          period: periodKey,
+          year,
+          month: turul === "sar" ? month : null,
+          quarter: turul === "uliral" ? Math.ceil(month / 3) : null,
+          plannedIncome: plannedMonthlyIncome,
+          actualIncome: 0,
+          incomeVariance: 0,
+          incomeVariancePercent: 0,
+          plannedExpenses: 0, // Will be calculated or configured
+          actualExpenses: 0,
+          expensesVariance: 0,
+          expensesVariancePercent: 0,
+        };
+      }
+    }
+
+    // Calculate actual income from paid invoices
+    const invoiceMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      tuluv: "Төлсөн",
+    };
+    if (barilgiinId) invoiceMatch.barilgiinId = String(barilgiinId);
+    if (ekhlekhOgnoo || duusakhOgnoo) {
+      invoiceMatch.tulsunOgnoo = {
+        $gte: startDate,
+        $lte: endDate,
+      };
+    }
+
+    const paidInvoices = await NekhemjlekhiinTuukh(kholbolt)
+      .find(invoiceMatch)
+      .lean();
+
+    // Group actual income by period
+    paidInvoices.forEach((inv) => {
+      if (!inv.tulsunOgnoo) return;
+      const payDate = new Date(inv.tulsunOgnoo);
+      const year = payDate.getFullYear();
+      const month = payDate.getMonth() + 1;
+      let periodKey;
+
+      if (turul === "uliral") {
+        const quarter = Math.ceil(month / 3);
+        periodKey = `${year}-Q${quarter}`;
+      } else {
+        periodKey = `${year}-${String(month).padStart(2, "0")}`;
+      }
+
+      if (periods[periodKey]) {
+        periods[periodKey].actualIncome += inv.niitTulbur || 0;
+      }
+    });
+
+    // Calculate actual expenses from bank transactions
+    const bankMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+    };
+    if (barilgiinId) bankMatch.barilgiinId = String(barilgiinId);
+    if (ekhlekhOgnoo || duusakhOgnoo) {
+      bankMatch.tranDate = {
+        $gte: startDate,
+        $lte: endDate,
+      };
+    }
+
+    const bankTransactions = await BankniiGuilgee(kholbolt)
+      .find(bankMatch)
+      .lean();
+
+    // Group actual expenses by period
+    bankTransactions.forEach((trans) => {
+      if (!trans.tranDate) return;
+      const transDate = new Date(trans.tranDate);
+      const year = transDate.getFullYear();
+      const month = transDate.getMonth() + 1;
+      let periodKey;
+
+      if (turul === "uliral") {
+        const quarter = Math.ceil(month / 3);
+        periodKey = `${year}-Q${quarter}`;
+      } else {
+        periodKey = `${year}-${String(month).padStart(2, "0")}`;
+      }
+
+      if (periods[periodKey]) {
+        // Expenses: negative amount or outcome field
+        const expenseAmount =
+          trans.outcome ||
+          (trans.amount && trans.amount < 0 ? Math.abs(trans.amount) : 0);
+        periods[periodKey].actualExpenses += expenseAmount;
+      }
+    });
+
+    // Calculate variances and percentages
+    const summary = Object.values(periods).map((period) => {
+      period.incomeVariance = period.actualIncome - period.plannedIncome;
+      period.incomeVariancePercent =
+        period.plannedIncome > 0
+          ? ((period.incomeVariance / period.plannedIncome) * 100).toFixed(2)
+          : "0.00";
+
+      period.expensesVariance = period.actualExpenses - period.plannedExpenses;
+      period.expensesVariancePercent =
+        period.plannedExpenses > 0
+          ? ((period.expensesVariance / period.plannedExpenses) * 100).toFixed(2)
+          : "0.00";
+
+      return period;
+    });
+
+    // Sort by period
+    summary.sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      if (turul === "uliral") {
+        return (a.quarter || 0) - (b.quarter || 0);
+      }
+      return (a.month || 0) - (b.month || 0);
+    });
+
+    // Calculate totals
+    const totals = {
+      plannedIncome: summary.reduce((sum, p) => sum + p.plannedIncome, 0),
+      actualIncome: summary.reduce((sum, p) => sum + p.actualIncome, 0),
+      plannedExpenses: summary.reduce((sum, p) => sum + p.plannedExpenses, 0),
+      actualExpenses: summary.reduce((sum, p) => sum + p.actualExpenses, 0),
+    };
+    totals.incomeVariance = totals.actualIncome - totals.plannedIncome;
+    totals.incomeVariancePercent =
+      totals.plannedIncome > 0
+        ? ((totals.incomeVariance / totals.plannedIncome) * 100).toFixed(2)
+        : "0.00";
+    totals.expensesVariance = totals.actualExpenses - totals.plannedExpenses;
+    totals.expensesVariancePercent =
+      totals.plannedExpenses > 0
+        ? ((totals.expensesVariance / totals.plannedExpenses) * 100).toFixed(2)
+        : "0.00";
+    totals.netIncome = totals.actualIncome - totals.actualExpenses;
+    totals.plannedNetIncome = totals.plannedIncome - totals.plannedExpenses;
+
+    res.json({
+      success: true,
+      filter: {
+        baiguullagiinId,
+        barilgiinId: barilgiinId || null,
+        ekhlekhOgnoo: ekhlekhOgnoo || null,
+        duusakhOgnoo: duusakhOgnoo || null,
+        turul,
+      },
+      summary,
+      totals,
+      activeContractsCount: activeGerees.length,
+    });
   } catch (error) {
     next(error);
   }
