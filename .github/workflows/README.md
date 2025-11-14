@@ -43,9 +43,23 @@ GitHub Actions are automatically enabled for your repository.
 3. Add the following secrets:
    - `SSH_HOST`: Your server IP or hostname
    - `SSH_USER`: Your SSH username (e.g., `root` or `ubuntu`)
-   - `SSH_PRIVATE_KEY`: Your SSH private key (the entire key, including `-----BEGIN RSA PRIVATE KEY-----`)
+   - `SSH_PRIVATE_KEY`: Your SSH private key (the **ENTIRE** key, including `-----BEGIN RSA PRIVATE KEY-----` and `-----END RSA PRIVATE KEY-----` with all newlines preserved)
    - `SSH_PORT`: SSH port (optional, default is 22)
-   - `DEPLOY_PATH`: Full path to your project on server (e.g., `/root/sukhBack`)
+   - `DEPLOY_PATH`: Full path to your project on server (e.g., `/home/cloudmn/sukhBack`)
+
+**⚠️ IMPORTANT for SSH_PRIVATE_KEY:**
+- Copy the ENTIRE key including BEGIN and END lines
+- Preserve ALL newlines (don't remove line breaks)
+- The key should look like:
+  ```
+  -----BEGIN RSA PRIVATE KEY-----
+  MIIEpAIBAAKCAQEA...
+  (many lines)
+  ...
+  -----END RSA PRIVATE KEY-----
+  ```
+
+See `.github/SSH_SETUP_GUIDE.md` for detailed instructions.
 
 ### 3. Generate SSH Key (if needed)
 If you don't have an SSH key for deployment:

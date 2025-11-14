@@ -394,14 +394,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
       return sum + (guilgee.tulukhDun || 0);
     }, 0);
     
+    // If skipDuplicateCheck is true and there are guilgeenuudForNekhemjlekh, this is an avlaga-only invoice
+    // Exclude monthly zardluud charges for avlaga-only invoices
+    const isAvlagaOnlyInvoice = skipDuplicateCheck && guilgeenuudForNekhemjlekh.length > 0;
+    
     // Use ekhniiUldegdel for first invoice if conditions are met, otherwise use normal charges
-    const zardluudTotal = shouldUseEkhniiUldegdel 
+    // But exclude zardluud if this is an avlaga-only invoice
+    const zardluudTotal = (shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice)
       ? 0
       : filteredZardluud.reduce((sum, zardal) => {
           return sum + (zardal.tariff || 0);
         }, 0);
     
     // Final total includes zardluud + guilgeenuud (or ekhniiUldegdel for first invoice)
+    // For avlaga-only invoices, only include guilgeenuud
     const finalNiitTulbur = shouldUseEkhniiUldegdel 
       ? (tempData.ekhniiUldegdel || 0) + guilgeenuudTotal
       : zardluudTotal + guilgeenuudTotal;
@@ -418,9 +424,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
       };
     }
     
-    // When using ekhniiUldegdel, do NOT include zardluud charges in medeelel
-    // Only include zardluud when cron is activated (after first invoice)
-    const finalZardluud = shouldUseEkhniiUldegdel ? [] : filteredZardluud;
+    // When using ekhniiUldegdel or avlaga-only invoice, do NOT include zardluud charges in medeelel
+    // Only include zardluud when cron is activated (after first invoice) and not avlaga-only
+    const finalZardluud = (shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice) ? [] : filteredZardluud;
 
     tuukh.medeelel = {
       zardluud: finalZardluud,

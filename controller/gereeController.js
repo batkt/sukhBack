@@ -5,6 +5,7 @@ const { daraagiinTulukhOgnooZasya } = require("./tulbur");
 
 exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
   try {
+    console.log("gereeniiGuilgeeKhadgalya -----> Ийшээ орлоо");
     const { db } = require("zevbackv2");
     var guilgee = req.body.guilgee;
 
@@ -110,6 +111,40 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       guilgee.gereeniiId,
       tukhainBaaziinKholbolt
     );
+
+    // If avlaga type, create invoice immediately without month restrictions
+    if (guilgee.turul === "avlaga") {
+      try {
+        const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
+        const Baiguullaga = require("../models/baiguullaga");
+        
+        // Get fresh geree data with all fields needed for invoice
+        const freshGeree = await Geree(tukhainBaaziinKholbolt, true)
+          .findById(guilgee.gereeniiId)
+          .lean();
+        
+        if (freshGeree) {
+          // Get baiguullaga
+          const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt)
+            .findById(baiguullagiinId)
+            .lean();
+          
+          if (baiguullaga) {
+            const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+              freshGeree,
+              baiguullaga,
+              tukhainBaaziinKholbolt,
+              "garan",
+              true // skipDuplicateCheck = true to bypass month restrictions
+            );
+            
+            // Invoice created successfully (SMS will be sent automatically by gereeNeesNekhemjlekhUusgekh)
+          }
+        }
+      } catch (invoiceError) {
+        // Don't fail the guilgee addition if invoice creation fails
+      }
+    }
 
     if (guilgee.guilgeeniiId) {
       const result1 = await BankniiGuilgee(tukhainBaaziinKholbolt)
