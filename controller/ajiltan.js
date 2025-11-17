@@ -71,13 +71,13 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     });
 
   if (!ajiltan) {
-    throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+    throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!", 401);
   }
 
   var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
 
   if (!ok) {
-    throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+    throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!", 401);
   }
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
     ajiltan.baiguullagiinId
@@ -95,7 +95,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   }
 
   duusakhOgnooAvya(
-    { register: baiguullaga.register, system: "sukh" },
+    { register: baiguullaga.register, system: "sukhTest" },
     async (khariu) => {
       try {
         if (khariu.success) {
@@ -124,6 +124,11 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
             khariu.duusakhOgnoo,
             butsaakhObject.salbaruud
           );
+
+          // Ensure token was generated
+          if (!jwt) {
+            throw new aldaa("Token үүсгэхэд алдаа гарлаа!", 500);
+          }
 
           butsaakhObject.duusakhOgnoo = khariu.duusakhOgnoo;
           if (!!butsaakhObject.result) {
@@ -159,6 +164,17 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           tuukh.baiguullagiinId = ajiltan.baiguullagiinId;
           tuukh.baiguullagiinRegister = baiguullaga.register;
           await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
+
+          // Ensure response has all required fields
+          if (!butsaakhObject.success) {
+            butsaakhObject.success = true;
+          }
+          if (!butsaakhObject.token) {
+            throw new aldaa("Token алдаатай байна!", 500);
+          }
+          if (!butsaakhObject.result) {
+            throw new aldaa("Хэрэглэгчийн мэдээлэл олдсонгүй!", 500);
+          }
 
           res.status(200).json(butsaakhObject);
         } else {
