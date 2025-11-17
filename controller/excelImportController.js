@@ -1186,6 +1186,23 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
       throw new aldaa("Excel хоосон");
     }
 
+    // Validate that this is a tootExcel file, not an orshinSuugch Excel file
+    // Check the first row to see what columns are present
+    const firstRow = data[0] || {};
+    const columnNames = Object.keys(firstRow);
+    
+    // orshinSuugch Excel has these specific columns that tootExcel doesn't have
+    const orshinSuugchColumns = ["Овог", "Нэр", "Утас", "Имэйл"];
+    const hasOrshinSuugchColumns = orshinSuugchColumns.some(col => columnNames.includes(col));
+    
+    // tootExcel should have at least "Тоот" and "Давхар" columns
+    const requiredTootColumns = ["Тоот", "Давхар"];
+    const hasRequiredTootColumns = requiredTootColumns.every(col => columnNames.includes(col));
+    
+    if (hasOrshinSuugchColumns || !hasRequiredTootColumns) {
+      throw new aldaa("Буруу файл байна");
+    }
+
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       baiguullagiinId
     );
