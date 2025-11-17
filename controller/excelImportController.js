@@ -726,9 +726,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
         const validationErrors = [];
 
-        if (!userData.ovog || userData.ovog.length === 0) {
-          validationErrors.push("Овог");
-        }
+       
 
         if (!userData.ner || userData.ner.length === 0) {
           validationErrors.push("Нэр");
@@ -977,6 +975,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           toot: userData.toot || "",
           orts: userData.orts || "",
           ekhniiUldegdel: userData.ekhniiUldegdel || 0,
+          tailbar: userData.tailbar || "", // Save tailbar to orshinSuugch
         };
 
         const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
