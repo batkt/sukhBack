@@ -1007,6 +1007,13 @@ router.get(
   "/qpayNekhemjlekhMultipleCallback/:baiguullagiinId/:invoiceIds",
   async (req, res, next) => {
     try {
+      console.log("🔔 QPay callback received:", {
+        baiguullagiinId: req.params.baiguullagiinId,
+        invoiceIds: req.params.invoiceIds,
+        query: req.query,
+        method: req.method,
+        url: req.url
+      });
       const { db } = require("zevbackv2");
       const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
       const Baiguullaga = require("../models/baiguullaga");
