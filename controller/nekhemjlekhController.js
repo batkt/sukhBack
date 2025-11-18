@@ -408,12 +408,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
     
     // Final total includes zardluud + guilgeenuud (or ekhniiUldegdel for first invoice)
     // For avlaga-only invoices, only include guilgeenuud
+    // If ekhniiUldegdel exists, always include it in the total (even if shouldUseEkhniiUldegdel is false)
+    const hasEkhniiUldegdel = tempData.ekhniiUldegdel && tempData.ekhniiUldegdel > 0;
+    const ekhniiUldegdelAmount = hasEkhniiUldegdel ? (tempData.ekhniiUldegdel || 0) : 0;
+    
     const finalNiitTulbur = shouldUseEkhniiUldegdel 
-      ? (tempData.ekhniiUldegdel || 0) + guilgeenuudTotal
-      : zardluudTotal + guilgeenuudTotal;
+      ? ekhniiUldegdelAmount + guilgeenuudTotal
+      : zardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
     
     // Don't create invoice if total amount is 0 (for new users with no charges)
-    if (finalNiitTulbur === 0 && guilgeenuudTotal === 0) {
+    // BUT create invoice if ekhniiUldegdel exists (even if other charges are 0)
+    if (finalNiitTulbur === 0 && guilgeenuudTotal === 0 && !hasEkhniiUldegdel) {
       console.log("⚠️ [INVOICE] Skipping invoice creation - total amount is 0 MNT");
       return {
         success: false,
