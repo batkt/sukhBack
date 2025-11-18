@@ -1059,20 +1059,30 @@ router.get(
       // Get QPay invoice ID from first invoice
       const firstInvoice = invoices[0];
       let paymentTransactionId = null;
+      let paymentConfirmed = false;
 
       if (firstInvoice.qpayInvoiceId) {
         try {
+          console.log(`🔍 Checking QPay payment status for invoice_id: ${firstInvoice.qpayInvoiceId}`);
           const khariu = await qpayShalgay(
             { invoice_id: firstInvoice.qpayInvoiceId },
             kholbolt
           );
 
-          if (khariu?.payments?.[0]?.transactions?.[0]?.id) {
-            paymentTransactionId = khariu.payments[0].transactions[0].id;
+          console.log(`📊 QPay response:`, JSON.stringify(khariu, null, 2));
+
+          // Check if payment exists and is confirmed
+          if (khariu?.payments && khariu.payments.length > 0) {
+            const payment = khariu.payments[0];
+            if (payment.transactions && payment.transactions.length > 0) {
+              paymentTransactionId = payment.transactions[0].id;
+              paymentConfirmed = true;
+              console.log(`✅ Payment confirmed with transaction ID: ${paymentTransactionId}`);
+            } else {
+              console.warn("⚠️  Payment found but no transactions in QPay response");
+            }
           } else {
-            console.warn(
-              "⚠️  Payment transaction ID not found in QPay response"
-            );
+            console.warn("⚠️  No payments found in QPay response - invoice may not be paid yet");
           }
         } catch (err) {
           console.error(
@@ -1084,6 +1094,14 @@ router.get(
 
       if (!paymentTransactionId && req.query.qpay_payment_id) {
         paymentTransactionId = req.query.qpay_payment_id;
+        paymentConfirmed = true;
+        console.log(`✅ Using payment ID from query parameter: ${paymentTransactionId}`);
+      }
+
+      // Only update invoices if payment is confirmed
+      if (!paymentConfirmed) {
+        console.log("⚠️  Payment not confirmed - skipping invoice update");
+        return res.status(200).send("Payment not confirmed yet");
       }
 
       // Update all invoices as paid
