@@ -56,7 +56,11 @@ async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
 }
 
 exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
-  console.log("Энэ рүү орлоо");
+  console.log("🔵 ajiltanNevtrey - START");
+  console.log("📥 Request body:", {
+    nevtrekhNer: req.body.nevtrekhNer,
+    hasNuutsUg: !!req.body.nuutsUg,
+  });
 
   const io = req.app.get("socketio");
   const { db } = require("zevbackv2");
@@ -67,18 +71,25 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     .where("nevtrekhNer")
     .equals(req.body.nevtrekhNer)
     .catch((err) => {
+      console.error("❌ Error finding ajiltan:", err);
       next(err);
     });
 
   if (!ajiltan) {
-    throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+    console.log("❌ Ajiltan not found for:", req.body.nevtrekhNer);
+    throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!", 401);
   }
+
+  console.log("✅ Ajiltan found:", ajiltan._id, ajiltan.ner);
 
   var ok = await ajiltan.passwordShalgaya(req.body.nuutsUg);
 
   if (!ok) {
-    throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
+    console.log("❌ Password verification failed for:", req.body.nevtrekhNer);
+    throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!", 401);
   }
+
+  console.log("✅ Password verified successfully");
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
     ajiltan.baiguullagiinId
   );
@@ -95,7 +106,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   }
 
   duusakhOgnooAvya(
-    { register: baiguullaga.register, system: "sukh" },
+    { register: baiguullaga.register, system: "sukhTest" },
     async (khariu) => {
       try {
         if (khariu.success) {
@@ -124,6 +135,11 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
             khariu.duusakhOgnoo,
             butsaakhObject.salbaruud
           );
+
+          // Ensure token was generated
+          if (!jwt) {
+            throw new aldaa("Token үүсгэхэд алдаа гарлаа!", 500);
+          }
 
           butsaakhObject.duusakhOgnoo = khariu.duusakhOgnoo;
           if (!!butsaakhObject.result) {
@@ -160,15 +176,56 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           tuukh.baiguullagiinRegister = baiguullaga.register;
           await nevtreltiinTuukhKhadgalya(tuukh, db.erunkhiiKholbolt);
 
+          // Ensure response has all required fields
+          if (!butsaakhObject.success) {
+            butsaakhObject.success = true;
+          }
+          if (!butsaakhObject.token) {
+            console.error("❌ Token is missing!");
+            throw new aldaa("Token алдаатай байна!", 500);
+          }
+          if (!butsaakhObject.result) {
+            console.error("❌ Result is missing!");
+            throw new aldaa("Хэрэглэгчийн мэдээлэл олдсонгүй!", 500);
+          }
+
+          // Log final response before sending
+          console.log("✅ Login successful - Sending response:");
+          console.log("📤 Response status: 200");
+          console.log("📤 Response has success:", butsaakhObject.success);
+          console.log("📤 Response has token:", !!butsaakhObject.token);
+          console.log("📤 Response has result:", !!butsaakhObject.result);
+          console.log("📤 Token length:", butsaakhObject.token ? butsaakhObject.token.length : 0);
+          console.log("📤 Result ID:", butsaakhObject.result?._id);
+          console.log("📤 Result erkh:", butsaakhObject.result?.erkh);
+          console.log("📤 Result barilguud:", butsaakhObject.result?.barilguud);
+          console.log("📤 Result barilguud length:", butsaakhObject.result?.barilguud?.length);
+          console.log("📤 Result salbaruud:", JSON.stringify(butsaakhObject.result?.salbaruud));
+          console.log("📤 Full response keys:", Object.keys(butsaakhObject));
+          console.log("📤 Full response structure:", JSON.stringify({
+            success: butsaakhObject.success,
+            hasToken: !!butsaakhObject.token,
+            hasResult: !!butsaakhObject.result,
+            resultErkh: butsaakhObject.result?.erkh,
+            resultBarilguudLength: butsaakhObject.result?.barilguud?.length,
+            salbaruudLength: butsaakhObject.result?.salbaruud?.length,
+          }, null, 2));
+
           res.status(200).json(butsaakhObject);
+          console.log("✅ Response sent successfully");
         } else {
+          console.error("❌ License check failed:", khariu.msg);
           throw new Error(khariu.msg);
         }
       } catch (err) {
+        console.error("❌ Error in duusakhOgnooAvya callback:", err);
         next(err);
       }
     },
-    next
+    (err) => {
+      console.error("❌ Error in duusakhOgnooAvya:", err);
+      next(err);
+    }
   );
 });
 
