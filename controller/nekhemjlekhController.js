@@ -513,6 +513,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
     );
 
     // Send SMS to orshinSuugch when invoice is created
+    // TEMPORARILY DISABLED
+    /*
     try {
       await sendInvoiceSmsToOrshinSuugch(
         tuukh,
@@ -524,6 +526,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
       console.error("Error sending SMS to orshinSuugch:", smsError);
       // Don't fail the invoice creation if SMS fails
     }
+    */
+    console.log("📱 [SMS] SMS sending temporarily disabled for invoice creation");
 
     return {
       success: true,
