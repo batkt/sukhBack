@@ -29,32 +29,47 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // 3. NO existing invoices with ekhniiUldegdel exist (first invoice only)
     let shouldUseEkhniiUldegdel = false;
     const NekhemjlekhCron = require("../models/cronSchedule");
-    
+
     try {
-      const cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
+      const cronSchedule = await NekhemjlekhCron(
+        tukhainBaaziinKholbolt
+      ).findOne({
         baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
       });
 
       if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
         const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
-        
-        const gereeCreatedDate = tempData.createdAt || tempData.gereeniiOgnoo || new Date();
-        const currentMonthCronDate = new Date(currentYear, currentMonth, scheduledDay, 0, 0, 0, 0);
-        
+
+        const gereeCreatedDate =
+          tempData.createdAt || tempData.gereeniiOgnoo || new Date();
+        const currentMonthCronDate = new Date(
+          currentYear,
+          currentMonth,
+          scheduledDay,
+          0,
+          0,
+          0,
+          0
+        );
+
         // Check if there are any existing invoices with ekhniiUldegdel for this geree
         // Only use ekhniiUldegdel if NO invoices with ekhniiUldegdel exist yet
-        const existingEkhniiUldegdelInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).countDocuments({
+        const existingEkhniiUldegdelInvoices = await nekhemjlekhiinTuukh(
+          tukhainBaaziinKholbolt
+        ).countDocuments({
           gereeniiId: tempData._id.toString(),
           ekhniiUldegdel: { $exists: true, $gt: 0 }, // Has ekhniiUldegdel > 0
         });
-        
+
         // Only use ekhniiUldegdel if:
         // 1. Geree was created before cron date
         // 2. Geree has ekhniiUldegdel
         // 3. NO existing invoices with ekhniiUldegdel (first invoice only)
-        if (gereeCreatedDate < currentMonthCronDate && 
-            (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0) &&
-            existingEkhniiUldegdelInvoices === 0) {
+        if (
+          gereeCreatedDate < currentMonthCronDate &&
+          (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0) &&
+          existingEkhniiUldegdelInvoices === 0
+        ) {
           shouldUseEkhniiUldegdel = true;
         }
       }
@@ -298,23 +313,42 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.maililgeesenAjiltniiNer =
       tempData.maililgeesenAjiltniiNer || tempData.ner;
     tuukh.nekhemjlekhiinZagvarId = tempData.nekhemjlekhiinZagvarId || "";
-    
+
     // Save ekhniiUldegdel to invoice (preserve 0 value if it exists)
-    console.log("💰 [INVOICE] ekhniiUldegdel from geree:", tempData.ekhniiUldegdel);
-    console.log("💰 [INVOICE] ekhniiUldegdel type:", typeof tempData.ekhniiUldegdel);
-    console.log("💰 [INVOICE] ekhniiUldegdel undefined?", tempData.ekhniiUldegdel === undefined);
-    console.log("💰 [INVOICE] ekhniiUldegdel null?", tempData.ekhniiUldegdel === null);
-    
-    tuukh.ekhniiUldegdel = tempData.ekhniiUldegdel !== undefined && tempData.ekhniiUldegdel !== null 
-      ? tempData.ekhniiUldegdel 
-      : 0;
-    
-    console.log("💰 [INVOICE] ekhniiUldegdel saved to invoice:", tuukh.ekhniiUldegdel);
-    
+    console.log(
+      "💰 [INVOICE] ekhniiUldegdel from geree:",
+      tempData.ekhniiUldegdel
+    );
+    console.log(
+      "💰 [INVOICE] ekhniiUldegdel type:",
+      typeof tempData.ekhniiUldegdel
+    );
+    console.log(
+      "💰 [INVOICE] ekhniiUldegdel undefined?",
+      tempData.ekhniiUldegdel === undefined
+    );
+    console.log(
+      "💰 [INVOICE] ekhniiUldegdel null?",
+      tempData.ekhniiUldegdel === null
+    );
+
+    tuukh.ekhniiUldegdel =
+      tempData.ekhniiUldegdel !== undefined && tempData.ekhniiUldegdel !== null
+        ? tempData.ekhniiUldegdel
+        : 0;
+
+    console.log(
+      "💰 [INVOICE] ekhniiUldegdel saved to invoice:",
+      tuukh.ekhniiUldegdel
+    );
+
     // Also save ekhniiUldegdelUsgeer if it exists
     if (tempData.ekhniiUldegdelUsgeer !== undefined) {
       tuukh.ekhniiUldegdelUsgeer = tempData.ekhniiUldegdelUsgeer;
-      console.log("💰 [INVOICE] ekhniiUldegdelUsgeer saved:", tuukh.ekhniiUldegdelUsgeer);
+      console.log(
+        "💰 [INVOICE] ekhniiUldegdelUsgeer saved:",
+        tuukh.ekhniiUldegdelUsgeer
+      );
     }
 
     let filteredZardluud = tempData.zardluud || [];
@@ -344,7 +378,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Get the cron schedule for this baiguullaga
     let tulukhOgnoo = null;
     try {
-      const cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
+      const cronSchedule = await NekhemjlekhCron(
+        tukhainBaaziinKholbolt
+      ).findOne({
         baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
       });
 
@@ -364,7 +400,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }
 
         // Get the last day of next month to handle edge cases (e.g., Feb 31 -> Feb 28/29)
-        const lastDayOfNextMonth = new Date(nextYear, nextMonth + 1, 0).getDate();
+        const lastDayOfNextMonth = new Date(
+          nextYear,
+          nextMonth + 1,
+          0
+        ).getDate();
         const dayToUse = Math.min(scheduledDay, lastDayOfNextMonth);
 
         // Create the date for next month's scheduled day
@@ -375,8 +415,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     // Fallback to 30 days from now if cron schedule not found
-    tuukh.tulukhOgnoo = tulukhOgnoo || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    
+    tuukh.tulukhOgnoo =
+      tulukhOgnoo || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
     // Get guilgeenuudForNekhemjlekh (one-time guilgeenuud that should appear in invoice)
     // These are guilgeenuud that have been added to geree and should appear once in an invoice
     let guilgeenuudForNekhemjlekh = [];
@@ -384,42 +425,53 @@ const gereeNeesNekhemjlekhUusgekh = async (
       const gereeWithGuilgee = await Geree(tukhainBaaziinKholbolt, true)
         .findById(tempData._id)
         .select("+guilgeenuudForNekhemjlekh");
-      guilgeenuudForNekhemjlekh = gereeWithGuilgee?.guilgeenuudForNekhemjlekh || [];
+      guilgeenuudForNekhemjlekh =
+        gereeWithGuilgee?.guilgeenuudForNekhemjlekh || [];
     } catch (error) {
       console.error("Error fetching guilgeenuudForNekhemjlekh:", error);
     }
 
     // Calculate guilgeenuud total (tulukhDun from avlaga guilgeenuud)
-    const guilgeenuudTotal = guilgeenuudForNekhemjlekh.reduce((sum, guilgee) => {
-      return sum + (guilgee.tulukhDun || 0);
-    }, 0);
-    
+    const guilgeenuudTotal = guilgeenuudForNekhemjlekh.reduce(
+      (sum, guilgee) => {
+        return sum + (guilgee.tulukhDun || 0);
+      },
+      0
+    );
+
     // If skipDuplicateCheck is true and there are guilgeenuudForNekhemjlekh, this is an avlaga-only invoice
     // Exclude monthly zardluud charges for avlaga-only invoices
-    const isAvlagaOnlyInvoice = skipDuplicateCheck && guilgeenuudForNekhemjlekh.length > 0;
-    
+    const isAvlagaOnlyInvoice =
+      skipDuplicateCheck && guilgeenuudForNekhemjlekh.length > 0;
+
     // Use ekhniiUldegdel for first invoice if conditions are met, otherwise use normal charges
     // But exclude zardluud if this is an avlaga-only invoice
-    const zardluudTotal = (shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice)
-      ? 0
-      : filteredZardluud.reduce((sum, zardal) => {
-          return sum + (zardal.tariff || 0);
-        }, 0);
-    
+    const zardluudTotal =
+      shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+        ? 0
+        : filteredZardluud.reduce((sum, zardal) => {
+            return sum + (zardal.tariff || 0);
+          }, 0);
+
     // Final total includes zardluud + guilgeenuud (or ekhniiUldegdel for first invoice)
     // For avlaga-only invoices, only include guilgeenuud
     // If ekhniiUldegdel exists, always include it in the total (even if shouldUseEkhniiUldegdel is false)
-    const hasEkhniiUldegdel = tempData.ekhniiUldegdel && tempData.ekhniiUldegdel > 0;
-    const ekhniiUldegdelAmount = hasEkhniiUldegdel ? (tempData.ekhniiUldegdel || 0) : 0;
-    
-    const finalNiitTulbur = shouldUseEkhniiUldegdel 
+    const hasEkhniiUldegdel =
+      tempData.ekhniiUldegdel && tempData.ekhniiUldegdel > 0;
+    const ekhniiUldegdelAmount = hasEkhniiUldegdel
+      ? tempData.ekhniiUldegdel || 0
+      : 0;
+
+    const finalNiitTulbur = shouldUseEkhniiUldegdel
       ? ekhniiUldegdelAmount + guilgeenuudTotal
       : zardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
-    
+
     // Don't create invoice if total amount is 0 (for new users with no charges)
     // BUT create invoice if ekhniiUldegdel exists (even if other charges are 0)
     if (finalNiitTulbur === 0 && guilgeenuudTotal === 0 && !hasEkhniiUldegdel) {
-      console.log("⚠️ [INVOICE] Skipping invoice creation - total amount is 0 MNT");
+      console.log(
+        "⚠️ [INVOICE] Skipping invoice creation - total amount is 0 MNT"
+      );
       return {
         success: false,
         error: "Нийт төлбөр 0₮ байна. Нэхэмжлэх үүсгэх шаардлагагүй.",
@@ -428,10 +480,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
         skipReason: "zero_amount",
       };
     }
-    
+
     // When using ekhniiUldegdel or avlaga-only invoice, do NOT include zardluud charges in medeelel
     // Only include zardluud when cron is activated (after first invoice) and not avlaga-only
-    const finalZardluud = (shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice) ? [] : filteredZardluud;
+    const finalZardluud =
+      shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice ? [] : filteredZardluud;
 
     tuukh.medeelel = {
       zardluud: finalZardluud,
@@ -450,11 +503,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
         ? "Автоматаар үүссэн нэхэмжлэх"
         : "Гаран үүссэн нэхэмжлэх");
     tuukh.zagvariinNer = tempData.zagvariinNer || org.ner;
-    
+
     // Include tailbar in content if available
-    const tailbarText = tempData.temdeglel && tempData.temdeglel !== "Excel файлаас автоматаар үүссэн гэрээ" 
-      ? `\nТайлбар: ${tempData.temdeglel}` 
-      : "";
+    const tailbarText =
+      tempData.temdeglel &&
+      tempData.temdeglel !== "Excel файлаас автоматаар үүссэн гэрээ"
+        ? `\nТайлбар: ${tempData.temdeglel}`
+        : "";
     tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${finalNiitTulbur}₮${tailbarText}`;
     tuukh.nekhemjlekhiinDans =
       tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
@@ -517,18 +572,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     );
 
-    // Send SMS to orshinSuugch when invoice is created
-    try {
-      await sendInvoiceSmsToOrshinSuugch(
-        tuukh,
-        tempData,
-        org,
-        tukhainBaaziinKholbolt
-      );
-    } catch (smsError) {
-      console.error("Error sending SMS to orshinSuugch:", smsError);
-      // Don't fail the invoice creation if SMS fails
-    }
+    // TEMPORARILY DISABLED: Send SMS to orshinSuugch when invoice is created
+    // try {
+    //   await sendInvoiceSmsToOrshinSuugch(
+    //     tuukh,
+    //     tempData,
+    //     org,
+    //     tukhainBaaziinKholbolt
+    //   );
+    // } catch (smsError) {
+    //   console.error("Error sending SMS to orshinSuugch:", smsError);
+    //   // Don't fail the invoice creation if SMS fails
+    // }
 
     return {
       success: true,
@@ -681,7 +736,10 @@ async function sendInvoiceSmsToOrshinSuugch(
     );
 
     if (!orshinSuugch) {
-      console.log("❌ [SMS] OrshinSuugch not found with ID:", geree.orshinSuugchId);
+      console.log(
+        "❌ [SMS] OrshinSuugch not found with ID:",
+        geree.orshinSuugchId
+      );
       return; // No orshinSuugch found
     }
 
@@ -696,11 +754,20 @@ async function sendInvoiceSmsToOrshinSuugch(
     // Hardcode SMS settings (same as dugaarBatalgaajuulya)
     var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
     var msgIlgeekhDugaar = "72002002";
-    
-    console.log("✅ [SMS] Using hardcoded SMS settings - Key:", msgIlgeekhKey.substring(0, 10) + "...", "Dugaar:", msgIlgeekhDugaar);
+
+    console.log(
+      "✅ [SMS] Using hardcoded SMS settings - Key:",
+      msgIlgeekhKey.substring(0, 10) + "...",
+      "Dugaar:",
+      msgIlgeekhDugaar
+    );
 
     // Create SMS message
-    const smsText = `Tany ${nekhemjlekh.gereeniiDugaar} gereend, ${nekhemjlekh.niitTulbur}₮ nekhemjlekh uuslee, tulukh ognoo ${new Date(nekhemjlekh.tulukhOgnoo).toLocaleDateString("mn-MN")}`;
+    const smsText = `Tany ${nekhemjlekh.gereeniiDugaar} gereend, ${
+      nekhemjlekh.niitTulbur
+    }₮ nekhemjlekh uuslee, tulukh ognoo ${new Date(
+      nekhemjlekh.tulukhOgnoo
+    ).toLocaleDateString("mn-MN")}`;
     console.log("📱 [SMS] SMS text:", smsText);
 
     // Send SMS
@@ -720,7 +787,10 @@ async function sendInvoiceSmsToOrshinSuugch(
     url = encodeURI(url);
     console.log("📱 [SMS] Sending SMS to:", orshinSuugch.utas);
     console.log("📱 [SMS] SMS Server:", msgServer);
-    console.log("📱 [SMS] Full URL (without key):", url.replace(msgIlgeekhKey, "***HIDDEN***"));
+    console.log(
+      "📱 [SMS] Full URL (without key):",
+      url.replace(msgIlgeekhKey, "***HIDDEN***")
+    );
 
     request(url, { json: true }, (err1, res1, body) => {
       if (err1) {
@@ -730,7 +800,7 @@ async function sendInvoiceSmsToOrshinSuugch(
         console.log("✅ [SMS] SMS sent successfully!");
         console.log("📱 [SMS] Response status:", res1?.statusCode);
         console.log("📱 [SMS] Response body:", JSON.stringify(body));
-        
+
         // Save message to MsgTuukh
         try {
           const msg = new MsgTuukh(tukhainBaaziinKholbolt)();
@@ -740,11 +810,14 @@ async function sendInvoiceSmsToOrshinSuugch(
           msg.msg = smsText;
           msg.msgIlgeekhKey = msgIlgeekhKey;
           msg.msgIlgeekhDugaar = msgIlgeekhDugaar;
-          msg.save().then(() => {
-            console.log("✅ [SMS] Message saved to MsgTuukh");
-          }).catch((saveErr) => {
-            console.error("❌ [SMS] Error saving SMS to MsgTuukh:", saveErr);
-          });
+          msg
+            .save()
+            .then(() => {
+              console.log("✅ [SMS] Message saved to MsgTuukh");
+            })
+            .catch((saveErr) => {
+              console.error("❌ [SMS] Error saving SMS to MsgTuukh:", saveErr);
+            });
         } catch (saveError) {
           console.error("❌ [SMS] Error saving SMS to MsgTuukh:", saveError);
         }

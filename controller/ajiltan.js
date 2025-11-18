@@ -195,21 +195,37 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           console.log("📤 Response has success:", butsaakhObject.success);
           console.log("📤 Response has token:", !!butsaakhObject.token);
           console.log("📤 Response has result:", !!butsaakhObject.result);
-          console.log("📤 Token length:", butsaakhObject.token ? butsaakhObject.token.length : 0);
+          console.log(
+            "📤 Token length:",
+            butsaakhObject.token ? butsaakhObject.token.length : 0
+          );
           console.log("📤 Result ID:", butsaakhObject.result?._id);
           console.log("📤 Result erkh:", butsaakhObject.result?.erkh);
           console.log("📤 Result barilguud:", butsaakhObject.result?.barilguud);
-          console.log("📤 Result barilguud length:", butsaakhObject.result?.barilguud?.length);
-          console.log("📤 Result salbaruud:", JSON.stringify(butsaakhObject.result?.salbaruud));
+          console.log(
+            "📤 Result barilguud length:",
+            butsaakhObject.result?.barilguud?.length
+          );
+          console.log(
+            "📤 Result salbaruud:",
+            JSON.stringify(butsaakhObject.result?.salbaruud)
+          );
           console.log("📤 Full response keys:", Object.keys(butsaakhObject));
-          console.log("📤 Full response structure:", JSON.stringify({
-            success: butsaakhObject.success,
-            hasToken: !!butsaakhObject.token,
-            hasResult: !!butsaakhObject.result,
-            resultErkh: butsaakhObject.result?.erkh,
-            resultBarilguudLength: butsaakhObject.result?.barilguud?.length,
-            salbaruudLength: butsaakhObject.result?.salbaruud?.length,
-          }, null, 2));
+          console.log(
+            "📤 Full response structure:",
+            JSON.stringify(
+              {
+                success: butsaakhObject.success,
+                hasToken: !!butsaakhObject.token,
+                hasResult: !!butsaakhObject.result,
+                resultErkh: butsaakhObject.result?.erkh,
+                resultBarilguudLength: butsaakhObject.result?.barilguud?.length,
+                salbaruudLength: butsaakhObject.result?.salbaruud?.length,
+              },
+              null,
+              2
+            )
+          );
 
           res.status(200).json(butsaakhObject);
           console.log("✅ Response sent successfully");
@@ -1047,33 +1063,34 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
               textuud.push(text);
             }
           }
-          if (textuud.length > 0) {
-            var ilgeexList = [];
-            for await (const dugaar of baiguullaga.tokhirgoo.msgAvakhDugaar)
-              for await (const text of textuud)
-                ilgeexList.push({ to: dugaar, text });
-            /*[{
-            to: "88880140",
-            text,
-          },
-          {
-            to: "88889501",
-            text,
-          },
-          {
-            to: "88043808",
-            text,
-          }];*/
-            msgIlgeeye(
-              ilgeexList,
-              msgIlgeekhKey,
-              msgIlgeekhDugaar,
-              [],
-              0,
-              db.erunkhiiKholbolt,
-              baiguullaga._id
-            );
-          }
+          // TEMPORARILY DISABLED: Scheduled SMS notifications
+          // if (textuud.length > 0) {
+          //   var ilgeexList = [];
+          //   for await (const dugaar of baiguullaga.tokhirgoo.msgAvakhDugaar)
+          //     for await (const text of textuud)
+          //       ilgeexList.push({ to: dugaar, text });
+          //   /*[{
+          //   to: "88880140",
+          //   text,
+          // },
+          // {
+          //   to: "88889501",
+          //   text,
+          // },
+          // {
+          //   to: "88043808",
+          //   text,
+          // }];*/
+          //   msgIlgeeye(
+          //     ilgeexList,
+          //     msgIlgeekhKey,
+          //     msgIlgeekhDugaar,
+          //     [],
+          //     0,
+          //     db.erunkhiiKholbolt,
+          //     baiguullaga._id
+          //   );
+          // }
         } catch (aldaaa) {
           continue;
         }

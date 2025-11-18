@@ -469,13 +469,14 @@ exports.qpayTulye = asyncHandler(async (req, res, next) => {
           .filter((a) => a.turul == "aldangi")
           .reduce((a, b) => a + b.tulsunAldangi, 0);
 
-        await tulultiinMsgIlgeeye(
-          req.params.baiguullagiinId,
-          result.gereeniiDugaar,
-          result.utas[0],
-          tulsunDun,
-          tulsunAldangi
-        );
+        // TEMPORARILY DISABLED: Payment confirmation SMS
+        // await tulultiinMsgIlgeeye(
+        //   req.params.baiguullagiinId,
+        //   result.gereeniiDugaar,
+        //   result.utas[0],
+        //   tulsunDun,
+        //   tulsunAldangi
+        // );
 
         await daraagiinTulukhOgnooZasya(
           qpayBarimt.gereeniiId,
