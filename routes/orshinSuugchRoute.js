@@ -135,6 +135,10 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
 
 router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
   try {
+    delete req.body.nevtersenAjiltniiToken;
+    delete req.body.erunkhiiKholbolt;
+    delete req.body.tukhainBaaziinKholbolt;
+    
     const result = await OrshinSuugch(db.erunkhiiKholbolt).findByIdAndUpdate(
       req.params.id,
       req.body,
