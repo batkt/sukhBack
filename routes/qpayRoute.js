@@ -348,15 +348,62 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
               const newDansniiDugaar =
                 bankAccount.account_number || req.body.dansniiDugaar;
 
-              // QpayKhariltsagch has merchant_id, so we can use the bank account directly
-              // Merchant credentials come from QpayKhariltsagch, not from Dans model
-              req.body.dansniiDugaar = newDansniiDugaar;
-              req.body.burtgeliinDugaar =
-                bankAccount.account_bank_code || req.body.burtgeliinDugaar;
+              // Check if this account exists in Dans model with merchant credentials
+              const dansModel = Dans(req.body.tukhainBaaziinKholbolt);
+              const dansWithMerchant = await dansModel
+                .findOne({
+                  dugaar: newDansniiDugaar,
+                  baiguullagiinId: req.body.baiguullagiinId,
+                })
+                .lean();
 
-              console.log(
-                `✅ Using QpayKhariltsagch bank account for barilga ${req.body.barilgiinId}: ${bankAccount.account_number} (${bankAccount.account_name})`
-              );
+              if (dansWithMerchant && dansWithMerchant.qpayAshiglakhEsekh) {
+                // Account exists in Dans with QPay enabled, use it
+                req.body.dansniiDugaar = newDansniiDugaar;
+                req.body.burtgeliinDugaar =
+                  bankAccount.account_bank_code || req.body.burtgeliinDugaar;
+
+                console.log(
+                  `✅ Using building-specific bank account for barilga ${req.body.barilgiinId}: ${bankAccount.account_number} (${bankAccount.account_name}) with merchant credentials`
+                );
+              } else {
+                // Account doesn't exist in Dans or doesn't have QPay enabled
+                // Try to find a Dans entry for this barilga with QPay enabled
+                let fallbackDans = await dansModel
+                  .findOne({
+                    baiguullagiinId: req.body.baiguullagiinId,
+                    barilgiinId: req.body.barilgiinId,
+                    qpayAshiglakhEsekh: true,
+                  })
+                  .lean();
+
+                if (!fallbackDans) {
+                  // Try organization-level Dans (without barilgiinId filter)
+                  fallbackDans = await dansModel
+                    .findOne({
+                      baiguullagiinId: req.body.baiguullagiinId,
+                      qpayAshiglakhEsekh: true,
+                    })
+                    .lean();
+                }
+
+                if (fallbackDans) {
+                  // Use the Dans account number for merchant credentials lookup
+                  // But we can still use building-specific account for display if needed
+                  req.body.dansniiDugaar = fallbackDans.dugaar;
+                  req.body.burtgeliinDugaar =
+                    bankAccount.account_bank_code || req.body.burtgeliinDugaar;
+
+                  console.log(
+                    `⚠️  Building-specific account ${newDansniiDugaar} not configured in Dans, using Dans account ${fallbackDans.dugaar} for merchant credentials (barilga: ${req.body.barilgiinId})`
+                  );
+                } else {
+                  console.log(
+                    `⚠️  No QPay-enabled Dans found for building ${req.body.barilgiinId}, keeping existing dansniiDugaar: ${req.body.dansniiDugaar}`
+                  );
+                  // Don't change dansniiDugaar if no valid Dans found
+                }
+              }
             } else {
               console.log(
                 `⚠️  No bank_accounts found for salbar ${req.body.barilgiinId}, using existing dansniiDugaar`
@@ -1007,13 +1054,6 @@ router.get(
   "/qpayNekhemjlekhMultipleCallback/:baiguullagiinId/:invoiceIds",
   async (req, res, next) => {
     try {
-      console.log("🔔 QPay callback received:", {
-        baiguullagiinId: req.params.baiguullagiinId,
-        invoiceIds: req.params.invoiceIds,
-        query: req.query,
-        method: req.method,
-        url: req.url
-      });
       const { db } = require("zevbackv2");
       const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
       const Baiguullaga = require("../models/baiguullaga");
@@ -1066,30 +1106,20 @@ router.get(
       // Get QPay invoice ID from first invoice
       const firstInvoice = invoices[0];
       let paymentTransactionId = null;
-      let paymentConfirmed = false;
 
       if (firstInvoice.qpayInvoiceId) {
         try {
-          console.log(`🔍 Checking QPay payment status for invoice_id: ${firstInvoice.qpayInvoiceId}`);
           const khariu = await qpayShalgay(
             { invoice_id: firstInvoice.qpayInvoiceId },
             kholbolt
           );
 
-          console.log(`📊 QPay response:`, JSON.stringify(khariu, null, 2));
-
-          // Check if payment exists and is confirmed
-          if (khariu?.payments && khariu.payments.length > 0) {
-            const payment = khariu.payments[0];
-            if (payment.transactions && payment.transactions.length > 0) {
-              paymentTransactionId = payment.transactions[0].id;
-              paymentConfirmed = true;
-              console.log(`✅ Payment confirmed with transaction ID: ${paymentTransactionId}`);
-            } else {
-              console.warn("⚠️  Payment found but no transactions in QPay response");
-            }
+          if (khariu?.payments?.[0]?.transactions?.[0]?.id) {
+            paymentTransactionId = khariu.payments[0].transactions[0].id;
           } else {
-            console.warn("⚠️  No payments found in QPay response - invoice may not be paid yet");
+            console.warn(
+              "⚠️  Payment transaction ID not found in QPay response"
+            );
           }
         } catch (err) {
           console.error(
@@ -1101,14 +1131,6 @@ router.get(
 
       if (!paymentTransactionId && req.query.qpay_payment_id) {
         paymentTransactionId = req.query.qpay_payment_id;
-        paymentConfirmed = true;
-        console.log(`✅ Using payment ID from query parameter: ${paymentTransactionId}`);
-      }
-
-      // Only update invoices if payment is confirmed
-      if (!paymentConfirmed) {
-        console.log("⚠️  Payment not confirmed - skipping invoice update");
-        return res.status(200).send("Payment not confirmed yet");
       }
 
       // Update all invoices as paid
