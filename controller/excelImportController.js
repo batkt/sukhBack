@@ -726,9 +726,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
         const validationErrors = [];
 
-        if (!userData.ovog || userData.ovog.length === 0) {
-          validationErrors.push("Овог");
-        }
+       
 
         if (!userData.ner || userData.ner.length === 0) {
           validationErrors.push("Нэр");
@@ -977,6 +975,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           toot: userData.toot || "",
           orts: userData.orts || "",
           ekhniiUldegdel: userData.ekhniiUldegdel || 0,
+          tailbar: userData.tailbar || "", // Save tailbar to orshinSuugch
         };
 
         const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
@@ -1166,6 +1165,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     const TootBurtgel = require("../models/tootBurtgel");
     const Baiguullaga = require("../models/baiguullaga");
     const { updateDavkharWithToot } = require("./orshinSuugch");
+    const { shalguurValidate } = require("../components/shalguur");
 
     const { baiguullagiinId, barilgiinId } = req.body;
 
@@ -1184,6 +1184,23 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
     if (!data || data.length === 0) {
       throw new aldaa("Excel хоосон");
+    }
+
+    // Validate that this is a tootExcel file, not an orshinSuugch Excel file
+    // Check the first row to see what columns are present
+    const firstRow = data[0] || {};
+    const columnNames = Object.keys(firstRow);
+    
+    // orshinSuugch Excel has these specific columns that tootExcel doesn't have
+    const orshinSuugchColumns = ["Овог", "Нэр", "Утас", "Имэйл"];
+    const hasOrshinSuugchColumns = orshinSuugchColumns.some(col => columnNames.includes(col));
+    
+    // tootExcel should have at least "Тоот" and "Давхар" columns
+    const requiredTootColumns = ["Тоот", "Давхар"];
+    const hasRequiredTootColumns = requiredTootColumns.every(col => columnNames.includes(col));
+    
+    if (hasOrshinSuugchColumns || !hasRequiredTootColumns) {
+      throw new aldaa("Буруу файл байна");
     }
 
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
@@ -1244,43 +1261,88 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
       const rowNumber = i + 2;
 
       try {
-        const toot = row["Тоот"]?.toString().trim() || "";
+        const tootRaw = row["Тоот"]?.toString().trim() || "";
         const davkhar = row["Давхар"]?.toString().trim() || "";
         const orts = row["Орц"]?.toString().trim() || "";
 
-        const tootBurtgelData = {
-          kharagdakhDugaar: toot,
-          zaalt: "",
-          khamragdsanGereenuud: [],
-          khamaarakhKheseg: "",
-          ashilgakhEsekh: "",
-          baiguullagiinId: baiguullaga._id.toString(),
-          baiguullagiinNer: baiguullaga.ner || "",
-          barilgiinId: defaultBarilgiinId || "",
-        };
-
         const validationErrors = [];
 
-        if (!toot) {
-          validationErrors.push("Тоот");
+        if (!tootRaw) {
+          validationErrors.push("Тоот хоосон");
         }
 
         if (!davkhar) {
-          validationErrors.push("Давхар");
+          validationErrors.push("Давхар хоосон");
         }
 
         if (validationErrors.length > 0) {
-          throw new Error(validationErrors.join(", ") + " хоосон");
+          throw new Error(validationErrors.join(", "));
         }
 
-        // Save tootBurtgel
-        const tootBurtgel = new TootBurtgel(tukhainBaaziinKholbolt)(
-          tootBurtgelData
-        );
-        await tootBurtgel.save();
+        // Split toot by comma to handle multiple toots in one field (e.g., "1,2,3,4,5")
+        // Split first, then validate each individual toot (commas are separators, not part of the toot value)
+        // Use simple comma split - commas are the separator, not part of the value
+        const tootList = tootRaw
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t && t.length > 0); // Filter out empty strings
+
+        console.log("🔍 [TOOT IMPORT] Raw toot:", tootRaw);
+        console.log("🔍 [TOOT IMPORT] Split tootList:", tootList);
+        console.log("🔍 [TOOT IMPORT] tootList length:", tootList.length);
+
+        if (tootList.length === 0) {
+          throw new Error("Тоот хоосон");
+        }
+
+        // Validate each individual toot (after splitting, so commas are not in the individual toots)
+        // Each toot should only contain alphanumeric, hyphens, and slashes
+        for (const toot of tootList) {
+          if (!toot || typeof toot !== "string") {
+            validationErrors.push(`Тоот "${toot}" буруу форматтай байна`);
+            continue;
+          }
+          console.log("🔍 [TOOT IMPORT] Validating individual toot:", toot);
+          const tootValidationError = shalguurValidate(toot, "Тоот");
+          if (tootValidationError) {
+            console.log("❌ [TOOT IMPORT] Validation failed for toot:", toot, "Error:", tootValidationError);
+            validationErrors.push(`${tootValidationError} (Тоот: "${toot}")`);
+          } else {
+            console.log("✅ [TOOT IMPORT] Validation passed for toot:", toot);
+          }
+        }
+
+        if (validationErrors.length > 0) {
+          throw new Error(validationErrors.join(" "));
+        }
+
+        // Create a separate tootBurtgel record for each toot
+        const createdTootBurtgelIds = [];
+        console.log("📝 [TOOT IMPORT] Creating", tootList.length, "tootBurtgel records...");
+        for (const toot of tootList) {
+          const tootBurtgelData = {
+            kharagdakhDugaar: toot,
+            zaalt: "",
+            khamragdsanGereenuud: [],
+            khamaarakhKheseg: "",
+            ashilgakhEsekh: "",
+            baiguullagiinId: baiguullaga._id.toString(),
+            baiguullagiinNer: baiguullaga.ner || "",
+            barilgiinId: defaultBarilgiinId || "",
+          };
+
+          // Save tootBurtgel
+          const tootBurtgel = new TootBurtgel(tukhainBaaziinKholbolt)(
+            tootBurtgelData
+          );
+          await tootBurtgel.save();
+          createdTootBurtgelIds.push(tootBurtgel._id.toString());
+          console.log("✅ [TOOT IMPORT] Created tootBurtgel for toot:", toot, "ID:", tootBurtgel._id.toString());
+        }
+        console.log("📝 [TOOT IMPORT] Total records created:", createdTootBurtgelIds.length);
 
         // Update davkhar and davkhariinToonuud if davkhar and orts are provided
-        if (davkhar && toot) {
+        if (davkhar && tootList.length > 0) {
           const davkharStr = String(davkhar).trim();
           const ortsStr = orts ? String(orts).trim() : "1"; // Default to "1" if orts not provided
 
@@ -1300,37 +1362,41 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
           // Get existing toot string for this floor::entrance
           const existingToonuud = davkhariinToonuud[floorKey][0] || "";
-          let tootList = existingToonuud
+          let existingTootList = existingToonuud
             ? existingToonuud
                 .split(",")
                 .map((t) => t.trim())
                 .filter((t) => t)
             : [];
 
-          // Add toot if not already present
-          if (toot && !tootList.includes(toot)) {
-            tootList.push(toot);
-            tootList.sort((a, b) => {
-              // Sort numerically if possible, otherwise alphabetically
-              const numA = parseInt(a);
-              const numB = parseInt(b);
-              if (!isNaN(numA) && !isNaN(numB)) {
-                return numA - numB;
-              }
-              return a.localeCompare(b);
-            });
+          // Add all toots from the list if not already present
+          for (const toot of tootList) {
+            if (!existingTootList.includes(toot)) {
+              existingTootList.push(toot);
+            }
           }
 
+          // Sort toots
+          existingTootList.sort((a, b) => {
+            // Sort numerically if possible, otherwise alphabetically
+            const numA = parseInt(a);
+            const numB = parseInt(b);
+            if (!isNaN(numA) && !isNaN(numB)) {
+              return numA - numB;
+            }
+            return a.localeCompare(b);
+          });
+
           // Update davkhariinToonuud - store as array with comma-separated string
-          davkhariinToonuud[floorKey] = [tootList.join(",")];
+          davkhariinToonuud[floorKey] = [existingTootList.join(",")];
         }
 
         results.success.push({
           row: rowNumber,
-          toot: tootBurtgelData.kharagdakhDugaar,
+          toot: tootList.join(","), // Show all toots in result
           davkhar: davkhar || "",
           orts: orts || "",
-          id: tootBurtgel._id.toString(),
+          id: createdTootBurtgelIds.join(","), // Show all created IDs
         });
       } catch (error) {
         results.failed.push({

@@ -92,7 +92,7 @@ async function createOverdueInvoices() {
     // Find active gerees (contracts)
     const gereeMatch = {
       baiguullagiinId: String(BAIGULLAGIIN_ID),
-      tuluv: "Идэвхитэй", // Only active contracts
+      tuluv: "Идэвхтэй", // Only active contracts
     };
 
     if (BARILGIIN_ID) {
@@ -110,7 +110,7 @@ async function createOverdueInvoices() {
       .lean();
 
     if (activeGerees.length === 0) {
-      throw new Error("Идэвхитэй гэрээ олдсонгүй");
+      throw new Error("Идэвхтэй гэрээ олдсонгүй");
     }
 
     console.log(`✅ Found ${activeGerees.length} active contracts`);

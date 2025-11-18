@@ -14,6 +14,7 @@ const {
   gereeSergeekhShalguur,
   gereeTsutslakhShalguur,
   guilgeeUstgakhShalguur,
+  shalguurFieldValidate,
 } = require("../components/shalguur");
 const {
   gereeniiExcelAvya,
@@ -309,9 +310,12 @@ crud(
 //     }
 //   });
 
-router.route("/gereeKhadgalya").post(tokenShalgakh, async (req, res, next) => {
-  const { db } = require("zevbackv2");
-  const khariltsagch = new Khariltsagch(db.erunkhiiKholbolt)(req.body);
+router.route("/gereeKhadgalya").post(
+  tokenShalgakh,
+  shalguurFieldValidate(["register", "customerTin"]),
+  async (req, res, next) => {
+    const { db } = require("zevbackv2");
+    const khariltsagch = new Khariltsagch(db.erunkhiiKholbolt)(req.body);
   khariltsagch.id = khariltsagch.register
     ? khariltsagch.register
     : khariltsagch.customerTin;
@@ -597,6 +601,13 @@ router.get(
 );
 
 router.post(
+  "/tootBurtgelExcelImport",
+  tokenShalgakh,
+  uploadFile.single("excelFile"),
+  importTootBurtgelFromExcel
+);
+
+router.put(
   "/tootBurtgelExcelImport",
   tokenShalgakh,
   uploadFile.single("excelFile"),

@@ -74,8 +74,8 @@ const gereeSchema = new Schema(
     turul: String,
     tuluv: {
       type: String,
-      enum: ["Идэвхитэй", "Цуцалсан"],
-      default: "Идэвхитэй",
+      enum: ["Идэвхтэй", "Цуцалсан"],
+      default: "Идэвхтэй",
     },
     ovog: String,
     ner: String,

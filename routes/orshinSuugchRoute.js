@@ -25,6 +25,7 @@ const {
   davhardsanOrshinSuugchShalgayy,
   orshinSuugchiinNuutsUgSoliyo,
   orshinSuugchOorooUstgakh,
+  orshinSuugchUstgakh,
   tootShalgaya,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
@@ -58,7 +59,94 @@ const upload = multer({
   },
 });
 
-crud(router, "orshinSuugch", OrshinSuugch, UstsanBarimt);
+// Custom DELETE handler for orshinSuugch - marks gerees as "Цуцалсан" before deleting
+router.delete("/orshinSuugch/:id", tokenShalgakh, orshinSuugchUstgakh);
+
+// Use crud for other operations (GET, POST, PUT) but not DELETE
+router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
+  try {
+    const body = req.query;
+    const {
+      query = {},
+      order,
+      khuudasniiDugaar = 1,
+      khuudasniiKhemjee = 10,
+      search,
+      collation = {},
+      select = {},
+    } = body;
+    if (!!body?.query) body.query = JSON.parse(body.query);
+    if (!!body?.order) body.order = JSON.parse(body.order);
+    if (!!body?.select) body.select = JSON.parse(body.select);
+    if (!!body?.collation) body.collation = JSON.parse(body.collation);
+    if (!!body?.khuudasniiDugaar)
+      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+    if (!!body?.khuudasniiKhemjee)
+      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+    let jagsaalt = await OrshinSuugch(db.erunkhiiKholbolt)
+      .find(body.query)
+      .sort(body.order)
+      .collation(body.collation ? body.collation : {})
+      .select(body.select)
+      .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
+      .limit(body.khuudasniiKhemjee);
+    let niitMur = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments(
+      body.query
+    );
+    let niitKhuudas =
+      niitMur % khuudasniiKhemjee == 0
+        ? Math.floor(niitMur / khuudasniiKhemjee)
+        : Math.floor(niitMur / khuudasniiKhemjee) + 1;
+    if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
+    res.send({
+      khuudasniiDugaar,
+      khuudasniiKhemjee,
+      jagsaalt,
+      niitMur,
+      niitKhuudas,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
+  try {
+    const result = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+      req.params.id
+    );
+    if (result != null) result.key = result._id;
+    res.send(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
+  try {
+    const result = new OrshinSuugch(db.erunkhiiKholbolt)(req.body);
+    await result.save();
+    if (result != null) result.key = result._id;
+    res.send(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
+  try {
+    const result = await OrshinSuugch(db.erunkhiiKholbolt).findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    if (result != null) result.key = result._id;
+    res.send(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 crud(router, "backTuukh", BackTuukh, UstsanBarimt);
 crud(router, "session", session, UstsanBarimt);
@@ -243,13 +331,13 @@ router.post(
       const geree = await Geree(kholbolt).findOne({
         orshinSuugchId: orshinSuugchId,
         baiguullagiinId: baiguullagiinId,
-        tuluv: "Идэвхитэй", // Only active contracts
+        tuluv: "Идэвхтэй", // Only active contracts
       }).sort({ createdAt: -1 }); // Get the most recent contract
 
       if (!geree) {
         return res.status(404).json({
           success: false,
-          aldaa: "Идэвхитэй гэрээ олдсонгүй!",
+          aldaa: "Идэвхтэй гэрээ олдсонгүй!",
         });
       }
 

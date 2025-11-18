@@ -2,78 +2,38 @@ const express = require("express");
 const router = express.Router();
 const { tokenShalgakh } = require("zevbackv2");
 const {
-  tailanSummary,
-  tailanAvlaga,
-  tailanGuilgee,
-  tailanOrlogoZarlaga,
-  tailanAshigAldagdal,
-  tailanSariin,
-  tailanUliral,
-  tailanExport,
+  tailanOrlogoAvlaga,
+  tailanSariinTulbur,
+  tailanNekhemjlekhiinTuukh,
+  tailanAvlagiinNasjilt,
+  tailanGuitsetgel,
   tailanUdsanAvlaga,
   tailanTsutslasanGereeniiAvlaga,
+  tailanExport,
 } = require("../controller/tailan");
 
-router.get("/tailan/summary/:baiguullagiinId", tokenShalgakh, tailanSummary);
-router.post("/tailan/summary/:baiguullagiinId", tokenShalgakh, tailanSummary);
-router.get("/tailan/avlaga/:baiguullagiinId", tokenShalgakh, tailanAvlaga);
-router.post("/tailan/avlaga/:baiguullagiinId", tokenShalgakh, tailanAvlaga);
-router.get("/tailan/guilegee/:baiguullagiinId", tokenShalgakh, tailanGuilgee);
-router.post("/tailan/guilegee/:baiguullagiinId", tokenShalgakh, tailanGuilgee);
-router.get(
-  "/tailan/orlogo-zarlaga/:baiguullagiinId",
-  tokenShalgakh,
-  tailanOrlogoZarlaga
-);
-router.post(
-  "/tailan/orlogo-zarlaga/:baiguullagiinId",
-  tokenShalgakh,
-  tailanOrlogoZarlaga
-);
-router.get(
-  "/tailan/ashig-aldagdal/:baiguullagiinId",
-  tokenShalgakh,
-  tailanAshigAldagdal
-);
-router.post(
-  "/tailan/ashig-aldagdal/:baiguullagiinId",
-  tokenShalgakh,
-  tailanAshigAldagdal
-);
-router.get("/tailan/sariin/:baiguullagiinId", tokenShalgakh, tailanSariin);
-router.post("/tailan/sariin/:baiguullagiinId", tokenShalgakh, tailanSariin);
-router.get("/tailan/uliral/:baiguullagiinId", tokenShalgakh, tailanUliral);
-router.post("/tailan/uliral/:baiguullagiinId", tokenShalgakh, tailanUliral);
-router.get("/tailan/export/:baiguullagiinId", tokenShalgakh, tailanExport);
-router.post("/tailan/export/:baiguullagiinId", tokenShalgakh, tailanExport);
+// Өр, авлагын тайлан (оршин суугчдийн) - Байр, орц, давхар, тоогоор хайж хэн төлбөрөө төлсөн, хэн төлөөгүйг хянах
+router.all("/tailan/orlogo-avlaga", tokenShalgakh, tailanOrlogoAvlaga);
 
-router.get("/tailan/summary", tokenShalgakh, tailanSummary);
-router.post("/tailan/summary", tokenShalgakh, tailanSummary);
-router.get("/tailan/avlaga", tokenShalgakh, tailanAvlaga);
-router.post("/tailan/avlaga", tokenShalgakh, tailanAvlaga);
-router.get("/tailan/guilegee", tokenShalgakh, tailanGuilgee);
-router.post("/tailan/guilegee", tokenShalgakh, tailanGuilgee);
-router.get("/tailan/orlogo-zarlaga", tokenShalgakh, tailanOrlogoZarlaga);
-router.post("/tailan/orlogo-zarlaga", tokenShalgakh, tailanOrlogoZarlaga);
-router.get("/tailan/ashig-aldagdal", tokenShalgakh, tailanAshigAldagdal);
-router.post("/tailan/ashig-aldagdal", tokenShalgakh, tailanAshigAldagdal);
-router.get("/tailan/sariin", tokenShalgakh, tailanSariin);
-router.post("/tailan/sariin", tokenShalgakh, tailanSariin);
-router.get("/tailan/uliral", tokenShalgakh, tailanUliral);
-router.post("/tailan/uliral", tokenShalgakh, tailanUliral);
-router.get("/tailan/export", tokenShalgakh, tailanExport);
-router.post("/tailan/export", tokenShalgakh, tailanExport);
+// Сарын төлбөр тайлан (сар сараар нэмээд улиралаар шүүж харах боломжтой, хураангуй дэлгэрэнгүй)
+router.all("/tailan/sariin-tulbur", tokenShalgakh, tailanSariinTulbur);
+
+// Нэхэмжлэлийн түүх (Бүх үүссэн нэхэмжлэлийн жагсаалтыг хянах)
+router.all("/tailan/nekhemjlekhiin-tuukh", tokenShalgakh, tailanNekhemjlekhiinTuukh);
+
+// Авлагын насжилтийн тайлан (Төлөгдөөгүй төлбөрийн насжилтыг тодорхойлох)
+router.all("/tailan/avlagiin-nasjilt", tokenShalgakh, tailanAvlagiinNasjilt);
+
+// Гүйцэтгэлийн тайлан (Сарын төлөвлөгөөт орлого vs бодит орлого г.м ба Зардлын төсөв vs бодит зардал г.м)
+router.all("/tailan/guitsetgel", tokenShalgakh, tailanGuitsetgel);
 
 // Төлөгдөөгүй удсан авлага 2+ сар
-router.get("/tailan/udsan-avlaga/:baiguullagiinId", tokenShalgakh, tailanUdsanAvlaga);
-router.post("/tailan/udsan-avlaga/:baiguullagiinId", tokenShalgakh, tailanUdsanAvlaga);
-router.get("/tailan/udsan-avlaga", tokenShalgakh, tailanUdsanAvlaga);
-router.post("/tailan/udsan-avlaga", tokenShalgakh, tailanUdsanAvlaga);
+router.all("/tailan/udsan-avlaga", tokenShalgakh, tailanUdsanAvlaga);
 
 // Цуцлагдсан гэрээний авлага
-router.get("/tailan/tsutslasan-gereenii-avlaga/:baiguullagiinId", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
-router.post("/tailan/tsutslasan-gereenii-avlaga/:baiguullagiinId", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
-router.get("/tailan/tsutslasan-gereenii-avlaga", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
-router.post("/tailan/tsutslasan-gereenii-avlaga", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
+router.all("/tailan/tsutslasan-gereenii-avlaga", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
+
+// Тайланг excel/pdf-р татаж авах боломж
+router.all("/tailan/export", tokenShalgakh, tailanExport);
 
 module.exports = router;
