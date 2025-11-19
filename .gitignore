@@ -8,3 +8,5 @@ yarn.lock
 db/*
 /.vscode
 tokhirgoo/tokhirgoo.env
+.env
+tokhirgoo.env
