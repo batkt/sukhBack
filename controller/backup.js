@@ -29,7 +29,7 @@ module.exports.backAvya = async function backAvya() {
               throw new Error("Back авах боломжгүй байна! exists aldaa");
 
             const form = new FormData();
-            form.append("system", "sukh");
+            form.append("system", process.env.SYSTEM_NAME);
             form.append("ognoo", new Date().toString());
             form.append("file", fs.createReadStream("dump.tar"));
             axios({
