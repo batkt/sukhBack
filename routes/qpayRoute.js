@@ -268,7 +268,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         // Create callback URL with comma-separated invoice IDs
         const invoiceIdsString = invoiceIds.join(",");
         callback_url =
-          (process.env.UNDSEN_SERVER || "http://103.143.40.46:8084") +
+          process.env.UNDSEN_SERVER +
           "/qpayNekhemjlekhMultipleCallback/" +
           req.body.baiguullagiinId.toString() +
           "/" +
@@ -276,7 +276,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
       } else if (req.body.nekhemjlekhiinId) {
         // Single invoice payment (existing logic)
         callback_url =
-          "http://103.143.40.46:8084" +
+          process.env.UNDSEN_SERVER +
           "/qpayNekhemjlekhCallback/" +
           req.body.baiguullagiinId.toString() +
           "/" +
