@@ -95,7 +95,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
   }
 
   duusakhOgnooAvya(
-    { register: baiguullaga.register, system: "sukh" },
+    { register: baiguullaga.register, system: process.env.SYSTEM_NAME },
     async (khariu) => {
       try {
         if (khariu.success) {
@@ -410,7 +410,7 @@ exports.erkhiinMedeelelAvya = asyncHandler(async (req, res, next) => {
       "http://103.143.40.123:8282/erkhiinMedeelelAvya",
       {
         json: true,
-        body: { system: "sukh", register: baiguullaga.register },
+        body: { system: process.env.SYSTEM_NAME, register: baiguullaga.register },
       },
       (err, res1, body) => {
         if (err) next(err);
