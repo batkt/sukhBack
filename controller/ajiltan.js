@@ -990,33 +990,34 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
               textuud.push(text);
             }
           }
-          if (textuud.length > 0) {
-            var ilgeexList = [];
-            for await (const dugaar of baiguullaga.tokhirgoo.msgAvakhDugaar)
-              for await (const text of textuud)
-                ilgeexList.push({ to: dugaar, text });
-            /*[{
-            to: "88880140",
-            text,
-          },
-          {
-            to: "88889501",
-            text,
-          },
-          {
-            to: "88043808",
-            text,
-          }];*/
-            msgIlgeeye(
-              ilgeexList,
-              msgIlgeekhKey,
-              msgIlgeekhDugaar,
-              [],
-              0,
-              db.erunkhiiKholbolt,
-              baiguullaga._id
-            );
-          }
+          // TEMPORARILY DISABLED: Scheduled SMS notifications
+          // if (textuud.length > 0) {
+          //   var ilgeexList = [];
+          //   for await (const dugaar of baiguullaga.tokhirgoo.msgAvakhDugaar)
+          //     for await (const text of textuud)
+          //       ilgeexList.push({ to: dugaar, text });
+          //   /*[{
+          //   to: "88880140",
+          //   text,
+          // },
+          // {
+          //   to: "88889501",
+          //   text,
+          // },
+          // {
+          //   to: "88043808",
+          //   text,
+          // }];*/
+          //   msgIlgeeye(
+          //     ilgeexList,
+          //     msgIlgeekhKey,
+          //     msgIlgeekhDugaar,
+          //     [],
+          //     0,
+          //     db.erunkhiiKholbolt,
+          //     baiguullaga._id
+          //   );
+          // }
         } catch (aldaaa) {
           continue;
         }
