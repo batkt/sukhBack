@@ -415,11 +415,34 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         }
       }
 
-      const khariu = await qpayGargaya(
-        req.body,
-        callback_url,
-        req.body.tukhainBaaziinKholbolt
-      );
+      let khariu;
+      try {
+        khariu = await qpayGargaya(
+          req.body,
+          callback_url,
+          req.body.tukhainBaaziinKholbolt
+        );
+      } catch (qpayError) {
+        // Enhanced error logging for QPay errors
+        console.error("❌ QPay Gargaya Error Details:", {
+          message: qpayError?.message || qpayError?.toString(),
+          response: qpayError?.response ? {
+            statusCode: qpayError.response.statusCode,
+            statusMessage: qpayError.response.statusMessage,
+            body: qpayError.response.body,
+            headers: qpayError.response.headers
+          } : null,
+          code: qpayError?.code,
+          stack: qpayError?.stack,
+          requestBody: {
+            baiguullagiinId: req.body.baiguullagiinId,
+            barilgiinId: req.body.barilgiinId,
+            dun: req.body.dun,
+            dansniiDugaar: req.body.dansniiDugaar
+          }
+        });
+        throw qpayError;
+      }
 
       // Handle saving QPay info for multiple invoices
       if (
@@ -664,6 +687,23 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
     const khariu = await qpayShalgay(req.body, req.body.tukhainBaaziinKholbolt);
     res.send(khariu);
   } catch (err) {
+    // Enhanced error logging for QPay Shalgay errors
+    console.error("❌ QPay Shalgay Error Details:", {
+      message: err?.message || err?.toString(),
+      response: err?.response ? {
+        statusCode: err.response.statusCode,
+        statusMessage: err.response.statusMessage,
+        body: err.response.body,
+        headers: err.response.headers
+      } : null,
+      code: err?.code,
+      stack: err?.stack,
+      requestBody: {
+        baiguullagiinId: req.body.baiguullagiinId,
+        barilgiinId: req.body.barilgiinId,
+        invoice_id: req.body.invoice_id || req.body.id
+      }
+    });
     next(err);
   }
 });
