@@ -184,7 +184,6 @@ const baiguullagaSchema = new Schema(
       udruurBodokhEsekh: Boolean,
       baritsaaUneAdiltgakhEsekh: Boolean,
       zogsoolNer: String,
-      qpayShimtgelTusdaa: Boolean,
       davkharsanMDTSDavtamjSecond: Number,
       zurchulMsgeerSanuulakh:
         Boolean /** Зогсоолын зөрчил сануулах жагсаалт харуулах тохируулах */,

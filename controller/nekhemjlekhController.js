@@ -185,7 +185,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       // If no barilga-specific dans, try to get from QpayKhariltsagch (building-specific bank accounts)
       if (!barilgaDans && tempData.baiguullagiinId && tempData.barilgiinId) {
         try {
-          const { QpayKhariltsagch } = require("quickqpaypackv2");
+          const { QpayKhariltsagch } = require("quickqpaypackvSukh");
           const qpayKhariltsagch = new QpayKhariltsagch(tukhainBaaziinKholbolt);
           const qpayConfig = await qpayKhariltsagch
             .findOne({

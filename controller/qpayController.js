@@ -6,7 +6,7 @@ const { Dugaarlalt, Token, Dans, db } = require("zevbackv2");
 const QpayObject = require("../models/qpayObject");
 const Geree = require("../models/geree");
 const got = require("got");
-const { QuickQpayObject } = require("quickqpaypackv2");
+const { QuickQpayObject } = require("quickqpaypackvSukh");
 const { URL } = require("url");
 const instance = got.extend({
   hooks: {
@@ -386,11 +386,7 @@ exports.qpayTulye = asyncHandler(async (req, res, next) => {
           _id: qpayBarimt.gereeniiId,
         });
         var qpayAmount = parseFloat(qpayBarimt.qpay.amount);
-        var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-          req.params.baiguullagiinId
-        );
-        if (baiguullaga?.tokhirgoo?.qpayShimtgelTusdaa == true)
-          qpayAmount -= 300;
+        // qpayShimtgel feature removed
         if (geree.aldangiinUldegdel && geree.aldangiinUldegdel > 0) {
           var tulsunDun = 0;
           if (geree.aldangiinUldegdel >= qpayAmount) {

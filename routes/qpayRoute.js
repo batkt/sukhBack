@@ -14,7 +14,7 @@ const {
   QuickQpayObject,
   QpayKhariltsagch,
   qpayShalgay,
-} = require("quickqpaypackv2");
+} = require("quickqpaypackvSukh");
 
 router.get(
   "/qpaycallback/:baiguullagiinId/:zakhialgiinDugaar",
@@ -203,15 +203,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
 
         req.body.zakhialgiinDugaar = maxDugaar.toString();
         if (req.body.dun > 0) {
-          var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-            req.body.baiguullagiinId
-          );
-          if (
-            !!baiguullaga &&
-            baiguullaga.tokhirgoo?.qpayShimtgelTusdaa == true
-          ) {
-            req.body.dun = Number(req.body.dun) + 300 + "";
-          }
+          // qpayShimtgel feature removed
         }
       }
 
