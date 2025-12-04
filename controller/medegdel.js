@@ -1,82 +1,278 @@
-const { admin } = require("../middlewares/firebase-config");
+const asyncHandler = require("express-async-handler");
+const { db } = require("zevbackv2");
+const Medegdel = require("../models/medegdel");
 
-async function sonorduulgaIlgeeye(token, medeelel, callback, next) {
-  const payload = {
-    token,
-    webpush: {
-      TTL: 86400,
-      notification: {
-        title: "Таньд мэдэгдэл ирлээ!",
-        body: "Hello world",
-        icon: "default",
-        sound: "default",
-        badge: "1",
-        ...medeelel,
-      },
-    },
-    android: {
-      priority: "normal",
-      TTL: 86400,
-      notification: {
-        title: "Таньд мэдэгдэл ирлээ!",
-        body: "Hello world",
-        icon: "default",
-        sound: "default",
-        badge: "1",
-        ...medeelel,
-      },
-    },
-  };
-  const options = {
-    priority: "high",
-    timeToLive: 60 * 60 * 24,
-  };
-  if (token)
-    admin
-      .messaging()
-      .send(payload)
-      .then((response) => {
-        if (callback) callback(response);
-      })
-      .catch((error) => {
-        next(error);
+// Get all notifications (medegdel)
+exports.medegdelAvya = asyncHandler(async (req, res, next) => {
+  try {
+    const source = req.params.baiguullagiinId
+      ? {
+          baiguullagiinId: req.params.baiguullagiinId,
+          ...(req.method === "GET" ? req.query : req.body),
+        }
+      : req.method === "GET"
+      ? req.query
+      : req.body;
+
+    const { baiguullagiinId, barilgiinId, orshinSuugchId, tukhainBaaziinKholbolt } = source || {};
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId is required",
       });
-  else if (callback) callback({ successCount: 1 });
-}
+    }
 
-async function khariltsagchidSonorduulgaIlgeeye(
-  token,
-  medeelel,
-  callback,
-  next
-) {
-  const payload = {
-    token,
-    // options: {
-    //   priority: "high",
-    //   timeToLive: 60 * 60 * 24,
-    // },
-    notification: {
-      title: "Таньд мэдэгдэл ирлээ!",
-      body: "Hello world",
-      // icon: "default",
-      // sound: "default",
-      // badge: "1",
-      ...medeelel,
-    },
-  };
-  admin
-    .messaging()
-    .send(payload)
-    .then((response) => {
-      callback(response);
-    })
-    .catch((error) => {
-      next(error);
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(400).json({
+        success: false,
+        message: "tukhainBaaziinKholbolt is required",
+      });
+    }
+
+    // Find the connection
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй",
+      });
+    }
+
+    // Build query
+    const query = { baiguullagiinId: String(baiguullagiinId) };
+    if (barilgiinId) query.barilgiinId = String(barilgiinId);
+    if (orshinSuugchId) query.orshinSuugchId = String(orshinSuugchId);
+
+    const medegdeluud = await Medegdel(tukhainBaaziinKholbolt)
+      .find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      success: true,
+      data: medegdeluud,
+      count: medegdeluud.length,
     });
-}
+  } catch (error) {
+    next(error);
+  }
+});
 
-module.exports = {
-  sonorduulgaIlgeeye,
-  khariltsagchidSonorduulgaIlgeeye,
-};
+// Get single notification (medegdel)
+exports.medegdelNegAvya = asyncHandler(async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { baiguullagiinId, tukhainBaaziinKholbolt } = req.query || req.body || {};
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "id is required",
+      });
+    }
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(400).json({
+        success: false,
+        message: "tukhainBaaziinKholbolt is required",
+      });
+    }
+
+    // Find the connection
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй",
+      });
+    }
+
+    const medegdel = await Medegdel(tukhainBaaziinKholbolt).findById(id).lean();
+
+    if (!medegdel) {
+      return res.status(404).json({
+        success: false,
+        message: "Мэдэгдэл олдсонгүй",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: medegdel,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Update notification (medegdel)
+exports.medegdelZasah = asyncHandler(async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { baiguullagiinId, tukhainBaaziinKholbolt, ...updateData } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "id is required",
+      });
+    }
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(400).json({
+        success: false,
+        message: "tukhainBaaziinKholbolt is required",
+      });
+    }
+
+    // Find the connection
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй",
+      });
+    }
+
+    const medegdel = await Medegdel(tukhainBaaziinKholbolt).findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!medegdel) {
+      return res.status(404).json({
+        success: false,
+        message: "Мэдэгдэл олдсонгүй",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: medegdel,
+      message: "Мэдэгдэл амжилттай шинэчлэгдлээ",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Delete notification (medegdel)
+exports.medegdelUstgakh = asyncHandler(async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { baiguullagiinId, tukhainBaaziinKholbolt } = req.query || req.body || {};
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "id is required",
+      });
+    }
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(400).json({
+        success: false,
+        message: "tukhainBaaziinKholbolt is required",
+      });
+    }
+
+    // Find the connection
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй",
+      });
+    }
+
+    const medegdel = await Medegdel(tukhainBaaziinKholbolt).findByIdAndDelete(id);
+
+    if (!medegdel) {
+      return res.status(404).json({
+        success: false,
+        message: "Мэдэгдэл олдсонгүй",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Мэдэгдэл амжилттай устгагдлаа",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Create/send notification (medegdel) - This function is imported but the route has its own implementation
+exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
+  try {
+    const {
+      medeelel,
+      orshinSuugchId,
+      baiguullagiinId,
+      barilgiinId,
+      tukhainBaaziinKholbolt,
+    } = req.body;
+
+    if (!baiguullagiinId || !tukhainBaaziinKholbolt) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId and tukhainBaaziinKholbolt are required",
+      });
+    }
+
+    const medegdel = new Medegdel(tukhainBaaziinKholbolt)();
+    medegdel.orshinSuugchId = orshinSuugchId;
+    medegdel.baiguullagiinId = baiguullagiinId;
+    medegdel.barilgiinId = barilgiinId;
+    medegdel.title = medeelel?.title || "";
+    medegdel.message = medeelel?.body || medeelel?.message || "";
+    medegdel.kharsanEsekh = false;
+    medegdel.ognoo = new Date();
+
+    await medegdel.save();
+
+    res.json({
+      success: true,
+      data: medegdel,
+      message: "Мэдэгдэл амжилттай илгээгдлээ",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
