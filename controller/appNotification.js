@@ -1,4 +1,4 @@
-const { admin } = require("../middlewares/firebase-config");
+const { admin } = require("../middleware/firebase-config");
 
 async function sonorduulgaIlgeeye(token, medeelel, callback, next) {
   const payload = {
