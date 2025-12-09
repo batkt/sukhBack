@@ -18,6 +18,7 @@ const medegdelSchema = new Schema(
     orshinSuugchNer: String,
     orshinSuugchUtas: String,
     kharsanEsekh: Boolean,
+    turul: String, // гомдол, санал, мэдэгдэл, etc.
   },
   {
     timestamps: true,
