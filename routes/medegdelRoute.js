@@ -45,38 +45,80 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
+    if (!orshinSuugchId) {
+      return res.status(400).json({
+        success: false,
+        message: "orshinSuugchId is required",
+      });
+    }
+
     const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       _id: orshinSuugchId,
     });
 
-    const orshinSuugchToken = orshinSuugch?.firebaseToken;
+    if (!orshinSuugch) {
+      return res.status(404).json({
+        success: false,
+        message: "Оршин суугч олдсонгүй",
+      });
+    }
 
-    if (!orshinSuugchToken) return res.send("!fire token not found");
+    const orshinSuugchToken = orshinSuugch?.firebaseToken || firebaseToken;
+
+    if (!orshinSuugchToken) {
+      return res.status(400).json({
+        success: false,
+        message: "Firebase token олдсонгүй. Оршин суугчид Firebase token тохируулах шаардлагатай.",
+      });
+    }
 
     khariltsagchidSonorduulgaIlgeeye(
       orshinSuugchToken,
       medeelel,
-      async () => {
-        const sonorduulga = new Sonorduulga(kholbolt)();
+      async (response, error) => {
+        try {
+          const sonorduulga = new Sonorduulga(kholbolt)();
 
-        sonorduulga.orshinSuugchId = orshinSuugchId;
-        sonorduulga.baiguullagiinId = baiguullagiinId;
-        sonorduulga.barilgiinId = barilgiinId;
-        sonorduulga.title = medeelel.title;
-        sonorduulga.message = medeelel.body;
-        sonorduulga.kharsanEsekh = false;
-        if (turul) sonorduulga.turul = String(turul);
+          sonorduulga.orshinSuugchId = orshinSuugchId;
+          sonorduulga.baiguullagiinId = baiguullagiinId;
+          sonorduulga.barilgiinId = barilgiinId;
+          sonorduulga.title = medeelel.title;
+          sonorduulga.message = medeelel.body;
+          sonorduulga.kharsanEsekh = false;
+          if (turul) sonorduulga.turul = String(turul);
 
-        await sonorduulga.save();
+          await sonorduulga.save();
 
-        const io = req.app.get("socketio");
-        if (io) {
-          io.emit("orshinSuugch" + orshinSuugchId, sonorduulga);
+          const io = req.app.get("socketio");
+          if (io) {
+            io.emit("orshinSuugch" + orshinSuugchId, sonorduulga);
+          }
+
+          if (error) {
+            // Firebase notification failed but notification is saved
+            return res.json({
+              success: true,
+              message: "Мэдэгдэл хадгалагдлаа (Firebase илгээлт алдаатай)",
+              data: sonorduulga,
+              firebaseError: error.message,
+            });
+          }
+
+          return res.json({
+            success: true,
+            message: "Мэдэгдэл амжилттай илгээгдлээ",
+            data: sonorduulga,
+          });
+        } catch (saveError) {
+          console.error("Error saving notification:", saveError);
+          return next(saveError);
         }
-
-        return res.send("done");
       },
-      next
+      (error) => {
+        // If Firebase fails before callback, still try to save notification
+        console.error("Firebase notification error:", error);
+        // Don't call next here, let the callback handle it
+      }
     );
   } catch (error) {
     next(error);

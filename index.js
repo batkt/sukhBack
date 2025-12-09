@@ -238,7 +238,7 @@ async function automataarNekhemjlekhUusgekh() {
 }
 
 cron.schedule(
-  "26 10 * * *",
+  "50 15 * * *",
   function () {
     automataarNekhemjlekhUusgekh();
   },
