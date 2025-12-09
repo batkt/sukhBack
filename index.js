@@ -78,11 +78,11 @@ app.use(bankniiGuilgeeRoute);
 app.use(dansRoute);
 app.use(ebarimtRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
+app.use(medegdelRoute); // Mount before nekhemjlekhRoute to avoid route conflicts
 app.use(nekhemjlekhRoute);
 app.use(qpayRoute);
 app.use(tailanRoute);
 app.use(pdfRoute);
-app.use(medegdelRoute);
 
 app.use(aldaaBarigch);
 

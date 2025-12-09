@@ -1,12 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const OrshinSuugch = require("../models/orshinSuugch");
-const { tokenShalgakh, crud } = require("zevbackv2");
+const { tokenShalgakh, crud, db } = require("zevbackv2");
 const {
   khariltsagchidSonorduulgaIlgeeye,
 } = require("../controller/appNotification");
 const Sonorduulga = require("../models/medegdel");
-const db = require("zevbackv2");
 const {
   medegdelIlgeeye,
   medegdelAvya,
@@ -24,9 +23,29 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       baiguullagiinId,
       barilgiinId,
       tukhainBaaziinKholbolt,
+      turul,
     } = req.body;
 
-    const orshinSuugch = await OrshinSuugch(db.orshinSuugch).findOne({
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    // Find the connection object
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй",
+      });
+    }
+
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       _id: orshinSuugchId,
     });
 
@@ -38,7 +57,7 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       orshinSuugchToken,
       medeelel,
       async () => {
-        const sonorduulga = new Sonorduulga(tukhainBaaziinKholbolt)();
+        const sonorduulga = new Sonorduulga(kholbolt)();
 
         sonorduulga.orshinSuugchId = orshinSuugchId;
         sonorduulga.baiguullagiinId = baiguullagiinId;
@@ -46,6 +65,7 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
         sonorduulga.title = medeelel.title;
         sonorduulga.message = medeelel.body;
         sonorduulga.kharsanEsekh = false;
+        if (turul) sonorduulga.turul = String(turul);
 
         await sonorduulga.save();
 
