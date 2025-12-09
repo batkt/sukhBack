@@ -1,10 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const OrshinSuugch = require("../models/orshinSuugch");
 const { tokenShalgakh, crud, db } = require("zevbackv2");
-const {
-  khariltsagchidSonorduulgaIlgeeye,
-} = require("../controller/appNotification");
 const Sonorduulga = require("../models/medegdel");
 const {
   medegdelIlgeeye,
@@ -18,7 +14,6 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
   try {
     const {
       medeelel,
-      firebaseToken,
       orshinSuugchId,
       baiguullagiinId,
       barilgiinId,
@@ -52,28 +47,7 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      _id: orshinSuugchId,
-    });
-
-    if (!orshinSuugch) {
-      return res.status(404).json({
-        success: false,
-        message: "Оршин суугч олдсонгүй",
-      });
-    }
-
-    // Get Firebase token from request body first, then from user account
-    const orshinSuugchToken = firebaseToken || orshinSuugch?.firebaseToken;
-
-    if (!orshinSuugchToken) {
-      return res.status(400).json({
-        success: false,
-        message: "Firebase token олдсонгүй. Оршин суугчид Firebase token тохируулах шаардлагатай.",
-      });
-    }
-
-    // Save the medegdel first
+    // Save the medegdel
     const sonorduulga = new Sonorduulga(kholbolt)();
     sonorduulga.orshinSuugchId = orshinSuugchId;
     sonorduulga.baiguullagiinId = baiguullagiinId;
@@ -90,38 +64,11 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       io.emit("orshinSuugch" + orshinSuugchId, sonorduulga);
     }
 
-    // Send Firebase notification
-    khariltsagchidSonorduulgaIlgeeye(
-      orshinSuugchToken,
-      medeelel,
-      async (response, error) => {
-        if (error) {
-          // Firebase notification failed but notification is saved
-          return res.json({
-            success: true,
-            message: "Мэдэгдэл хадгалагдлаа (Firebase илгээлт алдаатай)",
-            data: sonorduulga,
-            firebaseError: error.message,
-          });
-        }
-
-        return res.json({
-          success: true,
-          message: "Мэдэгдэл амжилттай илгээгдлээ",
-          data: sonorduulga,
-        });
-      },
-      (error) => {
-        // If Firebase fails before callback, still return success since notification is saved
-        console.error("Firebase notification error:", error);
-        return res.json({
-          success: true,
-          message: "Мэдэгдэл хадгалагдлаа (Firebase илгээлт алдаатай)",
-          data: sonorduulga,
-          firebaseError: error.message,
-        });
-      }
-    );
+    return res.json({
+      success: true,
+      message: "Мэдэгдэл амжилттай хадгалагдлаа",
+      data: sonorduulga,
+    });
   } catch (error) {
     next(error);
   }
