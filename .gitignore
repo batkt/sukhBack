@@ -10,3 +10,7 @@ db/*
 tokhirgoo/tokhirgoo.env
 .env
 tokhirgoo.env
+
+# Firebase service account key (contains sensitive credentials)
+middleware/serviceAccountKey.json
+**/serviceAccountKey.json
