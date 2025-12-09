@@ -1077,9 +1077,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
 
+    let needsSave = false;
+
     if (req.body.firebaseToken) {
       orshinSuugch.firebaseToken = req.body.firebaseToken;
-      console.log("Updating Firebase token for user:", orshinSuugch._id);
+      needsSave = true;
+      console.log("Updating Firebase token for user:", orshinSuugch._id, "Token:", req.body.firebaseToken.substring(0, 20) + "...");
     }
 
     if (!orshinSuugch.barilgiinId) {
@@ -1097,12 +1100,14 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           firstBarilgiinId
         );
         orshinSuugch.barilgiinId = firstBarilgiinId;
+        needsSave = true;
       }
     }
 
-    // Save user if any changes were made (firebaseToken or barilgiinId)
-    if (req.body.firebaseToken || !orshinSuugch.barilgiinId) {
+    // Save user if any changes were made
+    if (needsSave) {
       await orshinSuugch.save();
+      console.log("✅ User saved with Firebase token:", orshinSuugch._id);
     }
 
     var butsaakhObject = {
