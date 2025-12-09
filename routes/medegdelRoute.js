@@ -63,7 +63,8 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    const orshinSuugchToken = orshinSuugch?.firebaseToken || firebaseToken;
+    // Get Firebase token from request body first, then from user account
+    const orshinSuugchToken = firebaseToken || orshinSuugch?.firebaseToken;
 
     if (!orshinSuugchToken) {
       return res.status(400).json({
@@ -72,52 +73,53 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
+    // Save the medegdel first
+    const sonorduulga = new Sonorduulga(kholbolt)();
+    sonorduulga.orshinSuugchId = orshinSuugchId;
+    sonorduulga.baiguullagiinId = baiguullagiinId;
+    sonorduulga.barilgiinId = barilgiinId;
+    sonorduulga.title = medeelel.title;
+    sonorduulga.message = medeelel.body;
+    sonorduulga.kharsanEsekh = false;
+    if (turul) sonorduulga.turul = String(turul);
+
+    await sonorduulga.save();
+
+    const io = req.app.get("socketio");
+    if (io) {
+      io.emit("orshinSuugch" + orshinSuugchId, sonorduulga);
+    }
+
+    // Send Firebase notification
     khariltsagchidSonorduulgaIlgeeye(
       orshinSuugchToken,
       medeelel,
       async (response, error) => {
-        try {
-          const sonorduulga = new Sonorduulga(kholbolt)();
-
-          sonorduulga.orshinSuugchId = orshinSuugchId;
-          sonorduulga.baiguullagiinId = baiguullagiinId;
-          sonorduulga.barilgiinId = barilgiinId;
-          sonorduulga.title = medeelel.title;
-          sonorduulga.message = medeelel.body;
-          sonorduulga.kharsanEsekh = false;
-          if (turul) sonorduulga.turul = String(turul);
-
-          await sonorduulga.save();
-
-          const io = req.app.get("socketio");
-          if (io) {
-            io.emit("orshinSuugch" + orshinSuugchId, sonorduulga);
-          }
-
-          if (error) {
-            // Firebase notification failed but notification is saved
-            return res.json({
-              success: true,
-              message: "Мэдэгдэл хадгалагдлаа (Firebase илгээлт алдаатай)",
-              data: sonorduulga,
-              firebaseError: error.message,
-            });
-          }
-
+        if (error) {
+          // Firebase notification failed but notification is saved
           return res.json({
             success: true,
-            message: "Мэдэгдэл амжилттай илгээгдлээ",
+            message: "Мэдэгдэл хадгалагдлаа (Firebase илгээлт алдаатай)",
             data: sonorduulga,
+            firebaseError: error.message,
           });
-        } catch (saveError) {
-          console.error("Error saving notification:", saveError);
-          return next(saveError);
         }
+
+        return res.json({
+          success: true,
+          message: "Мэдэгдэл амжилттай илгээгдлээ",
+          data: sonorduulga,
+        });
       },
       (error) => {
-        // If Firebase fails before callback, still try to save notification
+        // If Firebase fails before callback, still return success since notification is saved
         console.error("Firebase notification error:", error);
-        // Don't call next here, let the callback handle it
+        return res.json({
+          success: true,
+          message: "Мэдэгдэл хадгалагдлаа (Firebase илгээлт алдаатай)",
+          data: sonorduulga,
+          firebaseError: error.message,
+        });
       }
     );
   } catch (error) {
