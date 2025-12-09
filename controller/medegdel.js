@@ -14,7 +14,7 @@ exports.medegdelAvya = asyncHandler(async (req, res, next) => {
       ? req.query
       : req.body;
 
-    const { baiguullagiinId, barilgiinId, orshinSuugchId, tukhainBaaziinKholbolt } = source || {};
+    const { baiguullagiinId, barilgiinId, orshinSuugchId, tukhainBaaziinKholbolt, turul } = source || {};
 
     if (!baiguullagiinId) {
       return res.status(400).json({
@@ -46,6 +46,7 @@ exports.medegdelAvya = asyncHandler(async (req, res, next) => {
     const query = { baiguullagiinId: String(baiguullagiinId) };
     if (barilgiinId) query.barilgiinId = String(barilgiinId);
     if (orshinSuugchId) query.orshinSuugchId = String(orshinSuugchId);
+    if (turul) query.turul = String(turul);
 
     const medegdeluud = await Medegdel(tukhainBaaziinKholbolt)
       .find(query)
@@ -247,6 +248,7 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       baiguullagiinId,
       barilgiinId,
       tukhainBaaziinKholbolt,
+      turul,
     } = req.body;
 
     if (!baiguullagiinId || !tukhainBaaziinKholbolt) {
@@ -264,6 +266,7 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
     medegdel.message = medeelel?.body || medeelel?.message || "";
     medegdel.kharsanEsekh = false;
     medegdel.ognoo = new Date();
+    if (turul) medegdel.turul = String(turul);
 
     await medegdel.save();
 
