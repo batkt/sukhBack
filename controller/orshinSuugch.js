@@ -1055,6 +1055,13 @@ exports.tootShalgaya = asyncHandler(async (req, res, next) => {
 
 exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   try {
+    console.log("🔐 [LOGIN] Login request received");
+    console.log("🔐 [LOGIN] Phone:", req.body.utas);
+    console.log("🔐 [LOGIN] Firebase token provided:", !!req.body.firebaseToken);
+    if (req.body.firebaseToken) {
+      console.log("🔐 [LOGIN] Firebase token (first 30 chars):", req.body.firebaseToken.substring(0, 30) + "...");
+    }
+
     const io = req.app.get("socketio");
     const { db } = require("zevbackv2");
 
@@ -1065,24 +1072,38 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         next(err);
       });
 
-    if (!orshinSuugch) throw new aldaa("Бүртгэлгүй хаяг байна.");
+    if (!orshinSuugch) {
+      console.log("❌ [LOGIN] User not found for phone:", req.body.utas);
+      throw new aldaa("Бүртгэлгүй хаяг байна.");
+    }
+
+    console.log("✅ [LOGIN] User found:", orshinSuugch._id, "Name:", orshinSuugch.ner);
 
     // Validate toot if provided
     if (req.body.toot) {
       if (!orshinSuugch.toot || orshinSuugch.toot.trim() !== req.body.toot.trim()) {
+        console.log("❌ [LOGIN] Invalid toot");
         throw new aldaa("Бүртгэлгүй тоот байна");
       }
     }
 
     var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
-    if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
+    if (!ok) {
+      console.log("❌ [LOGIN] Invalid password");
+      throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
+    }
+
+    console.log("✅ [LOGIN] Password validated");
 
     let needsSave = false;
 
     if (req.body.firebaseToken) {
       orshinSuugch.firebaseToken = req.body.firebaseToken;
       needsSave = true;
-      console.log("Updating Firebase token for user:", orshinSuugch._id, "Token:", req.body.firebaseToken.substring(0, 20) + "...");
+      console.log("📱 [LOGIN] Updating Firebase token for user:", orshinSuugch._id);
+      console.log("📱 [LOGIN] Token (first 30 chars):", req.body.firebaseToken.substring(0, 30) + "...");
+    } else {
+      console.log("⚠️ [LOGIN] No Firebase token provided in request");
     }
 
     if (!orshinSuugch.barilgiinId) {
@@ -1106,8 +1127,14 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     // Save user if any changes were made
     if (needsSave) {
+      console.log("💾 [LOGIN] Saving user with changes...");
       await orshinSuugch.save();
-      console.log("✅ User saved with Firebase token:", orshinSuugch._id);
+      console.log("✅ [LOGIN] User saved successfully. ID:", orshinSuugch._id);
+      // Verify the token was saved
+      const savedUser = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("firebaseToken");
+      console.log("🔍 [LOGIN] Verified saved token exists:", !!savedUser?.firebaseToken);
+    } else {
+      console.log("ℹ️ [LOGIN] No changes to save");
     }
 
     var butsaakhObject = {
@@ -1118,6 +1145,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     const token = await orshinSuugch.tokenUusgeye();
     butsaakhObject.token = token;
 
+    console.log("✅ [LOGIN] Login successful. Sending response for user:", orshinSuugch._id);
     res.status(200).json(butsaakhObject);
   } catch (err) {
     next(err);
