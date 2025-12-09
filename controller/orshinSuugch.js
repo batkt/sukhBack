@@ -1077,8 +1077,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
     if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
 
-    // Only update barilgiinId if user doesn't have one
-    // Don't force users to use the first building - they should keep their assigned building
+    if (req.body.firebaseToken) {
+      orshinSuugch.firebaseToken = req.body.firebaseToken;
+      console.log("Updating Firebase token for user:", orshinSuugch._id);
+    }
+
     if (!orshinSuugch.barilgiinId) {
       var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
         orshinSuugch.baiguullagiinId
@@ -1094,8 +1097,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           firstBarilgiinId
         );
         orshinSuugch.barilgiinId = firstBarilgiinId;
-        await orshinSuugch.save();
       }
+    }
+
+    // Save user if any changes were made (firebaseToken or barilgiinId)
+    if (req.body.firebaseToken || !orshinSuugch.barilgiinId) {
+      await orshinSuugch.save();
     }
 
     var butsaakhObject = {
