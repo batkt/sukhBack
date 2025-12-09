@@ -1,12 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const OrshinSuugch = require("../models/orshinSuugch");
-const { tokenShalgakh, crud } = require("zevbackv2");
+const { tokenShalgakh, crud, db } = require("zevbackv2");
 const {
   khariltsagchidSonorduulgaIlgeeye,
 } = require("../controller/appNotification");
 const Sonorduulga = require("../models/medegdel");
-const db = require("zevbackv2");
 const {
   medegdelIlgeeye,
   medegdelAvya,
