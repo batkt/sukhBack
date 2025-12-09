@@ -48,7 +48,7 @@ exports.medegdelAvya = asyncHandler(async (req, res, next) => {
     if (orshinSuugchId) query.orshinSuugchId = String(orshinSuugchId);
     if (turul) query.turul = String(turul);
 
-    const medegdeluud = await Medegdel(tukhainBaaziinKholbolt)
+    const medegdeluud = await Medegdel(kholbolt)
       .find(query)
       .sort({ createdAt: -1 })
       .lean();
@@ -102,7 +102,7 @@ exports.medegdelNegAvya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    const medegdel = await Medegdel(tukhainBaaziinKholbolt).findById(id).lean();
+    const medegdel = await Medegdel(kholbolt).findById(id).lean();
 
     if (!medegdel) {
       return res.status(404).json({
@@ -159,7 +159,7 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
       });
     }
 
-    const medegdel = await Medegdel(tukhainBaaziinKholbolt).findByIdAndUpdate(
+    const medegdel = await Medegdel(kholbolt).findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
@@ -221,7 +221,7 @@ exports.medegdelUstgakh = asyncHandler(async (req, res, next) => {
       });
     }
 
-    const medegdel = await Medegdel(tukhainBaaziinKholbolt).findByIdAndDelete(id);
+    const medegdel = await Medegdel(kholbolt).findByIdAndDelete(id);
 
     if (!medegdel) {
       return res.status(404).json({
@@ -258,7 +258,19 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    const medegdel = new Medegdel(tukhainBaaziinKholbolt)();
+    // Find the connection
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй",
+      });
+    }
+
+    const medegdel = new Medegdel(kholbolt)();
     medegdel.orshinSuugchId = orshinSuugchId;
     medegdel.baiguullagiinId = baiguullagiinId;
     medegdel.barilgiinId = barilgiinId;
