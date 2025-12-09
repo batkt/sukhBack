@@ -424,16 +424,39 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         );
       } catch (qpayError) {
         // Enhanced error logging for QPay errors
+        let errorBody = null;
+        try {
+          // Try to extract response body in different ways
+          if (qpayError?.response?.body !== undefined) {
+            errorBody = typeof qpayError.response.body === 'string' 
+              ? qpayError.response.body 
+              : JSON.stringify(qpayError.response.body);
+          } else if (qpayError?.body !== undefined) {
+            errorBody = typeof qpayError.body === 'string' 
+              ? qpayError.body 
+              : JSON.stringify(qpayError.body);
+          } else if (qpayError?.response) {
+            // Response exists but body is undefined
+            errorBody = "Response exists but body is undefined";
+          } else {
+            errorBody = "No response object found";
+          }
+        } catch (parseError) {
+          errorBody = "Could not parse error body: " + parseError.message;
+        }
+
         console.error("❌ QPay Gargaya Error Details:", {
           message: qpayError?.message || qpayError?.toString(),
           response: qpayError?.response ? {
             statusCode: qpayError.response.statusCode,
             statusMessage: qpayError.response.statusMessage,
-            body: qpayError.response.body,
+            body: errorBody,
             headers: qpayError.response.headers
           } : null,
           code: qpayError?.code,
+          name: qpayError?.name,
           stack: qpayError?.stack,
+          fullError: JSON.stringify(qpayError, Object.getOwnPropertyNames(qpayError)),
           requestBody: {
             baiguullagiinId: req.body.baiguullagiinId,
             barilgiinId: req.body.barilgiinId,
@@ -688,16 +711,39 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
     res.send(khariu);
   } catch (err) {
     // Enhanced error logging for QPay Shalgay errors
+    let errorBody = null;
+    try {
+      // Try to extract response body in different ways
+      if (err?.response?.body !== undefined) {
+        errorBody = typeof err.response.body === 'string' 
+          ? err.response.body 
+          : JSON.stringify(err.response.body);
+      } else if (err?.body !== undefined) {
+        errorBody = typeof err.body === 'string' 
+          ? err.body 
+          : JSON.stringify(err.body);
+      } else if (err?.response) {
+        // Response exists but body is undefined
+        errorBody = "Response exists but body is undefined";
+      } else {
+        errorBody = "No response object found";
+      }
+    } catch (parseError) {
+      errorBody = "Could not parse error body: " + parseError.message;
+    }
+
     console.error("❌ QPay Shalgay Error Details:", {
       message: err?.message || err?.toString(),
       response: err?.response ? {
         statusCode: err.response.statusCode,
         statusMessage: err.response.statusMessage,
-        body: err.response.body,
+        body: errorBody,
         headers: err.response.headers
       } : null,
       code: err?.code,
+      name: err?.name,
       stack: err?.stack,
+      fullError: JSON.stringify(err, Object.getOwnPropertyNames(err)),
       requestBody: {
         baiguullagiinId: req.body.baiguullagiinId,
         barilgiinId: req.body.barilgiinId,
