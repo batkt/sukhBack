@@ -45,7 +45,7 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    const orshinSuugch = await OrshinSuugch(db.orshinSuugch).findOne({
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       _id: orshinSuugchId,
     });
 
