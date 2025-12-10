@@ -1197,8 +1197,21 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("И-мэйл заавал бөглөх шаардлагатай!");
     }
 
+    if (!req.body.baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+    }
+
+    const { db } = require("zevbackv2");
     const phoneNumber = String(req.body.utas).trim();
     const email = String(req.body.mail).trim();
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      req.body.baiguullagiinId
+    );
+
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+    }
 
     console.log("📞 [WALLET REGISTER] Registering user in Wallet API...");
     const walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
@@ -1209,11 +1222,94 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
 
     console.log("✅ [WALLET REGISTER] User registered in Wallet API:", walletUserInfo.userId);
 
-    res.status(200).json({
-      success: true,
-      message: "Хэтэвчний системд амжилттай бүртгүүллээ",
-      data: walletUserInfo,
+    let billingInfo = null;
+    if (req.body.bairId && req.body.doorNo) {
+      console.log("🏠 [WALLET REGISTER] Fetching billing/address info...");
+      billingInfo = await walletApiService.getBillingByAddress(
+        phoneNumber,
+        req.body.bairId,
+        req.body.doorNo
+      );
+      if (billingInfo && billingInfo.length > 0) {
+        billingInfo = billingInfo[0];
+        console.log("✅ [WALLET REGISTER] Billing info found:", billingInfo.customerName);
+      }
+    }
+
+    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      $or: [
+        { utas: phoneNumber },
+        { walletUserId: walletUserInfo.userId }
+      ]
     });
+
+    const userData = {
+      utas: phoneNumber,
+      mail: walletUserInfo.email || email,
+      walletUserId: walletUserInfo.userId,
+      baiguullagiinId: baiguullaga._id,
+      baiguullagiinNer: baiguullaga.ner,
+      erkh: "OrshinSuugch",
+      nevtrekhNer: phoneNumber,
+    };
+
+    if (billingInfo) {
+      if (billingInfo.customerName) {
+        const nameParts = billingInfo.customerName.split(" ");
+        if (nameParts.length >= 2) {
+          userData.ovog = nameParts[0];
+          userData.ner = nameParts.slice(1).join(" ");
+        } else {
+          userData.ner = billingInfo.customerName;
+        }
+      }
+      if (billingInfo.customerAddress) {
+        userData.bairniiNer = billingInfo.customerAddress;
+      }
+    }
+
+    if (req.body.barilgiinId) {
+      userData.barilgiinId = req.body.barilgiinId;
+    } else if (baiguullaga.barilguud && baiguullaga.barilguud.length > 0) {
+      userData.barilgiinId = String(baiguullaga.barilguud[0]._id);
+    }
+
+    if (req.body.duureg) userData.duureg = req.body.duureg;
+    if (req.body.horoo) userData.horoo = req.body.horoo;
+    if (req.body.soh) userData.soh = req.body.soh;
+    if (req.body.toot) userData.toot = req.body.toot;
+    if (req.body.davkhar) userData.davkhar = req.body.davkhar;
+    if (req.body.orts) userData.orts = req.body.orts;
+
+    if (orshinSuugch) {
+      console.log("🔄 [WALLET REGISTER] Updating existing user:", orshinSuugch._id);
+      Object.assign(orshinSuugch, userData);
+    } else {
+      console.log("➕ [WALLET REGISTER] Creating new user");
+      orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    }
+
+    if (req.body.firebaseToken) {
+      orshinSuugch.firebaseToken = req.body.firebaseToken;
+      console.log("📱 [WALLET REGISTER] Updating Firebase token");
+    }
+
+    await orshinSuugch.save();
+    console.log("✅ [WALLET REGISTER] User saved to database:", orshinSuugch._id);
+
+    const token = await orshinSuugch.tokenUusgeye();
+
+    const butsaakhObject = {
+      result: orshinSuugch,
+      success: true,
+      token: token,
+      walletUserInfo: walletUserInfo,
+      billingInfo: billingInfo,
+      message: "Хэтэвчний системд амжилттай бүртгүүлж, нэвтэрлээ",
+    };
+
+    console.log("✅ [WALLET REGISTER] Registration and login successful for user:", orshinSuugch._id);
+    res.status(200).json(butsaakhObject);
   } catch (err) {
     console.error("❌ [WALLET REGISTER] Error:", err.message);
     next(err);
