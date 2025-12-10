@@ -28,7 +28,6 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    // Find the connection object
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
@@ -47,12 +46,10 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    // Convert to array if it's not already
     const orshinSuugchIds = Array.isArray(orshinSuugchId)
       ? orshinSuugchId
       : [orshinSuugchId];
 
-    // Create notifications for all IDs
     const sonorduulgaList = [];
     const io = req.app.get("socketio");
 
@@ -69,7 +66,6 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       await sonorduulga.save();
       sonorduulgaList.push(sonorduulga);
 
-      // Emit socket event for each ID
       if (io) {
         io.emit("orshinSuugch" + id, sonorduulga);
       }

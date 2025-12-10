@@ -28,6 +28,7 @@ const ebarimtRoute = require("./routes/ebarimtRoute");
 const tailanRoute = require("./routes/tailanRoute");
 const pdfRoute = require("./routes/pdfRoute");
 const medegdelRoute = require("./routes/medegdelRoute");
+const msgRoute = require("./routes/msgRoute");
 
 const { db } = require("zevbackv2");
 
@@ -78,7 +79,8 @@ app.use(bankniiGuilgeeRoute);
 app.use(dansRoute);
 app.use(ebarimtRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
-app.use(medegdelRoute); // Mount before nekhemjlekhRoute to avoid route conflicts
+app.use(medegdelRoute);
+app.use(msgRoute);
 app.use(nekhemjlekhRoute);
 app.use(qpayRoute);
 app.use(tailanRoute);
