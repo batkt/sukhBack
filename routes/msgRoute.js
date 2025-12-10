@@ -138,14 +138,8 @@ router.route("/msgIlgeeye").post(tokenShalgakh, async (req, res, next) => {
     const BaiguullagaModel = Baiguullaga(kholbolt);
     const baiguullaga = await BaiguullagaModel.findById(baiguullagiinId);
 
-    const msgIlgeekhKey = baiguullaga?.tokhirgoo?.msgIlgeekhKey;
-    const msgIlgeekhDugaar = baiguullaga?.tokhirgoo?.msgIlgeekhDugaar;
-
-    if (!msgIlgeekhKey || !msgIlgeekhDugaar) {
-      return res.status(400).json({
-        message: "Мсж илгээх тохиргоо хийгдээгүй байна!",
-      });
-    }
+    const msgIlgeekhKey = "g25dFjT1y1upZLYR";
+    const msgIlgeekhDugaar = "72002002";
 
     if (!msgnuud || msgnuud.length === 0) {
       return res.status(400).json({
