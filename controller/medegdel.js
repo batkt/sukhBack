@@ -235,9 +235,18 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
     // If status is set to "done" with tailbar, send notification back to application
     const statusWasSetToDone = updateFields.status === "done";
     const hasTailbar = updateFields.tailbar || medegdel.tailbar;
+z    
+    console.log("🔍 [REPLY CHECK] isReplyableType:", isReplyableType);
+    console.log("🔍 [REPLY CHECK] statusWasSetToDone:", statusWasSetToDone);
+    console.log("🔍 [REPLY CHECK] hasTailbar:", hasTailbar);
+    console.log("🔍 [REPLY CHECK] updateFields:", updateFields);
     
     if (isReplyableType && statusWasSetToDone && hasTailbar) {
       try {
+        console.log("📤 [REPLY] Creating reply notification...");
+        console.log("📤 [REPLY] orshinSuugchId:", medegdel.orshinSuugchId);
+        console.log("📤 [REPLY] tailbar:", updateFields.tailbar || medegdel.tailbar);
+        
         // Create a reply notification to send to the orshinSuugch
         const replyMedegdel = new Medegdel(kholbolt)();
         replyMedegdel.orshinSuugchId = medegdel.orshinSuugchId;
@@ -250,14 +259,25 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
         replyMedegdel.ognoo = new Date();
 
         await replyMedegdel.save();
+        console.log("✅ [REPLY] Reply notification saved:", replyMedegdel._id);
+
+        // Convert Mongoose document to plain object for Socket.IO
+        const replyData = replyMedegdel.toObject ? replyMedegdel.toObject() : replyMedegdel;
 
         // Emit socket event to notify the application
         const io = req.app.get("socketio");
         if (io && medegdel.orshinSuugchId) {
-          io.emit("orshinSuugch" + medegdel.orshinSuugchId, replyMedegdel);
+          const socketEventName = "orshinSuugch" + medegdel.orshinSuugchId;
+          console.log("📡 [SOCKET] Emitting event:", socketEventName);
+          io.emit(socketEventName, replyData);
+          console.log("✅ [SOCKET] Event emitted successfully");
+        } else {
+          console.warn("⚠️ [SOCKET] Socket.io not available or orshinSuugchId missing");
+          console.warn("⚠️ [SOCKET] io:", !!io, "orshinSuugchId:", medegdel.orshinSuugchId);
         }
       } catch (replyError) {
-        console.error("Error sending reply notification:", replyError);
+        console.error("❌ [REPLY] Error sending reply notification:", replyError);
+        console.error("❌ [REPLY] Error stack:", replyError.stack);
         // Don't fail the update if reply notification fails
       }
     }
