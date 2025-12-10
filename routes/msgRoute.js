@@ -25,7 +25,14 @@ function msgIlgeeye(
       `${process.env.MSG_SERVER}/send?key=${key}&from=${dugaar}&to=${jagsaalt[index].to}&text=${jagsaalt[index].text}`
     );
 
-    request(url, { json: true }, async (err1, _, body) => {
+    console.log("MSG_SERVER URL:", url);
+    console.log("MSG_SERVER env:", process.env.MSG_SERVER);
+
+    request(url, { json: true }, async (err1, response, body) => {
+      console.log("MSG_SERVER Response Status:", response?.statusCode);
+      console.log("MSG_SERVER Response Body:", body);
+      console.log("MSG_SERVER Error:", err1);
+
       if (err1) {
         next(err1);
       } else {
