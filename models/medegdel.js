@@ -18,7 +18,15 @@ const medegdelSchema = new Schema(
     orshinSuugchNer: String,
     orshinSuugchUtas: String,
     kharsanEsekh: Boolean,
-    turul: String, // гомдол, санал, мэдэгдэл, etc.
+    turul: String, // гомдол, санал, мэдэгдэл, хүсэлт, etc.
+    status: {
+      type: String,
+      enum: ["pending", "in_progress", "done", "cancelled"],
+      default: "pending"
+    },
+    tailbar: String, // Reply/notes from web admin
+    repliedAt: Date, // When the reply was sent
+    repliedBy: String, // Admin/employee ID who replied
   },
   {
     timestamps: true,

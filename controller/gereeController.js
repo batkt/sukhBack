@@ -1,6 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const Geree = require("../models/geree");
 const BankniiGuilgee = require("../models/bankniiGuilgee");
+const Medegdel = require("../models/medegdel");
 const { daraagiinTulukhOgnooZasya } = require("./tulbur");
 
 exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
@@ -89,9 +90,10 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     // Create a copy for guilgeenuudForNekhemjlekh (one-time tracking)
     const guilgeeForNekhemjlekh = { ...guilgee };
     // Get the index where this guilgee will be added
+    // Also select fields needed for notifications
     const geree = await Geree(tukhainBaaziinKholbolt, true)
       .findById(guilgee.gereeniiId)
-      .select("+avlaga");
+      .select("+avlaga orshinSuugchId gereeniiDugaar barilgiinId");
     const currentGuilgeenuudCount = geree?.avlaga?.guilgeenuud?.length || 0;
     guilgeeForNekhemjlekh.avlagaGuilgeeIndex = currentGuilgeenuudCount;
 
@@ -111,6 +113,32 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       guilgee.gereeniiId,
       tukhainBaaziinKholbolt
     );
+
+    // Send notification when avlaga payment is added
+    try {
+      if (guilgee.turul === "avlaga" && geree && geree.orshinSuugchId) {
+        const medegdel = new Medegdel(tukhainBaaziinKholbolt)();
+        medegdel.orshinSuugchId = geree.orshinSuugchId;
+        medegdel.baiguullagiinId = baiguullagiinId;
+        medegdel.barilgiinId = geree.barilgiinId || "";
+        medegdel.title = "Шинэ авлага нэмэгдлээ";
+        medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Төлбөр: ${guilgee.tulsunDun || 0}₮`;
+        medegdel.kharsanEsekh = false;
+        medegdel.turul = "мэдэгдэл";
+        medegdel.ognoo = new Date();
+
+        await medegdel.save();
+
+        // Emit socket event if available
+        const io = req.app.get("socketio");
+        if (io) {
+          io.emit("orshinSuugch" + geree.orshinSuugchId, medegdel);
+        }
+      }
+    } catch (notificationError) {
+      console.error("Error sending notification for avlaga:", notificationError);
+      // Don't fail the avlaga addition if notification fails
+    }
 
     // If avlaga type, create invoice immediately without month restrictions
     if (guilgee.turul === "avlaga") {
@@ -138,7 +166,30 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               true // skipDuplicateCheck = true to bypass month restrictions
             );
             
-            // Invoice created successfully (SMS will be sent automatically by gereeNeesNekhemjlekhUusgekh)
+            // Emit socket event for invoice notification if invoice was created successfully
+            if (invoiceResult && invoiceResult.success && invoiceResult.nekhemjlekh && freshGeree.orshinSuugchId) {
+              try {
+                const io = req.app.get("socketio");
+                if (io) {
+                  // Get the notification that was created by gereeNeesNekhemjlekhUusgekh
+                  const kholbolt = db.kholboltuud.find(
+                    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+                  );
+                  if (kholbolt) {
+                    // Find the most recent notification for this orshinSuugch
+                    const recentMedegdel = await Medegdel(kholbolt)
+                      .findOne({ orshinSuugchId: freshGeree.orshinSuugchId })
+                      .sort({ createdAt: -1 })
+                      .lean();
+                    if (recentMedegdel) {
+                      io.emit("orshinSuugch" + freshGeree.orshinSuugchId, recentMedegdel);
+                    }
+                  }
+                }
+              } catch (socketError) {
+                console.error("Error emitting socket event for invoice notification:", socketError);
+              }
+            }
           }
         }
       } catch (invoiceError) {
