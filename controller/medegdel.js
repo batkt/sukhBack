@@ -124,7 +124,7 @@ exports.medegdelNegAvya = asyncHandler(async (req, res, next) => {
 exports.medegdelZasah = asyncHandler(async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { baiguullagiinId, tukhainBaaziinKholbolt, ...updateData } = req.body;
+    const { baiguullagiinId, tukhainBaaziinKholbolt } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -159,9 +159,30 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // Only allow updating specific fields: kharsanEsekh, baiguullagiinId, tukhainBaaziinKholbolt
+    // Explicitly exclude nevtersenAjiltniiToken and erunkhiiKholbolt
+    const updateFields = {};
+    
+    if (req.body.kharsanEsekh !== undefined) {
+      updateFields.kharsanEsekh = req.body.kharsanEsekh;
+    }
+    
+    if (req.body.baiguullagiinId !== undefined) {
+      updateFields.baiguullagiinId = req.body.baiguullagiinId;
+    }
+    
+    if (req.body.tukhainBaaziinKholbolt !== undefined) {
+      updateFields.tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+    }
+
+    // Set updatedAt explicitly
+    updateFields.updatedAt = new Date();
+
     const medegdel = await Medegdel(kholbolt).findByIdAndUpdate(
       id,
-      updateData,
+      {
+        $set: updateFields,
+      },
       { new: true, runValidators: true }
     );
 
