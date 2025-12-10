@@ -35,19 +35,11 @@ function msgIlgeeye(
 
     url = encodeURI(url);
 
-    console.log("MSG_SERVER URL:", url);
-    console.log("MSG_SERVER env:", process.env.MSG_SERVER);
-
     request(url, { json: true }, async (err1, response, body) => {
-      console.log("MSG_SERVER Response Status:", response?.statusCode);
-      console.log("MSG_SERVER Response Body:", body);
-      console.log("MSG_SERVER Error:", err1);
-
       if (err1) {
         next(err1);
       } else if (response?.statusCode === 404 || body?.reason) {
         // Handle error response from messagepro.mn
-        console.error("MSG_SERVER Error:", body?.reason || body);
         khariu.push({
           status: "ERROR",
           message: body?.reason || "SMS илгээх үед алдаа гарлаа",
@@ -113,14 +105,6 @@ async function msgIlgeeyeUnitel(
       form.append("to", data.to.toString());
       form.append("body", data.text.toString());
 
-      console.log("Sending SMS with params:", {
-        token_id: key,
-        extension_number: "11",
-        sms_number: dugaar,
-        to: data.to.toString(),
-        body: data.text.toString(),
-      });
-
       const resp = await axios.post(
         "https://pbxuc.unitel.mn/hodupbx_api/v1.4/sendSms",
         form,
@@ -131,8 +115,6 @@ async function msgIlgeeyeUnitel(
           },
         }
       );
-
-      console.log("Unitel API Response:", resp.status, resp.data);
 
       if (resp?.data?.status === "SUCCESS") {
         const MsgTuukhModel = MsgTuukh(kholbolt);
@@ -151,22 +133,17 @@ async function msgIlgeeyeUnitel(
         }
         khariu.push(resp.data);
       } else {
-        console.error("Unitel API Error Response:", resp.data);
         khariu.push(resp.data);
       }
     }
     res.send(khariu?.length > 0 ? [khariu[0]] : []);
   } catch (err) {
-    console.error("General Error in msgIlgeeyeUnitel:", err);
     next(err);
   }
 }
 
 router.route("/msgIlgeeye").post(tokenShalgakh, async (req, res, next) => {
   try {
-    console.log("=== MSG ILGEEYE ROUTE CALLED ===");
-    console.log("Request body:", req.body);
-
     const { baiguullagiinId, barilgiinId, msgnuud } = req.body;
 
     if (!baiguullagiinId) {
