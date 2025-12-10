@@ -1204,20 +1204,19 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("И-мэйл заавал бөглөх шаардлагатай!");
     }
 
-    if (!req.body.baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
-    }
-
     const { db } = require("zevbackv2");
     const phoneNumber = String(req.body.utas).trim();
     const email = String(req.body.mail).trim();
 
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      req.body.baiguullagiinId
-    );
+    let baiguullaga = null;
+    if (req.body.baiguullagiinId) {
+      baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        req.body.baiguullagiinId
+      );
 
-    if (!baiguullaga) {
-      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+      if (!baiguullaga) {
+        throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+      }
     }
 
     console.log("📞 [WALLET REGISTER] Registering user in Wallet API...");
@@ -1228,6 +1227,17 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     console.log("✅ [WALLET REGISTER] User registered in Wallet API:", walletUserInfo.userId);
+
+    if (!baiguullaga) {
+      console.log("⚠️ [WALLET REGISTER] No baiguullagiinId provided - only registering in Wallet API");
+      res.status(200).json({
+        success: true,
+        message: "Хэтэвчний системд амжилттай бүртгүүллээ. Нэвтрэхийн тулд байгууллагын ID шаардлагатай.",
+        data: walletUserInfo,
+        requiresBaiguullagiinId: true,
+      });
+      return;
+    }
 
     let billingInfo = null;
     if (req.body.bairId && req.body.doorNo) {
