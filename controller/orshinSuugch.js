@@ -11,6 +11,7 @@ const aldaa = require("../components/aldaa");
 const request = require("request");
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
+const walletApiService = require("../services/walletApiService");
 
 const useragent = require("express-useragent");
 
@@ -1055,99 +1056,128 @@ exports.tootShalgaya = asyncHandler(async (req, res, next) => {
 
 exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   try {
-    console.log("🔐 [LOGIN] Login request received");
-    console.log("🔐 [LOGIN] Phone:", req.body.utas);
-    console.log("🔐 [LOGIN] Firebase token provided:", !!req.body.firebaseToken);
-    if (req.body.firebaseToken) {
-      console.log("🔐 [LOGIN] Firebase token (first 30 chars):", req.body.firebaseToken.substring(0, 30) + "...");
-    }
+    console.log("🔐 [WALLET LOGIN] Login request received");
+    console.log("🔐 [WALLET LOGIN] Phone:", req.body.utas);
+    console.log("🔐 [WALLET LOGIN] Firebase token provided:", !!req.body.firebaseToken);
 
-    const io = req.app.get("socketio");
     const { db } = require("zevbackv2");
 
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
-      .findOne({ utas: req.body.utas })
-      .select("+nuutsUg")
-      .catch((err) => {
-        next(err);
-      });
-
-    if (!orshinSuugch) {
-      console.log("❌ [LOGIN] User not found for phone:", req.body.utas);
-      throw new aldaa("Бүртгэлгүй хаяг байна.");
+    if (!req.body.utas) {
+      throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
     }
 
-    console.log("✅ [LOGIN] User found:", orshinSuugch._id, "Name:", orshinSuugch.ner);
+    if (!req.body.baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+    }
 
-    // Validate toot if provided
-    if (req.body.toot) {
-      if (!orshinSuugch.toot || orshinSuugch.toot.trim() !== req.body.toot.trim()) {
-        console.log("❌ [LOGIN] Invalid toot");
-        throw new aldaa("Бүртгэлгүй тоот байна");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      req.body.baiguullagiinId
+    );
+
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+    }
+
+    const phoneNumber = String(req.body.utas).trim();
+
+    console.log("📞 [WALLET LOGIN] Fetching user from Wallet API...");
+    const walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+
+    if (!walletUserInfo || !walletUserInfo.userId) {
+      throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд хэтэвчний системд бүртгүүлнэ үү.");
+    }
+
+    console.log("✅ [WALLET LOGIN] User found in Wallet API:", walletUserInfo.userId);
+
+    let billingInfo = null;
+    if (req.body.bairId && req.body.doorNo) {
+      console.log("🏠 [WALLET LOGIN] Fetching billing/address info...");
+      billingInfo = await walletApiService.getBillingByAddress(
+        phoneNumber,
+        req.body.bairId,
+        req.body.doorNo
+      );
+      if (billingInfo && billingInfo.length > 0) {
+        billingInfo = billingInfo[0];
+        console.log("✅ [WALLET LOGIN] Billing info found:", billingInfo.customerName);
       }
     }
 
-    var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
-    if (!ok) {
-      console.log("❌ [LOGIN] Invalid password");
-      throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
+    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      $or: [
+        { utas: phoneNumber },
+        { walletUserId: walletUserInfo.userId }
+      ]
+    });
+
+    const userData = {
+      utas: phoneNumber,
+      mail: walletUserInfo.email || "",
+      walletUserId: walletUserInfo.userId,
+      baiguullagiinId: baiguullaga._id,
+      baiguullagiinNer: baiguullaga.ner,
+      erkh: "OrshinSuugch",
+      nevtrekhNer: phoneNumber,
+    };
+
+    if (billingInfo) {
+      if (billingInfo.customerName) {
+        const nameParts = billingInfo.customerName.split(" ");
+        if (nameParts.length >= 2) {
+          userData.ovog = nameParts[0];
+          userData.ner = nameParts.slice(1).join(" ");
+        } else {
+          userData.ner = billingInfo.customerName;
+        }
+      }
+      if (billingInfo.customerAddress) {
+        userData.bairniiNer = billingInfo.customerAddress;
+      }
     }
 
-    console.log("✅ [LOGIN] Password validated");
+    if (req.body.barilgiinId) {
+      userData.barilgiinId = req.body.barilgiinId;
+    } else if (baiguullaga.barilguud && baiguullaga.barilguud.length > 0) {
+      userData.barilgiinId = String(baiguullaga.barilguud[0]._id);
+    }
 
-    let needsSave = false;
+    if (req.body.duureg) userData.duureg = req.body.duureg;
+    if (req.body.horoo) userData.horoo = req.body.horoo;
+    if (req.body.soh) userData.soh = req.body.soh;
+    if (req.body.toot) userData.toot = req.body.toot;
+    if (req.body.davkhar) userData.davkhar = req.body.davkhar;
+    if (req.body.orts) userData.orts = req.body.orts;
+
+    if (orshinSuugch) {
+      console.log("🔄 [WALLET LOGIN] Updating existing user:", orshinSuugch._id);
+      Object.assign(orshinSuugch, userData);
+    } else {
+      console.log("➕ [WALLET LOGIN] Creating new user");
+      orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    }
 
     if (req.body.firebaseToken) {
       orshinSuugch.firebaseToken = req.body.firebaseToken;
-      needsSave = true;
-      console.log("📱 [LOGIN] Updating Firebase token for user:", orshinSuugch._id);
-      console.log("📱 [LOGIN] Token (first 30 chars):", req.body.firebaseToken.substring(0, 30) + "...");
-    } else {
-      console.log("⚠️ [LOGIN] No Firebase token provided in request");
+      console.log("📱 [WALLET LOGIN] Updating Firebase token");
     }
 
-    if (!orshinSuugch.barilgiinId) {
-      var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-        orshinSuugch.baiguullagiinId
-      );
-
-      const firstBarilgiinId =
-        baiguullaga?.barilguud && baiguullaga.barilguud.length > 0
-          ? String(baiguullaga.barilguud[0]._id)
-          : null;
-      if (baiguullaga && firstBarilgiinId) {
-        console.log(
-          "Setting user barilgiinId to first building (user had no barilgiinId):",
-          firstBarilgiinId
-        );
-        orshinSuugch.barilgiinId = firstBarilgiinId;
-        needsSave = true;
-      }
-    }
-
-    // Save user if any changes were made
-    if (needsSave) {
-      console.log("💾 [LOGIN] Saving user with changes...");
-      await orshinSuugch.save();
-      console.log("✅ [LOGIN] User saved successfully. ID:", orshinSuugch._id);
-      // Verify the token was saved
-      const savedUser = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("firebaseToken");
-      console.log("🔍 [LOGIN] Verified saved token exists:", !!savedUser?.firebaseToken);
-    } else {
-      console.log("ℹ️ [LOGIN] No changes to save");
-    }
-
-    var butsaakhObject = {
-      result: orshinSuugch,
-      success: true,
-    };
+    await orshinSuugch.save();
+    console.log("✅ [WALLET LOGIN] User saved:", orshinSuugch._id);
 
     const token = await orshinSuugch.tokenUusgeye();
-    butsaakhObject.token = token;
 
-    console.log("✅ [LOGIN] Login successful. Sending response for user:", orshinSuugch._id);
+    const butsaakhObject = {
+      result: orshinSuugch,
+      success: true,
+      token: token,
+      walletUserInfo: walletUserInfo,
+      billingInfo: billingInfo,
+    };
+
+    console.log("✅ [WALLET LOGIN] Login successful for user:", orshinSuugch._id);
     res.status(200).json(butsaakhObject);
   } catch (err) {
+    console.error("❌ [WALLET LOGIN] Error:", err.message);
     next(err);
   }
 });

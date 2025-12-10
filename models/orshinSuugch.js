@@ -38,6 +38,7 @@ const orshinSuugchSchema = new Schema(
     tailbar: String,
     ekhniiUldegdel : Number,
     ekhniiUldegdelUsgeer: String,
+    walletUserId: String,
   },
   {
     timestamps: true,

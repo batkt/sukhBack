@@ -13,7 +13,6 @@ const {
   db,
 } = require("zevbackv2");
 const {
-  orshinSuugchBurtgey,
   orshinSuugchNevtrey,
   tokenoorOrshinSuugchAvya,
   nuutsUgShalgakhOrshinSuugch,
@@ -155,9 +154,6 @@ crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 crud(router, "backTuukh", BackTuukh, UstsanBarimt);
 crud(router, "session", session, UstsanBarimt);
 
-router.route("/orshinSuugchBurtgey").post(orshinSuugchBurtgey);
-router.post("/dugaarBatalgaajuulya", dugaarBatalgaajuulya);
-router.post("/dugaarBatalgaajuulakh", dugaarBatalgaajuulakh);
 router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);
