@@ -159,31 +159,30 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Only allow updating specific fields: kharsanEsekh, baiguullagiinId, tukhainBaaziinKholbolt
-    // Explicitly exclude nevtersenAjiltniiToken and erunkhiiKholbolt
-    const updateFields = {};
-    
+    // ONLY update kharsanEsekh - explicitly exclude everything else
+    // Do NOT include baiguullagiinId or tukhainBaaziinKholbolt in the update
+    // as they are not document fields, just used for connection lookup
+    const updateFields = {
+      updatedAt: new Date(),
+    };
+
+    // Only update kharsanEsekh if it's provided
     if (req.body.kharsanEsekh !== undefined) {
-      updateFields.kharsanEsekh = req.body.kharsanEsekh;
-    }
-    
-    if (req.body.baiguullagiinId !== undefined) {
-      updateFields.baiguullagiinId = req.body.baiguullagiinId;
-    }
-    
-    if (req.body.tukhainBaaziinKholbolt !== undefined) {
-      updateFields.tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+      updateFields.kharsanEsekh = Boolean(req.body.kharsanEsekh);
     }
 
-    // Set updatedAt explicitly
-    updateFields.updatedAt = new Date();
-
+    // Use $set to explicitly set only these fields
     const medegdel = await Medegdel(kholbolt).findByIdAndUpdate(
       id,
       {
         $set: updateFields,
       },
-      { new: true, runValidators: true }
+      { 
+        new: true, 
+        runValidators: true,
+        // Explicitly exclude fields that might have circular references
+        select: '-nevtersenAjiltniiToken -erunkhiiKholbolt'
+      }
     );
 
     if (!medegdel) {
