@@ -73,76 +73,56 @@ async function msgIlgeeyeUnitel(
   khariu,
   _index,
   next,
-  _req,
+  req,
   res,
   kholbolt,
   baiguullagiinId,
   barilgiinId
 ) {
   try {
-    for (const data of jagsaalt) {
-      // Use 8-digit phone number format (remove 976 prefix if present)
-      let phoneNumber = data.to.toString().trim();
-      if (phoneNumber.startsWith("976") && phoneNumber.length === 11) {
-        phoneNumber = phoneNumber.substring(3); // Remove 976 prefix
-      }
-
+    for await (const data of jagsaalt) {
       const form = new FormData();
       form.append("token_id", key);
       form.append("extension_number", "11");
       form.append("sms_number", dugaar);
-      form.append("to", phoneNumber);
+      form.append("to", data.to.toString());
       form.append("body", data.text.toString());
 
       console.log("Sending SMS with params:", {
         token_id: key,
         extension_number: "11",
         sms_number: dugaar,
-        to: phoneNumber,
+        to: data.to.toString(),
         body: data.text.toString(),
       });
 
-      try {
-        const resp = await axios.post(
-          "https://pbxuc.unitel.mn/hodupbx_api/v1.4/sendSms",
-          form,
-          {
-            headers: form.getHeaders(),
-            validateStatus: function (status) {
-              return status < 700; // Don't throw for any status < 700
-            },
-          }
-        );
+      const resp = await axios.post(
+        "https://pbxuc.unitel.mn/hodupbx_api/v1.4/sendSms",
+        form,
+        { headers: form.getHeaders() }
+      );
 
-        console.log("Unitel API Response:", resp.status, resp.data);
+      console.log("Unitel API Response:", resp.status, resp.data);
 
-        if (resp?.data?.status === "SUCCESS") {
-          const MsgTuukhModel = MsgTuukh(kholbolt);
-          await MsgTuukhModel.create({
-            baiguullagiinId: baiguullagiinId,
-            barilgiinId: barilgiinId,
-            dugaar: [data.to],
-            gereeniiId: data.gereeniiId,
-            msg: data.text,
-            msgIlgeekhKey: key,
-            msgIlgeekhDugaar: dugaar,
-          });
-
-          khariu.push(resp.data);
-        } else {
-          // If not SUCCESS, add the error response to understand what went wrong
-          console.error("Unitel API Error Response:", resp.data);
-          khariu.push(resp.data);
-        }
-      } catch (axiosErr) {
-        console.error(
-          "Axios Error:",
-          axiosErr.response?.data || axiosErr.message
-        );
-        khariu.push({
-          status: "ERROR",
-          message: axiosErr.response?.data || axiosErr.message,
+      if (resp?.data?.status === "SUCCESS") {
+        const MsgTuukhModel = MsgTuukh(kholbolt);
+        await MsgTuukhModel.create({
+          baiguullagiinId: baiguullagiinId,
+          barilgiinId: barilgiinId,
+          dugaar: [data.to],
+          gereeniiId: data.gereeniiId,
+          msg: data.text,
+          msgIlgeekhKey: key,
+          msgIlgeekhDugaar: dugaar,
         });
+
+        if (resp && resp.data) {
+          resp.data.Result = resp.data.status;
+        }
+        khariu.push(resp.data);
+      } else {
+        console.error("Unitel API Error Response:", resp.data);
+        khariu.push(resp.data);
       }
     }
     res.send(khariu?.length > 0 ? [khariu[0]] : []);
