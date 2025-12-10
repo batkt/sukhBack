@@ -7,6 +7,35 @@ const WALLET_API_PASSWORD = process.env.WALLET_API_PASSWORD || "123456";
 let walletServiceToken = null;
 let tokenExpiry = null;
 
+function sanitizeNullValues(obj) {
+  if (obj === null || obj === undefined) {
+    return {};
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeNullValues(item));
+  }
+  
+  if (typeof obj !== 'object') {
+    return obj;
+  }
+  
+  const sanitized = {};
+  for (const key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      const value = obj[key];
+      if (value === null) {
+        sanitized[key] = "";
+      } else if (typeof value === 'object') {
+        sanitized[key] = sanitizeNullValues(value);
+      } else {
+        sanitized[key] = value;
+      }
+    }
+  }
+  return sanitized;
+}
+
 async function getWalletServiceToken() {
   try {
     if (walletServiceToken && tokenExpiry && Date.now() < tokenExpiry) {
@@ -334,13 +363,22 @@ async function getBillingList(userId) {
       },
     });
 
-    if (response.data && response.data.responseCode && response.data.data) {
-      return response.data.data;
+    if (response.data && response.data.responseCode) {
+      if (response.data.data) {
+        if (Array.isArray(response.data.data)) {
+          return response.data.data;
+        } else if (typeof response.data.data === 'object') {
+          return [response.data.data];
+        }
+      }
     }
 
-    return response.data?.data || [];
+    return [];
   } catch (error) {
     console.error("Error getting billing list from wallet API:", error.message);
+    if (error.response) {
+      console.error("Error response data:", JSON.stringify(error.response.data));
+    }
     throw error;
   }
 }
@@ -359,13 +397,24 @@ async function getBillingBills(userId, billingId) {
       }
     );
 
-    if (response.data && response.data.responseCode && response.data.data) {
-      return response.data.data;
+    if (response.data && response.data.responseCode) {
+      if (response.data.data) {
+        let data = response.data.data;
+        
+        if (Array.isArray(data)) {
+          return data.map(item => sanitizeNullValues(item));
+        } else if (typeof data === 'object') {
+          return [sanitizeNullValues(data)];
+        }
+      }
     }
 
-    return response.data?.data || [];
+    return [];
   } catch (error) {
     console.error("Error getting billing bills from wallet API:", error.message);
+    if (error.response) {
+      console.error("Error response data:", JSON.stringify(error.response.data));
+    }
     throw error;
   }
 }
@@ -384,13 +433,24 @@ async function getBillingPayments(userId, billingId) {
       }
     );
 
-    if (response.data && response.data.responseCode && response.data.data) {
-      return response.data.data;
+    if (response.data && response.data.responseCode) {
+      if (response.data.data) {
+        let data = response.data.data;
+        
+        if (Array.isArray(data)) {
+          return data.map(item => sanitizeNullValues(item));
+        } else if (typeof data === 'object') {
+          return [sanitizeNullValues(data)];
+        }
+      }
     }
 
-    return response.data?.data || [];
+    return [];
   } catch (error) {
     console.error("Error getting billing payments from wallet API:", error.message);
+    if (error.response) {
+      console.error("Error response data:", JSON.stringify(error.response.data));
+    }
     throw error;
   }
 }

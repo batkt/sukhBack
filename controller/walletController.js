@@ -105,11 +105,18 @@ exports.walletBillingList = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const billingList = await walletApiService.getBillingList(userId);
+    
+    const data = Array.isArray(billingList) ? billingList : [];
+    
     res.status(200).json({
       success: true,
-      data: billingList,
+      data: data,
     });
   } catch (err) {
+    console.error("❌ [WALLET BILLING LIST] Error:", err.message);
+    if (err.response) {
+      console.error("❌ [WALLET BILLING LIST] Error response:", JSON.stringify(err.response.data));
+    }
     next(err);
   }
 });
@@ -124,11 +131,17 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
     }
 
     const bills = await walletApiService.getBillingBills(userId, billingId);
+    const data = Array.isArray(bills) ? bills : [];
+    
     res.status(200).json({
       success: true,
-      data: bills,
+      data: data,
     });
   } catch (err) {
+    console.error("❌ [WALLET BILLING BILLS] Error:", err.message);
+    if (err.response) {
+      console.error("❌ [WALLET BILLING BILLS] Error response:", JSON.stringify(err.response.data));
+    }
     next(err);
   }
 });
@@ -143,11 +156,17 @@ exports.walletBillingPayments = asyncHandler(async (req, res, next) => {
     }
 
     const payments = await walletApiService.getBillingPayments(userId, billingId);
+    const data = Array.isArray(payments) ? payments : [];
+    
     res.status(200).json({
       success: true,
-      data: payments,
+      data: data,
     });
   } catch (err) {
+    console.error("❌ [WALLET BILLING PAYMENTS] Error:", err.message);
+    if (err.response) {
+      console.error("❌ [WALLET BILLING PAYMENTS] Error response:", JSON.stringify(err.response.data));
+    }
     next(err);
   }
 });
