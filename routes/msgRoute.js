@@ -107,10 +107,15 @@ async function msgIlgeeyeUnitel(
         });
 
         khariu.push(resp.data);
+      } else {
+        // If not SUCCESS, add the error response to understand what went wrong
+        khariu.push(resp.data);
       }
     }
     res.send(khariu?.length > 0 ? [khariu[0]] : []);
   } catch (err) {
+    // Log the full error details
+    console.error("Unitel SMS Error:", err.response?.data || err.message);
     next(err);
   }
 }
