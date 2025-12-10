@@ -1150,7 +1150,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       success: true,
       token: token,
       walletUserInfo: walletUserInfo,
-      billingInfo: billingInfo,
     };
 
     console.log("✅ [WALLET LOGIN] Login successful for user:", orshinSuugch._id);
