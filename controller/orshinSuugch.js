@@ -1162,7 +1162,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     }
 
     await orshinSuugch.save();
-    console.log("✅ [WALLET LOGIN] User saved:", orshinSuugch._id);
+    console.log("✅ [WALLET LOGIN] User saved to database:", orshinSuugch._id);
+    console.log("✅ [WALLET LOGIN] Saved fields:", Object.keys(userData).join(", "));
 
     const token = await orshinSuugch.tokenUusgeye();
 
@@ -1178,6 +1179,43 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     res.status(200).json(butsaakhObject);
   } catch (err) {
     console.error("❌ [WALLET LOGIN] Error:", err.message);
+    next(err);
+  }
+});
+
+exports.walletBurtgey = asyncHandler(async (req, res, next) => {
+  try {
+    console.log("📝 [WALLET REGISTER] Registration request received");
+    console.log("📝 [WALLET REGISTER] Phone:", req.body.utas);
+    console.log("📝 [WALLET REGISTER] Email:", req.body.mail);
+
+    if (!req.body.utas) {
+      throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
+    }
+
+    if (!req.body.mail) {
+      throw new aldaa("И-мэйл заавал бөглөх шаардлагатай!");
+    }
+
+    const phoneNumber = String(req.body.utas).trim();
+    const email = String(req.body.mail).trim();
+
+    console.log("📞 [WALLET REGISTER] Registering user in Wallet API...");
+    const walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+
+    if (!walletUserInfo || !walletUserInfo.userId) {
+      throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
+    }
+
+    console.log("✅ [WALLET REGISTER] User registered in Wallet API:", walletUserInfo.userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Хэтэвчний системд амжилттай бүртгүүллээ",
+      data: walletUserInfo,
+    });
+  } catch (err) {
+    console.error("❌ [WALLET REGISTER] Error:", err.message);
     next(err);
   }
 });

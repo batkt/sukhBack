@@ -92,9 +92,43 @@ async function getBillingByAddress(userId, bairId, doorNo) {
   }
 }
 
+async function registerUser(phone, email) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.post(
+      `${WALLET_API_BASE_URL}/api/user`,
+      {
+        email: email,
+        phone: phone,
+      },
+      {
+        headers: {
+          userId: phone,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error("Failed to register user in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Registration failed";
+      throw new Error(errorMessage);
+    }
+    console.error("Error registering user in wallet API:", error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   getUserInfo,
   getBillingByAddress,
   getWalletServiceToken,
+  registerUser,
 };
 
