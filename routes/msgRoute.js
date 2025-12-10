@@ -81,18 +81,24 @@ async function msgIlgeeyeUnitel(
 ) {
   try {
     for (const data of jagsaalt) {
+      // Add country code 976 if not present
+      let phoneNumber = data.to.toString().trim();
+      if (!phoneNumber.startsWith("976") && phoneNumber.length === 8) {
+        phoneNumber = "976" + phoneNumber;
+      }
+
       const form = new FormData();
       form.append("token_id", key);
       form.append("extension_number", "11");
       form.append("sms_number", dugaar);
-      form.append("to", data.to.toString());
+      form.append("to", phoneNumber);
       form.append("body", data.text.toString());
 
       console.log("Sending SMS with params:", {
         token_id: key,
         extension_number: "11",
         sms_number: dugaar,
-        to: data.to.toString(),
+        to: phoneNumber,
         body: data.text.toString(),
       });
 
