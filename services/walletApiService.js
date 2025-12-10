@@ -245,6 +245,457 @@ async function getAddressBair(khorooId) {
   }
 }
 
+async function getBillers(userId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(`${WALLET_API_BASE_URL}/api/billers`, {
+      headers: {
+        userId: userId,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return response.data?.data || [];
+  } catch (error) {
+    console.error("Error getting billers from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function getBillingByBiller(userId, billerCode, customerCode) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(
+      `${WALLET_API_BASE_URL}/api/billing/biller/${billerCode}/${customerCode}`,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return null;
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return null;
+    }
+    console.error("Error getting billing by biller from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function getBillingByCustomer(userId, customerId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(
+      `${WALLET_API_BASE_URL}/api/billing/customer/${customerId}`,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return null;
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return null;
+    }
+    console.error("Error getting billing by customer from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function getBillingList(userId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(`${WALLET_API_BASE_URL}/api/billing/list`, {
+      headers: {
+        userId: userId,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return response.data?.data || [];
+  } catch (error) {
+    console.error("Error getting billing list from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function getBillingBills(userId, billingId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(
+      `${WALLET_API_BASE_URL}/api/billing/bills/${billingId}`,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return response.data?.data || [];
+  } catch (error) {
+    console.error("Error getting billing bills from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function getBillingPayments(userId, billingId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(
+      `${WALLET_API_BASE_URL}/api/billing/${billingId}/payments`,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return response.data?.data || [];
+  } catch (error) {
+    console.error("Error getting billing payments from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function saveBilling(userId, billingData) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.post(
+      `${WALLET_API_BASE_URL}/api/billing`,
+      billingData,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error("Failed to save billing in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to save billing";
+      throw new Error(errorMessage);
+    }
+    console.error("Error saving billing in wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function removeBilling(userId, billingId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.delete(
+      `${WALLET_API_BASE_URL}/api/billing/${billingId}`,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode) {
+      return response.data;
+    }
+
+    throw new Error("Failed to remove billing in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to remove billing";
+      throw new Error(errorMessage);
+    }
+    console.error("Error removing billing in wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function removeBill(userId, billingId, billId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.delete(
+      `${WALLET_API_BASE_URL}/api/billing/${billingId}/bill/${billId}`,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode) {
+      return response.data;
+    }
+
+    throw new Error("Failed to remove bill in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to remove bill";
+      throw new Error(errorMessage);
+    }
+    console.error("Error removing bill in wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function recoverBill(userId, billingId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.put(
+      `${WALLET_API_BASE_URL}/api/billing/${billingId}/recover`,
+      {},
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode) {
+      return response.data;
+    }
+
+    throw new Error("Failed to recover bill in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to recover bill";
+      throw new Error(errorMessage);
+    }
+    console.error("Error recovering bill in wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function changeBillingName(userId, billingId, newName) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.put(
+      `${WALLET_API_BASE_URL}/api/billing/${billingId}/name`,
+      { name: newName },
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode) {
+      return response.data;
+    }
+
+    throw new Error("Failed to change billing name in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to change billing name";
+      throw new Error(errorMessage);
+    }
+    console.error("Error changing billing name in wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function createInvoice(userId, invoiceData) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.post(
+      `${WALLET_API_BASE_URL}/api/invoice`,
+      invoiceData,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error("Failed to create invoice in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to create invoice";
+      throw new Error(errorMessage);
+    }
+    console.error("Error creating invoice in wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function getInvoice(userId, invoiceId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(
+      `${WALLET_API_BASE_URL}/api/invoice/${invoiceId}`,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return null;
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return null;
+    }
+    console.error("Error getting invoice from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function cancelInvoice(userId, invoiceId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.put(
+      `${WALLET_API_BASE_URL}/api/invoice/${invoiceId}/cancel`,
+      {},
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode) {
+      return response.data;
+    }
+
+    throw new Error("Failed to cancel invoice in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to cancel invoice";
+      throw new Error(errorMessage);
+    }
+    console.error("Error canceling invoice in wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function createPayment(userId, paymentData) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.post(
+      `${WALLET_API_BASE_URL}/api/payment`,
+      paymentData,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error("Failed to create payment in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to create payment";
+      throw new Error(errorMessage);
+    }
+    console.error("Error creating payment in wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function editUser(userId, userData) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.put(
+      `${WALLET_API_BASE_URL}/api/user`,
+      userData,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    throw new Error("Failed to edit user in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to edit user";
+      throw new Error(errorMessage);
+    }
+    console.error("Error editing user in wallet API:", error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   getUserInfo,
   getBillingByAddress,
@@ -254,5 +705,21 @@ module.exports = {
   getAddressDistricts,
   getAddressKhoroo,
   getAddressBair,
+  getBillers,
+  getBillingByBiller,
+  getBillingByCustomer,
+  getBillingList,
+  getBillingBills,
+  getBillingPayments,
+  saveBilling,
+  removeBilling,
+  removeBill,
+  recoverBill,
+  changeBillingName,
+  createInvoice,
+  getInvoice,
+  cancelInvoice,
+  createPayment,
+  editUser,
 };
 
