@@ -1227,34 +1227,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       nevtrekhNer: phoneNumber,
     };
 
-    if (billingInfo) {
-      if (billingInfo.customerName) {
-        const nameParts = billingInfo.customerName.split(" ");
-        if (nameParts.length >= 2) {
-          userData.ovog = nameParts[0];
-          userData.ner = nameParts.slice(1).join(" ");
-        } else {
-          userData.ner = billingInfo.customerName;
-        }
-      }
-      if (billingInfo.customerAddress) {
-        userData.bairniiNer = billingInfo.customerAddress;
-      }
-      if (billingInfo.customerId) {
-        userData.walletCustomerId = billingInfo.customerId;
-      }
-      if (billingInfo.customerCode) {
-        userData.walletCustomerCode = billingInfo.customerCode;
-      }
-      if (req.body.bairId) {
-        userData.walletBairId = req.body.bairId;
-      }
-      if (req.body.doorNo) {
-        userData.walletDoorNo = req.body.doorNo;
-      }
-      console.log("💾 [WALLET REGISTER] Saving billing data to local user record");
-    }
-
     if (req.body.barilgiinId) {
       userData.barilgiinId = req.body.barilgiinId;
     } else if (baiguullaga.barilguud && baiguullaga.barilguud.length > 0) {
@@ -1417,6 +1389,70 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
     });
   } catch (err) {
     console.error("❌ [WALLET BILLING] Error:", err.message);
+    next(err);
+  }
+});
+
+exports.walletAddressCities = asyncHandler(async (req, res, next) => {
+  try {
+    const cities = await walletApiService.getAddressCities();
+    res.status(200).json({
+      success: true,
+      data: cities,
+    });
+  } catch (err) {
+    console.error("❌ [WALLET ADDRESS] Error getting cities:", err.message);
+    next(err);
+  }
+});
+
+exports.walletAddressDistricts = asyncHandler(async (req, res, next) => {
+  try {
+    const { cityId } = req.params;
+    if (!cityId) {
+      throw new aldaa("Хотын ID заавал бөглөх шаардлагатай!");
+    }
+    const districts = await walletApiService.getAddressDistricts(cityId);
+    res.status(200).json({
+      success: true,
+      data: districts,
+    });
+  } catch (err) {
+    console.error("❌ [WALLET ADDRESS] Error getting districts:", err.message);
+    next(err);
+  }
+});
+
+exports.walletAddressKhoroo = asyncHandler(async (req, res, next) => {
+  try {
+    const { districtId } = req.params;
+    if (!districtId) {
+      throw new aldaa("Дүүргийн ID заавал бөглөх шаардлагатай!");
+    }
+    const khoroo = await walletApiService.getAddressKhoroo(districtId);
+    res.status(200).json({
+      success: true,
+      data: khoroo,
+    });
+  } catch (err) {
+    console.error("❌ [WALLET ADDRESS] Error getting khoroo:", err.message);
+    next(err);
+  }
+});
+
+exports.walletAddressBair = asyncHandler(async (req, res, next) => {
+  try {
+    const { khorooId } = req.params;
+    if (!khorooId) {
+      throw new aldaa("Хорооны ID заавал бөглөх шаардлагатай!");
+    }
+    const bair = await walletApiService.getAddressBair(khorooId);
+    res.status(200).json({
+      success: true,
+      data: bair,
+    });
+  } catch (err) {
+    console.error("❌ [WALLET ADDRESS] Error getting bair:", err.message);
     next(err);
   }
 });

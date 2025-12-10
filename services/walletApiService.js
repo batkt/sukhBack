@@ -152,10 +152,107 @@ async function registerUser(phone, email) {
   }
 }
 
+async function getAddressCities() {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(`${WALLET_API_BASE_URL}/api/address/city`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return response.data?.data || [];
+  } catch (error) {
+    console.error("Error getting cities from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function getAddressDistricts(cityId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(
+      `${WALLET_API_BASE_URL}/api/address/district/${cityId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return response.data?.data || [];
+  } catch (error) {
+    console.error("Error getting districts from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function getAddressKhoroo(districtId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(
+      `${WALLET_API_BASE_URL}/api/address/khoroo/${districtId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return response.data?.data || [];
+  } catch (error) {
+    console.error("Error getting khoroo from wallet API:", error.message);
+    throw error;
+  }
+}
+
+async function getAddressBair(khorooId) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(
+      `${WALLET_API_BASE_URL}/api/address/bair/${khorooId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      return response.data.data;
+    }
+
+    return response.data?.data || [];
+  } catch (error) {
+    console.error("Error getting bair from wallet API:", error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   getUserInfo,
   getBillingByAddress,
   getWalletServiceToken,
   registerUser,
+  getAddressCities,
+  getAddressDistricts,
+  getAddressKhoroo,
+  getAddressBair,
 };
 

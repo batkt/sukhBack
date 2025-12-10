@@ -16,6 +16,10 @@ const {
   orshinSuugchNevtrey,
   walletBurtgey,
   walletBillingHavakh,
+  walletAddressCities,
+  walletAddressDistricts,
+  walletAddressKhoroo,
+  walletAddressBair,
   tokenoorOrshinSuugchAvya,
   nuutsUgShalgakhOrshinSuugch,
   khayagaarBaiguullagaAvya,
@@ -159,6 +163,10 @@ crud(router, "session", session, UstsanBarimt);
 router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
 router.route("/walletBurtgey").post(walletBurtgey);
 router.route("/walletBillingHavakh").post(tokenShalgakh, walletBillingHavakh);
+router.route("/walletAddress/city").get(walletAddressCities);
+router.route("/walletAddress/district/:cityId").get(walletAddressDistricts);
+router.route("/walletAddress/khoroo/:districtId").get(walletAddressKhoroo);
+router.route("/walletAddress/bair/:khorooId").get(walletAddressBair);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);
 router
