@@ -27,10 +27,17 @@ async function getWalletServiceToken() {
     console.log("🔑 [WALLET API] Response status:", response.status);
     console.log("🔑 [WALLET API] Response data:", JSON.stringify(response.data).substring(0, 200));
 
+    if (response.data && response.data.accessToken) {
+      walletServiceToken = response.data.accessToken;
+      tokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
+      console.log("✅ [WALLET API] Service token obtained successfully");
+      return walletServiceToken;
+    }
+
     if (response.data && response.data.token) {
       walletServiceToken = response.data.token;
       tokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
-      console.log("✅ [WALLET API] Service token obtained successfully");
+      console.log("✅ [WALLET API] Service token obtained successfully (legacy format)");
       return walletServiceToken;
     }
 
