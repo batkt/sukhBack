@@ -22,12 +22,12 @@ function msgIlgeeye(
 ) {
   try {
     let url =
-      process.env.MSG_SERVER +
+      "https://api.messagepro.mn" +
       "/send" +
       "?key=" +
-      key +
+      "aa8e588459fdd9b7ac0b809fc29cfae3" +
       "&from=" +
-      dugaar +
+      "72002002" +
       "&to=" +
       jagsaalt[index].to.toString() +
       "&text=" +
@@ -50,7 +50,7 @@ function msgIlgeeye(
         console.error("MSG_SERVER Error:", body?.reason || body);
         khariu.push({
           status: "ERROR",
-          message: body?.reason || "SMS илгээх үед алдаа гарлаа"
+          message: body?.reason || "SMS илгээх үед алдаа гарлаа",
         });
         res.send(khariu);
       } else {
