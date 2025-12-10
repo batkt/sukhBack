@@ -99,7 +99,12 @@ async function msgIlgeeyeUnitel(
       const resp = await axios.post(
         "https://pbxuc.unitel.mn/hodupbx_api/v1.4/sendSms",
         form,
-        { headers: form.getHeaders() }
+        {
+          headers: form.getHeaders(),
+          validateStatus: function (status) {
+            return status < 700; // Accept any status code < 700
+          },
+        }
       );
 
       console.log("Unitel API Response:", resp.status, resp.data);
@@ -158,7 +163,8 @@ router.route("/msgIlgeeye").post(tokenShalgakh, async (req, res, next) => {
     const BaiguullagaModel = Baiguullaga(kholbolt);
     const baiguullaga = await BaiguullagaModel.findById(baiguullagiinId);
 
-    const msgIlgeekhKey = "g25dFjT1y1upZLYR";
+    const msgIlgeekhKey =
+      "aa8e588459fdd9b7ac0b809fc29cfae3aa8e588459fdd9b7ac0b809fc29cfae3";
     const msgIlgeekhDugaar = "72002002";
 
     if (!msgnuud || msgnuud.length === 0) {
@@ -169,35 +175,19 @@ router.route("/msgIlgeeye").post(tokenShalgakh, async (req, res, next) => {
 
     const khariu = [];
 
-    if (msgIlgeekhKey === "g25dFjT1y1upZLYR") {
-      await msgIlgeeyeUnitel(
-        msgnuud,
-        msgIlgeekhKey,
-        msgIlgeekhDugaar,
-        khariu,
-        0,
-        next,
-        req,
-        res,
-        kholbolt,
-        baiguullagiinId,
-        barilgiinId
-      );
-    } else {
-      msgIlgeeye(
-        msgnuud,
-        msgIlgeekhKey,
-        msgIlgeekhDugaar,
-        khariu,
-        0,
-        next,
-        req,
-        res,
-        kholbolt,
-        baiguullagiinId,
-        barilgiinId
-      );
-    }
+    msgIlgeeye(
+      msgnuud,
+      msgIlgeekhKey,
+      msgIlgeekhDugaar,
+      khariu,
+      0,
+      next,
+      req,
+      res,
+      kholbolt,
+      baiguullagiinId,
+      barilgiinId
+    );
   } catch (error) {
     next(error);
   }
