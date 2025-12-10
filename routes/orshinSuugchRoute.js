@@ -15,6 +15,7 @@ const {
 const {
   orshinSuugchNevtrey,
   walletBurtgey,
+  walletBillingHavakh,
   tokenoorOrshinSuugchAvya,
   nuutsUgShalgakhOrshinSuugch,
   khayagaarBaiguullagaAvya,
@@ -157,6 +158,7 @@ crud(router, "session", session, UstsanBarimt);
 
 router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
 router.route("/walletBurtgey").post(walletBurtgey);
+router.route("/walletBillingHavakh").post(tokenShalgakh, walletBillingHavakh);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);
 router

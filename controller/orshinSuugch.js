@@ -1103,20 +1103,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    let billingInfo = null;
-    if (req.body.bairId && req.body.doorNo) {
-      console.log("🏠 [WALLET LOGIN] Fetching billing/address info...");
-      billingInfo = await walletApiService.getBillingByAddress(
-        phoneNumber,
-        req.body.bairId,
-        req.body.doorNo
-      );
-      if (billingInfo && billingInfo.length > 0) {
-        billingInfo = billingInfo[0];
-        console.log("✅ [WALLET LOGIN] Billing info found:", billingInfo.customerName);
-      }
-    }
-
     const userData = {
       utas: phoneNumber,
       mail: walletUserInfo.email || (orshinSuugch?.mail || ""),
@@ -1126,21 +1112,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       erkh: "OrshinSuugch",
       nevtrekhNer: phoneNumber,
     };
-
-    if (billingInfo) {
-      if (billingInfo.customerName) {
-        const nameParts = billingInfo.customerName.split(" ");
-        if (nameParts.length >= 2) {
-          userData.ovog = nameParts[0];
-          userData.ner = nameParts.slice(1).join(" ");
-        } else {
-          userData.ner = billingInfo.customerName;
-        }
-      }
-      if (billingInfo.customerAddress) {
-        userData.bairniiNer = billingInfo.customerAddress;
-      }
-    }
 
     if (req.body.barilgiinId) {
       userData.barilgiinId = req.body.barilgiinId;
@@ -1239,19 +1210,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       return;
     }
 
-    let billingInfo = null;
-    if (req.body.bairId && req.body.doorNo) {
-      console.log("🏠 [WALLET REGISTER] Fetching billing/address info...");
-      billingInfo = await walletApiService.getBillingByAddress(
-        phoneNumber,
-        req.body.bairId,
-        req.body.doorNo
-      );
-      if (billingInfo && billingInfo.length > 0) {
-        billingInfo = billingInfo[0];
-        console.log("✅ [WALLET REGISTER] Billing info found:", billingInfo.customerName);
-      }
-    }
 
     let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [
@@ -1283,6 +1241,19 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       if (billingInfo.customerAddress) {
         userData.bairniiNer = billingInfo.customerAddress;
       }
+      if (billingInfo.customerId) {
+        userData.walletCustomerId = billingInfo.customerId;
+      }
+      if (billingInfo.customerCode) {
+        userData.walletCustomerCode = billingInfo.customerCode;
+      }
+      if (req.body.bairId) {
+        userData.walletBairId = req.body.bairId;
+      }
+      if (req.body.doorNo) {
+        userData.walletDoorNo = req.body.doorNo;
+      }
+      console.log("💾 [WALLET REGISTER] Saving billing data to local user record");
     }
 
     if (req.body.barilgiinId) {
@@ -1321,7 +1292,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       success: true,
       token: token,
       walletUserInfo: walletUserInfo,
-      billingInfo: billingInfo,
       message: "Хэтэвчний системд амжилттай бүртгүүлж, нэвтэрлээ",
     };
 
@@ -1329,6 +1299,125 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     res.status(200).json(butsaakhObject);
   } catch (err) {
     console.error("❌ [WALLET REGISTER] Error:", err.message);
+    next(err);
+  }
+});
+
+exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
+  try {
+    console.log("🏠 [WALLET BILLING] Billing fetch request received");
+    
+    const { db } = require("zevbackv2");
+    
+    if (!req.body.bairId || !req.body.doorNo) {
+      throw new aldaa("Байрын ID болон тоот заавал бөглөх шаардлагатай!");
+    }
+
+    if (!req.headers.authorization) {
+      throw new aldaa("Нэвтрэх шаардлагатай!");
+    }
+
+    const token = req.headers.authorization.split(" ")[1];
+    if (!token) {
+      throw new aldaa("Token олдсонгүй!");
+    }
+
+    let tokenObject;
+    try {
+      tokenObject = jwt.verify(token, process.env.APP_SECRET);
+    } catch (jwtError) {
+      throw new aldaa("Token хүчингүй байна!");
+    }
+
+    if (!tokenObject?.id || tokenObject.id === "zochin") {
+      throw new aldaa("Энэ үйлдлийг хийх эрх байхгүй байна!");
+    }
+
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    const phoneNumber = orshinSuugch.utas;
+    const bairId = req.body.bairId;
+    const doorNo = req.body.doorNo;
+
+    console.log("🏠 [WALLET BILLING] Fetching billing info from Wallet API...");
+    console.log("🏠 [WALLET BILLING] User:", phoneNumber, "bairId:", bairId, "doorNo:", doorNo);
+
+    let billingInfo = null;
+    try {
+      const billingResponse = await walletApiService.getBillingByAddress(
+        phoneNumber,
+        bairId,
+        doorNo
+      );
+
+      if (billingResponse && billingResponse.length > 0) {
+        billingInfo = billingResponse[0];
+        console.log("✅ [WALLET BILLING] Billing info found:", billingInfo.customerName);
+        console.log("✅ [WALLET BILLING] Customer ID:", billingInfo.customerId);
+        console.log("✅ [WALLET BILLING] Customer Code:", billingInfo.customerCode);
+      } else {
+        console.log("⚠️ [WALLET BILLING] No billing info found for this address");
+        return res.status(404).json({
+          success: false,
+          message: "Энэ хаягийн биллингийн мэдээлэл олдсонгүй",
+        });
+      }
+    } catch (billingError) {
+      console.error("❌ [WALLET BILLING] Error fetching billing info:", billingError.message);
+      throw new aldaa(`Биллингийн мэдээлэл авахад алдаа гарлаа: ${billingError.message}`);
+    }
+
+    const updateData = {};
+
+    if (billingInfo.customerName) {
+      const nameParts = billingInfo.customerName.split(" ");
+      if (nameParts.length >= 2) {
+        updateData.ovog = nameParts[0];
+        updateData.ner = nameParts.slice(1).join(" ");
+      } else {
+        updateData.ner = billingInfo.customerName;
+      }
+    }
+
+    if (billingInfo.customerAddress) {
+      updateData.bairniiNer = billingInfo.customerAddress;
+    }
+
+    if (billingInfo.customerId) {
+      updateData.walletCustomerId = billingInfo.customerId;
+    }
+
+    if (billingInfo.customerCode) {
+      updateData.walletCustomerCode = billingInfo.customerCode;
+    }
+
+    updateData.walletBairId = bairId;
+    updateData.walletDoorNo = doorNo;
+
+    if (req.body.duureg) updateData.duureg = req.body.duureg;
+    if (req.body.horoo) updateData.horoo = req.body.horoo;
+    if (req.body.soh) updateData.soh = req.body.soh;
+    if (req.body.toot) updateData.toot = req.body.toot;
+    if (req.body.davkhar) updateData.davkhar = req.body.davkhar;
+    if (req.body.orts) updateData.orts = req.body.orts;
+
+    Object.assign(orshinSuugch, updateData);
+    await orshinSuugch.save();
+
+    console.log("✅ [WALLET BILLING] Billing data saved to local user record");
+    console.log("💾 [WALLET BILLING] Saved fields:", Object.keys(updateData).join(", "));
+
+    res.status(200).json({
+      success: true,
+      message: "Биллингийн мэдээлэл амжилттай хадгаллаа",
+      result: orshinSuugch,
+      billingInfo: billingInfo,
+    });
+  } catch (err) {
+    console.error("❌ [WALLET BILLING] Error:", err.message);
     next(err);
   }
 });
