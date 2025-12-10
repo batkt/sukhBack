@@ -1066,18 +1066,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
     }
 
-    if (!req.body.baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
-    }
-
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      req.body.baiguullagiinId
-    );
-
-    if (!baiguullaga) {
-      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
-    }
-
     const phoneNumber = String(req.body.utas).trim();
 
     console.log("📞 [WALLET LOGIN] Fetching user from Wallet API...");
@@ -1088,6 +1076,32 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     }
 
     console.log("✅ [WALLET LOGIN] User found in Wallet API:", walletUserInfo.userId);
+
+    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      $or: [
+        { utas: phoneNumber },
+        { walletUserId: walletUserInfo.userId }
+      ]
+    });
+
+    let baiguullagiinId = req.body.baiguullagiinId;
+    
+    if (!baiguullagiinId && orshinSuugch && orshinSuugch.baiguullagiinId) {
+      baiguullagiinId = orshinSuugch.baiguullagiinId;
+      console.log("📋 [WALLET LOGIN] Using existing baiguullagiinId from user record:", baiguullagiinId);
+    }
+
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
+    }
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      baiguullagiinId
+    );
+
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+    }
 
     let billingInfo = null;
     if (req.body.bairId && req.body.doorNo) {
@@ -1103,16 +1117,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       }
     }
 
-    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      $or: [
-        { utas: phoneNumber },
-        { walletUserId: walletUserInfo.userId }
-      ]
-    });
-
     const userData = {
       utas: phoneNumber,
-      mail: walletUserInfo.email || "",
+      mail: walletUserInfo.email || (orshinSuugch?.mail || ""),
       walletUserId: walletUserInfo.userId,
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
