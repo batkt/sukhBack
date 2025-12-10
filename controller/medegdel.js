@@ -254,7 +254,7 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
         replyMedegdel.title = `Хариу: ${medegdel.title || existingMedegdel.title || "Хариу"}`;
         replyMedegdel.message = updateFields.tailbar || medegdel.tailbar;
         replyMedegdel.kharsanEsekh = false;
-        replyMedegdel.turul = "хариу"; // Reply type
+        replyMedegdel.turul = "khariu"; // Reply type
         replyMedegdel.ognoo = new Date();
 
         await replyMedegdel.save();
