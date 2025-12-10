@@ -13,21 +13,41 @@ async function getWalletServiceToken() {
       return walletServiceToken;
     }
 
+    console.log("🔑 [WALLET API] Requesting service token...");
+    console.log("🔑 [WALLET API] URL:", `${WALLET_API_BASE_URL}/auth/token`);
+    console.log("🔑 [WALLET API] Username:", WALLET_API_USERNAME);
+
     const response = await axios.post(`${WALLET_API_BASE_URL}/auth/token`, {
       username: WALLET_API_USERNAME,
       password: WALLET_API_PASSWORD,
+    }, {
+      timeout: 10000,
     });
+
+    console.log("🔑 [WALLET API] Response status:", response.status);
+    console.log("🔑 [WALLET API] Response data:", JSON.stringify(response.data).substring(0, 200));
 
     if (response.data && response.data.token) {
       walletServiceToken = response.data.token;
       tokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
+      console.log("✅ [WALLET API] Service token obtained successfully");
       return walletServiceToken;
     }
 
-    throw new Error("Failed to get wallet service token");
+    console.error("❌ [WALLET API] Token not found in response:", response.data);
+    throw new Error("Failed to get wallet service token - token not in response");
   } catch (error) {
-    console.error("Error getting wallet service token:", error.message);
-    throw error;
+    if (error.response) {
+      console.error("❌ [WALLET API] Error response status:", error.response.status);
+      console.error("❌ [WALLET API] Error response data:", error.response.data);
+    } else if (error.request) {
+      console.error("❌ [WALLET API] No response received. URL:", `${WALLET_API_BASE_URL}/auth/token`);
+      console.error("❌ [WALLET API] Check if Wallet API service is running and accessible");
+    } else {
+      console.error("❌ [WALLET API] Error setting up request:", error.message);
+    }
+    console.error("❌ [WALLET API] Full error:", error.message);
+    throw new Error(`Failed to get wallet service token: ${error.message}`);
   }
 }
 
