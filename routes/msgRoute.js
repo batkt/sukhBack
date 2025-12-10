@@ -148,6 +148,9 @@ async function msgIlgeeyeUnitel(
 
 router.route("/msgIlgeeye").post(tokenShalgakh, async (req, res, next) => {
   try {
+    console.log("=== MSG ILGEEYE ROUTE CALLED ===");
+    console.log("Request body:", req.body);
+
     const { baiguullagiinId, barilgiinId, msgnuud } = req.body;
 
     if (!baiguullagiinId) {
