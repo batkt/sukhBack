@@ -81,10 +81,10 @@ async function msgIlgeeyeUnitel(
 ) {
   try {
     for (const data of jagsaalt) {
-      // Add country code 976 if not present
+      // Use 8-digit phone number format (remove 976 prefix if present)
       let phoneNumber = data.to.toString().trim();
-      if (!phoneNumber.startsWith("976") && phoneNumber.length === 8) {
-        phoneNumber = "976" + phoneNumber;
+      if (phoneNumber.startsWith("976") && phoneNumber.length === 11) {
+        phoneNumber = phoneNumber.substring(3); // Remove 976 prefix
       }
 
       const form = new FormData();
