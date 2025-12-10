@@ -21,9 +21,19 @@ function msgIlgeeye(
   barilgiinId
 ) {
   try {
-    const url = encodeURI(
-      `${process.env.MSG_SERVER}/send?key=${key}&from=${dugaar}&to=${jagsaalt[index].to}&text=${jagsaalt[index].text}`
-    );
+    let url =
+      process.env.MSG_SERVER +
+      "/send" +
+      "?key=" +
+      key +
+      "&from=" +
+      dugaar +
+      "&to=" +
+      jagsaalt[index].to.toString() +
+      "&text=" +
+      jagsaalt[index].text.toString();
+
+    url = encodeURI(url);
 
     console.log("MSG_SERVER URL:", url);
     console.log("MSG_SERVER env:", process.env.MSG_SERVER);
@@ -35,6 +45,14 @@ function msgIlgeeye(
 
       if (err1) {
         next(err1);
+      } else if (response?.statusCode === 404 || body?.reason) {
+        // Handle error response from messagepro.mn
+        console.error("MSG_SERVER Error:", body?.reason || body);
+        khariu.push({
+          status: "ERROR",
+          message: body?.reason || "SMS илгээх үед алдаа гарлаа"
+        });
+        res.send(khariu);
       } else {
         const MsgTuukhModel = MsgTuukh(kholbolt);
         await MsgTuukhModel.create({
