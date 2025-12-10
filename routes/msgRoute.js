@@ -88,34 +88,60 @@ async function msgIlgeeyeUnitel(
       form.append("to", data.to.toString());
       form.append("body", data.text.toString());
 
-      const resp = await axios.post(
-        "https://pbxuc.unitel.mn/hodupbx_api/v1.4/sendSms",
-        form,
-        { headers: form.getHeaders() }
-      );
+      console.log("Sending SMS with params:", {
+        token_id: key,
+        extension_number: "11",
+        sms_number: dugaar,
+        to: data.to.toString(),
+        body: data.text.toString(),
+      });
 
-      if (resp?.data?.status === "SUCCESS") {
-        const MsgTuukhModel = MsgTuukh(kholbolt);
-        await MsgTuukhModel.create({
-          baiguullagiinId: baiguullagiinId,
-          barilgiinId: barilgiinId,
-          dugaar: [data.to],
-          gereeniiId: data.gereeniiId,
-          msg: data.text,
-          msgIlgeekhKey: key,
-          msgIlgeekhDugaar: dugaar,
+      try {
+        const resp = await axios.post(
+          "https://pbxuc.unitel.mn/hodupbx_api/v1.4/sendSms",
+          form,
+          {
+            headers: form.getHeaders(),
+            validateStatus: function (status) {
+              return status < 700; // Don't throw for any status < 700
+            },
+          }
+        );
+
+        console.log("Unitel API Response:", resp.status, resp.data);
+
+        if (resp?.data?.status === "SUCCESS") {
+          const MsgTuukhModel = MsgTuukh(kholbolt);
+          await MsgTuukhModel.create({
+            baiguullagiinId: baiguullagiinId,
+            barilgiinId: barilgiinId,
+            dugaar: [data.to],
+            gereeniiId: data.gereeniiId,
+            msg: data.text,
+            msgIlgeekhKey: key,
+            msgIlgeekhDugaar: dugaar,
+          });
+
+          khariu.push(resp.data);
+        } else {
+          // If not SUCCESS, add the error response to understand what went wrong
+          console.error("Unitel API Error Response:", resp.data);
+          khariu.push(resp.data);
+        }
+      } catch (axiosErr) {
+        console.error(
+          "Axios Error:",
+          axiosErr.response?.data || axiosErr.message
+        );
+        khariu.push({
+          status: "ERROR",
+          message: axiosErr.response?.data || axiosErr.message,
         });
-
-        khariu.push(resp.data);
-      } else {
-        // If not SUCCESS, add the error response to understand what went wrong
-        khariu.push(resp.data);
       }
     }
     res.send(khariu?.length > 0 ? [khariu[0]] : []);
   } catch (err) {
-    // Log the full error details
-    console.error("Unitel SMS Error:", err.response?.data || err.message);
+    console.error("General Error in msgIlgeeyeUnitel:", err);
     next(err);
   }
 }
