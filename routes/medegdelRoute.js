@@ -47,27 +47,39 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    // Save the medegdel
-    const sonorduulga = new Sonorduulga(kholbolt)();
-    sonorduulga.orshinSuugchId = orshinSuugchId;
-    sonorduulga.baiguullagiinId = baiguullagiinId;
-    sonorduulga.barilgiinId = barilgiinId;
-    sonorduulga.title = medeelel.title;
-    sonorduulga.message = medeelel.body;
-    sonorduulga.kharsanEsekh = false;
-    if (turul) sonorduulga.turul = String(turul);
+    // Convert to array if it's not already
+    const orshinSuugchIds = Array.isArray(orshinSuugchId)
+      ? orshinSuugchId
+      : [orshinSuugchId];
 
-    await sonorduulga.save();
-
+    // Create notifications for all IDs
+    const sonorduulgaList = [];
     const io = req.app.get("socketio");
-    if (io) {
-      io.emit("orshinSuugch" + orshinSuugchId, sonorduulga);
+
+    for (const id of orshinSuugchIds) {
+      const sonorduulga = new Sonorduulga(kholbolt)();
+      sonorduulga.orshinSuugchId = id;
+      sonorduulga.baiguullagiinId = baiguullagiinId;
+      sonorduulga.barilgiinId = barilgiinId;
+      sonorduulga.title = medeelel.title;
+      sonorduulga.message = medeelel.body;
+      sonorduulga.kharsanEsekh = false;
+      if (turul) sonorduulga.turul = String(turul);
+
+      await sonorduulga.save();
+      sonorduulgaList.push(sonorduulga);
+
+      // Emit socket event for each ID
+      if (io) {
+        io.emit("orshinSuugch" + id, sonorduulga);
+      }
     }
 
     return res.json({
       success: true,
       message: "Мэдэгдэл амжилттай хадгалагдлаа",
-      data: sonorduulga,
+      data: sonorduulgaList,
+      count: sonorduulgaList.length,
     });
   } catch (error) {
     next(error);
