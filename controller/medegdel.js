@@ -234,8 +234,7 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
 
     // If status is set to "done" with tailbar, send notification back to application
     const statusWasSetToDone = updateFields.status === "done";
-    const hasTailbar = updateFields.tailbar || medegdel.tailbar;
-z    
+    const hasTailbar = updateFields.tailbar || medegdel.tailbar;  
     console.log("🔍 [REPLY CHECK] isReplyableType:", isReplyableType);
     console.log("🔍 [REPLY CHECK] statusWasSetToDone:", statusWasSetToDone);
     console.log("🔍 [REPLY CHECK] hasTailbar:", hasTailbar);
