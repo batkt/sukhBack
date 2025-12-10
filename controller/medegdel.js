@@ -159,7 +159,17 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // ONLY update kharsanEsekh - explicitly exclude everything else
+    // Get the existing medegdel to check its type
+    const existingMedegdel = await Medegdel(kholbolt).findById(id).lean();
+    
+    if (!existingMedegdel) {
+      return res.status(404).json({
+        success: false,
+        message: "Мэдэгдэл олдсонгүй",
+      });
+    }
+
+    // ONLY update specific fields - explicitly exclude everything else
     // Do NOT include baiguullagiinId or tukhainBaaziinKholbolt in the update
     // as they are not document fields, just used for connection lookup
     const updateFields = {
@@ -169,6 +179,36 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
     // Only update kharsanEsekh if it's provided
     if (req.body.kharsanEsekh !== undefined) {
       updateFields.kharsanEsekh = Boolean(req.body.kharsanEsekh);
+    }
+
+    // For gomdol, sanal, huselt - allow updating status and tailbar
+    const allowedTypesForReply = ["sanal", "huselt", "gomdol"];
+    const isReplyableType = existingMedegdel.turul && 
+      allowedTypesForReply.includes(String(existingMedegdel.turul).toLowerCase());
+
+    if (isReplyableType) {
+      // Allow updating status
+      if (req.body.status !== undefined) {
+        const allowedStatuses = ["pending", "in_progress", "done", "cancelled"];
+        if (allowedStatuses.includes(req.body.status)) {
+          updateFields.status = req.body.status;
+          
+          // If status is set to "done", set repliedAt timestamp
+          if (req.body.status === "done") {
+            updateFields.repliedAt = new Date();
+            
+            // Set repliedBy if provided (admin/employee ID)
+            if (req.body.repliedBy) {
+              updateFields.repliedBy = String(req.body.repliedBy);
+            }
+          }
+        }
+      }
+
+      // Allow updating tailbar (reply/notes)
+      if (req.body.tailbar !== undefined) {
+        updateFields.tailbar = String(req.body.tailbar);
+      }
     }
 
     // Use $set to explicitly set only these fields
@@ -190,6 +230,36 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
         success: false,
         message: "Мэдэгдэл олдсонгүй",
       });
+    }
+
+    // If status is set to "done" with tailbar, send notification back to application
+    const statusWasSetToDone = updateFields.status === "done";
+    const hasTailbar = updateFields.tailbar || medegdel.tailbar;
+    
+    if (isReplyableType && statusWasSetToDone && hasTailbar) {
+      try {
+        // Create a reply notification to send to the orshinSuugch
+        const replyMedegdel = new Medegdel(kholbolt)();
+        replyMedegdel.orshinSuugchId = medegdel.orshinSuugchId;
+        replyMedegdel.baiguullagiinId = medegdel.baiguullagiinId;
+        replyMedegdel.barilgiinId = medegdel.barilgiinId || "";
+        replyMedegdel.title = `Хариу: ${medegdel.title || existingMedegdel.title || "Хариу"}`;
+        replyMedegdel.message = updateFields.tailbar || medegdel.tailbar;
+        replyMedegdel.kharsanEsekh = false;
+        replyMedegdel.turul = "хариу"; // Reply type
+        replyMedegdel.ognoo = new Date();
+
+        await replyMedegdel.save();
+
+        // Emit socket event to notify the application
+        const io = req.app.get("socketio");
+        if (io && medegdel.orshinSuugchId) {
+          io.emit("orshinSuugch" + medegdel.orshinSuugchId, replyMedegdel);
+        }
+      } catch (replyError) {
+        console.error("Error sending reply notification:", replyError);
+        // Don't fail the update if reply notification fails
+      }
     }
 
     res.json({
