@@ -149,6 +149,8 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
     const bills = await walletApiService.getBillingBills(userId, billingId);
     const data = Array.isArray(bills) ? bills : [];
     
+    console.log("✅ [WALLET BILLING BILLS] Returning", data.length, "bill(s) for billingId:", billingId);
+    
     res.status(200).json({
       success: true,
       data: data,

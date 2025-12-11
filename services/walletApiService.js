@@ -430,11 +430,16 @@ async function getBillingBills(userId, billingId) {
       }
     );
 
+    console.log("📄 [WALLET API] Billing bills response status:", response.status);
+    console.log("📄 [WALLET API] Billing bills responseCode:", response.data?.responseCode);
+    console.log("📄 [WALLET API] Billing bills response data:", JSON.stringify(response.data));
+
     if (response.data && response.data.responseCode) {
       if (response.data.data) {
         let data = response.data.data;
         
         if (Array.isArray(data)) {
+          console.log("📄 [WALLET API] Billing bills count:", data.length);
           return data.map(item => sanitizeNullValues(item));
         } else if (typeof data === 'object') {
           return [sanitizeNullValues(data)];
@@ -442,6 +447,7 @@ async function getBillingBills(userId, billingId) {
       }
     }
 
+    console.warn("⚠️ [WALLET API] No bills data in response or responseCode is false");
     return [];
   } catch (error) {
     console.error("Error getting billing bills from wallet API:", error.message);
