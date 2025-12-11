@@ -1246,19 +1246,16 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           }
 
           // Automatically connect billing to Wallet API account
-          if (billingInfo.billingId) {
+          if (billingInfo.billingId || billingInfo.customerId) {
             try {
               console.log("🔗 [WALLET LOGIN] Auto-connecting billing to Wallet API account...");
-              console.log("🔗 [WALLET LOGIN] Billing ID:", billingInfo.billingId);
-              const billingData = {
-                billingId: billingInfo.billingId,
-                billingName: billingInfo.billingName || billingInfo.customerName || "Орон сууцны төлбөр",
-              };
-              
-              if (billingInfo.customerId) {
-                billingData.customerId = billingInfo.customerId;
+              if (billingInfo.billingId) {
+                console.log("🔗 [WALLET LOGIN] Billing ID found:", billingInfo.billingId);
               }
-              // Note: customerCode is not allowed in Wallet API saveBilling body
+              // Wallet API doesn't allow billingId in body - use only customerId
+              const billingData = {
+                customerId: billingInfo.customerId,
+              };
 
               // saveBilling requires phoneNumber, not walletUserId
               console.log("🔍 [WALLET LOGIN] Using phoneNumber for saveBilling:", phoneNumber);
@@ -1544,19 +1541,16 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           }
 
           // Automatically connect billing to Wallet API account
-          if (billingInfo.billingId) {
+          if (billingInfo.billingId || billingInfo.customerId) {
             try {
               console.log("🔗 [WALLET REGISTER] Auto-connecting billing to Wallet API account...");
-              console.log("🔗 [WALLET REGISTER] Billing ID:", billingInfo.billingId);
-              const billingData = {
-                billingId: billingInfo.billingId,
-                billingName: billingInfo.billingName || billingInfo.customerName || "Орон сууцны төлбөр",
-              };
-              
-              if (billingInfo.customerId) {
-                billingData.customerId = billingInfo.customerId;
+              if (billingInfo.billingId) {
+                console.log("🔗 [WALLET REGISTER] Billing ID found:", billingInfo.billingId);
               }
-              // Note: customerCode is not allowed in Wallet API saveBilling body
+              // Wallet API doesn't allow billingId in body - use only customerId
+              const billingData = {
+                customerId: billingInfo.customerId,
+              };
 
               // saveBilling requires phoneNumber, not walletUserId
               console.log("🔍 [WALLET REGISTER] Using phoneNumber for saveBilling:", phoneNumber);
@@ -1803,23 +1797,20 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
       throw new aldaa(`Биллингийн мэдээлэл авахад алдаа гарлаа: ${billingError.message}`);
     }
 
-    // Automatically connect billing to Wallet API account if billingId is available
+    // Automatically connect billing to Wallet API account if customerId is available
     let billingConnected = false;
     let connectionError = null;
     
-    if (billingInfo.billingId) {
+    if (billingInfo.billingId || billingInfo.customerId) {
       try {
         console.log("🔗 [WALLET BILLING] Connecting billing to Wallet API account...");
-        console.log("🔗 [WALLET BILLING] Billing ID:", billingInfo.billingId);
-        const billingData = {
-          billingId: billingInfo.billingId,
-          billingName: billingInfo.billingName || billingInfo.customerName || "Орон сууцны төлбөр",
-        };
-        
-        if (billingInfo.customerId) {
-          billingData.customerId = billingInfo.customerId;
+        if (billingInfo.billingId) {
+          console.log("🔗 [WALLET BILLING] Billing ID found:", billingInfo.billingId);
         }
-        // Note: customerCode is not allowed in Wallet API saveBilling body
+        // Wallet API doesn't allow billingId in body - use only customerId
+        const billingData = {
+          customerId: billingInfo.customerId,
+        };
 
         // saveBilling requires phoneNumber, not walletUserId
         const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
