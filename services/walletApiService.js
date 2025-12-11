@@ -488,6 +488,10 @@ async function saveBilling(userId, billingData) {
   try {
     const token = await getWalletServiceToken();
     
+    console.log("💾 [WALLET API] Saving billing...");
+    console.log("💾 [WALLET API] userId:", userId);
+    console.log("💾 [WALLET API] billingData:", JSON.stringify(billingData));
+    
     const response = await axios.post(
       `${WALLET_API_BASE_URL}/api/billing`,
       billingData,
@@ -500,17 +504,26 @@ async function saveBilling(userId, billingData) {
       }
     );
 
+    console.log("💾 [WALLET API] Save billing response status:", response.status);
+    console.log("💾 [WALLET API] Save billing responseCode:", response.data?.responseCode);
+    console.log("💾 [WALLET API] Save billing response data:", JSON.stringify(response.data));
+
     if (response.data && response.data.responseCode && response.data.data) {
+      console.log("✅ [WALLET API] Billing saved successfully");
       return response.data.data;
     }
 
+    console.warn("⚠️ [WALLET API] Save billing responseCode is false or no data");
     throw new Error("Failed to save billing in Wallet API");
   } catch (error) {
-    if (error.response && error.response.data) {
-      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to save billing";
+    if (error.response) {
+      console.error("❌ [WALLET API] Error response status:", error.response.status);
+      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
+      
+      const errorMessage = error.response.data?.responseMsg || error.response.data?.message || "Failed to save billing";
       throw new Error(errorMessage);
     }
-    console.error("Error saving billing in wallet API:", error.message);
+    console.error("❌ [WALLET API] Error saving billing:", error.message);
     throw error;
   }
 }
