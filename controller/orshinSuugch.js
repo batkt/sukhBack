@@ -1084,39 +1084,25 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       ]
     });
 
-    let baiguullagiinId = req.body.baiguullagiinId;
-    
-    if (!baiguullagiinId && orshinSuugch && orshinSuugch.baiguullagiinId) {
-      baiguullagiinId = orshinSuugch.baiguullagiinId;
-      console.log("📋 [WALLET LOGIN] Using existing baiguullagiinId from user record:", baiguullagiinId);
-    }
-
-    if (!baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
-    }
-
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      baiguullagiinId
-    );
-
-    if (!baiguullaga) {
-      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
-    }
-
     const userData = {
       utas: phoneNumber,
       mail: walletUserInfo.email || (orshinSuugch?.mail || ""),
       walletUserId: walletUserInfo.userId,
-      baiguullagiinId: baiguullaga._id,
-      baiguullagiinNer: baiguullaga.ner,
       erkh: "OrshinSuugch",
       nevtrekhNer: phoneNumber,
     };
 
+    // Preserve existing baiguullagiinId if user already has one
+    if (orshinSuugch && orshinSuugch.baiguullagiinId) {
+      userData.baiguullagiinId = orshinSuugch.baiguullagiinId;
+      userData.baiguullagiinNer = orshinSuugch.baiguullagiinNer;
+    }
+
     if (req.body.barilgiinId) {
       userData.barilgiinId = req.body.barilgiinId;
-    } else if (baiguullaga.barilguud && baiguullaga.barilguud.length > 0) {
-      userData.barilgiinId = String(baiguullaga.barilguud[0]._id);
+    } else if (orshinSuugch && orshinSuugch.barilgiinId) {
+      // Preserve existing barilgiinId if user already has one
+      userData.barilgiinId = orshinSuugch.barilgiinId;
     }
 
     if (req.body.duureg) userData.duureg = req.body.duureg;
