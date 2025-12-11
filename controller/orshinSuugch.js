@@ -1112,6 +1112,21 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     if (req.body.davkhar) userData.davkhar = req.body.davkhar;
     if (req.body.orts) userData.orts = req.body.orts;
 
+    // Save address if provided
+    if (req.body.bairId) {
+      userData.walletBairId = req.body.bairId;
+    } else if (orshinSuugch && orshinSuugch.walletBairId) {
+      // Preserve existing walletBairId if user already has one
+      userData.walletBairId = orshinSuugch.walletBairId;
+    }
+
+    if (req.body.doorNo) {
+      userData.walletDoorNo = req.body.doorNo;
+    } else if (orshinSuugch && orshinSuugch.walletDoorNo) {
+      // Preserve existing walletDoorNo if user already has one
+      userData.walletDoorNo = orshinSuugch.walletDoorNo;
+    }
+
     if (orshinSuugch) {
       console.log("🔄 [WALLET LOGIN] Updating existing user:", orshinSuugch._id);
       Object.assign(orshinSuugch, userData);
@@ -1129,6 +1144,86 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     console.log("✅ [WALLET LOGIN] User saved to database:", orshinSuugch._id);
     console.log("✅ [WALLET LOGIN] Saved fields:", Object.keys(userData).join(", "));
 
+    // Automatically fetch and connect billing if address is available
+    let billingInfo = null;
+    const bairIdToUse = req.body.bairId || orshinSuugch.walletBairId;
+    const doorNoToUse = req.body.doorNo || orshinSuugch.walletDoorNo;
+
+    if (bairIdToUse && doorNoToUse) {
+      try {
+        console.log("🏠 [WALLET LOGIN] Auto-fetching billing with saved address...");
+        console.log("🏠 [WALLET LOGIN] bairId:", bairIdToUse, "doorNo:", doorNoToUse);
+        
+        const billingResponse = await walletApiService.getBillingByAddress(
+          phoneNumber,
+          bairIdToUse,
+          doorNoToUse
+        );
+
+        if (billingResponse && billingResponse.length > 0) {
+          billingInfo = billingResponse[0];
+          console.log("✅ [WALLET LOGIN] Billing info found:", billingInfo.customerName);
+
+          // Automatically connect billing to Wallet API account
+          if (billingInfo.billingId) {
+            try {
+              console.log("🔗 [WALLET LOGIN] Auto-connecting billing to Wallet API account...");
+              const billingData = {
+                billingId: billingInfo.billingId,
+                billingName: billingInfo.billingName || billingInfo.customerName || "Орон сууцны төлбөр",
+              };
+              
+              if (billingInfo.customerId) {
+                billingData.customerId = billingInfo.customerId;
+              }
+              if (billingInfo.customerCode) {
+                billingData.customerCode = billingInfo.customerCode;
+              }
+
+              await walletApiService.saveBilling(phoneNumber, billingData);
+              console.log("✅ [WALLET LOGIN] Billing auto-connected to Wallet API account");
+            } catch (connectError) {
+              console.error("⚠️ [WALLET LOGIN] Error auto-connecting billing (continuing anyway):", connectError.message);
+            }
+          }
+
+          // Update user with billing data
+          const updateData = {};
+          if (billingInfo.customerName) {
+            const nameParts = billingInfo.customerName.split(" ");
+            if (nameParts.length >= 2) {
+              updateData.ovog = nameParts[0];
+              updateData.ner = nameParts.slice(1).join(" ");
+            } else {
+              updateData.ner = billingInfo.customerName;
+            }
+          }
+          if (billingInfo.customerAddress) {
+            updateData.bairniiNer = billingInfo.customerAddress;
+          }
+          if (billingInfo.customerId) {
+            updateData.walletCustomerId = billingInfo.customerId;
+          }
+          if (billingInfo.customerCode) {
+            updateData.walletCustomerCode = billingInfo.customerCode;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            Object.assign(orshinSuugch, updateData);
+            await orshinSuugch.save();
+            console.log("✅ [WALLET LOGIN] User updated with billing data");
+          }
+        } else {
+          console.log("⚠️ [WALLET LOGIN] No billing info found for saved address");
+        }
+      } catch (billingError) {
+        // Log error but don't fail login
+        console.error("⚠️ [WALLET LOGIN] Error auto-fetching billing (continuing anyway):", billingError.message);
+      }
+    } else {
+      console.log("ℹ️ [WALLET LOGIN] No address available for auto-billing fetch");
+    }
+
     const token = await orshinSuugch.tokenUusgeye();
 
     const butsaakhObject = {
@@ -1137,6 +1232,10 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       token: token,
       walletUserInfo: walletUserInfo,
     };
+
+    if (billingInfo) {
+      butsaakhObject.billingInfo = billingInfo;
+    }
 
     console.log("✅ [WALLET LOGIN] Login successful for user:", orshinSuugch._id);
     res.status(200).json(butsaakhObject);
@@ -1199,6 +1298,14 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     if (req.body.davkhar) userData.davkhar = req.body.davkhar;
     if (req.body.orts) userData.orts = req.body.orts;
 
+    // Save address if provided
+    if (req.body.bairId) {
+      userData.walletBairId = req.body.bairId;
+    }
+    if (req.body.doorNo) {
+      userData.walletDoorNo = req.body.doorNo;
+    }
+
     if (orshinSuugch) {
       console.log("🔄 [WALLET REGISTER] Updating existing user:", orshinSuugch._id);
       Object.assign(orshinSuugch, userData);
@@ -1215,6 +1322,81 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     await orshinSuugch.save();
     console.log("✅ [WALLET REGISTER] User saved to database:", orshinSuugch._id);
 
+    // Automatically fetch and connect billing if address is provided
+    let billingInfo = null;
+    if (req.body.bairId && req.body.doorNo) {
+      try {
+        console.log("🏠 [WALLET REGISTER] Auto-fetching billing with provided address...");
+        console.log("🏠 [WALLET REGISTER] bairId:", req.body.bairId, "doorNo:", req.body.doorNo);
+        
+        const billingResponse = await walletApiService.getBillingByAddress(
+          phoneNumber,
+          req.body.bairId,
+          req.body.doorNo
+        );
+
+        if (billingResponse && billingResponse.length > 0) {
+          billingInfo = billingResponse[0];
+          console.log("✅ [WALLET REGISTER] Billing info found:", billingInfo.customerName);
+
+          // Automatically connect billing to Wallet API account
+          if (billingInfo.billingId) {
+            try {
+              console.log("🔗 [WALLET REGISTER] Auto-connecting billing to Wallet API account...");
+              const billingData = {
+                billingId: billingInfo.billingId,
+                billingName: billingInfo.billingName || billingInfo.customerName || "Орон сууцны төлбөр",
+              };
+              
+              if (billingInfo.customerId) {
+                billingData.customerId = billingInfo.customerId;
+              }
+              if (billingInfo.customerCode) {
+                billingData.customerCode = billingInfo.customerCode;
+              }
+
+              await walletApiService.saveBilling(phoneNumber, billingData);
+              console.log("✅ [WALLET REGISTER] Billing auto-connected to Wallet API account");
+            } catch (connectError) {
+              console.error("⚠️ [WALLET REGISTER] Error auto-connecting billing (continuing anyway):", connectError.message);
+            }
+          }
+
+          // Update user with billing data
+          const updateData = {};
+          if (billingInfo.customerName) {
+            const nameParts = billingInfo.customerName.split(" ");
+            if (nameParts.length >= 2) {
+              updateData.ovog = nameParts[0];
+              updateData.ner = nameParts.slice(1).join(" ");
+            } else {
+              updateData.ner = billingInfo.customerName;
+            }
+          }
+          if (billingInfo.customerAddress) {
+            updateData.bairniiNer = billingInfo.customerAddress;
+          }
+          if (billingInfo.customerId) {
+            updateData.walletCustomerId = billingInfo.customerId;
+          }
+          if (billingInfo.customerCode) {
+            updateData.walletCustomerCode = billingInfo.customerCode;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            Object.assign(orshinSuugch, updateData);
+            await orshinSuugch.save();
+            console.log("✅ [WALLET REGISTER] User updated with billing data");
+          }
+        } else {
+          console.log("⚠️ [WALLET REGISTER] No billing info found for provided address");
+        }
+      } catch (billingError) {
+        // Log error but don't fail registration
+        console.error("⚠️ [WALLET REGISTER] Error auto-fetching billing (continuing anyway):", billingError.message);
+      }
+    }
+
     const token = await orshinSuugch.tokenUusgeye();
 
     const butsaakhObject = {
@@ -1224,6 +1406,10 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       walletUserInfo: walletUserInfo,
       message: "Хэтэвчний системд амжилттай бүртгүүлж, нэвтэрлээ",
     };
+
+    if (billingInfo) {
+      butsaakhObject.billingInfo = billingInfo;
+    }
 
     console.log("✅ [WALLET REGISTER] Registration and login successful for user:", orshinSuugch._id);
     res.status(200).json(butsaakhObject);
