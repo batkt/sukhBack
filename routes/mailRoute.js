@@ -1,7 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const axios = require("axios");
-const { tokenShalgakh, Dugaarlalt, MaililgeesenKhariu, TodorkhoiloltiinTuukh } = require("zevbackv2");
+const {
+  tokenShalgakh,
+  Dugaarlalt,
+  MaililgeesenKhariu,
+  TodorkhoiloltiinTuukh,
+} = require("zevbackv2");
 const Baiguullaga = require("../models/baiguullaga");
 const Geree = require("../models/geree");
 const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
