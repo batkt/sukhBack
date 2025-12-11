@@ -1177,9 +1177,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             try {
               console.log("🔍 [WALLET LOGIN] Billing ID not found, fetching by customer ID...");
               console.log("🔍 [WALLET LOGIN] Customer ID:", billingInfo.customerId);
-              const userIdForWallet = walletUserInfo.userId || phoneNumber;
+              // Wallet API userId means phoneNumber
               const billingByCustomer = await walletApiService.getBillingByCustomer(
-                userIdForWallet,
+                phoneNumber,
                 billingInfo.customerId
               );
               if (billingByCustomer && billingByCustomer.billingId) {
@@ -1193,8 +1193,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 // Try to find billingId from billing list
                 try {
                   console.log("🔍 [WALLET LOGIN] Trying to find billingId from billing list...");
-                  const userIdForWallet = walletUserInfo.userId || phoneNumber;
-                  const billingList = await walletApiService.getBillingList(userIdForWallet);
+                  // Wallet API userId means phoneNumber
+                  const billingList = await walletApiService.getBillingList(phoneNumber);
                   if (billingList && billingList.length > 0) {
                     // Try to find matching billing by customerId
                     const matchingBilling = billingList.find(b => 
@@ -1227,8 +1227,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
               // Try billing list as fallback
               try {
                 console.log("🔍 [WALLET LOGIN] Trying billing list as fallback...");
-                const userIdForWallet = walletUserInfo.userId || phoneNumber;
-                const billingList = await walletApiService.getBillingList(userIdForWallet);
+                // Wallet API userId means phoneNumber
+                const billingList = await walletApiService.getBillingList(phoneNumber);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
                     b.customerId === billingInfo.customerId
@@ -1262,8 +1262,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 billingData.customerCode = billingInfo.customerCode;
               }
 
-              const userIdForWallet = walletUserInfo.userId || phoneNumber;
-              const connectResult = await walletApiService.saveBilling(userIdForWallet, billingData);
+              // saveBilling requires phoneNumber, not walletUserId
+              console.log("🔍 [WALLET LOGIN] Using phoneNumber for saveBilling:", phoneNumber);
+              const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
               console.log("✅ [WALLET LOGIN] Billing auto-connected to Wallet API account");
               console.log("✅ [WALLET LOGIN] Connection result:", JSON.stringify(connectResult));
             } catch (connectError) {
@@ -1287,8 +1288,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 };
 
                 // Try to save without billingId - Wallet API might create it
-                const userIdForWallet = walletUserInfo.userId || phoneNumber;
-                const connectResult = await walletApiService.saveBilling(userIdForWallet, billingData);
+                // saveBilling requires phoneNumber, not walletUserId
+                console.log("🔍 [WALLET LOGIN] Using phoneNumber for saveBilling:", phoneNumber);
+                const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
                 console.log("✅ [WALLET LOGIN] Billing connected without billingId");
                 console.log("✅ [WALLET LOGIN] Connection result:", JSON.stringify(connectResult));
                 
@@ -1483,9 +1485,9 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
             try {
               console.log("🔍 [WALLET REGISTER] Billing ID not found, fetching by customer ID...");
               console.log("🔍 [WALLET REGISTER] Customer ID:", billingInfo.customerId);
-              const userIdForWallet = walletUserInfo.userId || phoneNumber;
+              // Wallet API userId means phoneNumber
               const billingByCustomer = await walletApiService.getBillingByCustomer(
-                userIdForWallet,
+                phoneNumber,
                 billingInfo.customerId
               );
               if (billingByCustomer && billingByCustomer.billingId) {
@@ -1498,8 +1500,8 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                 // Try to find billingId from billing list
                 try {
                   console.log("🔍 [WALLET REGISTER] Trying to find billingId from billing list...");
-                  const userIdForWallet = walletUserInfo.userId || phoneNumber;
-                  const billingList = await walletApiService.getBillingList(userIdForWallet);
+                  // Wallet API userId means phoneNumber
+                  const billingList = await walletApiService.getBillingList(phoneNumber);
                   if (billingList && billingList.length > 0) {
                     const matchingBilling = billingList.find(b => 
                       b.customerId === billingInfo.customerId || 
@@ -1525,8 +1527,8 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
               // Try billing list as fallback
               try {
                 console.log("🔍 [WALLET REGISTER] Trying billing list as fallback...");
-                const userIdForWallet = walletUserInfo.userId || phoneNumber;
-                const billingList = await walletApiService.getBillingList(userIdForWallet);
+                // Wallet API userId means phoneNumber
+                const billingList = await walletApiService.getBillingList(phoneNumber);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
                     b.customerId === billingInfo.customerId
@@ -1560,8 +1562,9 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                 billingData.customerCode = billingInfo.customerCode;
               }
 
-              const userIdForWallet = walletUserInfo.userId || phoneNumber;
-              const connectResult = await walletApiService.saveBilling(userIdForWallet, billingData);
+              // saveBilling requires phoneNumber, not walletUserId
+              console.log("🔍 [WALLET REGISTER] Using phoneNumber for saveBilling:", phoneNumber);
+              const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
               console.log("✅ [WALLET REGISTER] Billing auto-connected to Wallet API account");
               console.log("✅ [WALLET REGISTER] Connection result:", JSON.stringify(connectResult));
             } catch (connectError) {
@@ -1585,8 +1588,9 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                 };
 
                 // Try to save without billingId - Wallet API might create it
-                const userIdForWallet = walletUserInfo.userId || phoneNumber;
-                const connectResult = await walletApiService.saveBilling(userIdForWallet, billingData);
+                // saveBilling requires phoneNumber, not walletUserId
+                console.log("🔍 [WALLET REGISTER] Using phoneNumber for saveBilling:", phoneNumber);
+                const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
                 console.log("✅ [WALLET REGISTER] Billing connected without billingId");
                 console.log("✅ [WALLET REGISTER] Connection result:", JSON.stringify(connectResult));
                 
@@ -1702,12 +1706,11 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
     }
 
     const phoneNumber = orshinSuugch.utas;
-    const walletUserId = orshinSuugch.walletUserId || phoneNumber;
     const bairId = req.body.bairId;
     const doorNo = req.body.doorNo;
 
     console.log("🏠 [WALLET BILLING] Fetching billing info from Wallet API...");
-    console.log("🏠 [WALLET BILLING] User:", phoneNumber, "walletUserId:", walletUserId, "bairId:", bairId, "doorNo:", doorNo);
+    console.log("🏠 [WALLET BILLING] User:", phoneNumber, "bairId:", bairId, "doorNo:", doorNo);
 
     let billingInfo = null;
     try {
@@ -1730,8 +1733,9 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           try {
             console.log("🔍 [WALLET BILLING] Billing ID not found, fetching by customer ID...");
             console.log("🔍 [WALLET BILLING] Customer ID:", billingInfo.customerId);
+            // Wallet API userId means phoneNumber
             const billingByCustomer = await walletApiService.getBillingByCustomer(
-              walletUserId,
+              phoneNumber,
               billingInfo.customerId
             );
             if (billingByCustomer && billingByCustomer.billingId) {
@@ -1744,7 +1748,8 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
               // Try to find billingId from billing list
               try {
                 console.log("🔍 [WALLET BILLING] Trying to find billingId from billing list...");
-                const billingList = await walletApiService.getBillingList(walletUserId);
+                // Wallet API userId means phoneNumber
+                const billingList = await walletApiService.getBillingList(phoneNumber);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
                     b.customerId === billingInfo.customerId || 
@@ -1773,7 +1778,8 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
             // Try billing list as fallback
             try {
               console.log("🔍 [WALLET BILLING] Trying billing list as fallback...");
-                const billingList = await walletApiService.getBillingList(walletUserId);
+                // Wallet API userId means phoneNumber
+                const billingList = await walletApiService.getBillingList(phoneNumber);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
                     b.customerId === billingInfo.customerId
@@ -1821,7 +1827,8 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           billingData.customerCode = billingInfo.customerCode;
         }
 
-        const connectResult = await walletApiService.saveBilling(walletUserId, billingData);
+        // saveBilling requires phoneNumber, not walletUserId
+        const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
         console.log("✅ [WALLET BILLING] Billing connected to Wallet API account");
         console.log("✅ [WALLET BILLING] Connection result:", JSON.stringify(connectResult));
         billingConnected = true;
@@ -1849,7 +1856,8 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           }
 
           // Try to save with just customerId - Wallet API will return billingId
-          const connectResult = await walletApiService.saveBilling(walletUserId, billingData);
+          // saveBilling requires phoneNumber, not walletUserId
+          const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
           console.log("✅ [WALLET BILLING] Billing connected without billingId");
           console.log("✅ [WALLET BILLING] Connection result:", JSON.stringify(connectResult));
           
