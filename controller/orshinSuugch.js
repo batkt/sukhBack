@@ -1258,9 +1258,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
               if (billingInfo.customerId) {
                 billingData.customerId = billingInfo.customerId;
               }
-              if (billingInfo.customerCode) {
-                billingData.customerCode = billingInfo.customerCode;
-              }
+              // Note: customerCode is not allowed in Wallet API saveBilling body
 
               // saveBilling requires phoneNumber, not walletUserId
               console.log("🔍 [WALLET LOGIN] Using phoneNumber for saveBilling:", phoneNumber);
@@ -1558,9 +1556,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
               if (billingInfo.customerId) {
                 billingData.customerId = billingInfo.customerId;
               }
-              if (billingInfo.customerCode) {
-                billingData.customerCode = billingInfo.customerCode;
-              }
+              // Note: customerCode is not allowed in Wallet API saveBilling body
 
               // saveBilling requires phoneNumber, not walletUserId
               console.log("🔍 [WALLET REGISTER] Using phoneNumber for saveBilling:", phoneNumber);
@@ -1823,9 +1819,7 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
         if (billingInfo.customerId) {
           billingData.customerId = billingInfo.customerId;
         }
-        if (billingInfo.customerCode) {
-          billingData.customerCode = billingInfo.customerCode;
-        }
+        // Note: customerCode is not allowed in Wallet API saveBilling body
 
         // saveBilling requires phoneNumber, not walletUserId
         const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
@@ -1847,13 +1841,10 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           console.log("🔗 [WALLET BILLING] Attempting to connect billing without billingId...");
           console.log("🔗 [WALLET BILLING] Using customerId:", billingInfo.customerId);
           
+          // Send only customerId - Wallet API doesn't allow customerCode in body
           const billingData = {
             customerId: billingInfo.customerId,
           };
-          
-          if (billingInfo.customerCode) {
-            billingData.customerCode = billingInfo.customerCode;
-          }
 
           // Try to save with just customerId - Wallet API will return billingId
           // saveBilling requires phoneNumber, not walletUserId
