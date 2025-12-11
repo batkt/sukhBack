@@ -1167,7 +1167,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           doorNoToUse
         );
 
-        if (billingResponse && billingResponse.length > 0) {
+        if (billingResponse && Array.isArray(billingResponse) && billingResponse.length > 0) {
           billingInfo = billingResponse[0];
           console.log("✅ [WALLET LOGIN] Billing info found:", billingInfo.customerName);
           
@@ -1452,13 +1452,14 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
         console.log("🏠 [WALLET REGISTER] Auto-fetching billing with provided address...");
         console.log("🏠 [WALLET REGISTER] bairId:", req.body.bairId, "doorNo:", req.body.doorNo);
         
+        const userIdForWallet = walletUserInfo.userId || phoneNumber;
         const billingResponse = await walletApiService.getBillingByAddress(
-          phoneNumber,
+          userIdForWallet,
           req.body.bairId,
           req.body.doorNo
         );
 
-        if (billingResponse && billingResponse.length > 0) {
+        if (billingResponse && Array.isArray(billingResponse) && billingResponse.length > 0) {
           billingInfo = billingResponse[0];
           console.log("✅ [WALLET REGISTER] Billing info found:", billingInfo.customerName);
           
