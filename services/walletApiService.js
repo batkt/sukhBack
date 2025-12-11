@@ -124,6 +124,11 @@ async function getBillingByAddress(userId, bairId, doorNo) {
   try {
     const token = await getWalletServiceToken();
     
+    console.log("🔍 [WALLET API] Fetching billing by address...");
+    console.log("🔍 [WALLET API] userId:", userId);
+    console.log("🔍 [WALLET API] bairId:", bairId);
+    console.log("🔍 [WALLET API] doorNo:", doorNo);
+    
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${doorNo}`,
       {
@@ -134,16 +139,34 @@ async function getBillingByAddress(userId, bairId, doorNo) {
       }
     );
 
+    console.log("📋 [WALLET API] Billing by address response status:", response.status);
+    console.log("📋 [WALLET API] Billing by address responseCode:", response.data?.responseCode);
+    console.log("📋 [WALLET API] Billing by address response data:", JSON.stringify(response.data));
+
     if (response.data && response.data.responseCode && response.data.data) {
-      return response.data.data;
+      // Ensure we return an array
+      const data = response.data.data;
+      if (Array.isArray(data)) {
+        return data;
+      } else if (typeof data === 'object') {
+        return [data];
+      }
+      return [];
     }
 
-    return null;
+    console.warn("⚠️ [WALLET API] No billing data in response");
+    return [];
   } catch (error) {
-    if (error.response && error.response.status === 404) {
-      return null;
+    if (error.response) {
+      console.error("❌ [WALLET API] Error response status:", error.response.status);
+      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
+      
+      if (error.response.status === 404) {
+        console.warn("⚠️ [WALLET API] Billing not found for address (404)");
+        return [];
+      }
     }
-    console.error("Error getting billing by address from wallet API:", error.message);
+    console.error("❌ [WALLET API] Error getting billing by address:", error.message);
     throw error;
   }
 }

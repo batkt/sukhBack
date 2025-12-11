@@ -1161,11 +1161,13 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         const userIdForWallet = walletUserInfo.userId || phoneNumber;
         console.log("🔍 [WALLET LOGIN] Using userId for Wallet API:", userIdForWallet);
         
+        console.log("🔍 [WALLET LOGIN] About to call getBillingByAddress...");
         const billingResponse = await walletApiService.getBillingByAddress(
           userIdForWallet,
           bairIdToUse,
           doorNoToUse
         );
+        console.log("🔍 [WALLET LOGIN] getBillingByAddress returned:", JSON.stringify(billingResponse));
 
         if (billingResponse && Array.isArray(billingResponse) && billingResponse.length > 0) {
           billingInfo = billingResponse[0];
@@ -1338,10 +1340,23 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           }
         } else {
           console.log("⚠️ [WALLET LOGIN] No billing info found for saved address");
+          console.log("⚠️ [WALLET LOGIN] billingResponse:", JSON.stringify(billingResponse));
+          console.log("⚠️ [WALLET LOGIN] billingResponse type:", typeof billingResponse);
+          console.log("⚠️ [WALLET LOGIN] billingResponse is array:", Array.isArray(billingResponse));
+          if (billingResponse) {
+            console.log("⚠️ [WALLET LOGIN] billingResponse length:", billingResponse.length);
+          }
         }
       } catch (billingError) {
         // Log error but don't fail login
         console.error("⚠️ [WALLET LOGIN] Error auto-fetching billing (continuing anyway):", billingError.message);
+        if (billingError.response) {
+          console.error("⚠️ [WALLET LOGIN] Error response status:", billingError.response.status);
+          console.error("⚠️ [WALLET LOGIN] Error response data:", JSON.stringify(billingError.response.data));
+        }
+        if (billingError.stack) {
+          console.error("⚠️ [WALLET LOGIN] Error stack:", billingError.stack);
+        }
       }
     } else {
       console.log("ℹ️ [WALLET LOGIN] No address available for auto-billing fetch");
