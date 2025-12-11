@@ -1178,17 +1178,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     const phoneNumber = String(req.body.utas).trim();
     const email = String(req.body.mail).trim();
 
-    let baiguullaga = null;
-    if (req.body.baiguullagiinId) {
-      baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-        req.body.baiguullagiinId
-      );
-
-      if (!baiguullaga) {
-        throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
-      }
-    }
-
     console.log("📞 [WALLET REGISTER] Registering user in Wallet API...");
     const walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
 
@@ -1197,18 +1186,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     console.log("✅ [WALLET REGISTER] User registered in Wallet API:", walletUserInfo.userId);
-
-    if (!baiguullaga) {
-      console.log("⚠️ [WALLET REGISTER] No baiguullagiinId provided - only registering in Wallet API");
-      res.status(200).json({
-        success: true,
-        message: "Хэтэвчний системд амжилттай бүртгүүллээ. Нэвтрэхийн тулд байгууллагын ID шаардлагатай.",
-        data: walletUserInfo,
-        requiresBaiguullagiinId: true,
-      });
-      return;
-    }
-
 
     let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [
@@ -1221,16 +1198,12 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       utas: phoneNumber,
       mail: walletUserInfo.email || email,
       walletUserId: walletUserInfo.userId,
-      baiguullagiinId: baiguullaga._id,
-      baiguullagiinNer: baiguullaga.ner,
       erkh: "OrshinSuugch",
       nevtrekhNer: phoneNumber,
     };
 
     if (req.body.barilgiinId) {
       userData.barilgiinId = req.body.barilgiinId;
-    } else if (baiguullaga.barilguud && baiguullaga.barilguud.length > 0) {
-      userData.barilgiinId = String(baiguullaga.barilguud[0]._id);
     }
 
     if (req.body.duureg) userData.duureg = req.body.duureg;
