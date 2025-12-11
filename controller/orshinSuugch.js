@@ -1288,6 +1288,7 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
         console.log("✅ [WALLET BILLING] Billing info found:", billingInfo.customerName);
         console.log("✅ [WALLET BILLING] Customer ID:", billingInfo.customerId);
         console.log("✅ [WALLET BILLING] Customer Code:", billingInfo.customerCode);
+        console.log("✅ [WALLET BILLING] Billing ID:", billingInfo.billingId);
       } else {
         console.log("⚠️ [WALLET BILLING] No billing info found for this address");
         return res.status(404).json({
@@ -1298,6 +1299,30 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
     } catch (billingError) {
       console.error("❌ [WALLET BILLING] Error fetching billing info:", billingError.message);
       throw new aldaa(`Биллингийн мэдээлэл авахад алдаа гарлаа: ${billingError.message}`);
+    }
+
+    // Automatically connect billing to Wallet API account if billingId is available
+    if (billingInfo.billingId) {
+      try {
+        console.log("🔗 [WALLET BILLING] Connecting billing to Wallet API account...");
+        const billingData = {
+          billingId: billingInfo.billingId,
+          billingName: billingInfo.billingName || billingInfo.customerName || "Орон сууцны төлбөр",
+        };
+        
+        if (billingInfo.customerId) {
+          billingData.customerId = billingInfo.customerId;
+        }
+        if (billingInfo.customerCode) {
+          billingData.customerCode = billingInfo.customerCode;
+        }
+
+        await walletApiService.saveBilling(phoneNumber, billingData);
+        console.log("✅ [WALLET BILLING] Billing connected to Wallet API account");
+      } catch (connectError) {
+        // Log error but don't fail - billing info is still saved locally
+        console.error("⚠️ [WALLET BILLING] Error connecting billing (continuing anyway):", connectError.message);
+      }
     }
 
     const updateData = {};
