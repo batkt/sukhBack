@@ -146,6 +146,18 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
     }
 
+    // Verify user exists in Wallet API before making the call
+    try {
+      const walletUserInfo = await walletApiService.getUserInfo(userId);
+      if (!walletUserInfo || !walletUserInfo.userId) {
+        throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд нэвтэрнэ үү.");
+      }
+      console.log("✅ [WALLET BILLING BILLS] User verified in Wallet API");
+    } catch (userCheckError) {
+      console.error("❌ [WALLET BILLING BILLS] User not found in Wallet API:", userCheckError.message);
+      throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд нэвтэрнэ үү.");
+    }
+
     const bills = await walletApiService.getBillingBills(userId, billingId);
     const data = Array.isArray(bills) ? bills : [];
     
