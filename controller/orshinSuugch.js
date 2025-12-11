@@ -1157,13 +1157,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         console.log("🏠 [WALLET LOGIN] Auto-fetching billing with saved address...");
         console.log("🏠 [WALLET LOGIN] bairId:", bairIdToUse, "doorNo:", doorNoToUse);
         
-        // Use walletUserId if available, otherwise use phoneNumber
-        const userIdForWallet = walletUserInfo.userId || phoneNumber;
-        console.log("🔍 [WALLET LOGIN] Using userId for Wallet API:", userIdForWallet);
+        // getBillingByAddress requires phoneNumber, not walletUserId
+        console.log("🔍 [WALLET LOGIN] Using phoneNumber for getBillingByAddress:", phoneNumber);
         
         console.log("🔍 [WALLET LOGIN] About to call getBillingByAddress...");
         const billingResponse = await walletApiService.getBillingByAddress(
-          userIdForWallet,
+          phoneNumber,
           bairIdToUse,
           doorNoToUse
         );
@@ -1467,9 +1466,10 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
         console.log("🏠 [WALLET REGISTER] Auto-fetching billing with provided address...");
         console.log("🏠 [WALLET REGISTER] bairId:", req.body.bairId, "doorNo:", req.body.doorNo);
         
-        const userIdForWallet = walletUserInfo.userId || phoneNumber;
+        // getBillingByAddress requires phoneNumber, not walletUserId
+        console.log("🔍 [WALLET REGISTER] Using phoneNumber for getBillingByAddress:", phoneNumber);
         const billingResponse = await walletApiService.getBillingByAddress(
-          userIdForWallet,
+          phoneNumber,
           req.body.bairId,
           req.body.doorNo
         );
@@ -1711,8 +1711,9 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
 
     let billingInfo = null;
     try {
+      // getBillingByAddress requires phoneNumber, not walletUserId
       const billingResponse = await walletApiService.getBillingByAddress(
-        walletUserId,
+        phoneNumber,
         bairId,
         doorNo
       );
