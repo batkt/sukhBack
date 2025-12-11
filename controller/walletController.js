@@ -104,9 +104,22 @@ exports.walletBillingByCustomer = asyncHandler(async (req, res, next) => {
 exports.walletBillingList = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
+    console.log("📋 [WALLET BILLING LIST] Fetching billing list for user:", userId);
+    
     const billingList = await walletApiService.getBillingList(userId);
     
     const data = Array.isArray(billingList) ? billingList : [];
+    
+    console.log("✅ [WALLET BILLING LIST] Returning", data.length, "billing(s)");
+    if (data.length > 0) {
+      console.log("✅ [WALLET BILLING LIST] First billing:", {
+        billingId: data[0].billingId,
+        billingName: data[0].billingName,
+        customerName: data[0].customerName,
+        hasPayableBills: data[0].hasPayableBills,
+        payableBillCount: data[0].payableBillCount,
+      });
+    }
     
     res.status(200).json({
       success: true,

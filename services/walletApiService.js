@@ -363,21 +363,27 @@ async function getBillingList(userId) {
       },
     });
 
+    console.log("📋 [WALLET API] Billing list response status:", response.status);
+    console.log("📋 [WALLET API] Billing list responseCode:", response.data?.responseCode);
+    console.log("📋 [WALLET API] Billing list count:", response.data?.data?.length || 0);
+
     if (response.data && response.data.responseCode) {
       if (response.data.data) {
         if (Array.isArray(response.data.data)) {
-          return response.data.data;
+          // Sanitize null values in each billing item
+          return response.data.data.map(item => sanitizeNullValues(item));
         } else if (typeof response.data.data === 'object') {
-          return [response.data.data];
+          return [sanitizeNullValues(response.data.data)];
         }
       }
     }
 
     return [];
   } catch (error) {
-    console.error("Error getting billing list from wallet API:", error.message);
+    console.error("❌ [WALLET API] Error getting billing list:", error.message);
     if (error.response) {
-      console.error("Error response data:", JSON.stringify(error.response.data));
+      console.error("❌ [WALLET API] Error response status:", error.response.status);
+      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
     }
     throw error;
   }
