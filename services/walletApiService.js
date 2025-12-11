@@ -416,11 +416,15 @@ async function getBillingBills(userId, billingId) {
   try {
     const token = await getWalletServiceToken();
     
+    console.log("📄 [WALLET API] Getting billing bills...");
+    console.log("📄 [WALLET API] userId (should be phoneNumber):", userId);
+    console.log("📄 [WALLET API] billingId:", billingId);
+    
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/billing/bills/${billingId}`,
       {
         headers: {
-          userId: userId,
+          userId: userId,  // Should be phoneNumber
           Authorization: `Bearer ${token}`,
         },
       }

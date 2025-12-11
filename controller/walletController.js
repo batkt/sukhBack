@@ -136,8 +136,11 @@ exports.walletBillingList = asyncHandler(async (req, res, next) => {
 
 exports.walletBillingBills = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const userId = await getUserIdFromToken(req);  // Returns phoneNumber (utas)
     const { billingId } = req.params;
+    
+    console.log("📄 [WALLET BILLING BILLS] Fetching bills for billingId:", billingId);
+    console.log("📄 [WALLET BILLING BILLS] Using userId (phoneNumber):", userId);
     
     if (!billingId) {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
