@@ -309,38 +309,32 @@ async function getBair(khorooId) {
  */
 async function getOwnOrgCities() {
   try {
-    // TODO: Replace with your own database query
-    // Example: Fetch from a cities collection or extract unique cities from baiguullaga
+    console.log("📡 [ADDRESS SERVICE] Fetching cities from baiguullaga...");
     
-    // Option 1: If you have a separate cities collection
-    // const Cities = require("../models/city");
-    // const cities = await Cities.find({}).select("_id name code").lean();
-    // return cities.map(city => ({
-    //   cityId: city._id.toString(),
-    //   cityName: city.name,
-    //   cityCode: city.code
-    // }));
-
-    // Option 2: Extract unique cities from baiguullaga addresses
     const kholboltuud = db.kholboltuud || [];
     const uniqueCities = new Set();
     const cities = [];
 
     for (const kholbolt of kholboltuud) {
       try {
-        const baiguullaguud = await Baiguullaga(kholbolt).find({}).select("barilguud.tokhirgoo.duuregNer").lean();
+        // Select both EbarimtDuuregNer and duuregNer to determine city/district
+        const baiguullaguud = await Baiguullaga(kholbolt).find({}).select("barilguud.tokhirgoo.EbarimtDuuregNer barilguud.tokhirgoo.duuregNer barilguud.tokhirgoo.EbarimtDistrictCode").lean();
         
         for (const baiguullaga of baiguullaguud) {
           if (baiguullaga.barilguud && Array.isArray(baiguullaga.barilguud)) {
             for (const barilga of baiguullaga.barilguud) {
-              if (barilga.tokhirgoo && barilga.tokhirgoo.duuregNer) {
-                const cityName = barilga.tokhirgoo.duuregNer;
-                if (!uniqueCities.has(cityName)) {
+              if (barilga.tokhirgoo) {
+                // Use EbarimtDuuregNer as primary city/district identifier
+                // If not available, use duuregNer as fallback
+                // Both represent districts, but we'll use them as city identifiers for now
+                const cityName = barilga.tokhirgoo.EbarimtDuuregNer || barilga.tokhirgoo.duuregNer;
+                
+                if (cityName && !uniqueCities.has(cityName)) {
                   uniqueCities.add(cityName);
                   cities.push({
                     cityId: `own_${cityName.replace(/\s+/g, '_').toLowerCase()}`,
                     cityName: cityName,
-                    cityCode: barilga.tokhirgoo.districtCode || ""
+                    cityCode: barilga.tokhirgoo.EbarimtDistrictCode || ""
                   });
                 }
               }
@@ -352,6 +346,7 @@ async function getOwnOrgCities() {
       }
     }
 
+    console.log(`✅ [ADDRESS SERVICE] Found ${cities.length} unique cities from baiguullaga`);
     return cities;
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error getting cities from own organization:", error.message);
@@ -366,8 +361,7 @@ async function getOwnOrgCities() {
  */
 async function getOwnOrgDistricts(cityId) {
   try {
-    // TODO: Replace with your own database query
-    // Extract districts from baiguullaga based on city
+    console.log("📡 [ADDRESS SERVICE] Fetching districts from baiguullaga for cityId:", cityId);
     
     const kholboltuud = db.kholboltuud || [];
     const uniqueDistricts = new Set();
@@ -379,6 +373,7 @@ async function getOwnOrgDistricts(cityId) {
       : null;
 
     if (!cityName) {
+      console.log("⚠️ [ADDRESS SERVICE] cityId is not from own org, skipping");
       return [];
     }
 
@@ -389,17 +384,32 @@ async function getOwnOrgDistricts(cityId) {
         for (const baiguullaga of baiguullaguud) {
           if (baiguullaga.barilguud && Array.isArray(baiguullaga.barilguud)) {
             for (const barilga of baiguullaga.barilguud) {
-              if (barilga.tokhirgoo && 
-                  barilga.tokhirgoo.duuregNer === cityName &&
-                  barilga.tokhirgoo.districtCode) {
-                const districtKey = `${barilga.tokhirgoo.districtCode}_${barilga.tokhirgoo.duuregNer}`;
-                if (!uniqueDistricts.has(districtKey)) {
-                  uniqueDistricts.add(districtKey);
-                  districts.push({
-                    districtId: `own_${barilga.tokhirgoo.districtCode}`,
-                    districtName: barilga.tokhirgoo.duuregNer || "",
-                    districtCode: barilga.tokhirgoo.districtCode
-                  });
+              if (barilga.tokhirgoo) {
+                // Match by EbarimtDuuregNer or duuregNer (both can be city/district names)
+                const barilgaCity = barilga.tokhirgoo.EbarimtDuuregNer || barilga.tokhirgoo.duuregNer;
+                
+                if (barilgaCity === cityName && barilga.tokhirgoo.duuregNer) {
+                  // Use duuregNer as district name
+                  const districtName = barilga.tokhirgoo.duuregNer;
+                  // Extract district code from districtCode if it's a combined string
+                  // districtCode might be like "Сүхбаатар1-р хороо", extract just the district part
+                  let districtCode = barilga.tokhirgoo.districtCode || "";
+                  
+                  // If districtCode contains the district name, use it as is
+                  // Otherwise, use duuregNer as code
+                  if (!districtCode || districtCode === districtName) {
+                    districtCode = districtName;
+                  }
+                  
+                  const districtKey = `${districtCode}_${districtName}`;
+                  if (!uniqueDistricts.has(districtKey)) {
+                    uniqueDistricts.add(districtKey);
+                    districts.push({
+                      districtId: `own_${districtCode.replace(/\s+/g, '_').toLowerCase()}`,
+                      districtName: districtName,
+                      districtCode: districtCode
+                    });
+                  }
                 }
               }
             }
@@ -410,6 +420,7 @@ async function getOwnOrgDistricts(cityId) {
       }
     }
 
+    console.log(`✅ [ADDRESS SERVICE] Found ${districts.length} districts from baiguullaga`);
     return districts;
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error getting districts from own organization:", error.message);
@@ -424,8 +435,7 @@ async function getOwnOrgDistricts(cityId) {
  */
 async function getOwnOrgKhoroo(districtId) {
   try {
-    // TODO: Replace with your own database query
-    // Extract khoroos from baiguullaga based on district
+    console.log("📡 [ADDRESS SERVICE] Fetching khoroos from baiguullaga for districtId:", districtId);
     
     const kholboltuud = db.kholboltuud || [];
     const uniqueKhoroos = new Set();
@@ -433,10 +443,11 @@ async function getOwnOrgKhoroo(districtId) {
 
     // If districtId starts with "own_", it's from our own org
     const districtCode = districtId.startsWith("own_") 
-      ? districtId.replace("own_", "")
+      ? districtId.replace("own_", "").replace(/_/g, " ")
       : null;
 
     if (!districtCode) {
+      console.log("⚠️ [ADDRESS SERVICE] districtId is not from own org, skipping");
       return [];
     }
 
@@ -448,13 +459,16 @@ async function getOwnOrgKhoroo(districtId) {
           if (baiguullaga.barilguud && Array.isArray(baiguullaga.barilguud)) {
             for (const barilga of baiguullaga.barilguud) {
               if (barilga.tokhirgoo && 
-                  barilga.tokhirgoo.districtCode === districtCode &&
-                  barilga.tokhirgoo.horoo) {
+                  barilga.tokhirgoo.duuregNer &&
+                  (barilga.tokhirgoo.duuregNer === districtCode || 
+                   barilga.tokhirgoo.districtCode === districtCode) &&
+                  barilga.tokhirgoo.horoo &&
+                  barilga.tokhirgoo.horoo.kod) {
                 const khorooKey = `${barilga.tokhirgoo.horoo.kod}_${barilga.tokhirgoo.horoo.ner}`;
                 if (!uniqueKhoroos.has(khorooKey)) {
                   uniqueKhoroos.add(khorooKey);
                   khoroos.push({
-                    khorooId: `own_${barilga.tokhirgoo.horoo.kod}`,
+                    khorooId: `own_${barilga.tokhirgoo.horoo.kod.replace(/\s+/g, '_').toLowerCase()}`,
                     khorooName: barilga.tokhirgoo.horoo.ner || "",
                     khorooCode: barilga.tokhirgoo.horoo.kod || ""
                   });
@@ -468,6 +482,7 @@ async function getOwnOrgKhoroo(districtId) {
       }
     }
 
+    console.log(`✅ [ADDRESS SERVICE] Found ${khoroos.length} khoroos from baiguullaga`);
     return khoroos;
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error getting khoroos from own organization:", error.message);
@@ -482,8 +497,7 @@ async function getOwnOrgKhoroo(districtId) {
  */
 async function getOwnOrgBair(khorooId) {
   try {
-    // TODO: Replace with your own database query
-    // Extract buildings from baiguullaga based on khoroo
+    console.log("📡 [ADDRESS SERVICE] Fetching bair from baiguullaga for khorooId:", khorooId);
     
     const kholboltuud = db.kholboltuud || [];
     const uniqueBair = new Set();
@@ -491,23 +505,25 @@ async function getOwnOrgBair(khorooId) {
 
     // If khorooId starts with "own_", it's from our own org
     const khorooCode = khorooId.startsWith("own_") 
-      ? khorooId.replace("own_", "")
+      ? khorooId.replace("own_", "").replace(/_/g, " ")
       : null;
 
     if (!khorooCode) {
+      console.log("⚠️ [ADDRESS SERVICE] khorooId is not from own org, skipping");
       return [];
     }
 
     for (const kholbolt of kholboltuud) {
       try {
-        const baiguullaguud = await Baiguullaga(kholbolt).find({}).select("barilguud").lean();
+        const baiguullaguud = await Baiguullaga(kholbolt).find({}).select("barilguud.ner barilguud.khayag barilguud.tokhirgoo barilguud._id").lean();
         
         for (const baiguullaga of baiguullaguud) {
           if (baiguullaga.barilguud && Array.isArray(baiguullaga.barilguud)) {
             for (const barilga of baiguullaga.barilguud) {
               if (barilga.tokhirgoo && 
                   barilga.tokhirgoo.horoo &&
-                  barilga.tokhirgoo.horoo.kod === khorooCode &&
+                  (barilga.tokhirgoo.horoo.kod === khorooCode || 
+                   barilga.tokhirgoo.horoo.ner === khorooCode) &&
                   barilga.ner) {
                 const bairKey = `${barilga.ner}_${barilga._id}`;
                 if (!uniqueBair.has(bairKey)) {
@@ -516,7 +532,11 @@ async function getOwnOrgBair(khorooId) {
                     bairId: `own_${barilga._id.toString()}`,
                     bairName: barilga.ner || "",
                     bairAddress: barilga.khayag || "",
-                    sohNer: barilga.tokhirgoo.sohNer || ""
+                    sohNer: barilga.tokhirgoo.sohNer || "",
+                    duuregNer: barilga.tokhirgoo.duuregNer || "",
+                    districtCode: barilga.tokhirgoo.districtCode || "",
+                    khorooNer: barilga.tokhirgoo.horoo?.ner || "",
+                    khorooKod: barilga.tokhirgoo.horoo?.kod || ""
                   });
                 }
               }
@@ -528,6 +548,7 @@ async function getOwnOrgBair(khorooId) {
       }
     }
 
+    console.log(`✅ [ADDRESS SERVICE] Found ${bair.length} bair from baiguullaga`);
     return bair;
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error getting bair from own organization:", error.message);
