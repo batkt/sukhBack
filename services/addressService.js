@@ -196,6 +196,9 @@ async function getBair(khorooId) {
     combined: []
   };
 
+  let khorooName = null; // Store khoroo name for matching OWN_ORG bair
+  let districtName = null; // Store district name for matching OWN_ORG bair
+
   // Fetch from Wallet API
   try {
     console.log("📡 [ADDRESS SERVICE] Fetching bair from Wallet API...");
@@ -217,6 +220,29 @@ async function getBair(khorooId) {
     } else {
       console.log("⚠️ [ADDRESS SERVICE] No bair from Wallet API");
     }
+    
+    // Extract khoroo name from Wallet API bair names for matching OWN_ORG bair
+    if (!khorooId.startsWith("own_") && walletBair && walletBair.length > 0) {
+      try {
+        const firstBairName = walletBair[0].bairName || walletBair[0].name || "";
+        
+        if (firstBairName) {
+          // Extract khoroo number from bair name like "ХУД 15-р хороо 1-р байр" -> "15-р хороо"
+          const khorooMatch = firstBairName.match(/(\d+-р хороо)/);
+          if (khorooMatch) {
+            khorooName = khorooMatch[1]; // e.g., "15-р хороо"
+            console.log(`🔍 [ADDRESS SERVICE] Extracted khoroo name from bair: ${khorooName}`);
+          }
+          
+          // Note: District name matching will be done by khoroo name only
+          // Since we can't easily get district from khorooId, we'll match OWN_ORG bair
+          // by khoroo name only, and let the user's data structure handle district matching
+          // If OWN_ORG has the same khoroo in different districts, both will show
+        }
+      } catch (error) {
+        console.error("❌ [ADDRESS SERVICE] Error extracting khoroo name:", error.message);
+      }
+    }
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error fetching bair from Wallet API:", error.message);
   }
@@ -224,7 +250,8 @@ async function getBair(khorooId) {
   // Fetch from own organization
   try {
     console.log("📡 [ADDRESS SERVICE] Fetching bair from own organization...");
-    const ownOrgBair = await getOwnOrgBair(khorooId);
+    // Pass khorooId, khorooName, and districtName for matching
+    const ownOrgBair = await getOwnOrgBair(khorooId, khorooName, districtName);
     
     if (Array.isArray(ownOrgBair) && ownOrgBair.length > 0) {
       // Format to match Wallet API structure (id, name) and use barilgiinId as id
@@ -455,24 +482,32 @@ async function getOwnOrgKhoroo(districtId) {
 
 /**
  * Get bair (buildings) from own organization database
- * @param {string} khorooId - Khoroo ID
+ * @param {string} khorooId - Khoroo ID (can be Wallet API UUID or own_ prefixed)
+ * @param {string} khorooName - Optional khoroo name extracted from Wallet API (e.g., "15-р хороо")
+ * @param {string} districtName - Optional district name for matching (e.g., "Сүхбаатар")
  * @returns {Promise<Array>} Array of bair
  */
-async function getOwnOrgBair(khorooId) {
+async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching bair from baiguullaga for khorooId:", khorooId);
+    console.log("📡 [ADDRESS SERVICE] Fetching bair from baiguullaga for khorooId:", khorooId, "khorooName:", khorooName, "districtName:", districtName);
     
     const kholboltuud = db.kholboltuud || [];
     const uniqueBair = new Set();
     const bair = [];
 
-    // If khorooId starts with "own_", it's from our own org
-    const khorooCode = khorooId.startsWith("own_") 
-      ? khorooId.replace("own_", "").replace(/_/g, " ")
-      : null;
+    let khorooCode = null;
+    let khorooNer = null;
 
-    if (!khorooCode) {
-      console.log("⚠️ [ADDRESS SERVICE] khorooId is not from own org, skipping");
+    // If khorooId starts with "own_", it's from our own org
+    if (khorooId.startsWith("own_")) {
+      khorooCode = khorooId.replace("own_", "").replace(/_/g, " ");
+    } else if (khorooName) {
+      // If khorooName is provided (extracted from Wallet API), use it for matching
+      khorooNer = khorooName; // e.g., "15-р хороо"
+      khorooCode = khorooName; // Also try matching by code
+      console.log(`🔍 [ADDRESS SERVICE] Using khorooName from Wallet API: ${khorooName}`);
+    } else {
+      console.log("⚠️ [ADDRESS SERVICE] khorooId is not from own org and no khorooName provided, skipping");
       return [];
     }
 
@@ -484,27 +519,39 @@ async function getOwnOrgBair(khorooId) {
         for (const baiguullaga of baiguullaguud) {
           if (baiguullaga.barilguud && Array.isArray(baiguullaga.barilguud)) {
             for (const barilga of baiguullaga.barilguud) {
-              if (barilga.tokhirgoo && 
-                  barilga.tokhirgoo.horoo &&
-                  (barilga.tokhirgoo.horoo.kod === khorooCode || 
-                   barilga.tokhirgoo.horoo.ner === khorooCode) &&
-                  barilga.ner) {
-                const bairKey = `${barilga.ner}_${barilga._id}`;
-                if (!uniqueBair.has(bairKey)) {
-                  uniqueBair.add(bairKey);
-                  bair.push({
-                    bairId: `own_${barilga._id.toString()}`,
-                    bairName: barilga.ner || "",
-                    bairAddress: barilga.khayag || "",
-                    // Include baiguullaga and barilga IDs for OWN_ORG bair
-                    baiguullagiinId: baiguullaga._id.toString(),
-                    barilgiinId: barilga._id.toString(),
-                    sohNer: barilga.tokhirgoo.sohNer || "",
-                    duuregNer: barilga.tokhirgoo.duuregNer || "",
-                    districtCode: barilga.tokhirgoo.districtCode || "",
-                    khorooNer: barilga.tokhirgoo.horoo?.ner || "",
-                    khorooKod: barilga.tokhirgoo.horoo?.kod || ""
-                  });
+              if (barilga.tokhirgoo && barilga.tokhirgoo.horoo && barilga.ner) {
+                const barilgaKhorooKod = barilga.tokhirgoo.horoo.kod;
+                const barilgaKhorooNer = barilga.tokhirgoo.horoo.ner;
+                const barilgaDuuregNer = barilga.tokhirgoo.duuregNer;
+                
+                // Match by khoroo code or name
+                const khorooMatches = 
+                  (khorooCode && (barilgaKhorooKod === khorooCode || barilgaKhorooNer === khorooCode)) ||
+                  (khorooNer && (barilgaKhorooNer === khorooNer || barilgaKhorooKod === khorooNer));
+                
+                // If districtName is provided, also match by district (duuregNer)
+                // Otherwise, match by khoroo only (since same khoroo can exist in different districts)
+                const districtMatches = !districtName || (barilgaDuuregNer && barilgaDuuregNer === districtName);
+                
+                // Both khoroo must match, and district if provided
+                if (khorooMatches && districtMatches) {
+                  const bairKey = `${barilga.ner}_${barilga._id}`;
+                  if (!uniqueBair.has(bairKey)) {
+                    uniqueBair.add(bairKey);
+                    bair.push({
+                      bairId: `own_${barilga._id.toString()}`,
+                      bairName: barilga.ner || "",
+                      bairAddress: barilga.khayag || "",
+                      // Include baiguullaga and barilga IDs for OWN_ORG bair
+                      baiguullagiinId: baiguullaga._id.toString(),
+                      barilgiinId: barilga._id.toString(),
+                      sohNer: barilga.tokhirgoo.sohNer || "",
+                      duuregNer: barilga.tokhirgoo.duuregNer || "",
+                      districtCode: barilga.tokhirgoo.districtCode || "",
+                      khorooNer: barilga.tokhirgoo.horoo?.ner || "",
+                      khorooKod: barilga.tokhirgoo.horoo?.kod || ""
+                    });
+                  }
                 }
               }
             }
