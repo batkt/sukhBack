@@ -236,37 +236,51 @@ async function getBair(khorooId) {
           }
           
           // Find which district this khoroo belongs to by checking all districts
-          // Get city first (assume Ulaanbaatar for now, or we can get from context)
+          // This is needed to match OWN_ORG bair by both district and khoroo
           try {
             console.log("🔍 [ADDRESS SERVICE] Finding district for khorooId:", khorooId);
             const cities = await walletApiService.getAddressCities();
             if (cities && cities.length > 0) {
               // Try to find district by checking khoroos in each district
-              // For efficiency, we'll check districts in the first city (usually Ulaanbaatar)
-              const cityId = cities[0].id || cities[0].cityId;
-              const districts = await walletApiService.getAddressDistricts(cityId);
-              
-              // Check each district's khoroos to find which one contains our khorooId
-              for (const district of districts) {
+              // Check all cities, not just the first one
+              for (const city of cities) {
                 try {
-                  const districtIdToCheck = district.id || district.districtId;
-                  const khoroos = await walletApiService.getAddressKhoroo(districtIdToCheck);
+                  const cityId = city.id || city.cityId;
+                  const districts = await walletApiService.getAddressDistricts(cityId);
                   
-                  // Check if any khoroo matches our khorooId
-                  const matchingKhoroo = khoroos.find(k => 
-                    (k.id || k.khorooId) === khorooId
-                  );
+                  // Check each district's khoroos to find which one contains our khorooId
+                  for (const district of districts) {
+                    try {
+                      const districtIdToCheck = district.id || district.districtId;
+                      const khoroos = await walletApiService.getAddressKhoroo(districtIdToCheck);
+                      
+                      // Check if any khoroo matches our khorooId
+                      const matchingKhoroo = khoroos.find(k => 
+                        (k.id || k.khorooId) === khorooId
+                      );
+                      
+                      if (matchingKhoroo) {
+                        districtName = (district.name || district.districtName || "").trim();
+                        console.log(`✅ [ADDRESS SERVICE] Found district for khoroo: "${districtName}" (from city: ${city.name || city.cityName})`);
+                        break; // Found it, stop searching
+                      }
+                    } catch (error) {
+                      // Continue to next district if this one fails
+                      continue;
+                    }
+                  }
                   
-                  if (matchingKhoroo) {
-                    districtName = district.name || district.districtName; // e.g., "Сүхбаатар"
-                    districtId = districtIdToCheck;
-                    console.log(`✅ [ADDRESS SERVICE] Found district for khoroo: ${districtName}`);
-                    break; // Found it, stop searching
+                  if (districtName) {
+                    break; // Found district, stop searching cities
                   }
                 } catch (error) {
-                  // Continue to next district if this one fails
+                  // Continue to next city if this one fails
                   continue;
                 }
+              }
+              
+              if (!districtName) {
+                console.log("⚠️ [ADDRESS SERVICE] Could not find district for khorooId, will match by khoroo only");
               }
             }
           } catch (error) {
@@ -546,6 +560,8 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
       return [];
     }
 
+    console.log(`🔍 [ADDRESS SERVICE] Will match OWN_ORG bair with khoroo: "${khorooNer || khorooCode}", district: "${districtName || 'any (no district filter)'}"`);
+
     for (const kholbolt of kholboltuud) {
       try {
         // Select baiguullaga._id and barilga._id to include in response
@@ -572,8 +588,8 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
                   const ownOrgDistrict = (barilgaDuuregNer || "").trim();
                   districtMatches = walletDistrict.toLowerCase() === ownOrgDistrict.toLowerCase();
                   
-                  if (!districtMatches) {
-                    console.log(`🔍 [ADDRESS SERVICE] District mismatch - Wallet: "${walletDistrict}", OWN_ORG: "${ownOrgDistrict}"`);
+                  if (khorooMatches && !districtMatches) {
+                    console.log(`⚠️ [ADDRESS SERVICE] Khoroo matches but district doesn't - Wallet: "${walletDistrict}", OWN_ORG: "${ownOrgDistrict}", skipping bair: ${barilga.ner}`);
                   }
                 }
                 
@@ -597,10 +613,10 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
                       khorooKod: barilga.tokhirgoo.horoo?.kod || ""
                     });
                   }
-                } else {
-                  if (khorooMatches && !districtMatches) {
-                    console.log(`⚠️ [ADDRESS SERVICE] Khoroo matches but district doesn't - skipping: ${barilga.ner} (district: ${barilgaDuuregNer})`);
-                  }
+                } else if (khorooMatches && !districtMatches) {
+                  // Already logged above
+                } else if (!khorooMatches) {
+                  // Khoroo doesn't match, skip silently
                 }
               }
             }
