@@ -17,9 +17,9 @@ const aldaa = require("../components/aldaa");
 router.post("/mailOlnoorIlgeeye", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById({
-      _id: req.body.baiguullagiinId,
-    });
+    var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      req.body.baiguullagiinId
+    );
     if (
       !baiguullaga ||
       !baiguullaga.tokhirgoo ||
@@ -146,6 +146,11 @@ router.post("/mailOlnoorIlgeeye", tokenShalgakh, async (req, res, next) => {
       }
       res.send(body);
     } else {
+      // Get database connection for this organization
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(req.body.baiguullagiinId)
+      );
+
       for await (const mail of req.body.mailuud) {
         await MailIlgeeye.duriinMailIlgeeye(
           baiguullaga.tokhirgoo.mailNevtrekhNer,
@@ -158,16 +163,18 @@ router.post("/mailOlnoorIlgeeye", tokenShalgakh, async (req, res, next) => {
           mail.gereeniiDugaar
         );
 
-        const sonorduulga = new Sonorduulga(req.body.tukhainBaaziinKholbolt)();
-        sonorduulga.khuleenAvagchiinId = mail.khariltsagchiinId;
-        sonorduulga.barilgiinId = mail.barilgiinId;
-        sonorduulga.baiguullagiinId = req.body.baiguullagiinId;
-        sonorduulga.khariltsagchiinNer = mail.khariltsagchiinNer;
-        sonorduulga.title = req.body.subject;
-        sonorduulga.message = mail.content;
-        sonorduulga.turul = req.body.turul || "Mail";
-        sonorduulga.kharsanEsekh = false;
-        await sonorduulga.save();
+        if (tukhainBaaziinKholbolt) {
+          const sonorduulga = new Sonorduulga(tukhainBaaziinKholbolt)();
+          sonorduulga.khuleenAvagchiinId = mail.khariltsagchiinId;
+          sonorduulga.barilgiinId = mail.barilgiinId;
+          sonorduulga.baiguullagiinId = req.body.baiguullagiinId;
+          sonorduulga.khariltsagchiinNer = mail.khariltsagchiinNer;
+          sonorduulga.title = req.body.subject;
+          sonorduulga.message = mail.content;
+          sonorduulga.turul = req.body.turul || "Mail";
+          sonorduulga.kharsanEsekh = false;
+          await sonorduulga.save();
+        }
       }
       res.send("Amjilttai");
     }
