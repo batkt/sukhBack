@@ -1100,6 +1100,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       userData.baiguullagiinId = orshinSuugch.baiguullagiinId;
       userData.baiguullagiinNer = orshinSuugch.baiguullagiinNer;
     }
+    
+    // Save baiguullagiinId if provided (from OWN_ORG bair selection)
+    if (req.body.baiguullagiinId) {
+      userData.baiguullagiinId = req.body.baiguullagiinId;
+    }
 
     if (req.body.barilgiinId) {
       userData.barilgiinId = req.body.barilgiinId;
@@ -1441,6 +1446,14 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     }
     if (req.body.doorNo) {
       userData.walletDoorNo = req.body.doorNo;
+    }
+    
+    // Save baiguullagiinId and barilgiinId if provided (from OWN_ORG bair selection)
+    if (req.body.baiguullagiinId) {
+      userData.baiguullagiinId = req.body.baiguullagiinId;
+    }
+    if (req.body.barilgiinId) {
+      userData.barilgiinId = req.body.barilgiinId;
     }
 
     if (orshinSuugch) {
