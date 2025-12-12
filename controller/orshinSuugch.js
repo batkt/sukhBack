@@ -1113,6 +1113,90 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       userData.barilgiinId = orshinSuugch.barilgiinId;
     }
 
+    // Validate OWN_ORG bair toot/doorNo if provided
+    if (req.body.baiguullagiinId && req.body.barilgiinId && req.body.doorNo) {
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (!baiguullaga) {
+          throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+        }
+
+        const targetBarilga = baiguullaga.barilguud?.find(
+          (b) => String(b._id) === String(req.body.barilgiinId)
+        );
+
+        if (!targetBarilga) {
+          throw new aldaa("Барилгын мэдээлэл олдсонгүй!");
+        }
+
+        const tootToValidate = req.body.doorNo.trim();
+        const davkharToValidate = (req.body.davkhar || "").trim();
+        const ortsToValidate = (req.body.orts || "1").trim();
+        
+        // Check if toot exists in davkhariinToonuud (available toots)
+        const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+        let tootFound = false;
+
+        if (davkharToValidate) {
+          // If davkhar is provided, check specific floor
+          const floorKey = `${ortsToValidate}::${davkharToValidate}`;
+          const tootArray = davkhariinToonuud[floorKey];
+          
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let tootList = [];
+            if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+              tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+            } else {
+              tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+            }
+            
+            if (tootList.includes(tootToValidate)) {
+              tootFound = true;
+            }
+          }
+        } else {
+          // If davkhar not provided, search all floors
+          for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+            if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+              let tootList = [];
+              if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+                tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+              } else {
+                tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+              }
+              
+              if (tootList.includes(tootToValidate)) {
+                tootFound = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!tootFound) {
+          throw new aldaa(`(${tootToValidate}) тоот энэ барилгад бүртгэлгүй байна`);
+        }
+
+        // Check if toot is already registered to another user
+        const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+          toot: tootToValidate,
+          barilgiinId: req.body.barilgiinId,
+          _id: { $ne: orshinSuugch?._id } // Exclude current user if updating
+        });
+
+        if (existingTootUser) {
+          throw new aldaa(`(${tootToValidate}) тоот аль хэдийн бүртгэгдсэн байна`);
+        }
+
+        // If validation passes, also set toot field
+        userData.toot = tootToValidate;
+        console.log(`✅ [WALLET LOGIN] OWN_ORG toot validated: ${tootToValidate}`);
+      } catch (error) {
+        console.error("❌ [WALLET LOGIN] OWN_ORG toot validation error:", error.message);
+        throw error;
+      }
+    }
+
     if (req.body.duureg) userData.duureg = req.body.duureg;
     if (req.body.horoo) userData.horoo = req.body.horoo;
     if (req.body.soh) userData.soh = req.body.soh;
@@ -1454,6 +1538,89 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     }
     if (req.body.barilgiinId) {
       userData.barilgiinId = req.body.barilgiinId;
+    }
+
+    // Validate OWN_ORG bair toot/doorNo if provided
+    if (req.body.baiguullagiinId && req.body.barilgiinId && req.body.doorNo) {
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (!baiguullaga) {
+          throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+        }
+
+        const targetBarilga = baiguullaga.barilguud?.find(
+          (b) => String(b._id) === String(req.body.barilgiinId)
+        );
+
+        if (!targetBarilga) {
+          throw new aldaa("Барилгын мэдээлэл олдсонгүй!");
+        }
+
+        const tootToValidate = req.body.doorNo.trim();
+        const davkharToValidate = (req.body.davkhar || "").trim();
+        const ortsToValidate = (req.body.orts || "1").trim();
+        
+        // Check if toot exists in davkhariinToonuud (available toots)
+        const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+        let tootFound = false;
+
+        if (davkharToValidate) {
+          // If davkhar is provided, check specific floor
+          const floorKey = `${ortsToValidate}::${davkharToValidate}`;
+          const tootArray = davkhariinToonuud[floorKey];
+          
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let tootList = [];
+            if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+              tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+            } else {
+              tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+            }
+            
+            if (tootList.includes(tootToValidate)) {
+              tootFound = true;
+            }
+          }
+        } else {
+          // If davkhar not provided, search all floors
+          for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+            if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+              let tootList = [];
+              if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+                tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+              } else {
+                tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+              }
+              
+              if (tootList.includes(tootToValidate)) {
+                tootFound = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!tootFound) {
+          throw new aldaa(`(${tootToValidate}) тоот энэ барилгад бүртгэлгүй байна`);
+        }
+
+        // Check if toot is already registered to another user
+        const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+          toot: tootToValidate,
+          barilgiinId: req.body.barilgiinId
+        });
+
+        if (existingTootUser) {
+          throw new aldaa(`(${tootToValidate}) тоот аль хэдийн бүртгэгдсэн байна`);
+        }
+
+        // If validation passes, also set toot field
+        userData.toot = tootToValidate;
+        console.log(`✅ [WALLET REGISTER] OWN_ORG toot validated: ${tootToValidate}`);
+      } catch (error) {
+        console.error("❌ [WALLET REGISTER] OWN_ORG toot validation error:", error.message);
+        throw error;
+      }
     }
 
     if (orshinSuugch) {
