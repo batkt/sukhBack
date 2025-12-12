@@ -17,25 +17,17 @@ const SOURCE_OWN_ORG = "OWN_ORG";
  * @returns {Promise<Array>} Combined cities with source indicators
  */
 async function getCities() {
-  console.log("🏙️ [ADDRESS SERVICE] Fetching cities from all sources...");
+  console.log("🏙️ [ADDRESS SERVICE] Fetching cities from Wallet API...");
   
-  const results = {
-    walletApi: [],
-    ownOrg: [],
-    combined: []
-  };
-
-  // Fetch from Wallet API
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching cities from Wallet API...");
     const walletCities = await walletApiService.getAddressCities();
     
     if (Array.isArray(walletCities) && walletCities.length > 0) {
-      results.walletApi = walletCities.map(city => ({
+      const cities = walletCities.map(city => ({
         // Preserve original Wallet API format
         id: city.id || city.cityId,
         name: city.name || city.cityName,
-        // Also provide standardized fields
+        // Also provide standardized fields for compatibility
         cityId: city.cityId || city.id,
         cityName: city.cityName || city.name,
         cityCode: city.cityCode || city.code || "",
@@ -43,45 +35,37 @@ async function getCities() {
         source: SOURCE_WALLET_API
       }));
       console.log(`✅ [ADDRESS SERVICE] Found ${walletCities.length} cities from Wallet API`);
+      
+      return {
+        data: cities,
+        sources: {
+          walletApi: cities.length,
+          ownOrg: 0,
+          total: cities.length
+        }
+      };
     } else {
       console.log("⚠️ [ADDRESS SERVICE] No cities from Wallet API");
+      return {
+        data: [],
+        sources: {
+          walletApi: 0,
+          ownOrg: 0,
+          total: 0
+        }
+      };
     }
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error fetching cities from Wallet API:", error.message);
-    // Continue with own org data even if Wallet API fails
+    return {
+      data: [],
+      sources: {
+        walletApi: 0,
+        ownOrg: 0,
+        total: 0
+      }
+    };
   }
-
-  // Fetch from own organization
-  try {
-    console.log("📡 [ADDRESS SERVICE] Fetching cities from own organization...");
-    const ownOrgCities = await getOwnOrgCities();
-    
-    if (Array.isArray(ownOrgCities) && ownOrgCities.length > 0) {
-      results.ownOrg = ownOrgCities.map(city => ({
-        ...city,
-        source: SOURCE_OWN_ORG
-      }));
-      console.log(`✅ [ADDRESS SERVICE] Found ${ownOrgCities.length} cities from own organization`);
-    } else {
-      console.log("⚠️ [ADDRESS SERVICE] No cities from own organization");
-    }
-  } catch (error) {
-    console.error("❌ [ADDRESS SERVICE] Error fetching cities from own organization:", error.message);
-    // Continue with Wallet API data even if own org fails
-  }
-
-  // Combine results
-  results.combined = [...results.walletApi, ...results.ownOrg];
-  console.log(`✅ [ADDRESS SERVICE] Total cities: ${results.combined.length} (Wallet API: ${results.walletApi.length}, Own Org: ${results.ownOrg.length})`);
-
-  return {
-    data: results.combined,
-    sources: {
-      walletApi: results.walletApi.length,
-      ownOrg: results.ownOrg.length,
-      total: results.combined.length
-    }
-  };
 }
 
 /**
@@ -92,19 +76,11 @@ async function getCities() {
 async function getDistricts(cityId) {
   console.log("🏘️ [ADDRESS SERVICE] Fetching districts for cityId:", cityId);
   
-  const results = {
-    walletApi: [],
-    ownOrg: [],
-    combined: []
-  };
-
-  // Fetch from Wallet API
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching districts from Wallet API...");
     const walletDistricts = await walletApiService.getAddressDistricts(cityId);
     
     if (Array.isArray(walletDistricts) && walletDistricts.length > 0) {
-      results.walletApi = walletDistricts.map(district => ({
+      const districts = walletDistricts.map(district => ({
         // Preserve original Wallet API format
         id: district.id || district.districtId,
         name: district.name || district.districtName,
@@ -116,43 +92,37 @@ async function getDistricts(cityId) {
         source: SOURCE_WALLET_API
       }));
       console.log(`✅ [ADDRESS SERVICE] Found ${walletDistricts.length} districts from Wallet API`);
+      
+      return {
+        data: districts,
+        sources: {
+          walletApi: districts.length,
+          ownOrg: 0,
+          total: districts.length
+        }
+      };
     } else {
       console.log("⚠️ [ADDRESS SERVICE] No districts from Wallet API");
+      return {
+        data: [],
+        sources: {
+          walletApi: 0,
+          ownOrg: 0,
+          total: 0
+        }
+      };
     }
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error fetching districts from Wallet API:", error.message);
+    return {
+      data: [],
+      sources: {
+        walletApi: 0,
+        ownOrg: 0,
+        total: 0
+      }
+    };
   }
-
-  // Fetch from own organization
-  try {
-    console.log("📡 [ADDRESS SERVICE] Fetching districts from own organization...");
-    const ownOrgDistricts = await getOwnOrgDistricts(cityId);
-    
-    if (Array.isArray(ownOrgDistricts) && ownOrgDistricts.length > 0) {
-      results.ownOrg = ownOrgDistricts.map(district => ({
-        ...district,
-        source: SOURCE_OWN_ORG
-      }));
-      console.log(`✅ [ADDRESS SERVICE] Found ${ownOrgDistricts.length} districts from own organization`);
-    } else {
-      console.log("⚠️ [ADDRESS SERVICE] No districts from own organization");
-    }
-  } catch (error) {
-    console.error("❌ [ADDRESS SERVICE] Error fetching districts from own organization:", error.message);
-  }
-
-  // Combine results
-  results.combined = [...results.walletApi, ...results.ownOrg];
-  console.log(`✅ [ADDRESS SERVICE] Total districts: ${results.combined.length} (Wallet API: ${results.walletApi.length}, Own Org: ${results.ownOrg.length})`);
-
-  return {
-    data: results.combined,
-    sources: {
-      walletApi: results.walletApi.length,
-      ownOrg: results.ownOrg.length,
-      total: results.combined.length
-    }
-  };
 }
 
 /**
@@ -163,19 +133,11 @@ async function getDistricts(cityId) {
 async function getKhoroo(districtId) {
   console.log("🏘️ [ADDRESS SERVICE] Fetching khoroos for districtId:", districtId);
   
-  const results = {
-    walletApi: [],
-    ownOrg: [],
-    combined: []
-  };
-
-  // Fetch from Wallet API
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching khoroos from Wallet API...");
     const walletKhoroo = await walletApiService.getAddressKhoroo(districtId);
     
     if (Array.isArray(walletKhoroo) && walletKhoroo.length > 0) {
-      results.walletApi = walletKhoroo.map(khoroo => ({
+      const khoroos = walletKhoroo.map(khoroo => ({
         // Preserve original Wallet API format
         id: khoroo.id || khoroo.khorooId,
         name: khoroo.name || khoroo.khorooName,
@@ -187,43 +149,37 @@ async function getKhoroo(districtId) {
         source: SOURCE_WALLET_API
       }));
       console.log(`✅ [ADDRESS SERVICE] Found ${walletKhoroo.length} khoroos from Wallet API`);
+      
+      return {
+        data: khoroos,
+        sources: {
+          walletApi: khoroos.length,
+          ownOrg: 0,
+          total: khoroos.length
+        }
+      };
     } else {
       console.log("⚠️ [ADDRESS SERVICE] No khoroos from Wallet API");
+      return {
+        data: [],
+        sources: {
+          walletApi: 0,
+          ownOrg: 0,
+          total: 0
+        }
+      };
     }
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error fetching khoroos from Wallet API:", error.message);
+    return {
+      data: [],
+      sources: {
+        walletApi: 0,
+        ownOrg: 0,
+        total: 0
+      }
+    };
   }
-
-  // Fetch from own organization
-  try {
-    console.log("📡 [ADDRESS SERVICE] Fetching khoroos from own organization...");
-    const ownOrgKhoroo = await getOwnOrgKhoroo(districtId);
-    
-    if (Array.isArray(ownOrgKhoroo) && ownOrgKhoroo.length > 0) {
-      results.ownOrg = ownOrgKhoroo.map(khoroo => ({
-        ...khoroo,
-        source: SOURCE_OWN_ORG
-      }));
-      console.log(`✅ [ADDRESS SERVICE] Found ${ownOrgKhoroo.length} khoroos from own organization`);
-    } else {
-      console.log("⚠️ [ADDRESS SERVICE] No khoroos from own organization");
-    }
-  } catch (error) {
-    console.error("❌ [ADDRESS SERVICE] Error fetching khoroos from own organization:", error.message);
-  }
-
-  // Combine results
-  results.combined = [...results.walletApi, ...results.ownOrg];
-  console.log(`✅ [ADDRESS SERVICE] Total khoroos: ${results.combined.length} (Wallet API: ${results.walletApi.length}, Own Org: ${results.ownOrg.length})`);
-
-  return {
-    data: results.combined,
-    sources: {
-      walletApi: results.walletApi.length,
-      ownOrg: results.ownOrg.length,
-      total: results.combined.length
-    }
-  };
 }
 
 /**
@@ -271,8 +227,15 @@ async function getBair(khorooId) {
     const ownOrgBair = await getOwnOrgBair(khorooId);
     
     if (Array.isArray(ownOrgBair) && ownOrgBair.length > 0) {
+      // Format to match Wallet API structure (id, name) and use barilgiinId as id
       results.ownOrg = ownOrgBair.map(bair => ({
-        ...bair,
+        id: bair.barilgiinId || bair.bairId, // Use barilgiinId as id
+        name: bair.bairName,
+        // Include baiguullaga and barilga IDs for OWN_ORG bair
+        baiguullagiinId: bair.baiguullagiinId || "",
+        barilgiinId: bair.barilgiinId || "",
+        bairName: bair.bairName,
+        bairAddress: bair.bairAddress || "",
         source: SOURCE_OWN_ORG
       }));
       console.log(`✅ [ADDRESS SERVICE] Found ${ownOrgBair.length} bair from own organization`);
@@ -515,7 +478,8 @@ async function getOwnOrgBair(khorooId) {
 
     for (const kholbolt of kholboltuud) {
       try {
-        const baiguullaguud = await Baiguullaga(kholbolt).find({}).select("barilguud.ner barilguud.khayag barilguud.tokhirgoo barilguud._id").lean();
+        // Select baiguullaga._id and barilga._id to include in response
+        const baiguullaguud = await Baiguullaga(kholbolt).find({}).select("_id barilguud.ner barilguud.khayag barilguud.tokhirgoo barilguud._id").lean();
         
         for (const baiguullaga of baiguullaguud) {
           if (baiguullaga.barilguud && Array.isArray(baiguullaga.barilguud)) {
@@ -532,6 +496,9 @@ async function getOwnOrgBair(khorooId) {
                     bairId: `own_${barilga._id.toString()}`,
                     bairName: barilga.ner || "",
                     bairAddress: barilga.khayag || "",
+                    // Include baiguullaga and barilga IDs for OWN_ORG bair
+                    baiguullagiinId: baiguullaga._id.toString(),
+                    barilgiinId: barilga._id.toString(),
                     sohNer: barilga.tokhirgoo.sohNer || "",
                     duuregNer: barilga.tokhirgoo.duuregNer || "",
                     districtCode: barilga.tokhirgoo.districtCode || "",
