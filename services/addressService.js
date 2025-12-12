@@ -12,6 +12,54 @@ const Baiguullaga = require("../models/baiguullaga");
 const SOURCE_WALLET_API = "WALLET_API";
 const SOURCE_OWN_ORG = "OWN_ORG";
 
+// District abbreviation to full name mapping (for matching Wallet API abbreviations with OWN_ORG full names)
+const DISTRICT_ABBREVIATION_MAP = {
+  "СБД": "Сүхбаатар",
+  "ХУД": "Хан-Уул",
+  "БГД": "Баянгол",
+  "СХД": "Сонгинохайрхан",
+  "БД": "Баянзүрх",
+  "ЧД": "Чингэлтэй",
+  "ХД": "Хөшиг",
+  "НД": "Налайх",
+  "БД": "Багахангай",
+  "БД": "Баганор",
+  "БД": "Баганор",
+  // Add more mappings as needed
+};
+
+/**
+ * Extract district abbreviation from bair name (e.g., "СБД 1-р хороо 905-р байр" -> "СБД")
+ * @param {string} bairName - Bair name from Wallet API
+ * @returns {string|null} District abbreviation or null
+ */
+function extractDistrictAbbreviation(bairName) {
+  if (!bairName || typeof bairName !== "string") {
+    return null;
+  }
+  
+  // Match 2-4 letter Cyrillic abbreviation at the start (e.g., "СБД", "ХУД", "БГД")
+  const match = bairName.match(/^([А-ЯЁ]{2,4})\s/);
+  if (match && match[1]) {
+    return match[1];
+  }
+  
+  return null;
+}
+
+/**
+ * Convert district abbreviation to full name using mapping
+ * @param {string} abbreviation - District abbreviation (e.g., "СБД")
+ * @returns {string|null} Full district name (e.g., "Сүхбаатар") or null if not found
+ */
+function getDistrictNameFromAbbreviation(abbreviation) {
+  if (!abbreviation) {
+    return null;
+  }
+  
+  return DISTRICT_ABBREVIATION_MAP[abbreviation] || null;
+}
+
 /**
  * Get cities from both sources
  * @returns {Promise<Array>} Combined cities with source indicators
@@ -235,57 +283,72 @@ async function getBair(khorooId) {
             console.log(`🔍 [ADDRESS SERVICE] Extracted khoroo name from bair: ${khorooName}`);
           }
           
-          // Find which district this khoroo belongs to by checking all districts
-          // This is needed to match OWN_ORG bair by both district and khoroo
-          try {
-            console.log("🔍 [ADDRESS SERVICE] Finding district for khorooId:", khorooId);
-            const cities = await walletApiService.getAddressCities();
-            if (cities && cities.length > 0) {
-              // Try to find district by checking khoroos in each district
-              // Check all cities, not just the first one
-              for (const city of cities) {
-                try {
-                  const cityId = city.id || city.cityId;
-                  const districts = await walletApiService.getAddressDistricts(cityId);
-                  
-                  // Check each district's khoroos to find which one contains our khorooId
-                  for (const district of districts) {
-                    try {
-                      const districtIdToCheck = district.id || district.districtId;
-                      const khoroos = await walletApiService.getAddressKhoroo(districtIdToCheck);
-                      
-                      // Check if any khoroo matches our khorooId
-                      const matchingKhoroo = khoroos.find(k => 
-                        (k.id || k.khorooId) === khorooId
-                      );
-                      
-                      if (matchingKhoroo) {
-                        districtName = (district.name || district.districtName || "").trim();
-                        console.log(`✅ [ADDRESS SERVICE] Found district for khoroo: "${districtName}" (from city: ${city.name || city.cityName})`);
-                        break; // Found it, stop searching
+          // Try to extract district abbreviation from bair name (e.g., "СБД" from "СБД 1-р хороо 905-р байр")
+          const districtAbbreviation = extractDistrictAbbreviation(firstBairName);
+          if (districtAbbreviation) {
+            const districtNameFromAbbr = getDistrictNameFromAbbreviation(districtAbbreviation);
+            if (districtNameFromAbbr) {
+              districtName = districtNameFromAbbr;
+              console.log(`🔍 [ADDRESS SERVICE] Extracted district from abbreviation: "${districtAbbreviation}" -> "${districtName}"`);
+            } else {
+              console.log(`⚠️ [ADDRESS SERVICE] District abbreviation "${districtAbbreviation}" not found in mapping`);
+            }
+          }
+          
+          // If we still don't have district name, try to find it from Wallet API
+          if (!districtName) {
+            // Find which district this khoroo belongs to by checking all districts
+            // This is needed to match OWN_ORG bair by both district and khoroo
+            try {
+              console.log("🔍 [ADDRESS SERVICE] Finding district for khorooId:", khorooId);
+              const cities = await walletApiService.getAddressCities();
+              if (cities && cities.length > 0) {
+                // Try to find district by checking khoroos in each district
+                // Check all cities, not just the first one
+                for (const city of cities) {
+                  try {
+                    const cityId = city.id || city.cityId;
+                    const districts = await walletApiService.getAddressDistricts(cityId);
+                    
+                    // Check each district's khoroos to find which one contains our khorooId
+                    for (const district of districts) {
+                      try {
+                        const districtIdToCheck = district.id || district.districtId;
+                        const khoroos = await walletApiService.getAddressKhoroo(districtIdToCheck);
+                        
+                        // Check if any khoroo matches our khorooId
+                        const matchingKhoroo = khoroos.find(k => 
+                          (k.id || k.khorooId) === khorooId
+                        );
+                        
+                        if (matchingKhoroo) {
+                          districtName = (district.name || district.districtName || "").trim();
+                          console.log(`✅ [ADDRESS SERVICE] Found district for khoroo: "${districtName}" (from city: ${city.name || city.cityName})`);
+                          break; // Found it, stop searching
+                        }
+                      } catch (error) {
+                        // Continue to next district if this one fails
+                        continue;
                       }
-                    } catch (error) {
-                      // Continue to next district if this one fails
-                      continue;
                     }
+                    
+                    if (districtName) {
+                      break; // Found district, stop searching cities
+                    }
+                  } catch (error) {
+                    // Continue to next city if this one fails
+                    continue;
                   }
-                  
-                  if (districtName) {
-                    break; // Found district, stop searching cities
-                  }
-                } catch (error) {
-                  // Continue to next city if this one fails
-                  continue;
+                }
+                
+                if (!districtName) {
+                  console.log("⚠️ [ADDRESS SERVICE] Could not find district for khorooId, will match by khoroo only");
                 }
               }
-              
-              if (!districtName) {
-                console.log("⚠️ [ADDRESS SERVICE] Could not find district for khorooId, will match by khoroo only");
-              }
+            } catch (error) {
+              console.error("❌ [ADDRESS SERVICE] Error finding district:", error.message);
+              // Continue without district name - will match by khoroo only
             }
-          } catch (error) {
-            console.error("❌ [ADDRESS SERVICE] Error finding district:", error.message);
-            // Continue without district name - will match by khoroo only
           }
         }
       } catch (error) {
