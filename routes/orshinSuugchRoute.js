@@ -32,6 +32,7 @@ const {
   orshinSuugchOorooUstgakh,
   orshinSuugchUstgakh,
   tootShalgaya,
+  validateOwnOrgToot,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
@@ -178,6 +179,7 @@ router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
 router.post("/orshinSuugchNuutsUgSoliyo", tokenShalgakh, orshinSuugchiinNuutsUgSoliyo);
 router.post("/davhardsanOrshinSuugchShalgayy", davhardsanOrshinSuugchShalgayy);
 router.post("/tootShalgaya", tootShalgaya);
+router.post("/validateOwnOrgToot", validateOwnOrgToot);
 
 // Excel template download
 router.get(
