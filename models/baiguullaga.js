@@ -89,6 +89,7 @@ const baiguullagaSchema = new Schema(
               tsakhilgaanUrjver: Number,
               tsakhilgaanChadal: Number,
               tsakhilgaanDemjikh: Number,
+              tailbar: String,
               tariff: Number,
               tariffUsgeer: String,
               suuriKhuraamj: Number,
