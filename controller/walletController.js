@@ -311,17 +311,25 @@ exports.walletInvoiceCreate = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const invoiceData = req.body;
     
+    console.log("📝 [WALLET INVOICE CREATE] Creating invoice for user:", userId);
+    console.log("📝 [WALLET INVOICE CREATE] Invoice data:", JSON.stringify(invoiceData));
+    
     if (!invoiceData) {
       throw new aldaa("Нэхэмжлэхийн мэдээлэл заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.createInvoice(userId, invoiceData);
+    
+    console.log("✅ [WALLET INVOICE CREATE] Invoice created successfully");
+    console.log("✅ [WALLET INVOICE CREATE] Invoice ID:", result.invoiceId);
+    
     res.status(200).json({
       success: true,
       data: result,
       message: "Нэхэмжлэх амжилттай үүсгэлээ",
     });
   } catch (err) {
+    console.error("❌ [WALLET INVOICE CREATE] Error:", err.message);
     next(err);
   }
 });
@@ -331,6 +339,9 @@ exports.walletInvoiceGet = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const { invoiceId } = req.params;
     
+    console.log("📄 [WALLET INVOICE GET] Getting invoice for user:", userId);
+    console.log("📄 [WALLET INVOICE GET] Invoice ID:", invoiceId);
+    
     if (!invoiceId) {
       throw new aldaa("Нэхэмжлэхийн ID заавал бөглөх шаардлагатай!");
     }
@@ -338,17 +349,22 @@ exports.walletInvoiceGet = asyncHandler(async (req, res, next) => {
     const invoice = await walletApiService.getInvoice(userId, invoiceId);
     
     if (!invoice) {
+      console.log("⚠️ [WALLET INVOICE GET] Invoice not found");
       return res.status(404).json({
         success: false,
         message: "Нэхэмжлэх олдсонгүй",
       });
     }
 
+    console.log("✅ [WALLET INVOICE GET] Invoice found");
+    console.log("✅ [WALLET INVOICE GET] Invoice status:", invoice.invoiceStatus);
+    
     res.status(200).json({
       success: true,
       data: invoice,
     });
   } catch (err) {
+    console.error("❌ [WALLET INVOICE GET] Error:", err.message);
     next(err);
   }
 });
@@ -358,17 +374,24 @@ exports.walletInvoiceCancel = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const { invoiceId } = req.params;
     
+    console.log("🚫 [WALLET INVOICE CANCEL] Canceling invoice for user:", userId);
+    console.log("🚫 [WALLET INVOICE CANCEL] Invoice ID:", invoiceId);
+    
     if (!invoiceId) {
       throw new aldaa("Нэхэмжлэхийн ID заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.cancelInvoice(userId, invoiceId);
+    
+    console.log("✅ [WALLET INVOICE CANCEL] Invoice canceled successfully");
+    
     res.status(200).json({
       success: true,
       data: result,
       message: "Нэхэмжлэх амжилттай цуцлагдлаа",
     });
   } catch (err) {
+    console.error("❌ [WALLET INVOICE CANCEL] Error:", err.message);
     next(err);
   }
 });
@@ -378,17 +401,31 @@ exports.walletPaymentCreate = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const paymentData = req.body;
     
+    console.log("💳 [WALLET PAYMENT CREATE] Creating payment for user:", userId);
+    console.log("💳 [WALLET PAYMENT CREATE] Payment data:", JSON.stringify(paymentData));
+    
     if (!paymentData || !paymentData.invoiceId) {
       throw new aldaa("Төлбөрийн мэдээлэл болон нэхэмжлэхийн ID заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.createPayment(userId, paymentData);
+    
+    console.log("✅ [WALLET PAYMENT CREATE] Payment created successfully");
+    console.log("✅ [WALLET PAYMENT CREATE] Payment ID:", result.paymentId);
+    if (result.qrText) {
+      console.log("✅ [WALLET PAYMENT CREATE] QR code generated");
+    }
+    
     res.status(200).json({
       success: true,
       data: result,
       message: "Төлбөр амжилттай үүсгэлээ",
     });
   } catch (err) {
+    console.error("❌ [WALLET PAYMENT CREATE] Error:", err.message);
+    if (err.response) {
+      console.error("❌ [WALLET PAYMENT CREATE] Error response:", JSON.stringify(err.response.data));
+    }
     next(err);
   }
 });

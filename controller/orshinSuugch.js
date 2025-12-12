@@ -11,7 +11,10 @@ const aldaa = require("../components/aldaa");
 const request = require("request");
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
+const addressService = require("../services/addressService");
 const walletApiService = require("../services/walletApiService");
+
+// ... existing code ...
 
 const useragent = require("express-useragent");
 
@@ -1926,13 +1929,17 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
 
 exports.walletAddressCities = asyncHandler(async (req, res, next) => {
   try {
-    const cities = await walletApiService.getAddressCities();
+    console.log("🏙️ [ADDRESS] Fetching cities from all sources...");
+    const result = await addressService.getCities();
+    
     res.status(200).json({
       success: true,
-      data: cities,
+      data: result.data,
+      sources: result.sources,
+      message: `Found ${result.sources.total} cities (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
     });
   } catch (err) {
-    console.error("❌ [WALLET ADDRESS] Error getting cities:", err.message);
+    console.error("❌ [ADDRESS] Error getting cities:", err.message);
     next(err);
   }
 });
@@ -1943,13 +1950,18 @@ exports.walletAddressDistricts = asyncHandler(async (req, res, next) => {
     if (!cityId) {
       throw new aldaa("Хотын ID заавал бөглөх шаардлагатай!");
     }
-    const districts = await walletApiService.getAddressDistricts(cityId);
+    
+    console.log("🏘️ [ADDRESS] Fetching districts for cityId:", cityId);
+    const result = await addressService.getDistricts(cityId);
+    
     res.status(200).json({
       success: true,
-      data: districts,
+      data: result.data,
+      sources: result.sources,
+      message: `Found ${result.sources.total} districts (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
     });
   } catch (err) {
-    console.error("❌ [WALLET ADDRESS] Error getting districts:", err.message);
+    console.error("❌ [ADDRESS] Error getting districts:", err.message);
     next(err);
   }
 });
@@ -1960,30 +1972,18 @@ exports.walletAddressKhoroo = asyncHandler(async (req, res, next) => {
     if (!districtId) {
       throw new aldaa("Дүүргийн ID заавал бөглөх шаардлагатай!");
     }
-    const khoroo = await walletApiService.getAddressKhoroo(districtId);
+    
+    console.log("🏘️ [ADDRESS] Fetching khoroos for districtId:", districtId);
+    const result = await addressService.getKhoroo(districtId);
+    
     res.status(200).json({
       success: true,
-      data: khoroo,
+      data: result.data,
+      sources: result.sources,
+      message: `Found ${result.sources.total} khoroos (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
     });
   } catch (err) {
-    console.error("❌ [WALLET ADDRESS] Error getting khoroo:", err.message);
-    next(err);
-  }
-});
-
-exports.walletAddressBair = asyncHandler(async (req, res, next) => {
-  try {
-    const { khorooId } = req.params;
-    if (!khorooId) {
-      throw new aldaa("Хорооны ID заавал бөглөх шаардлагатай!");
-    }
-    const bair = await walletApiService.getAddressBair(khorooId);
-    res.status(200).json({
-      success: true,
-      data: bair,
-    });
-  } catch (err) {
-    console.error("❌ [WALLET ADDRESS] Error getting bair:", err.message);
+    console.error("❌ [ADDRESS] Error getting khoroo:", err.message);
     next(err);
   }
 });
