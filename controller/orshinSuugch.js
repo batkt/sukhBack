@@ -1988,6 +1988,28 @@ exports.walletAddressKhoroo = asyncHandler(async (req, res, next) => {
   }
 });
 
+exports.walletAddressBair = asyncHandler(async (req, res, next) => {
+  try {
+    const { khorooId } = req.params;
+    if (!khorooId) {
+      throw new aldaa("Хорооны ID заавал бөглөх шаардлагатай!");
+    }
+    
+    console.log("🏢 [ADDRESS] Fetching bair for khorooId:", khorooId);
+    const result = await addressService.getBair(khorooId);
+    
+    res.status(200).json({
+      success: true,
+      data: result.data,
+      sources: result.sources,
+      message: `Found ${result.sources.total} bair (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
+    });
+  } catch (err) {
+    console.error("❌ [ADDRESS] Error getting bair:", err.message);
+    next(err);
+  }
+});
+
 exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
