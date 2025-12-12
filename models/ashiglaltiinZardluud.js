@@ -15,6 +15,7 @@ const ashiglaltiinZardluudSchema = new Schema(
     tsakhilgaanUrjver: Number, //tsakhilgaanii coefficent
     tsakhilgaanChadal: Number,
     tsakhilgaanDemjikh: Number,
+    tailbar: String,
     tariff: Number,
     tariffUsgeer: String,
     suuriKhuraamj: Number,
@@ -70,7 +71,7 @@ async function handleZardluudUpdate(doc) {
     const gereeQuery = {
       baiguullagiinId: doc.baiguullagiinId,
     };
-    
+
     // Only filter by barilgiinId if it exists in the doc
     // This maintains backward compatibility for existing data
     if (doc.barilgiinId) {
@@ -93,10 +94,18 @@ async function handleZardluudUpdate(doc) {
         const matchesNer = z.ner === doc.ner;
         const matchesTurul = z.turul === doc.turul;
         const matchesZardliinTurul = z.zardliinTurul === doc.zardliinTurul;
-        const matchesBarilgiinId = (!doc.barilgiinId && !z.barilgiinId) || 
-                                   (doc.barilgiinId && z.barilgiinId && String(doc.barilgiinId) === String(z.barilgiinId));
-        
-        if (matchesNer && matchesTurul && matchesZardliinTurul && matchesBarilgiinId) {
+        const matchesBarilgiinId =
+          (!doc.barilgiinId && !z.barilgiinId) ||
+          (doc.barilgiinId &&
+            z.barilgiinId &&
+            String(doc.barilgiinId) === String(z.barilgiinId));
+
+        if (
+          matchesNer &&
+          matchesTurul &&
+          matchesZardliinTurul &&
+          matchesBarilgiinId
+        ) {
           matchingZardluudIndices.push(i);
         }
       }
@@ -176,7 +185,7 @@ ashiglaltiinZardluudSchema.post(
       const gereeQuery = {
         baiguullagiinId: doc.baiguullagiinId,
       };
-      
+
       // Only filter by barilgiinId if it exists in the doc
       // This maintains backward compatibility for existing data
       if (doc.barilgiinId) {

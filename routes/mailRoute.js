@@ -20,13 +20,7 @@ router.post("/mailOlnoorIlgeeye", tokenShalgakh, async (req, res, next) => {
     var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       req.body.baiguullagiinId
     );
-    if (
-      !baiguullaga ||
-      !baiguullaga.tokhirgoo ||
-      !baiguullaga.tokhirgoo.mailNevtrekhNer ||
-      !baiguullaga.tokhirgoo.mailPassword
-    )
-      throw new aldaa("И-Мэйлын тохиргоо хийгдээгүй байна!");
+
     if (req.body.subject === "Түрээсийн төлбөр" && !!req.body.gereenuud) {
       var ilgeekhBody = {
         mailuud: req.body.mailuud,
