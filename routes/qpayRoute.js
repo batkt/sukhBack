@@ -116,6 +116,44 @@ router.get("/qpayObjectAvya", tokenShalgakh, async (req, res, next) => {
   }
 });
 
+router.get("/qpayObjectByAccount", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, account_number } = req.query;
+
+    if (!baiguullagiinId || !account_number) {
+      return res.status(400).send({
+        success: false,
+        message: "baiguullagiinId and account_number are required",
+      });
+    }
+
+    // Get database connection for this organization
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).send({
+        success: false,
+        message: "Organization connection not found",
+      });
+    }
+
+    const qpayObjects = await QuickQpayObject(tukhainBaaziinKholbolt).find({
+      account_number: account_number,
+      baiguullagiinId: baiguullagiinId,
+    });
+
+    res.send({
+      success: true,
+      data: qpayObjects,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
