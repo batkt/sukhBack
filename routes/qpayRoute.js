@@ -124,7 +124,7 @@ router.get("/qpayObjectByAccount", tokenShalgakh, async (req, res, next) => {
     if (!baiguullagiinId) {
       return res.status(400).send({
         success: false,
-        message: "baiguullagiinId and account_number are required",
+        message: "baiguullagiinId is required",
       });
     }
 
