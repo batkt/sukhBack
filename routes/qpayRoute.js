@@ -116,7 +116,7 @@ router.get("/qpayObjectAvya", tokenShalgakh, async (req, res, next) => {
   }
 });
 
-router.get("/qpayObjectByAccount", tokenShalgakh, async (req, res, next) => {
+router.get("/qpayObjectByAccount", async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const { baiguullagiinId } = req.query;
@@ -128,7 +128,6 @@ router.get("/qpayObjectByAccount", tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    // Get database connection for this organization
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
