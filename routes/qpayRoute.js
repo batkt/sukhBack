@@ -116,9 +116,10 @@ router.get("/qpayObjectAvya", tokenShalgakh, async (req, res, next) => {
   }
 });
 
-router.get("/qpayObjectByAccount", async (req, res, next) => {
+router.get("/accountNumbers", async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    const AccountNumber = require("../models/accountNumber");
     const { baiguullagiinId } = req.query;
 
     if (!baiguullagiinId) {
@@ -139,13 +140,13 @@ router.get("/qpayObjectByAccount", async (req, res, next) => {
       });
     }
 
-    const qpayObjects = await QuickQpayObject(tukhainBaaziinKholbolt).find({
+    const accountNumbers = await AccountNumber(tukhainBaaziinKholbolt).find({
       baiguullagiinId: baiguullagiinId,
     });
 
     res.send({
       success: true,
-      data: qpayObjects,
+      data: accountNumbers,
     });
   } catch (err) {
     next(err);
