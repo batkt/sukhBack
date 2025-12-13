@@ -143,6 +143,7 @@ const gereeSchema = new Schema(
         tsakhilgaanUrjver: Number, //tsakhilgaanii coefficent
         tsakhilgaanChadal: Number,
         tsakhilgaanDemjikh: Number,
+        tailbar: String,
         suuriKhuraamj: String,
         nuatNemekhEsekh: Boolean,
         ognoonuud: [Date],

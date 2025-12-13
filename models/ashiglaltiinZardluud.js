@@ -137,6 +137,7 @@ async function handleZardluudUpdate(doc) {
         tsakhilgaanUrjver: doc.tsakhilgaanUrjver || 1,
         tsakhilgaanChadal: doc.tsakhilgaanChadal || 0,
         tsakhilgaanDemjikh: doc.tsakhilgaanDemjikh || 0,
+        tailbar: doc.tailbar || "",
         suuriKhuraamj: doc.suuriKhuraamj || 0,
         nuatNemekhEsekh: doc.nuatNemekhEsekh || false,
         ognoonuud: doc.ognoonuud || [],
