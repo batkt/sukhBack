@@ -810,12 +810,19 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         ) {
           // Match based on davkhar + orts + toot combination
           // This ensures we find the exact building even if multiple buildings have the same toot
-          const tootToFind = userData.toot.trim();
+          // Support comma-separated toots like "101,69,1,2"
+          const tootRaw = userData.toot.trim();
+          const tootListToFind = tootRaw
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t && t.length > 0);
+          
           const davkharToFind = userData.davkhar.trim();
           const ortsToFind = (userData.orts || "1").trim(); // Default to "1" if not provided
           const floorKey = `${ortsToFind}::${davkharToFind}`;
 
           let foundBuilding = null;
+          let matchedToot = null;
 
           // Search through all buildings to find which one contains this exact combination
           for (const barilga of baiguullaga.barilguud) {
@@ -848,10 +855,13 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                     .filter((t) => t);
                 }
 
-                // If toot is found in this exact floorKey, we found the building
-                if (tootList.includes(tootToFind)) {
-                  foundBuilding = barilga;
-                  break;
+                // Check if ANY of the toots in tootListToFind is found in this building's tootList
+                for (const tootToFind of tootListToFind) {
+                  if (tootList.includes(tootToFind)) {
+                    foundBuilding = barilga;
+                    matchedToot = tootToFind;
+                    break;
+                  }
                 }
               }
             }
@@ -864,11 +874,11 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           if (foundBuilding) {
             finalBarilgiinId = String(foundBuilding._id);
             console.log(
-              `✅ Found building ${foundBuilding.ner} (${finalBarilgiinId}) for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}`
+              `✅ Found building ${foundBuilding.ner} (${finalBarilgiinId}) for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${matchedToot} (from list: ${tootListToFind.join(", ")})`
             );
           } else {
             console.log(
-              `⚠️  Could not find building for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}, using default: ${finalBarilgiinId}`
+              `⚠️  Could not find building for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootRaw}, using default: ${finalBarilgiinId}`
             );
           }
         }
@@ -890,14 +900,20 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         }
 
         if (userData.toot && userData.davkhar) {
-          const tootToValidate = userData.toot.trim();
+          // Support comma-separated toots like "101,69,1,2"
+          const tootRaw = userData.toot.trim();
+          const tootListToValidate = tootRaw
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t && t.length > 0);
+          
           const davkharToValidate = userData.davkhar.trim();
           const ortsToValidate = (userData.orts || "1").trim();
           const floorKey = `${ortsToValidate}::${davkharToValidate}`;
 
           const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
           let tootArray = davkhariinToonuud[floorKey];
-          let foundToot = false;
+          let foundToonuud = [];
 
           // First, try exact floorKey match
           if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
@@ -914,13 +930,23 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 .filter((t) => t);
             }
 
-            if (registeredToonuud.includes(tootToValidate)) {
-              foundToot = true;
+            // Validate each toot in the comma-separated list
+            for (const tootToValidate of tootListToValidate) {
+              if (registeredToonuud.includes(tootToValidate)) {
+                foundToonuud.push(tootToValidate);
+              }
             }
           }
 
-          if (!foundToot) {
-            throw new Error("Бүртгэлгүй тоот байна");
+          // If no toots were found, throw error
+          if (foundToonuud.length === 0) {
+            throw new Error(`Бүртгэлгүй тоот байна: ${tootListToValidate.join(", ")}`);
+          }
+          
+          // Log which toots were found
+          if (foundToonuud.length < tootListToValidate.length) {
+            const notFound = tootListToValidate.filter(t => !foundToonuud.includes(t));
+            console.log(`⚠️  Some toots not found: ${notFound.join(", ")}. Found: ${foundToonuud.join(", ")}`);
           }
         }
 
