@@ -4,7 +4,9 @@ const Baiguullaga = require("../models/baiguullaga");
 const NekhemjlekhCron = require("../models/cronSchedule");
 const OrshinSuugch = require("../models/orshinSuugch");
 const MsgTuukh = require("../models/msgTuukh");
+const Medegdel = require("../models/medegdel");
 const request = require("request");
+const { db } = require("zevbackv2");
 
 // Гэрээнээс нэхэмжлэх үүсгэх функц
 const gereeNeesNekhemjlekhUusgekh = async (
@@ -584,6 +586,37 @@ const gereeNeesNekhemjlekhUusgekh = async (
     //   console.error("Error sending SMS to orshinSuugch:", smsError);
     //   // Don't fail the invoice creation if SMS fails
     // }
+
+    // Send notification (medegdel) to orshinSuugch when invoice is created
+    try {
+      if (tempData.orshinSuugchId) {
+        const baiguullagiinId = org._id ? org._id.toString() : (org.id ? org.id.toString() : String(org));
+        const kholbolt = db.kholboltuud.find(
+          (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+        );
+
+        if (kholbolt) {
+          const medegdel = new Medegdel(kholbolt)();
+          medegdel.orshinSuugchId = tempData.orshinSuugchId;
+          medegdel.baiguullagiinId = baiguullagiinId;
+          medegdel.barilgiinId = tempData.barilgiinId || "";
+          medegdel.title = "Шинэ нэхэмжлэх үүссэн";
+          medegdel.message = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${finalNiitTulbur}₮`;
+          medegdel.kharsanEsekh = false;
+          medegdel.turul = "мэдэгдэл";
+          medegdel.ognoo = new Date();
+
+          await medegdel.save();
+
+          // Try to emit socket event if socket.io is available via global
+          // Socket events will be emitted by route handlers that have access to req.app.get("socketio")
+          // For now, notification is saved in database and can be retrieved by clients
+        }
+      }
+    } catch (notificationError) {
+      console.error("Error sending notification for invoice:", notificationError);
+      // Don't fail the invoice creation if notification fails
+    }
 
     return {
       success: true,

@@ -1,0 +1,153 @@
+{
+  "customQPay": {
+    "description": "Custom QPay (OWN_ORG) - Request body for /qpayGargaya endpoint",
+    "endpoint": "POST /qpayGargaya",
+    "requestBody": {
+      "baiguullagiinId": "69159a06dd2ba5c30308b90f",
+      "barilgiinId": "691aaaf030d1fb28cfb8d5f1",
+      "dun": "50000",
+      "dansniiDugaar": "5069538136",
+      "burtgeliinDugaar": "6078893",
+      "gereeniiId": "optional_geree_id",
+      "nekhemjlekhiinId": "optional_invoice_id",
+      "nekhemjlekhiinTuukh": ["invoice_id_1", "invoice_id_2"],
+      "zakhialgiinDugaar": "optional_custom_invoice_number",
+      "turul": "optional_payment_type",
+      "mashiniiDugaar": "optional_machine_number",
+      "cameraIP": "optional_camera_ip",
+      "tukhainBaaziinKholbolt": "optional_connection_object"
+    },
+    "qpayObjectSentToQPayAPI": {
+      "invoice_code": "QPAY_INVOICE_CODE_FROM_DANS",
+      "sender_invoice_no": "1",
+      "invoice_receiver_code": "6078893",
+      "invoice_description": "Төлбөр",
+      "allow_partial": false,
+      "minimum_amount": null,
+      "allow_exceed": false,
+      "maximum_amount": null,
+      "amount": "50000",
+      "callback_url": "https://your-server.com/qpayTulye/69159a06dd2ba5c30308b90f/691aaaf030d1fb28cfb8d5f1/1"
+    },
+    "response": {
+      "success": true,
+      "data": {
+        "invoice_id": "qpay_invoice_id_from_response",
+        "qr_text": "qpay_qr_code_text",
+        "qr_image": "qpay_qr_code_image_url",
+        "urls": {
+          "web": "https://qpay.mn/web/invoice?invoice_id=...",
+          "deeplink": "qpay://invoice?id=..."
+        }
+      }
+    }
+  },
+  "walletQPay": {
+    "description": "Wallet API QPay - Request body for Wallet API payment creation",
+    "important": "Invoice MUST be created FIRST before creating payment!",
+    "flow": [
+      "Step 1: Create Invoice using POST /wallet/invoice",
+      "Step 2: Use invoiceId from Step 1 to create payment"
+    ],
+    "step1_createInvoice": {
+      "endpoint": "POST {{Wallet-Service}}/api/invoice",
+      "description": "Create invoice from billing and bills - Invoice is created separately",
+      "requestBody": {
+        "billingId": "4bc0a760-356b-47ff-a22f-ce726e6a368f",
+        "billIds": [
+          "08b66ba1-2a16-461a-8d90-62058fa27878",
+          "c9b2ff6f-d603-48c3-8c7e-20d5ced132eb"
+        ],
+        "vatReceiveType": "CITIZEN",
+        "vatCompanyReg": ""
+      },
+      "response": {
+        "success": true,
+        "data": {
+          "invoiceId": "bd841f17-34e1-4963-aebf-c8c3644ee80e",
+          "invoiceAmount": 50000,
+          "invoiceTotal": 50000,
+          "invoiceStatus": "PENDING",
+          "createdAt": "2025-12-12T10:00:00Z"
+        }
+      }
+    },
+    "step2_getInvoice": {
+      "endpoint": "GET {{Wallet-Service}}/api/invoice/:invoiceId",
+      "description": "Optional: Get invoice details after creation",
+      "example": "GET {{Wallet-Service}}/api/invoice/bd841f17-34e1-4963-aebf-c8c3644ee80e"
+    },
+    "step3_createPayment": {
+      "endpoint": "POST {{Wallet-Service}}/api/payment (or auto-routed from /qpayGargaya)",
+      "description": "Create payment using invoiceId - paymentMethod is NOT needed, Wallet API auto-detects QPay",
+      "requestBody": {
+        "invoiceId": "bd841f17-34e1-4963-aebf-c8c3644ee80e"
+      },
+      "paymentDataSentToWalletAPI": {
+        "invoiceId": "bd841f17-34e1-4963-aebf-c8c3644ee80e"
+      },
+      "response": {
+        "success": true,
+        "data": {
+          "paymentId": "wallet_payment_id",
+          "paymentStatus": "PENDING",
+          "qrText": "wallet_qr_code_text",
+          "qrImage": "wallet_qr_code_image_url",
+          "paymentUrl": "wallet_payment_url"
+        },
+        "message": "QPay төлбөр амжилттай үүсгэлээ",
+        "source": "WALLET_API"
+      }
+    },
+    "step4_updateQPayPayment": {
+      "endpoint": "PUT {{Wallet-Service}}/api/payment/qpay/:paymentId",
+      "description": "Update QPay payment with transaction details after payment is completed (from QPay callback)",
+      "requestBody": {
+        "qpayPaymentId": "2342",
+        "trxDate": "2025.12.13 12:12:12",
+        "trxNo": "221",
+        "trxDescription": "EM-123244",
+        "amount": 44343.85,
+        "receiverBankCode": "340000",
+        "receiverAccountNo": "34000823878342",
+        "receiverAccountName": "ebill Түр данс"
+      },
+      "example": "PUT {{Wallet-Service}}/api/payment/qpay/wallet_payment_id"
+    },
+    "cancelInvoice": {
+      "endpoint": "PUT {{Wallet-Service}}/api/invoice/:invoiceId/cancel",
+      "description": "Cancel an invoice if needed"
+    },
+    "completeFlow": {
+      "step1": "Create invoice using billingId and billIds",
+      "step2": "(Optional) Get invoice to verify",
+      "step3": "Create payment with invoiceId - Wallet API auto-detects QPay",
+      "step4": "After QPay callback, update payment with transaction details"
+    }
+  },
+  "comparison": {
+    "customQPay": {
+      "requires": [
+        "baiguullagiinId (OWN_ORG organization ID)",
+        "barilgiinId (building ID)",
+        "dun (amount)",
+        "dansniiDugaar (account number)",
+        "burtgeliinDugaar (merchant code)"
+      ],
+      "uses": "Custom QPay service with own merchant credentials",
+      "callback": "Custom callback URLs (/qpayTulye, /qpayNekhemjlekhCallback, etc.)"
+    },
+    "walletQPay": {
+      "requires": [
+        "invoiceId (Wallet API invoice ID) - paymentMethod is NOT needed, Wallet API auto-detects QPay"
+      ],
+      "uses": "Wallet API payment service",
+      "callback": "Wallet API handles callbacks internally, then update payment with PUT /api/payment/qpay/:paymentId"
+    },
+    "autoDetection": {
+      "customQPay": "User has baiguullagiinId in their record OR baiguullagiinId in request body",
+      "walletQPay": "User does NOT have baiguullagiinId but has walletUserId or walletBairId"
+    }
+  }
+}
+

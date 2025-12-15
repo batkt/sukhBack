@@ -1,10 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const OrshinSuugch = require("../models/orshinSuugch");
 const { tokenShalgakh, crud, db } = require("zevbackv2");
-const {
-  khariltsagchidSonorduulgaIlgeeye,
-} = require("../controller/appNotification");
 const Sonorduulga = require("../models/medegdel");
 const {
   medegdelIlgeeye,
@@ -18,7 +14,6 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
   try {
     const {
       medeelel,
-      firebaseToken,
       orshinSuugchId,
       baiguullagiinId,
       barilgiinId,
@@ -33,7 +28,6 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    // Find the connection object
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
@@ -52,74 +46,37 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      _id: orshinSuugchId,
-    });
+    const orshinSuugchIds = Array.isArray(orshinSuugchId)
+      ? orshinSuugchId
+      : [orshinSuugchId];
 
-    if (!orshinSuugch) {
-      return res.status(404).json({
-        success: false,
-        message: "Оршин суугч олдсонгүй",
-      });
-    }
+    const sonorduulgaList = [];
+    const io = req.app.get("socketio");
 
-    const orshinSuugchToken = orshinSuugch?.firebaseToken || firebaseToken;
+    for (const id of orshinSuugchIds) {
+      const sonorduulga = new Sonorduulga(kholbolt)();
+      sonorduulga.orshinSuugchId = id;
+      sonorduulga.baiguullagiinId = baiguullagiinId;
+      sonorduulga.barilgiinId = barilgiinId;
+      sonorduulga.title = medeelel.title;
+      sonorduulga.message = medeelel.body;
+      sonorduulga.kharsanEsekh = false;
+      if (turul) sonorduulga.turul = String(turul);
 
-    if (!orshinSuugchToken) {
-      return res.status(400).json({
-        success: false,
-        message: "Firebase token олдсонгүй. Оршин суугчид Firebase token тохируулах шаардлагатай.",
-      });
-    }
+      await sonorduulga.save();
+      sonorduulgaList.push(sonorduulga);
 
-    khariltsagchidSonorduulgaIlgeeye(
-      orshinSuugchToken,
-      medeelel,
-      async (response, error) => {
-        try {
-          const sonorduulga = new Sonorduulga(kholbolt)();
-
-          sonorduulga.orshinSuugchId = orshinSuugchId;
-          sonorduulga.baiguullagiinId = baiguullagiinId;
-          sonorduulga.barilgiinId = barilgiinId;
-          sonorduulga.title = medeelel.title;
-          sonorduulga.message = medeelel.body;
-          sonorduulga.kharsanEsekh = false;
-          if (turul) sonorduulga.turul = String(turul);
-
-          await sonorduulga.save();
-
-          const io = req.app.get("socketio");
-          if (io) {
-            io.emit("orshinSuugch" + orshinSuugchId, sonorduulga);
-          }
-
-          if (error) {
-            // Firebase notification failed but notification is saved
-            return res.json({
-              success: true,
-              message: "Мэдэгдэл хадгалагдлаа (Firebase илгээлт алдаатай)",
-              data: sonorduulga,
-              firebaseError: error.message,
-            });
-          }
-
-          return res.json({
-            success: true,
-            message: "Мэдэгдэл амжилттай илгээгдлээ",
-            data: sonorduulga,
-          });
-        } catch (saveError) {
-          console.error("Error saving notification:", saveError);
-          return next(saveError);
-        }
-      },
-      (error) => {
-        // If Firebase fails before callback, still try to save notification
-        console.error("Firebase notification error:", error);
-        // Don't call next here, let the callback handle it
+      if (io) {
+        io.emit("orshinSuugch" + id, sonorduulga);
       }
-    );
+    }
+
+    return res.json({
+      success: true,
+      message: "Мэдэгдэл амжилттай хадгалагдлаа",
+      data: sonorduulgaList,
+      count: sonorduulgaList.length,
+    });
   } catch (error) {
     next(error);
   }

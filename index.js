@@ -15,6 +15,7 @@ dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 const baiguullagaRoute = require("./routes/baiguullagaRoute");
 const ajiltanRoute = require("./routes/ajiltanRoute");
 const orshinSuugchRoute = require("./routes/orshinSuugchRoute");
+const walletRoute = require("./routes/walletRoute");
 const licenseRoute = require("./routes/licenseRoute");
 const nekhemjlekhiinZagvarRoute = require("./routes/nekhemjlekhiinZagvarRoute");
 const bankniiGuilgeeRoute = require("./routes/bankniiGuilgeeRoute");
@@ -28,6 +29,8 @@ const ebarimtRoute = require("./routes/ebarimtRoute");
 const tailanRoute = require("./routes/tailanRoute");
 const pdfRoute = require("./routes/pdfRoute");
 const medegdelRoute = require("./routes/medegdelRoute");
+const msgRoute = require("./routes/msgRoute");
+const mailRoute = require("./routes/mailRoute");
 
 const { db } = require("zevbackv2");
 
@@ -71,6 +74,7 @@ app.use(baiguullagaRoute);
 app.use(ajiltanRoute);
 app.use(licenseRoute);
 app.use(orshinSuugchRoute);
+app.use("/wallet", walletRoute);
 app.use(gereeRoute);
 app.use(gereeniiZagvarRoute);
 app.use(nekhemjlekhiinZagvarRoute);
@@ -78,11 +82,13 @@ app.use(bankniiGuilgeeRoute);
 app.use(dansRoute);
 app.use(ebarimtRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
-app.use(medegdelRoute); // Mount before nekhemjlekhRoute to avoid route conflicts
+app.use(medegdelRoute);
+app.use(msgRoute);
 app.use(nekhemjlekhRoute);
 app.use(qpayRoute);
 app.use(tailanRoute);
 app.use(pdfRoute);
+app.use(mailRoute);
 
 app.use(aldaaBarigch);
 

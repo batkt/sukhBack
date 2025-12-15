@@ -11,6 +11,10 @@ const aldaa = require("../components/aldaa");
 const request = require("request");
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
+const addressService = require("../services/addressService");
+const walletApiService = require("../services/walletApiService");
+
+// ... existing code ...
 
 const useragent = require("express-useragent");
 
@@ -1000,6 +1004,154 @@ exports.davhardsanOrshinSuugchShalgayy = asyncHandler(
   }
 );
 
+// Toot validation endpoint for OWN_ORG bair
+exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { toot, baiguullagiinId, barilgiinId, davkhar, orts } = req.body;
+
+    if (!toot) {
+      return res.status(400).json({
+        success: false,
+        message: "Тоот заавал оруулах шаардлагатай!",
+        valid: false
+      });
+    }
+
+    if (!baiguullagiinId || !barilgiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "Байгууллагын болон барилгын ID заавал оруулах шаардлагатай!",
+        valid: false
+      });
+    }
+
+    // Find baiguullaga
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын мэдээлэл олдсонгүй!",
+        valid: false
+      });
+    }
+
+    // Find target barilga
+    const targetBarilga = baiguullaga.barilguud?.find(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+
+    if (!targetBarilga) {
+      return res.status(404).json({
+        success: false,
+        message: "Барилгын мэдээлэл олдсонгүй!",
+        valid: false
+      });
+    }
+
+    const tootToValidate = String(toot).trim();
+    const davkharToValidate = davkhar ? String(davkhar).trim() : "";
+    const ortsToValidate = orts ? String(orts).trim() : "1";
+    
+    // Check if toot exists in davkhariinToonuud (available toots)
+    const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+    let tootFound = false;
+    let foundDavkhar = null;
+    let foundOrts = null;
+    let availableToonuud = [];
+
+    if (davkharToValidate) {
+      // If davkhar is provided, check specific floor
+      const floorKey = `${ortsToValidate}::${davkharToValidate}`;
+      const tootArray = davkhariinToonuud[floorKey];
+      
+      if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+        let tootList = [];
+        if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+          tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+        } else {
+          tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+        }
+        
+        availableToonuud = tootList;
+        if (tootList.includes(tootToValidate)) {
+          tootFound = true;
+          foundDavkhar = davkharToValidate;
+          foundOrts = ortsToValidate;
+        }
+      }
+    } else {
+      // If davkhar not provided, search all floors
+      for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+        if (!floorKey.includes("::")) {
+          continue; // Skip invalid keys
+        }
+
+        if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+          let tootList = [];
+          if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+            tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+          } else {
+            tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+          }
+          
+          // Collect all available toots
+          availableToonuud = [...availableToonuud, ...tootList];
+          
+          if (tootList.includes(tootToValidate)) {
+            tootFound = true;
+            const parts = floorKey.split("::");
+            if (parts.length === 2) {
+              foundOrts = parts[0].trim();
+              foundDavkhar = parts[1].trim();
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    if (!tootFound) {
+      return res.status(400).json({
+        success: false,
+        message: "Бүртгэлгүй тоот байна",
+        valid: false,
+        availableToonuud: availableToonuud.length > 0 ? [...new Set(availableToonuud)].sort() : []
+      });
+    }
+
+    // Check if toot is already registered to another user
+    const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      toot: tootToValidate,
+      barilgiinId: barilgiinId
+    });
+
+    if (existingTootUser) {
+      return res.status(400).json({
+        success: false,
+        message: `(${tootToValidate}) тоот аль хэдийн бүртгэгдсэн байна`,
+        valid: false,
+        registered: true
+      });
+    }
+
+    // Toot is valid
+    return res.json({
+      success: true,
+      message: "Тоот зөв байна",
+      valid: true,
+      result: {
+        toot: tootToValidate,
+        davkhar: foundDavkhar,
+        orts: foundOrts
+      }
+    });
+  } catch (error) {
+    console.error("❌ [TOOT VALIDATION] Error:", error.message);
+    next(error);
+  }
+});
+
 // Toot validation endpoint
 exports.tootShalgaya = asyncHandler(async (req, res, next) => {
   try {
@@ -1055,59 +1207,1399 @@ exports.tootShalgaya = asyncHandler(async (req, res, next) => {
 
 exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   try {
-    const io = req.app.get("socketio");
+    console.log("🔐 [WALLET LOGIN] Login request received");
+    console.log("🔐 [WALLET LOGIN] Phone:", req.body.utas);
+    console.log("🔐 [WALLET LOGIN] Firebase token provided:", !!req.body.firebaseToken);
+
     const { db } = require("zevbackv2");
 
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
-      .findOne({ utas: req.body.utas })
-      .select("+nuutsUg")
-      .catch((err) => {
-        next(err);
-      });
-
-    if (!orshinSuugch) throw new aldaa("Бүртгэлгүй хаяг байна.");
-
-    // Validate toot if provided
-    if (req.body.toot) {
-      if (!orshinSuugch.toot || orshinSuugch.toot.trim() !== req.body.toot.trim()) {
-        throw new aldaa("Бүртгэлгүй тоот байна");
-      }
+    if (!req.body.utas) {
+      throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
     }
 
-    var ok = await orshinSuugch.passwordShalgaya(req.body.nuutsUg);
-    if (!ok) throw new aldaa("Утасны дугаар эсвэл нууц үг буруу байна!");
+    const phoneNumber = String(req.body.utas).trim();
 
-    // Only update barilgiinId if user doesn't have one
-    // Don't force users to use the first building - they should keep their assigned building
-    if (!orshinSuugch.barilgiinId) {
-      var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-        orshinSuugch.baiguullagiinId
-      );
+    console.log("📞 [WALLET LOGIN] Fetching user from Wallet API...");
+    const walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
 
-      const firstBarilgiinId =
-        baiguullaga?.barilguud && baiguullaga.barilguud.length > 0
-          ? String(baiguullaga.barilguud[0]._id)
-          : null;
-      if (baiguullaga && firstBarilgiinId) {
-        console.log(
-          "Setting user barilgiinId to first building (user had no barilgiinId):",
-          firstBarilgiinId
-        );
-        orshinSuugch.barilgiinId = firstBarilgiinId;
-        await orshinSuugch.save();
-      }
+    if (!walletUserInfo || !walletUserInfo.userId) {
+      throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд хэтэвчний системд бүртгүүлнэ үү.");
     }
 
-    var butsaakhObject = {
-      result: orshinSuugch,
-      success: true,
+    console.log("✅ [WALLET LOGIN] User found in Wallet API:", walletUserInfo.userId);
+
+    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      $or: [
+        { utas: phoneNumber },
+        { walletUserId: walletUserInfo.userId }
+      ]
+    });
+
+    const userData = {
+      utas: phoneNumber,
+      mail: walletUserInfo.email || (orshinSuugch?.mail || ""),
+      walletUserId: walletUserInfo.userId,
+      erkh: "OrshinSuugch",
+      nevtrekhNer: phoneNumber,
     };
 
-    const token = await orshinSuugch.tokenUusgeye();
-    butsaakhObject.token = token;
+    // Preserve existing baiguullagiinId if user already has one
+    if (orshinSuugch && orshinSuugch.baiguullagiinId) {
+      userData.baiguullagiinId = orshinSuugch.baiguullagiinId;
+      userData.baiguullagiinNer = orshinSuugch.baiguullagiinNer;
+    }
+    
+    // Save baiguullagiinId if provided (from OWN_ORG bair selection)
+    if (req.body.baiguullagiinId) {
+      userData.baiguullagiinId = req.body.baiguullagiinId;
+    }
 
+    if (req.body.barilgiinId) {
+      userData.barilgiinId = req.body.barilgiinId;
+    } else if (orshinSuugch && orshinSuugch.barilgiinId) {
+      // Preserve existing barilgiinId if user already has one
+      userData.barilgiinId = orshinSuugch.barilgiinId;
+    }
+
+    // Validate OWN_ORG bair toot/doorNo if provided
+    if (req.body.baiguullagiinId && req.body.barilgiinId && req.body.doorNo) {
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (!baiguullaga) {
+          throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+        }
+
+        const targetBarilga = baiguullaga.barilguud?.find(
+          (b) => String(b._id) === String(req.body.barilgiinId)
+        );
+
+        if (!targetBarilga) {
+          throw new aldaa("Барилгын мэдээлэл олдсонгүй!");
+        }
+
+        const tootToValidate = req.body.doorNo.trim();
+        const davkharToValidate = (req.body.davkhar || "").trim();
+        const ortsToValidate = (req.body.orts || "1").trim();
+        
+        // Check if toot exists in davkhariinToonuud (available toots)
+        const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+        let tootFound = false;
+
+        if (davkharToValidate) {
+          // If davkhar is provided, check specific floor
+          const floorKey = `${ortsToValidate}::${davkharToValidate}`;
+          const tootArray = davkhariinToonuud[floorKey];
+          
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let tootList = [];
+            if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+              tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+            } else {
+              tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+            }
+            
+            if (tootList.includes(tootToValidate)) {
+              tootFound = true;
+            }
+          }
+        } else {
+          // If davkhar not provided, search all floors
+          for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+            if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+              let tootList = [];
+              if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+                tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+              } else {
+                tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+              }
+              
+              if (tootList.includes(tootToValidate)) {
+                tootFound = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!tootFound) {
+          throw new aldaa(`(${tootToValidate}) тоот энэ барилгад бүртгэлгүй байна`);
+        }
+
+        // Check if toot is already registered to another user
+        const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+          toot: tootToValidate,
+          barilgiinId: req.body.barilgiinId,
+          _id: { $ne: orshinSuugch?._id } // Exclude current user if updating
+        });
+
+        if (existingTootUser) {
+          throw new aldaa(`(${tootToValidate}) тоот аль хэдийн бүртгэгдсэн байна`);
+        }
+
+        // If validation passes, also set toot field
+        userData.toot = tootToValidate;
+        console.log(`✅ [WALLET LOGIN] OWN_ORG toot validated: ${tootToValidate}`);
+      } catch (error) {
+        console.error("❌ [WALLET LOGIN] OWN_ORG toot validation error:", error.message);
+        throw error;
+      }
+    }
+
+    if (req.body.duureg) userData.duureg = req.body.duureg;
+    if (req.body.horoo) userData.horoo = req.body.horoo;
+    if (req.body.soh) userData.soh = req.body.soh;
+    if (req.body.toot) userData.toot = req.body.toot;
+    if (req.body.davkhar) userData.davkhar = req.body.davkhar;
+    if (req.body.orts) userData.orts = req.body.orts;
+
+    // Save address if provided, or preserve existing
+    if (req.body.bairId) {
+      userData.walletBairId = req.body.bairId;
+    } else if (orshinSuugch && orshinSuugch.walletBairId) {
+      // Preserve existing walletBairId if user already has one
+      userData.walletBairId = orshinSuugch.walletBairId;
+    }
+
+    if (req.body.doorNo) {
+      userData.walletDoorNo = req.body.doorNo;
+    } else if (orshinSuugch && orshinSuugch.walletDoorNo) {
+      // Preserve existing walletDoorNo if user already has one
+      userData.walletDoorNo = orshinSuugch.walletDoorNo;
+    }
+
+    // Store address values before saving for later use
+    const bairIdToUse = userData.walletBairId || req.body.bairId;
+    const doorNoToUse = userData.walletDoorNo || req.body.doorNo;
+
+    if (orshinSuugch) {
+      console.log("🔄 [WALLET LOGIN] Updating existing user:", orshinSuugch._id);
+      Object.assign(orshinSuugch, userData);
+    } else {
+      console.log("➕ [WALLET LOGIN] Creating new user");
+      orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    }
+
+    if (req.body.firebaseToken) {
+      orshinSuugch.firebaseToken = req.body.firebaseToken;
+      console.log("📱 [WALLET LOGIN] Updating Firebase token");
+    }
+
+    await orshinSuugch.save();
+    console.log("✅ [WALLET LOGIN] User saved to database:", orshinSuugch._id);
+    console.log("✅ [WALLET LOGIN] Saved fields:", Object.keys(userData).join(", "));
+    console.log("🔍 [WALLET LOGIN] Address check - bairId:", bairIdToUse, "doorNo:", doorNoToUse);
+
+    // Automatically fetch and connect billing if address is available
+    let billingInfo = null;
+
+    if (bairIdToUse && doorNoToUse) {
+      try {
+        console.log("🏠 [WALLET LOGIN] Auto-fetching billing with saved address...");
+        console.log("🏠 [WALLET LOGIN] bairId:", bairIdToUse, "doorNo:", doorNoToUse);
+        
+        // getBillingByAddress requires phoneNumber, not walletUserId
+        console.log("🔍 [WALLET LOGIN] Using phoneNumber for getBillingByAddress:", phoneNumber);
+        
+        console.log("🔍 [WALLET LOGIN] About to call getBillingByAddress...");
+        const billingResponse = await walletApiService.getBillingByAddress(
+          phoneNumber,
+          bairIdToUse,
+          doorNoToUse
+        );
+        console.log("🔍 [WALLET LOGIN] getBillingByAddress returned:", JSON.stringify(billingResponse));
+
+        if (billingResponse && Array.isArray(billingResponse) && billingResponse.length > 0) {
+          billingInfo = billingResponse[0];
+          console.log("✅ [WALLET LOGIN] Billing info found:", billingInfo.customerName);
+          
+          // If billingId is not in the response, try to get it using customerId
+          if (!billingInfo.billingId && billingInfo.customerId) {
+            try {
+              console.log("🔍 [WALLET LOGIN] Billing ID not found, fetching by customer ID...");
+              console.log("🔍 [WALLET LOGIN] Customer ID:", billingInfo.customerId);
+              // Wallet API userId means phoneNumber
+              const billingByCustomer = await walletApiService.getBillingByCustomer(
+                phoneNumber,
+                billingInfo.customerId
+              );
+              if (billingByCustomer && billingByCustomer.billingId) {
+                billingInfo.billingId = billingByCustomer.billingId;
+                billingInfo.billingName = billingByCustomer.billingName || billingInfo.billingName;
+                console.log("✅ [WALLET LOGIN] Billing ID found via customer ID:", billingInfo.billingId);
+              } else {
+                console.warn("⚠️ [WALLET LOGIN] getBillingByCustomer returned null or no billingId");
+                console.warn("⚠️ [WALLET LOGIN] Response:", JSON.stringify(billingByCustomer));
+                
+                // Try to find billingId from billing list
+                try {
+                  console.log("🔍 [WALLET LOGIN] Trying to find billingId from billing list...");
+                  // Wallet API userId means phoneNumber
+                  const billingList = await walletApiService.getBillingList(phoneNumber);
+                  if (billingList && billingList.length > 0) {
+                    // Try to find matching billing by customerId
+                    const matchingBilling = billingList.find(b => 
+                      b.customerId === billingInfo.customerId || 
+                      b.customerCode === billingInfo.customerCode
+                    );
+                    if (matchingBilling && matchingBilling.billingId) {
+                      billingInfo.billingId = matchingBilling.billingId;
+                      billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
+                      console.log("✅ [WALLET LOGIN] Billing ID found from billing list:", billingInfo.billingId);
+                    } else {
+                      // If no match, use first billing if available
+                      if (billingList[0] && billingList[0].billingId) {
+                        billingInfo.billingId = billingList[0].billingId;
+                        billingInfo.billingName = billingList[0].billingName || billingInfo.billingName;
+                        console.log("✅ [WALLET LOGIN] Using first billing from list:", billingInfo.billingId);
+                      }
+                    }
+                  }
+                } catch (listError) {
+                  console.error("⚠️ [WALLET LOGIN] Error fetching billing list:", listError.message);
+                }
+              }
+            } catch (customerBillingError) {
+              console.error("⚠️ [WALLET LOGIN] Error fetching billing by customer ID:", customerBillingError.message);
+              if (customerBillingError.response) {
+                console.error("⚠️ [WALLET LOGIN] Error response:", JSON.stringify(customerBillingError.response.data));
+              }
+              
+              // Try billing list as fallback
+              try {
+                console.log("🔍 [WALLET LOGIN] Trying billing list as fallback...");
+                // Wallet API userId means phoneNumber
+                const billingList = await walletApiService.getBillingList(phoneNumber);
+                if (billingList && billingList.length > 0) {
+                  const matchingBilling = billingList.find(b => 
+                    b.customerId === billingInfo.customerId
+                  );
+                  if (matchingBilling && matchingBilling.billingId) {
+                    billingInfo.billingId = matchingBilling.billingId;
+                    billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
+                    console.log("✅ [WALLET LOGIN] Billing ID found from billing list (fallback):", billingInfo.billingId);
+                  }
+                }
+              } catch (listError) {
+                console.error("⚠️ [WALLET LOGIN] Error in billing list fallback:", listError.message);
+              }
+            }
+          }
+
+          // Automatically connect billing to Wallet API account
+          if (billingInfo.billingId || billingInfo.customerId) {
+            try {
+              console.log("🔗 [WALLET LOGIN] Auto-connecting billing to Wallet API account...");
+              if (billingInfo.billingId) {
+                console.log("🔗 [WALLET LOGIN] Billing ID found:", billingInfo.billingId);
+              }
+              // Wallet API doesn't allow billingId in body - use only customerId
+              const billingData = {
+                customerId: billingInfo.customerId,
+              };
+
+              // saveBilling requires phoneNumber, not walletUserId
+              console.log("🔍 [WALLET LOGIN] Using phoneNumber for saveBilling:", phoneNumber);
+              const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
+              console.log("✅ [WALLET LOGIN] Billing auto-connected to Wallet API account");
+              console.log("✅ [WALLET LOGIN] Connection result:", JSON.stringify(connectResult));
+            } catch (connectError) {
+              console.error("❌ [WALLET LOGIN] Error auto-connecting billing:", connectError.message);
+              if (connectError.response) {
+                console.error("❌ [WALLET LOGIN] Error response status:", connectError.response.status);
+                console.error("❌ [WALLET LOGIN] Error response data:", JSON.stringify(connectError.response.data));
+              }
+              // Don't throw - billing info is still saved locally
+            }
+          } else {
+            // Try to connect billing without billingId using customerId
+            if (billingInfo.customerId) {
+              try {
+                console.log("🔗 [WALLET LOGIN] Attempting to connect billing without billingId...");
+                console.log("🔗 [WALLET LOGIN] Using customerId:", billingInfo.customerId);
+                
+                // Send only customerId - Wallet API will return full billing info including billingId
+                const billingData = {
+                  customerId: billingInfo.customerId,
+                };
+
+                // Try to save without billingId - Wallet API might create it
+                // saveBilling requires phoneNumber, not walletUserId
+                console.log("🔍 [WALLET LOGIN] Using phoneNumber for saveBilling:", phoneNumber);
+                const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
+                console.log("✅ [WALLET LOGIN] Billing connected without billingId");
+                console.log("✅ [WALLET LOGIN] Connection result:", JSON.stringify(connectResult));
+                
+                // If successful, update billingInfo with returned billingId
+                if (connectResult && connectResult.billingId) {
+                  billingInfo.billingId = connectResult.billingId;
+                  console.log("✅ [WALLET LOGIN] Got billingId from save response:", billingInfo.billingId);
+                }
+              } catch (connectError) {
+                console.error("❌ [WALLET LOGIN] Error connecting billing without billingId:", connectError.message);
+                if (connectError.response) {
+                  console.error("❌ [WALLET LOGIN] Error response status:", connectError.response.status);
+                  console.error("❌ [WALLET LOGIN] Error response data:", JSON.stringify(connectError.response.data));
+                }
+              }
+            } else {
+              console.warn("⚠️ [WALLET LOGIN] Billing ID not found - cannot connect to Wallet API");
+              console.warn("⚠️ [WALLET LOGIN] Customer ID:", billingInfo.customerId);
+              console.warn("⚠️ [WALLET LOGIN] Customer Code:", billingInfo.customerCode);
+            }
+          }
+
+          // Update user with billing data
+          const updateData = {};
+          if (billingInfo.customerName) {
+            const nameParts = billingInfo.customerName.split(" ");
+            if (nameParts.length >= 2) {
+              updateData.ovog = nameParts[0];
+              updateData.ner = nameParts.slice(1).join(" ");
+            } else {
+              updateData.ner = billingInfo.customerName;
+            }
+          }
+          if (billingInfo.customerAddress) {
+            updateData.bairniiNer = billingInfo.customerAddress;
+          }
+          if (billingInfo.customerId) {
+            updateData.walletCustomerId = billingInfo.customerId;
+          }
+          if (billingInfo.customerCode) {
+            updateData.walletCustomerCode = billingInfo.customerCode;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            Object.assign(orshinSuugch, updateData);
+            await orshinSuugch.save();
+            console.log("✅ [WALLET LOGIN] User updated with billing data");
+          }
+        } else {
+          console.log("⚠️ [WALLET LOGIN] No billing info found for saved address");
+          console.log("⚠️ [WALLET LOGIN] billingResponse:", JSON.stringify(billingResponse));
+          console.log("⚠️ [WALLET LOGIN] billingResponse type:", typeof billingResponse);
+          console.log("⚠️ [WALLET LOGIN] billingResponse is array:", Array.isArray(billingResponse));
+          if (billingResponse) {
+            console.log("⚠️ [WALLET LOGIN] billingResponse length:", billingResponse.length);
+          }
+        }
+      } catch (billingError) {
+        // Log error but don't fail login
+        console.error("⚠️ [WALLET LOGIN] Error auto-fetching billing (continuing anyway):", billingError.message);
+        if (billingError.response) {
+          console.error("⚠️ [WALLET LOGIN] Error response status:", billingError.response.status);
+          console.error("⚠️ [WALLET LOGIN] Error response data:", JSON.stringify(billingError.response.data));
+        }
+        if (billingError.stack) {
+          console.error("⚠️ [WALLET LOGIN] Error stack:", billingError.stack);
+        }
+      }
+    } else {
+      console.log("ℹ️ [WALLET LOGIN] No address available for auto-billing fetch");
+    }
+
+    // If user has baiguullagiinId and barilgiinId, check/create geree (old method)
+    if (orshinSuugch.baiguullagiinId && orshinSuugch.barilgiinId) {
+      try {
+        console.log("📋 [WALLET LOGIN] OWN_ORG bair detected - checking for geree...");
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(orshinSuugch.baiguullagiinId);
+        
+        if (!baiguullaga) {
+          console.error("❌ [WALLET LOGIN] Baiguullaga not found for geree creation");
+        } else {
+          const tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+
+          if (!tukhainBaaziinKholbolt) {
+            console.error("❌ [WALLET LOGIN] Kholbolt not found for geree creation");
+          } else {
+            // Check if geree already exists for this user
+            const GereeModel = Geree(tukhainBaaziinKholbolt);
+            const existingGeree = await GereeModel.findOne({
+              orshinSuugchId: orshinSuugch._id.toString(),
+              tuluv: { $ne: "Цуцалсан" } // Only check active gerees
+            });
+
+            if (existingGeree) {
+              console.log("ℹ️ [WALLET LOGIN] Geree already exists for this user:", existingGeree._id);
+            } else {
+              console.log("📋 [WALLET LOGIN] No active geree found - creating new geree...");
+              const targetBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === String(orshinSuugch.barilgiinId)
+              );
+
+              if (targetBarilga) {
+                // Get ashiglaltiinZardluud from barilga
+                const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+                const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+                const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+                const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                  ner: zardal.ner,
+                  turul: zardal.turul,
+                  zardliinTurul: zardal.zardliinTurul,
+                  tariff: zardal.tariff,
+                  tariffUsgeer: zardal.tariffUsgeer || "",
+                  tulukhDun: 0,
+                  dun: zardal.dun || 0,
+                  bodokhArga: zardal.bodokhArga || "",
+                  tseverUsDun: zardal.tseverUsDun || 0,
+                  bokhirUsDun: zardal.bokhirUsDun || 0,
+                  usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                  tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                  tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                  tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                  suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                  nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                  ognoonuud: zardal.ognoonuud || [],
+                }));
+
+                const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+                  const tariff = zardal.tariff || 0;
+                  const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                  if (isLiftItem && orshinSuugch.davkhar && choloolugdokhDavkhar.includes(orshinSuugch.davkhar)) {
+                    return total;
+                  }
+                  return total + tariff;
+                }, 0);
+
+                const duuregNer = targetBarilga.tokhirgoo?.duuregNer || orshinSuugch.duureg || "";
+                const horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
+                const sohNer = targetBarilga.tokhirgoo?.sohNer || orshinSuugch.soh || "";
+
+                // Create geree (contract)
+                const contractData = {
+                  gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+                  gereeniiOgnoo: new Date(),
+                  turul: "Үндсэн",
+                  tuluv: "Идэвхтэй",
+                  ovog: orshinSuugch.ovog || "",
+                  ner: orshinSuugch.ner || "",
+                  register: orshinSuugch.register || "",
+                  utas: [orshinSuugch.utas],
+                  mail: orshinSuugch.mail || "",
+                  baiguullagiinId: baiguullaga._id,
+                  baiguullagiinNer: baiguullaga.ner,
+                  barilgiinId: orshinSuugch.barilgiinId,
+                  tulukhOgnoo: new Date(),
+                  ashiglaltiinZardal: 0,
+                  niitTulbur: niitTulbur,
+                  toot: orshinSuugch.toot || "",
+                  davkhar: orshinSuugch.davkhar || "",
+                  bairNer: targetBarilga.ner || "",
+                  sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
+                  duureg: duuregNer,
+                  horoo: horooData,
+                  sohNer: sohNer,
+                  burtgesenAjiltan: orshinSuugch._id,
+                  orshinSuugchId: orshinSuugch._id.toString(),
+                  temdeglel: "Wallet API-аас автоматаар үүссэн гэрээ",
+                  actOgnoo: new Date(),
+                  baritsaaniiUldegdel: 0,
+                  ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,
+                  zardluud: zardluudArray,
+                  segmentuud: [],
+                  khungulultuud: [],
+                };
+
+                const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+                await geree.save();
+                console.log("✅ [WALLET LOGIN] Geree created:", geree._id);
+
+                // Update davkhar with toot if provided
+                if (orshinSuugch.toot && orshinSuugch.davkhar) {
+                  await exports.updateDavkharWithToot(
+                    baiguullaga,
+                    orshinSuugch.barilgiinId,
+                    orshinSuugch.davkhar,
+                    orshinSuugch.toot,
+                    tukhainBaaziinKholbolt
+                  );
+                  console.log("✅ [WALLET LOGIN] Davkhar updated with toot");
+                }
+
+                // Invoice will be created by cron job on scheduled date
+                console.log("ℹ️ [WALLET LOGIN] Invoice will be created by cron job on scheduled date");
+              }
+            }
+          }
+        }
+      } catch (gereeError) {
+        console.error("❌ [WALLET LOGIN] Error creating geree:", gereeError.message);
+        // Don't fail login if geree creation fails
+      }
+    }
+
+    const token = await orshinSuugch.tokenUusgeye();
+
+    const butsaakhObject = {
+      result: orshinSuugch,
+      success: true,
+      token: token,
+      walletUserInfo: walletUserInfo,
+    };
+
+    if (billingInfo) {
+      butsaakhObject.billingInfo = billingInfo;
+    }
+
+    console.log("✅ [WALLET LOGIN] Login successful for user:", orshinSuugch._id);
     res.status(200).json(butsaakhObject);
   } catch (err) {
+    console.error("❌ [WALLET LOGIN] Error:", err.message);
+    next(err);
+  }
+});
+
+exports.walletBurtgey = asyncHandler(async (req, res, next) => {
+  try {
+    console.log("📝 [WALLET REGISTER] Registration request received");
+    console.log("📝 [WALLET REGISTER] Phone:", req.body.utas);
+    console.log("📝 [WALLET REGISTER] Email:", req.body.mail);
+
+    if (!req.body.utas) {
+      throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
+    }
+
+    if (!req.body.mail) {
+      throw new aldaa("И-мэйл заавал бөглөх шаардлагатай!");
+    }
+
+    const { db } = require("zevbackv2");
+    const phoneNumber = String(req.body.utas).trim();
+    const email = String(req.body.mail).trim();
+
+    console.log("📞 [WALLET REGISTER] Registering user in Wallet API...");
+    const walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+
+    if (!walletUserInfo || !walletUserInfo.userId) {
+      throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
+    }
+
+    console.log("✅ [WALLET REGISTER] User registered in Wallet API:", walletUserInfo.userId);
+
+    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      $or: [
+        { utas: phoneNumber },
+        { walletUserId: walletUserInfo.userId }
+      ]
+    });
+
+    const userData = {
+      utas: phoneNumber,
+      mail: walletUserInfo.email || email,
+      walletUserId: walletUserInfo.userId,
+      erkh: "OrshinSuugch",
+      nevtrekhNer: phoneNumber,
+    };
+
+    if (req.body.barilgiinId) {
+      userData.barilgiinId = req.body.barilgiinId;
+    }
+
+    if (req.body.duureg) userData.duureg = req.body.duureg;
+    if (req.body.horoo) userData.horoo = req.body.horoo;
+    if (req.body.soh) userData.soh = req.body.soh;
+    if (req.body.toot) userData.toot = req.body.toot;
+    if (req.body.davkhar) userData.davkhar = req.body.davkhar;
+    if (req.body.orts) userData.orts = req.body.orts;
+
+    // Save address if provided
+    if (req.body.bairId) {
+      userData.walletBairId = req.body.bairId;
+    }
+    if (req.body.doorNo) {
+      userData.walletDoorNo = req.body.doorNo;
+    }
+    
+    // Save baiguullagiinId and barilgiinId if provided (from OWN_ORG bair selection)
+    if (req.body.baiguullagiinId) {
+      userData.baiguullagiinId = req.body.baiguullagiinId;
+    }
+    if (req.body.barilgiinId) {
+      userData.barilgiinId = req.body.barilgiinId;
+    }
+
+    // Validate OWN_ORG bair toot/doorNo if provided
+    if (req.body.baiguullagiinId && req.body.barilgiinId && req.body.doorNo) {
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (!baiguullaga) {
+          throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+        }
+
+        const targetBarilga = baiguullaga.barilguud?.find(
+          (b) => String(b._id) === String(req.body.barilgiinId)
+        );
+
+        if (!targetBarilga) {
+          throw new aldaa("Барилгын мэдээлэл олдсонгүй!");
+        }
+
+        const tootToValidate = req.body.doorNo.trim();
+        const davkharToValidate = (req.body.davkhar || "").trim();
+        const ortsToValidate = (req.body.orts || "1").trim();
+        
+        // Check if toot exists in davkhariinToonuud (available toots)
+        const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+        let tootFound = false;
+
+        if (davkharToValidate) {
+          // If davkhar is provided, check specific floor
+          const floorKey = `${ortsToValidate}::${davkharToValidate}`;
+          const tootArray = davkhariinToonuud[floorKey];
+          
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let tootList = [];
+            if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+              tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+            } else {
+              tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+            }
+            
+            if (tootList.includes(tootToValidate)) {
+              tootFound = true;
+            }
+          }
+        } else {
+          // If davkhar not provided, search all floors
+          for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+            if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+              let tootList = [];
+              if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+                tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+              } else {
+                tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+              }
+              
+              if (tootList.includes(tootToValidate)) {
+                tootFound = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!tootFound) {
+          throw new aldaa(`(${tootToValidate}) тоот энэ барилгад бүртгэлгүй байна`);
+        }
+
+        // Check if toot is already registered to another user
+        const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+          toot: tootToValidate,
+          barilgiinId: req.body.barilgiinId
+        });
+
+        if (existingTootUser) {
+          throw new aldaa(`(${tootToValidate}) тоот аль хэдийн бүртгэгдсэн байна`);
+        }
+
+        // If validation passes, also set toot field
+        userData.toot = tootToValidate;
+        console.log(`✅ [WALLET REGISTER] OWN_ORG toot validated: ${tootToValidate}`);
+      } catch (error) {
+        console.error("❌ [WALLET REGISTER] OWN_ORG toot validation error:", error.message);
+        throw error;
+      }
+    }
+
+    if (orshinSuugch) {
+      console.log("🔄 [WALLET REGISTER] Updating existing user:", orshinSuugch._id);
+      Object.assign(orshinSuugch, userData);
+    } else {
+      console.log("➕ [WALLET REGISTER] Creating new user");
+      orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    }
+
+    if (req.body.firebaseToken) {
+      orshinSuugch.firebaseToken = req.body.firebaseToken;
+      console.log("📱 [WALLET REGISTER] Updating Firebase token");
+    }
+
+    await orshinSuugch.save();
+    console.log("✅ [WALLET REGISTER] User saved to database:", orshinSuugch._id);
+
+    // If user has baiguullagiinId and barilgiinId, create geree and invoice (old method)
+    if (orshinSuugch.baiguullagiinId && orshinSuugch.barilgiinId) {
+      try {
+        console.log("📋 [WALLET REGISTER] OWN_ORG bair detected - creating geree and invoice...");
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(orshinSuugch.baiguullagiinId);
+        
+        if (!baiguullaga) {
+          console.error("❌ [WALLET REGISTER] Baiguullaga not found for geree creation");
+        } else {
+          const tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+
+          if (!tukhainBaaziinKholbolt) {
+            console.error("❌ [WALLET REGISTER] Kholbolt not found for geree creation");
+          } else {
+            // Check if geree already exists for this user
+            const GereeModel = Geree(tukhainBaaziinKholbolt);
+            const existingGeree = await GereeModel.findOne({
+              orshinSuugchId: orshinSuugch._id.toString(),
+              tuluv: { $ne: "Цуцалсан" } // Only check active gerees
+            });
+
+            if (existingGeree) {
+              console.log("ℹ️ [WALLET REGISTER] Geree already exists for this user:", existingGeree._id);
+            } else {
+              console.log("📋 [WALLET REGISTER] No active geree found - creating new geree...");
+              const targetBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === String(orshinSuugch.barilgiinId)
+              );
+
+              if (targetBarilga) {
+              // Get ashiglaltiinZardluud from barilga
+              const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+              const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+              const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+              const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                ner: zardal.ner,
+                turul: zardal.turul,
+                zardliinTurul: zardal.zardliinTurul,
+                tariff: zardal.tariff,
+                tariffUsgeer: zardal.tariffUsgeer || "",
+                tulukhDun: 0,
+                dun: zardal.dun || 0,
+                bodokhArga: zardal.bodokhArga || "",
+                tseverUsDun: zardal.tseverUsDun || 0,
+                bokhirUsDun: zardal.bokhirUsDun || 0,
+                usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                ognoonuud: zardal.ognoonuud || [],
+              }));
+
+              const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+                const tariff = zardal.tariff || 0;
+                const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                if (isLiftItem && orshinSuugch.davkhar && choloolugdokhDavkhar.includes(orshinSuugch.davkhar)) {
+                  return total;
+                }
+                return total + tariff;
+              }, 0);
+
+              const duuregNer = targetBarilga.tokhirgoo?.duuregNer || orshinSuugch.duureg || "";
+              const horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
+              const sohNer = targetBarilga.tokhirgoo?.sohNer || orshinSuugch.soh || "";
+
+              // Create geree (contract)
+              const contractData = {
+                gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+                gereeniiOgnoo: new Date(),
+                turul: "Үндсэн",
+                tuluv: "Идэвхтэй",
+                ovog: orshinSuugch.ovog || "",
+                ner: orshinSuugch.ner || "",
+                register: orshinSuugch.register || "",
+                utas: [orshinSuugch.utas],
+                mail: orshinSuugch.mail || "",
+                baiguullagiinId: baiguullaga._id,
+                baiguullagiinNer: baiguullaga.ner,
+                barilgiinId: orshinSuugch.barilgiinId,
+                tulukhOgnoo: new Date(),
+                ashiglaltiinZardal: 0,
+                niitTulbur: niitTulbur,
+                toot: orshinSuugch.toot || "",
+                davkhar: orshinSuugch.davkhar || "",
+                bairNer: targetBarilga.ner || "",
+                sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
+                duureg: duuregNer,
+                horoo: horooData,
+                sohNer: sohNer,
+                burtgesenAjiltan: orshinSuugch._id,
+                orshinSuugchId: orshinSuugch._id.toString(),
+                temdeglel: "Wallet API-аас автоматаар үүссэн гэрээ",
+                actOgnoo: new Date(),
+                baritsaaniiUldegdel: 0,
+                ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,
+                zardluud: zardluudArray,
+                segmentuud: [],
+                khungulultuud: [],
+              };
+
+                const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+                await geree.save();
+                console.log("✅ [WALLET REGISTER] Geree created:", geree._id);
+
+                // Update davkhar with toot if provided
+                if (orshinSuugch.toot && orshinSuugch.davkhar) {
+                  await exports.updateDavkharWithToot(
+                    baiguullaga,
+                    orshinSuugch.barilgiinId,
+                    orshinSuugch.davkhar,
+                    orshinSuugch.toot,
+                    tukhainBaaziinKholbolt
+                  );
+                  console.log("✅ [WALLET REGISTER] Davkhar updated with toot");
+                }
+
+                // Invoice will be created by cron job on scheduled date
+                console.log("ℹ️ [WALLET REGISTER] Invoice will be created by cron job on scheduled date");
+              }
+            }
+          }
+        }
+      } catch (gereeError) {
+        console.error("❌ [WALLET REGISTER] Error creating geree:", gereeError.message);
+        // Don't fail registration if geree creation fails
+      }
+    }
+
+    // Automatically fetch and connect billing if address is provided
+    let billingInfo = null;
+    if (req.body.bairId && req.body.doorNo) {
+      try {
+        console.log("🏠 [WALLET REGISTER] Auto-fetching billing with provided address...");
+        console.log("🏠 [WALLET REGISTER] bairId:", req.body.bairId, "doorNo:", req.body.doorNo);
+        
+        // getBillingByAddress requires phoneNumber, not walletUserId
+        console.log("🔍 [WALLET REGISTER] Using phoneNumber for getBillingByAddress:", phoneNumber);
+        const billingResponse = await walletApiService.getBillingByAddress(
+          phoneNumber,
+          req.body.bairId,
+          req.body.doorNo
+        );
+
+        if (billingResponse && Array.isArray(billingResponse) && billingResponse.length > 0) {
+          billingInfo = billingResponse[0];
+          console.log("✅ [WALLET REGISTER] Billing info found:", billingInfo.customerName);
+          
+          // If billingId is not in the response, try to get it using customerId
+          if (!billingInfo.billingId && billingInfo.customerId) {
+            try {
+              console.log("🔍 [WALLET REGISTER] Billing ID not found, fetching by customer ID...");
+              console.log("🔍 [WALLET REGISTER] Customer ID:", billingInfo.customerId);
+              // Wallet API userId means phoneNumber
+              const billingByCustomer = await walletApiService.getBillingByCustomer(
+                phoneNumber,
+                billingInfo.customerId
+              );
+              if (billingByCustomer && billingByCustomer.billingId) {
+                billingInfo.billingId = billingByCustomer.billingId;
+                billingInfo.billingName = billingByCustomer.billingName || billingInfo.billingName;
+                console.log("✅ [WALLET REGISTER] Billing ID found via customer ID:", billingInfo.billingId);
+              } else {
+                console.warn("⚠️ [WALLET REGISTER] getBillingByCustomer returned null or no billingId");
+                
+                // Try to find billingId from billing list
+                try {
+                  console.log("🔍 [WALLET REGISTER] Trying to find billingId from billing list...");
+                  // Wallet API userId means phoneNumber
+                  const billingList = await walletApiService.getBillingList(phoneNumber);
+                  if (billingList && billingList.length > 0) {
+                    const matchingBilling = billingList.find(b => 
+                      b.customerId === billingInfo.customerId || 
+                      b.customerCode === billingInfo.customerCode
+                    );
+                    if (matchingBilling && matchingBilling.billingId) {
+                      billingInfo.billingId = matchingBilling.billingId;
+                      billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
+                      console.log("✅ [WALLET REGISTER] Billing ID found from billing list:", billingInfo.billingId);
+                    } else if (billingList[0] && billingList[0].billingId) {
+                      billingInfo.billingId = billingList[0].billingId;
+                      billingInfo.billingName = billingList[0].billingName || billingInfo.billingName;
+                      console.log("✅ [WALLET REGISTER] Using first billing from list:", billingInfo.billingId);
+                    }
+                  }
+                } catch (listError) {
+                  console.error("⚠️ [WALLET REGISTER] Error fetching billing list:", listError.message);
+                }
+              }
+            } catch (customerBillingError) {
+              console.error("⚠️ [WALLET REGISTER] Error fetching billing by customer ID:", customerBillingError.message);
+              
+              // Try billing list as fallback
+              try {
+                console.log("🔍 [WALLET REGISTER] Trying billing list as fallback...");
+                // Wallet API userId means phoneNumber
+                const billingList = await walletApiService.getBillingList(phoneNumber);
+                if (billingList && billingList.length > 0) {
+                  const matchingBilling = billingList.find(b => 
+                    b.customerId === billingInfo.customerId
+                  );
+                  if (matchingBilling && matchingBilling.billingId) {
+                    billingInfo.billingId = matchingBilling.billingId;
+                    billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
+                    console.log("✅ [WALLET REGISTER] Billing ID found from billing list (fallback):", billingInfo.billingId);
+                  }
+                }
+              } catch (listError) {
+                console.error("⚠️ [WALLET REGISTER] Error in billing list fallback:", listError.message);
+              }
+            }
+          }
+
+          // Automatically connect billing to Wallet API account
+          if (billingInfo.billingId || billingInfo.customerId) {
+            try {
+              console.log("🔗 [WALLET REGISTER] Auto-connecting billing to Wallet API account...");
+              if (billingInfo.billingId) {
+                console.log("🔗 [WALLET REGISTER] Billing ID found:", billingInfo.billingId);
+              }
+              // Wallet API doesn't allow billingId in body - use only customerId
+              const billingData = {
+                customerId: billingInfo.customerId,
+              };
+
+              // saveBilling requires phoneNumber, not walletUserId
+              console.log("🔍 [WALLET REGISTER] Using phoneNumber for saveBilling:", phoneNumber);
+              const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
+              console.log("✅ [WALLET REGISTER] Billing auto-connected to Wallet API account");
+              console.log("✅ [WALLET REGISTER] Connection result:", JSON.stringify(connectResult));
+            } catch (connectError) {
+              console.error("❌ [WALLET REGISTER] Error auto-connecting billing:", connectError.message);
+              if (connectError.response) {
+                console.error("❌ [WALLET REGISTER] Error response status:", connectError.response.status);
+                console.error("❌ [WALLET REGISTER] Error response data:", JSON.stringify(connectError.response.data));
+              }
+              // Don't throw - billing info is still saved locally
+            }
+          } else {
+            // Try to connect billing without billingId using customerId
+            if (billingInfo.customerId) {
+              try {
+                console.log("🔗 [WALLET REGISTER] Attempting to connect billing without billingId...");
+                console.log("🔗 [WALLET REGISTER] Using customerId:", billingInfo.customerId);
+                
+                // Send only customerId - Wallet API will return full billing info including billingId
+                const billingData = {
+                  customerId: billingInfo.customerId,
+                };
+
+                // Try to save without billingId - Wallet API might create it
+                // saveBilling requires phoneNumber, not walletUserId
+                console.log("🔍 [WALLET REGISTER] Using phoneNumber for saveBilling:", phoneNumber);
+                const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
+                console.log("✅ [WALLET REGISTER] Billing connected without billingId");
+                console.log("✅ [WALLET REGISTER] Connection result:", JSON.stringify(connectResult));
+                
+                // If successful, update billingInfo with returned billingId
+                if (connectResult && connectResult.billingId) {
+                  billingInfo.billingId = connectResult.billingId;
+                  console.log("✅ [WALLET REGISTER] Got billingId from save response:", billingInfo.billingId);
+                }
+              } catch (connectError) {
+                console.error("❌ [WALLET REGISTER] Error connecting billing without billingId:", connectError.message);
+                if (connectError.response) {
+                  console.error("❌ [WALLET REGISTER] Error response status:", connectError.response.status);
+                  console.error("❌ [WALLET REGISTER] Error response data:", JSON.stringify(connectError.response.data));
+                }
+              }
+            } else {
+              console.warn("⚠️ [WALLET REGISTER] Billing ID not found - cannot connect to Wallet API");
+              console.warn("⚠️ [WALLET REGISTER] Customer ID:", billingInfo.customerId);
+              console.warn("⚠️ [WALLET REGISTER] Customer Code:", billingInfo.customerCode);
+            }
+          }
+
+          // Update user with billing data
+          const updateData = {};
+          if (billingInfo.customerName) {
+            const nameParts = billingInfo.customerName.split(" ");
+            if (nameParts.length >= 2) {
+              updateData.ovog = nameParts[0];
+              updateData.ner = nameParts.slice(1).join(" ");
+            } else {
+              updateData.ner = billingInfo.customerName;
+            }
+          }
+          if (billingInfo.customerAddress) {
+            updateData.bairniiNer = billingInfo.customerAddress;
+          }
+          if (billingInfo.customerId) {
+            updateData.walletCustomerId = billingInfo.customerId;
+          }
+          if (billingInfo.customerCode) {
+            updateData.walletCustomerCode = billingInfo.customerCode;
+          }
+
+          if (Object.keys(updateData).length > 0) {
+            Object.assign(orshinSuugch, updateData);
+            await orshinSuugch.save();
+            console.log("✅ [WALLET REGISTER] User updated with billing data");
+          }
+        } else {
+          console.log("⚠️ [WALLET REGISTER] No billing info found for provided address");
+        }
+      } catch (billingError) {
+        // Log error but don't fail registration
+        console.error("⚠️ [WALLET REGISTER] Error auto-fetching billing (continuing anyway):", billingError.message);
+      }
+    }
+
+    const token = await orshinSuugch.tokenUusgeye();
+
+    const butsaakhObject = {
+      result: orshinSuugch,
+      success: true,
+      token: token,
+      walletUserInfo: walletUserInfo,
+      message: "Хэтэвчний системд амжилттай бүртгүүлж, нэвтэрлээ",
+    };
+
+    if (billingInfo) {
+      butsaakhObject.billingInfo = billingInfo;
+    }
+
+    console.log("✅ [WALLET REGISTER] Registration and login successful for user:", orshinSuugch._id);
+    res.status(200).json(butsaakhObject);
+  } catch (err) {
+    console.error("❌ [WALLET REGISTER] Error:", err.message);
+    next(err);
+  }
+});
+
+exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
+  try {
+    console.log("🏠 [WALLET BILLING] Billing fetch request received");
+    
+    const { db } = require("zevbackv2");
+    
+    if (!req.body.bairId || !req.body.doorNo) {
+      throw new aldaa("Байрын ID болон тоот заавал бөглөх шаардлагатай!");
+    }
+
+    if (!req.headers.authorization) {
+      throw new aldaa("Нэвтрэх шаардлагатай!");
+    }
+
+    const token = req.headers.authorization.split(" ")[1];
+    if (!token) {
+      throw new aldaa("Token олдсонгүй!");
+    }
+
+    let tokenObject;
+    try {
+      tokenObject = jwt.verify(token, process.env.APP_SECRET);
+    } catch (jwtError) {
+      throw new aldaa("Token хүчингүй байна!");
+    }
+
+    if (!tokenObject?.id || tokenObject.id === "zochin") {
+      throw new aldaa("Энэ үйлдлийг хийх эрх байхгүй байна!");
+    }
+
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    const phoneNumber = orshinSuugch.utas;
+    const bairId = req.body.bairId;
+    const doorNo = req.body.doorNo;
+
+    console.log("🏠 [WALLET BILLING] Fetching billing info from Wallet API...");
+    console.log("🏠 [WALLET BILLING] User:", phoneNumber, "bairId:", bairId, "doorNo:", doorNo);
+
+    let billingInfo = null;
+    try {
+      // getBillingByAddress requires phoneNumber, not walletUserId
+      const billingResponse = await walletApiService.getBillingByAddress(
+        phoneNumber,
+        bairId,
+        doorNo
+      );
+
+      if (billingResponse && billingResponse.length > 0) {
+        billingInfo = billingResponse[0];
+        console.log("✅ [WALLET BILLING] Billing info found:", billingInfo.customerName);
+        console.log("✅ [WALLET BILLING] Customer ID:", billingInfo.customerId);
+        console.log("✅ [WALLET BILLING] Customer Code:", billingInfo.customerCode);
+        console.log("✅ [WALLET BILLING] Billing ID:", billingInfo.billingId);
+        
+        // If billingId is not in the response, try to get it using customerId
+        if (!billingInfo.billingId && billingInfo.customerId) {
+          try {
+            console.log("🔍 [WALLET BILLING] Billing ID not found, fetching by customer ID...");
+            console.log("🔍 [WALLET BILLING] Customer ID:", billingInfo.customerId);
+            // Wallet API userId means phoneNumber
+            const billingByCustomer = await walletApiService.getBillingByCustomer(
+              phoneNumber,
+              billingInfo.customerId
+            );
+            if (billingByCustomer && billingByCustomer.billingId) {
+              billingInfo.billingId = billingByCustomer.billingId;
+              billingInfo.billingName = billingByCustomer.billingName || billingInfo.billingName;
+              console.log("✅ [WALLET BILLING] Billing ID found via customer ID:", billingInfo.billingId);
+            } else {
+              console.warn("⚠️ [WALLET BILLING] getBillingByCustomer returned null or no billingId");
+              
+              // Try to find billingId from billing list
+              try {
+                console.log("🔍 [WALLET BILLING] Trying to find billingId from billing list...");
+                // Wallet API userId means phoneNumber
+                const billingList = await walletApiService.getBillingList(phoneNumber);
+                if (billingList && billingList.length > 0) {
+                  const matchingBilling = billingList.find(b => 
+                    b.customerId === billingInfo.customerId || 
+                    b.customerCode === billingInfo.customerCode
+                  );
+                  if (matchingBilling && matchingBilling.billingId) {
+                    billingInfo.billingId = matchingBilling.billingId;
+                    billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
+                    console.log("✅ [WALLET BILLING] Billing ID found from billing list:", billingInfo.billingId);
+                  } else if (billingList[0] && billingList[0].billingId) {
+                    billingInfo.billingId = billingList[0].billingId;
+                    billingInfo.billingName = billingList[0].billingName || billingInfo.billingName;
+                    console.log("✅ [WALLET BILLING] Using first billing from list:", billingInfo.billingId);
+                  }
+                }
+              } catch (listError) {
+                console.error("⚠️ [WALLET BILLING] Error fetching billing list:", listError.message);
+              }
+            }
+          } catch (customerBillingError) {
+            console.error("⚠️ [WALLET BILLING] Error fetching billing by customer ID:", customerBillingError.message);
+            if (customerBillingError.response) {
+              console.error("⚠️ [WALLET BILLING] Error response:", JSON.stringify(customerBillingError.response.data));
+            }
+            
+            // Try billing list as fallback
+            try {
+              console.log("🔍 [WALLET BILLING] Trying billing list as fallback...");
+                // Wallet API userId means phoneNumber
+                const billingList = await walletApiService.getBillingList(phoneNumber);
+                if (billingList && billingList.length > 0) {
+                  const matchingBilling = billingList.find(b => 
+                    b.customerId === billingInfo.customerId
+                  );
+                if (matchingBilling && matchingBilling.billingId) {
+                  billingInfo.billingId = matchingBilling.billingId;
+                  billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
+                  console.log("✅ [WALLET BILLING] Billing ID found from billing list (fallback):", billingInfo.billingId);
+                }
+              }
+            } catch (listError) {
+              console.error("⚠️ [WALLET BILLING] Error in billing list fallback:", listError.message);
+            }
+          }
+        }
+      } else {
+        console.log("⚠️ [WALLET BILLING] No billing info found for this address");
+        return res.status(404).json({
+          success: false,
+          message: "Энэ хаягийн биллингийн мэдээлэл олдсонгүй",
+        });
+      }
+    } catch (billingError) {
+      console.error("❌ [WALLET BILLING] Error fetching billing info:", billingError.message);
+      throw new aldaa(`Биллингийн мэдээлэл авахад алдаа гарлаа: ${billingError.message}`);
+    }
+
+    // Automatically connect billing to Wallet API account if customerId is available
+    let billingConnected = false;
+    let connectionError = null;
+    
+    if (billingInfo.billingId || billingInfo.customerId) {
+      try {
+        console.log("🔗 [WALLET BILLING] Connecting billing to Wallet API account...");
+        if (billingInfo.billingId) {
+          console.log("🔗 [WALLET BILLING] Billing ID found:", billingInfo.billingId);
+        }
+        // Wallet API doesn't allow billingId in body - use only customerId
+        const billingData = {
+          customerId: billingInfo.customerId,
+        };
+
+        // saveBilling requires phoneNumber, not walletUserId
+        const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
+        console.log("✅ [WALLET BILLING] Billing connected to Wallet API account");
+        console.log("✅ [WALLET BILLING] Connection result:", JSON.stringify(connectResult));
+        billingConnected = true;
+      } catch (connectError) {
+        console.error("❌ [WALLET BILLING] Error connecting billing:", connectError.message);
+        if (connectError.response) {
+          console.error("❌ [WALLET BILLING] Error response status:", connectError.response.status);
+          console.error("❌ [WALLET BILLING] Error response data:", JSON.stringify(connectError.response.data));
+        }
+        connectionError = connectError.message;
+      }
+    } else {
+      // Try to connect billing without billingId using customerId
+      if (billingInfo.customerId) {
+        try {
+          console.log("🔗 [WALLET BILLING] Attempting to connect billing without billingId...");
+          console.log("🔗 [WALLET BILLING] Using customerId:", billingInfo.customerId);
+          
+          // Send only customerId - Wallet API doesn't allow customerCode in body
+          const billingData = {
+            customerId: billingInfo.customerId,
+          };
+
+          // Try to save with just customerId - Wallet API will return billingId
+          // saveBilling requires phoneNumber, not walletUserId
+          const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
+          console.log("✅ [WALLET BILLING] Billing connected without billingId");
+          console.log("✅ [WALLET BILLING] Connection result:", JSON.stringify(connectResult));
+          
+          // If successful, update billingInfo with returned billingId
+          if (connectResult && connectResult.billingId) {
+            billingInfo.billingId = connectResult.billingId;
+            billingInfo.billingName = connectResult.billingName || billingInfo.billingName;
+            billingInfo.customerName = connectResult.customerName || billingInfo.customerName;
+            billingInfo.customerAddress = connectResult.customerAddress || billingInfo.customerAddress;
+            console.log("✅ [WALLET BILLING] Got billingId from save response:", billingInfo.billingId);
+            billingConnected = true;
+          }
+        } catch (connectError) {
+          console.error("❌ [WALLET BILLING] Error connecting billing without billingId:", connectError.message);
+          if (connectError.response) {
+            console.error("❌ [WALLET BILLING] Error response status:", connectError.response.status);
+            console.error("❌ [WALLET BILLING] Error response data:", JSON.stringify(connectError.response.data));
+          }
+          connectionError = connectError.message;
+        }
+      } else {
+        console.warn("⚠️ [WALLET BILLING] Billing ID not found and no customerId available");
+        console.warn("⚠️ [WALLET BILLING] Customer ID:", billingInfo.customerId);
+        console.warn("⚠️ [WALLET BILLING] Customer Code:", billingInfo.customerCode);
+        connectionError = "Биллингийн ID болон Customer ID олдсонгүй";
+      }
+    }
+
+    const updateData = {};
+
+    if (billingInfo.customerName) {
+      const nameParts = billingInfo.customerName.split(" ");
+      if (nameParts.length >= 2) {
+        updateData.ovog = nameParts[0];
+        updateData.ner = nameParts.slice(1).join(" ");
+      } else {
+        updateData.ner = billingInfo.customerName;
+      }
+    }
+
+    if (billingInfo.customerAddress) {
+      updateData.bairniiNer = billingInfo.customerAddress;
+    }
+
+    if (billingInfo.customerId) {
+      updateData.walletCustomerId = billingInfo.customerId;
+    }
+
+    if (billingInfo.customerCode) {
+      updateData.walletCustomerCode = billingInfo.customerCode;
+    }
+
+    updateData.walletBairId = bairId;
+    updateData.walletDoorNo = doorNo;
+
+    if (req.body.duureg) updateData.duureg = req.body.duureg;
+    if (req.body.horoo) updateData.horoo = req.body.horoo;
+    if (req.body.soh) updateData.soh = req.body.soh;
+    if (req.body.toot) updateData.toot = req.body.toot;
+    if (req.body.davkhar) updateData.davkhar = req.body.davkhar;
+    if (req.body.orts) updateData.orts = req.body.orts;
+
+    Object.assign(orshinSuugch, updateData);
+    await orshinSuugch.save();
+
+    console.log("✅ [WALLET BILLING] Billing data saved to local user record");
+    console.log("💾 [WALLET BILLING] Saved fields:", Object.keys(updateData).join(", "));
+
+    res.status(200).json({
+      success: true,
+      message: billingConnected 
+        ? "Биллингийн мэдээлэл амжилттай хадгалж, Wallet API-д холболоо" 
+        : "Биллингийн мэдээлэл хадгалагдсан боловч Wallet API-д холбогдоогүй байна",
+      result: orshinSuugch,
+      billingInfo: billingInfo,
+      billingConnected: billingConnected,
+      connectionError: connectionError,
+    });
+  } catch (err) {
+    console.error("❌ [WALLET BILLING] Error:", err.message);
+    next(err);
+  }
+});
+
+exports.walletAddressCities = asyncHandler(async (req, res, next) => {
+  try {
+    console.log("🏙️ [ADDRESS] Fetching cities from all sources...");
+    const result = await addressService.getCities();
+    
+    res.status(200).json({
+      success: true,
+      data: result.data,
+      sources: result.sources,
+      message: `Found ${result.sources.total} cities (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
+    });
+  } catch (err) {
+    console.error("❌ [ADDRESS] Error getting cities:", err.message);
+    next(err);
+  }
+});
+
+exports.walletAddressDistricts = asyncHandler(async (req, res, next) => {
+  try {
+    const { cityId } = req.params;
+    if (!cityId) {
+      throw new aldaa("Хотын ID заавал бөглөх шаардлагатай!");
+    }
+    
+    console.log("🏘️ [ADDRESS] Fetching districts for cityId:", cityId);
+    const result = await addressService.getDistricts(cityId);
+    
+    res.status(200).json({
+      success: true,
+      data: result.data,
+      sources: result.sources,
+      message: `Found ${result.sources.total} districts (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
+    });
+  } catch (err) {
+    console.error("❌ [ADDRESS] Error getting districts:", err.message);
+    next(err);
+  }
+});
+
+exports.walletAddressKhoroo = asyncHandler(async (req, res, next) => {
+  try {
+    const { districtId } = req.params;
+    if (!districtId) {
+      throw new aldaa("Дүүргийн ID заавал бөглөх шаардлагатай!");
+    }
+    
+    console.log("🏘️ [ADDRESS] Fetching khoroos for districtId:", districtId);
+    const result = await addressService.getKhoroo(districtId);
+    
+    res.status(200).json({
+      success: true,
+      data: result.data,
+      sources: result.sources,
+      message: `Found ${result.sources.total} khoroos (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
+    });
+  } catch (err) {
+    console.error("❌ [ADDRESS] Error getting khoroo:", err.message);
+    next(err);
+  }
+});
+
+exports.walletAddressBair = asyncHandler(async (req, res, next) => {
+  try {
+    const { khorooId } = req.params;
+    if (!khorooId) {
+      throw new aldaa("Хорооны ID заавал бөглөх шаардлагатай!");
+    }
+    
+    console.log("🏢 [ADDRESS] Fetching bair for khorooId:", khorooId);
+    const result = await addressService.getBair(khorooId);
+    
+    res.status(200).json({
+      success: true,
+      data: result.data,
+      sources: result.sources,
+      message: `Found ${result.sources.total} bair (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
+    });
+  } catch (err) {
+    console.error("❌ [ADDRESS] Error getting bair:", err.message);
     next(err);
   }
 });

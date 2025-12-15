@@ -13,8 +13,13 @@ const {
   db,
 } = require("zevbackv2");
 const {
-  orshinSuugchBurtgey,
   orshinSuugchNevtrey,
+  walletBurtgey,
+  walletBillingHavakh,
+  walletAddressCities,
+  walletAddressDistricts,
+  walletAddressKhoroo,
+  walletAddressBair,
   tokenoorOrshinSuugchAvya,
   nuutsUgShalgakhOrshinSuugch,
   khayagaarBaiguullagaAvya,
@@ -27,6 +32,7 @@ const {
   orshinSuugchOorooUstgakh,
   orshinSuugchUstgakh,
   tootShalgaya,
+  validateOwnOrgToot,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
@@ -155,10 +161,13 @@ crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 crud(router, "backTuukh", BackTuukh, UstsanBarimt);
 crud(router, "session", session, UstsanBarimt);
 
-router.route("/orshinSuugchBurtgey").post(orshinSuugchBurtgey);
-router.post("/dugaarBatalgaajuulya", dugaarBatalgaajuulya);
-router.post("/dugaarBatalgaajuulakh", dugaarBatalgaajuulakh);
 router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
+router.route("/walletBurtgey").post(walletBurtgey);
+router.route("/walletBillingHavakh").post(tokenShalgakh, walletBillingHavakh);
+router.route("/walletAddress/city").get(walletAddressCities);
+router.route("/walletAddress/district/:cityId").get(walletAddressDistricts);
+router.route("/walletAddress/khoroo/:districtId").get(walletAddressKhoroo);
+router.route("/walletAddress/bair/:khorooId").get(walletAddressBair);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);
 router
@@ -170,6 +179,7 @@ router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
 router.post("/orshinSuugchNuutsUgSoliyo", tokenShalgakh, orshinSuugchiinNuutsUgSoliyo);
 router.post("/davhardsanOrshinSuugchShalgayy", davhardsanOrshinSuugchShalgayy);
 router.post("/tootShalgaya", tootShalgaya);
+router.post("/validateOwnOrgToot", validateOwnOrgToot);
 
 // Excel template download
 router.get(

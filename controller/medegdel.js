@@ -2,7 +2,6 @@ const asyncHandler = require("express-async-handler");
 const { db } = require("zevbackv2");
 const Medegdel = require("../models/medegdel");
 
-// Get all notifications (medegdel)
 exports.medegdelAvya = asyncHandler(async (req, res, next) => {
   try {
     const source = req.params.baiguullagiinId
@@ -30,7 +29,6 @@ exports.medegdelAvya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Find the connection
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
@@ -42,7 +40,6 @@ exports.medegdelAvya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Build query
     const query = { baiguullagiinId: String(baiguullagiinId) };
     if (barilgiinId) query.barilgiinId = String(barilgiinId);
     if (orshinSuugchId) query.orshinSuugchId = String(orshinSuugchId);
@@ -63,7 +60,6 @@ exports.medegdelAvya = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Get single notification (medegdel)
 exports.medegdelNegAvya = asyncHandler(async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -90,7 +86,6 @@ exports.medegdelNegAvya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Find the connection
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
@@ -120,11 +115,10 @@ exports.medegdelNegAvya = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Update notification (medegdel)
 exports.medegdelZasah = asyncHandler(async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { baiguullagiinId, tukhainBaaziinKholbolt, ...updateData } = req.body;
+    const { baiguullagiinId, tukhainBaaziinKholbolt } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -147,7 +141,6 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Find the connection
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
@@ -159,10 +152,58 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
       });
     }
 
+    const existingMedegdel = await Medegdel(kholbolt).findById(id).lean();
+    
+    if (!existingMedegdel) {
+      return res.status(404).json({
+        success: false,
+        message: "Мэдэгдэл олдсонгүй",
+      });
+    }
+
+    const updateFields = {
+      updatedAt: new Date(),
+    };
+
+    if (req.body.kharsanEsekh !== undefined) {
+      updateFields.kharsanEsekh = Boolean(req.body.kharsanEsekh);
+    }
+
+    const allowedTypesForReply = ["sanal", "huselt", "gomdol"];
+    const isReplyableType = existingMedegdel.turul && 
+      allowedTypesForReply.includes(String(existingMedegdel.turul).toLowerCase());
+
+    if (isReplyableType) {
+      if (req.body.status !== undefined) {
+        const allowedStatuses = ["pending", "in_progress", "done", "cancelled"];
+        if (allowedStatuses.includes(req.body.status)) {
+          updateFields.status = req.body.status;
+          
+          if (req.body.status === "done") {
+            updateFields.repliedAt = new Date();
+            
+            if (req.body.repliedBy) {
+              updateFields.repliedBy = String(req.body.repliedBy);
+            }
+          }
+        }
+      }
+
+      if (req.body.tailbar !== undefined) {
+        updateFields.tailbar = String(req.body.tailbar);
+      }
+    }
+
     const medegdel = await Medegdel(kholbolt).findByIdAndUpdate(
       id,
-      updateData,
-      { new: true, runValidators: true }
+      {
+        $set: updateFields,
+      },
+      { 
+        new: true, 
+        runValidators: true,
+        select: '-nevtersenAjiltniiToken -erunkhiiKholbolt'
+      }
     );
 
     if (!medegdel) {
@@ -170,6 +211,50 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
         success: false,
         message: "Мэдэгдэл олдсонгүй",
       });
+    }
+
+    const statusWasSetToDone = updateFields.status === "done";
+    const hasTailbar = updateFields.tailbar || medegdel.tailbar;  
+    console.log("🔍 [REPLY CHECK] isReplyableType:", isReplyableType);
+    console.log("🔍 [REPLY CHECK] statusWasSetToDone:", statusWasSetToDone);
+    console.log("🔍 [REPLY CHECK] hasTailbar:", hasTailbar);
+    console.log("🔍 [REPLY CHECK] updateFields:", updateFields);
+    
+    if (isReplyableType && statusWasSetToDone && hasTailbar) {
+      try {
+        console.log("📤 [REPLY] Creating reply notification...");
+        console.log("📤 [REPLY] orshinSuugchId:", medegdel.orshinSuugchId);
+        console.log("📤 [REPLY] tailbar:", updateFields.tailbar || medegdel.tailbar);
+        
+        const replyMedegdel = new Medegdel(kholbolt)();
+        replyMedegdel.orshinSuugchId = medegdel.orshinSuugchId;
+        replyMedegdel.baiguullagiinId = medegdel.baiguullagiinId;
+        replyMedegdel.barilgiinId = medegdel.barilgiinId || "";
+        replyMedegdel.title = `Хариу: ${medegdel.title || existingMedegdel.title || "Хариу"}`;
+        replyMedegdel.message = updateFields.tailbar || medegdel.tailbar;
+        replyMedegdel.kharsanEsekh = false;
+        replyMedegdel.turul = "khariu";
+        replyMedegdel.ognoo = new Date();
+
+        await replyMedegdel.save();
+        console.log("✅ [REPLY] Reply notification saved:", replyMedegdel._id);
+
+        const replyData = replyMedegdel.toObject ? replyMedegdel.toObject() : replyMedegdel;
+
+        const io = req.app.get("socketio");
+        if (io && medegdel.orshinSuugchId) {
+          const socketEventName = "orshinSuugch" + medegdel.orshinSuugchId;
+          console.log("📡 [SOCKET] Emitting event:", socketEventName);
+          io.emit(socketEventName, replyData);
+          console.log("✅ [SOCKET] Event emitted successfully");
+        } else {
+          console.warn("⚠️ [SOCKET] Socket.io not available or orshinSuugchId missing");
+          console.warn("⚠️ [SOCKET] io:", !!io, "orshinSuugchId:", medegdel.orshinSuugchId);
+        }
+      } catch (replyError) {
+        console.error("❌ [REPLY] Error sending reply notification:", replyError);
+        console.error("❌ [REPLY] Error stack:", replyError.stack);
+      }
     }
 
     res.json({
@@ -182,7 +267,6 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Delete notification (medegdel)
 exports.medegdelUstgakh = asyncHandler(async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -209,7 +293,6 @@ exports.medegdelUstgakh = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Find the connection
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
@@ -239,7 +322,6 @@ exports.medegdelUstgakh = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Create/send notification (medegdel) - This function is imported but the route has its own implementation
 exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
   try {
     const {
@@ -258,7 +340,6 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Find the connection
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
