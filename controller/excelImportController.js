@@ -873,29 +873,13 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           }
         }
 
+        // Check if user already exists (by phone number)
         const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
           utas: userData.utas,
-          barilgiinId: finalBarilgiinId,
         });
 
-        if (existingUser) {
-          throw new Error("Утас давхардаж байна");
-        }
-
-        // Check if toot already has a registered user (1:1 relationship - one toot can only have one user)
-        if (userData.toot && finalBarilgiinId) {
-          const tootToCheck = userData.toot.trim();
-          const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-            toot: tootToCheck,
-            barilgiinId: finalBarilgiinId,
-          });
-
-          if (existingTootUser) {
-            throw new Error(
-              `Энэ тоот (${tootToCheck}) аль хэдийн бүртгэгдсэн байна! Нэг тоотод зөвхөн нэг хэрэглэгч бүртгэх боломжтой.`
-            );
-          }
-        }
+        // Multiple users can have the same toot, so no unique toot check needed
+        // Toot validation will be done when adding to toots array
 
         const targetBarilga = baiguullaga.barilguud?.find(
           (b) => String(b._id) === String(finalBarilgiinId)
@@ -972,13 +956,74 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           soh: sohNer,
           davkhar: userData.davkhar,
           bairniiNer: targetBarilga.ner || "",
-          toot: userData.toot || "",
+          toot: userData.toot || "", // Keep for backward compatibility
           orts: userData.orts || "",
           ekhniiUldegdel: userData.ekhniiUldegdel || 0,
           tailbar: userData.tailbar || "", // Save tailbar to orshinSuugch
+          toots: [] // Initialize toots array
         };
 
-        const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
+        // If user already exists, update it; otherwise create new
+        let orshinSuugch;
+        if (existingUser) {
+          orshinSuugch = existingUser;
+          // Update basic info
+          Object.assign(orshinSuugch, {
+            ovog: userObject.ovog,
+            ner: userObject.ner,
+            mail: userObject.mail,
+            baiguullagiinId: userObject.baiguullagiinId,
+            baiguullagiinNer: userObject.baiguullagiinNer,
+            barilgiinId: userObject.barilgiinId,
+            duureg: userObject.duureg,
+            horoo: userObject.horoo,
+            soh: userObject.soh,
+            davkhar: userObject.davkhar,
+            bairniiNer: userObject.bairniiNer,
+            toot: userObject.toot,
+            orts: userObject.orts,
+            ekhniiUldegdel: userObject.ekhniiUldegdel,
+            tailbar: userObject.tailbar
+          });
+          // Initialize toots array if it doesn't exist
+          if (!orshinSuugch.toots) {
+            orshinSuugch.toots = [];
+          }
+        } else {
+          orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
+        }
+
+        // Add toot to toots array if provided
+        if (userData.toot && finalBarilgiinId) {
+          const tootEntry = {
+            toot: userData.toot.trim(),
+            source: "OWN_ORG",
+            baiguullagiinId: baiguullaga._id.toString(),
+            barilgiinId: finalBarilgiinId,
+            davkhar: userData.davkhar || "",
+            orts: userData.orts || "1",
+            duureg: duuregNer,
+            horoo: horooData,
+            soh: sohNer,
+            bairniiNer: targetBarilga.ner || "",
+            createdAt: new Date()
+          };
+          
+          // Check if this toot already exists in user's toots array
+          const existingTootIndex = orshinSuugch.toots?.findIndex(
+            t => t.toot === tootEntry.toot && 
+                 t.barilgiinId === tootEntry.barilgiinId
+          );
+          
+          if (existingTootIndex >= 0) {
+            // Update existing toot entry
+            orshinSuugch.toots[existingTootIndex] = tootEntry;
+          } else {
+            // Add new toot to array
+            orshinSuugch.toots.push(tootEntry);
+          }
+        }
+
         await orshinSuugch.save();
 
         // Include all charges for the baiguullaga (same as regular registration)

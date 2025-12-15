@@ -8,13 +8,37 @@ const orshinSuugchSchema = new Schema(
   {
     id: String,
     ner: String,
-    toot: String,
+    toot: String, // Keep for backward compatibility
+    toots: [
+      {
+        toot: String, // Door number
+        source: {
+          type: String,
+          enum: ["WALLET_API", "OWN_ORG"],
+          default: "OWN_ORG"
+        },
+        baiguullagiinId: String, // Required for OWN_ORG
+        barilgiinId: String, // Required for OWN_ORG
+        davkhar: String,
+        orts: String,
+        duureg: String,
+        horoo: Schema.Types.Mixed,
+        soh: String,
+        bairniiNer: String,
+        walletBairId: String, // For WALLET_API source
+        walletDoorNo: String, // For WALLET_API source
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
     ovog: String,
     utas: String,
     mail: String,
     tuluv: String,
-    davkhar: String,
-    bairniiNer: String,
+    davkhar: String, // Keep for backward compatibility
+    bairniiNer: String, // Keep for backward compatibility
     tailbar : String,
     taniltsuulgaKharakhEsekh: {
       type: Boolean,
@@ -24,25 +48,25 @@ const orshinSuugchSchema = new Schema(
       type: String,
       select: false,
     },
-    baiguullagiinId: String,
+    baiguullagiinId: String, // Keep for backward compatibility (primary/default)
     baiguullagiinNer: String,
-    barilgiinId: String,
+    barilgiinId: String, // Keep for backward compatibility (primary/default)
     erkh: String,
     firebaseToken: String,
     zurgiinId: String,
     nevtrekhNer: String,
-    duureg: String,
-    horoo: String,
-    soh: String,
-    orts: String, // Web only field
+    duureg: String, // Keep for backward compatibility
+    horoo: String, // Keep for backward compatibility
+    soh: String, // Keep for backward compatibility
+    orts: String, // Web only field, keep for backward compatibility
     tailbar: String,
     ekhniiUldegdel : Number,
     ekhniiUldegdelUsgeer: String,
     walletUserId: String,
     walletCustomerId: String,
     walletCustomerCode: String,
-    walletBairId: String,
-    walletDoorNo: String,
+    walletBairId: String, // Keep for backward compatibility
+    walletDoorNo: String, // Keep for backward compatibility
   },
   {
     timestamps: true,
