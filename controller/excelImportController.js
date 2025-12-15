@@ -993,34 +993,49 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
         }
 
-        // Add toot to toots array if provided
+        // Add toot(s) to toots array if provided
+        // Support comma-separated toots like "101,69,1,2"
         if (userData.toot && finalBarilgiinId) {
-          const tootEntry = {
-            toot: userData.toot.trim(),
-            source: "OWN_ORG",
-            baiguullagiinId: baiguullaga._id.toString(),
-            barilgiinId: finalBarilgiinId,
-            davkhar: userData.davkhar || "",
-            orts: userData.orts || "1",
-            duureg: duuregNer,
-            horoo: horooData,
-            soh: sohNer,
-            bairniiNer: targetBarilga.ner || "",
-            createdAt: new Date()
-          };
+          // Split comma-separated toots
+          const tootRaw = userData.toot.trim();
+          const tootList = tootRaw
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t && t.length > 0); // Filter out empty strings
           
-          // Check if this toot already exists in user's toots array
-          const existingTootIndex = orshinSuugch.toots?.findIndex(
-            t => t.toot === tootEntry.toot && 
-                 t.barilgiinId === tootEntry.barilgiinId
-          );
+          console.log(`🔍 [EXCEL IMPORT] Raw toot: "${tootRaw}", Split into:`, tootList);
           
-          if (existingTootIndex >= 0) {
-            // Update existing toot entry
-            orshinSuugch.toots[existingTootIndex] = tootEntry;
-          } else {
-            // Add new toot to array
-            orshinSuugch.toots.push(tootEntry);
+          // Create a toot entry for each toot
+          for (const individualToot of tootList) {
+            const tootEntry = {
+              toot: individualToot,
+              source: "OWN_ORG",
+              baiguullagiinId: baiguullaga._id.toString(),
+              barilgiinId: finalBarilgiinId,
+              davkhar: userData.davkhar || "",
+              orts: userData.orts || "1",
+              duureg: duuregNer,
+              horoo: horooData,
+              soh: sohNer,
+              bairniiNer: targetBarilga.ner || "",
+              createdAt: new Date()
+            };
+            
+            // Check if this toot already exists in user's toots array
+            const existingTootIndex = orshinSuugch.toots?.findIndex(
+              t => t.toot === tootEntry.toot && 
+                   t.barilgiinId === tootEntry.barilgiinId
+            );
+            
+            if (existingTootIndex >= 0) {
+              // Update existing toot entry
+              orshinSuugch.toots[existingTootIndex] = tootEntry;
+              console.log(`🔄 [EXCEL IMPORT] Updated existing toot: ${individualToot}`);
+            } else {
+              // Add new toot to array
+              orshinSuugch.toots.push(tootEntry);
+              console.log(`➕ [EXCEL IMPORT] Added new toot: ${individualToot}`);
+            }
           }
         }
 
