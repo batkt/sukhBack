@@ -712,9 +712,30 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
       const rowNumber = i + 2;
 
       try {
+        // Parse name field - extract ovog if not provided separately
+        let ovog = row["Овог"]?.toString().trim() || "";
+        let ner = row["Нэр"]?.toString().trim() || "";
+        
+        // If ovog is empty but ner contains a dot (.) or space, extract ovog from ner
+        if (!ovog && ner) {
+          // Check for pattern like "Б.Батбаяр" (with dot)
+          const dotMatch = ner.match(/^([А-ЯЁа-яё]+)\.(.+)$/);
+          if (dotMatch) {
+            ovog = dotMatch[1] + "."; // Keep the dot in ovog
+            ner = dotMatch[2].trim();
+          } else {
+            // Check for pattern like "Б Батбаяр" (with space, no dot)
+            const spaceMatch = ner.match(/^([А-ЯЁа-яё]+)\s+(.+)$/);
+            if (spaceMatch) {
+              ovog = spaceMatch[1].trim();
+              ner = spaceMatch[2].trim();
+            }
+          }
+        }
+        
         const userData = {
-          ovog: row["Овог"]?.toString().trim() || "",
-          ner: row["Нэр"]?.toString().trim() || "",
+          ovog: ovog,
+          ner: ner,
           utas: row["Утас"]?.toString().trim() || "",
           mail: row["Имэйл"]?.toString().trim() || "",
           davkhar: row["Давхар"]?.toString().trim() || "",
