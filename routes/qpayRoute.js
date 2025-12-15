@@ -236,7 +236,85 @@ router.get("/accountNumbers", async (req, res, next) => {
 router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    const OrshinSuugch = require("../models/orshinSuugch");
+    const walletApiService = require("../services/walletApiService");
 
+    // Auto-detect address source and route to appropriate QPay service
+    let useWalletQPay = false;
+    let userPhoneNumber = null;
+    let detectedSource = "CUSTOM"; // CUSTOM or WALLET_API
+
+    // Priority 1: Check if baiguullagiinId is provided in request body (definitely OWN_ORG)
+    if (req.body.baiguullagiinId) {
+      detectedSource = "CUSTOM";
+      console.log("🔍 [QPAY] baiguullagiinId provided in request - using custom QPay");
+    } else {
+      // Priority 2: Try to get user from token to check address source
+      try {
+        const jwt = require("jsonwebtoken");
+        if (req.headers.authorization) {
+          const token = req.headers.authorization.split(" ")[1];
+          if (token) {
+            const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+            if (tokenObject?.id && tokenObject.id !== "zochin") {
+              const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id).lean();
+              if (orshinSuugch) {
+                userPhoneNumber = orshinSuugch.utas;
+                // If user has baiguullagiinId, it's OWN_ORG address - use custom QPay
+                // If user doesn't have baiguullagiinId, it's Wallet API address - use Wallet QPay
+                if (orshinSuugch.baiguullagiinId) {
+                  detectedSource = "CUSTOM";
+                  console.log("🔍 [QPAY] User has baiguullagiinId - using custom QPay");
+                } else if (orshinSuugch.walletUserId || orshinSuugch.walletBairId) {
+                  detectedSource = "WALLET_API";
+                  useWalletQPay = true;
+                  console.log("🔍 [QPAY] User has Wallet API address (no baiguullagiinId) - will use Wallet QPay");
+                }
+              }
+            }
+          }
+        }
+      } catch (tokenError) {
+        console.log("⚠️ [QPAY] Could not detect address source from token:", tokenError.message);
+        // Default to custom QPay if detection fails
+        detectedSource = "CUSTOM";
+      }
+    }
+
+    // If useWalletQPay is true, route to Wallet API QPay
+    if (useWalletQPay && userPhoneNumber) {
+      try {
+        console.log("💳 [QPAY] Routing to Wallet API QPay payment");
+        
+        // Check if invoiceId is provided (required for Wallet API payment)
+        if (!req.body.invoiceId && !req.body.walletInvoiceId) {
+          throw new Error("Invoice ID is required for Wallet API QPay payment");
+        }
+        
+        const paymentData = {
+          invoiceId: req.body.invoiceId || req.body.walletInvoiceId,
+          paymentMethod: req.body.paymentMethod || "QPAY",
+        };
+        
+        const result = await walletApiService.createPayment(userPhoneNumber, paymentData);
+        
+        console.log("✅ [QPAY] Wallet API QPay payment created successfully");
+        return res.status(200).json({
+          success: true,
+          data: result,
+          message: "QPay төлбөр амжилттай үүсгэлээ",
+          source: "WALLET_API",
+        });
+      } catch (walletQPayError) {
+        console.error("❌ [QPAY] Wallet API QPay error:", walletQPayError.message);
+        // Fall back to custom QPay if Wallet QPay fails
+        console.log("⚠️ [QPAY] Falling back to custom QPay");
+        useWalletQPay = false;
+        detectedSource = "CUSTOM";
+      }
+    }
+
+    // Continue with custom QPay (OWN_ORG or fallback)
     if (!req.body.tukhainBaaziinKholbolt && req.body.baiguullagiinId) {
       req.body.tukhainBaaziinKholbolt = db.kholboltuud.find(
         (k) => String(k.baiguullagiinId) === String(req.body.baiguullagiinId)
