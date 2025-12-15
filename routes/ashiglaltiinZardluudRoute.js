@@ -56,4 +56,53 @@ router.get("/ashiglaltiinZardluudAvya", async (req, res, next) => {
   }
 });
 
+// POST route to create new ashiglaltiinZardluud
+router.post("/ashiglaltiinZardluudNemekh", async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, ner, turul } = req.body;
+
+    if (!baiguullagiinId) {
+      return res.status(400).send({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    if (!ner || !turul) {
+      return res.status(400).send({
+        success: false,
+        message: "ner and turul are required",
+      });
+    }
+
+    // Get database connection for this organization
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).send({
+        success: false,
+        message: "Organization connection not found",
+      });
+    }
+
+    // Create new ashiglaltiinZardluud
+    const newZardal = new (ashiglaltiinZardluud(tukhainBaaziinKholbolt))(
+      req.body
+    );
+
+    await newZardal.save();
+
+    res.send({
+      success: true,
+      message: "Ашиглалтын зардал амжилттай нэмэгдлээ",
+      data: newZardal,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
