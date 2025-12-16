@@ -1958,8 +1958,22 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
     }
 
     // Find electricity zardal (zaalt = true)
+    // If multiple exist, prioritize exact "Цахилгаан" match (no trailing space)
     const zardluud = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
-    const zaaltZardal = zardluud.find((z) => z.zaalt === true);
+    const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
+    
+    // Prioritize exact "Цахилгаан" match (no trailing space)
+    let zaaltZardal = zaaltZardluud.find(
+      (z) => z.ner && z.ner.trim() === "Цахилгаан"
+    );
+    
+    // If no exact match, use first one
+    if (!zaaltZardal && zaaltZardluud.length > 0) {
+      zaaltZardal = zaaltZardluud[0];
+      console.warn(
+        `⚠️  [ZAALT] Multiple electricity tariffs found (${zaaltZardluud.length}). Using: ${zaaltZardal.ner} (tariff: ${zaaltZardal.zaaltTariff}, default: ${zaaltZardal.zaaltDefaultDun})`
+      );
+    }
     
     if (!zaaltZardal) {
       throw new aldaa("Цахилгааны зардал тохируулаагүй байна. Эхлээд зардлыг тохируулна уу.");
@@ -2042,7 +2056,39 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
 
         // Calculate: (Нийт (одоо) - Өмнө) * кВт tariff + default
         const zoruu = niitOdoo - umnu; // Usage amount (Зөрүү)
-        const zaaltDun = zoruu * zaaltTariff + zaaltDefaultDun;
+        
+        // Calculate tiered pricing if zaaltTariffTiers is available
+        let zaaltDun = 0;
+        let usedTariff = zaaltTariff;
+        let usedTier = null;
+        
+        if (zaaltZardal.zaaltTariffTiers && zaaltZardal.zaaltTariffTiers.length > 0) {
+          // Sort tiers by threshold (ascending)
+          const sortedTiers = [...zaaltZardal.zaaltTariffTiers].sort(
+            (a, b) => (a.threshold || 0) - (b.threshold || 0)
+          );
+          
+          // Find the appropriate tier based on zoruu (usage)
+          for (const tier of sortedTiers) {
+            if (zoruu <= (tier.threshold || Infinity)) {
+              usedTariff = tier.tariff || zaaltTariff;
+              usedTier = tier;
+              break;
+            }
+          }
+          
+          // If zoruu exceeds all tiers, use the last (highest) tier
+          if (!usedTier && sortedTiers.length > 0) {
+            const lastTier = sortedTiers[sortedTiers.length - 1];
+            usedTariff = lastTier.tariff || zaaltTariff;
+            usedTier = lastTier;
+          }
+          
+          zaaltDun = zoruu * usedTariff + zaaltDefaultDun;
+        } else {
+          // Fallback to simple calculation if no tiers defined
+          zaaltDun = zoruu * zaaltTariff + zaaltDefaultDun;
+        }
 
         // Update geree with electricity readings
         geree.umnukhZaalt = umnu;
@@ -2065,7 +2111,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         const zaaltZardalData = {
           ner: zaaltZardal.ner, // Tariff name/identifier (e.g., "Цахилгаан - Байгаль", "Цахилгаан - Ажлын")
           turul: zaaltZardal.turul,
-          tariff: zaaltTariff, // кВт tariff rate used for calculation
+          tariff: usedTariff, // кВт tariff rate used for calculation (from tier if applicable)
           tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
           zardliinTurul: zaaltZardal.zardliinTurul, // Tariff type identifier (e.g., "Цахилгаан", "Цахилгаан - Өдөр", "Цахилгаан - Шөнө")
           barilgiinId: barilgiinId,
@@ -2077,10 +2123,11 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
             zaaltTog: odor, // Day reading
             zaaltUs: shone, // Night reading
             zoruu: zoruu, // Usage amount (Зөрүү) = Нийт (одоо) - Өмнө
-            tariff: zaaltTariff, // кВт tariff rate used
+            tariff: usedTariff, // кВт tariff rate used (from tier if applicable)
             tariffType: zaaltZardal.zardliinTurul, // Tariff type identifier to distinguish different кВт types
             tariffName: zaaltZardal.ner, // Tariff name to distinguish different кВт types
             defaultDun: zaaltDefaultDun, // Default amount used
+            tier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null, // Tier used for calculation
             calculatedAt: new Date(), // When calculation was performed
           },
           bodokhArga: zaaltZardal.bodokhArga || "",
@@ -2175,24 +2222,54 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
 
     // Get all gerees with electricity readings for this building
     const Geree = require("../models/geree");
-    const gereenuud = await Geree(tukhainBaaziinKholbolt)
+    
+    // First, get all active gerees for this building
+    const allGereenuud = await Geree(tukhainBaaziinKholbolt)
       .find({
         baiguullagiinId: baiguullaga._id.toString(),
         barilgiinId: barilgiinId,
-        $or: [
-          { umnukhZaalt: { $exists: true, $ne: null } },
-          { suuliinZaalt: { $exists: true, $ne: null } },
-          { zaaltTog: { $exists: true, $ne: null } },
-          { zaaltUs: { $exists: true, $ne: null } },
-        ],
+        tuluv: "Идэвхтэй", // Only active contracts
       })
       .select("gereeniiDugaar toot umnukhZaalt suuliinZaalt zaaltTog zaaltUs zardluud")
       .lean()
       .sort({ gereeniiDugaar: 1 });
 
+    // Filter to only those with electricity readings
+    // Check if they have any electricity data (either in direct fields or in zardluud)
+    const gereenuud = allGereenuud.filter((geree) => {
+      // Check direct fields (even if 0, it means data was imported)
+      const hasDirectFields =
+        (geree.umnukhZaalt !== undefined && geree.umnukhZaalt !== null) ||
+        (geree.suuliinZaalt !== undefined && geree.suuliinZaalt !== null) ||
+        (geree.zaaltTog !== undefined && geree.zaaltTog !== null) ||
+        (geree.zaaltUs !== undefined && geree.zaaltUs !== null);
+
+      // Check if zardluud has electricity zardal with zaaltCalculation
+      const hasZaaltInZardluud =
+        geree.zardluud &&
+        geree.zardluud.some(
+          (z) => z.zaaltCalculation || (z.ner && z.ner.includes("Цахилгаан"))
+        );
+
+      return hasDirectFields || hasZaaltInZardluud;
+    });
+
     if (!gereenuud || gereenuud.length === 0) {
+      console.log("🔍 [ZAALT EXPORT] No electricity data found:", {
+        baiguullagiinId: baiguullaga._id.toString(),
+        barilgiinId: barilgiinId,
+        totalGerees: allGereenuud.length,
+        gereesWithData: gereenuud.length,
+      });
       throw new aldaa("Цахилгааны уншилтын мэдээлэл олдсонгүй");
     }
+
+    console.log("✅ [ZAALT EXPORT] Found electricity data:", {
+      baiguullagiinId: baiguullaga._id.toString(),
+      barilgiinId: barilgiinId,
+      totalGerees: allGereenuud.length,
+      gereesWithElectricityData: gereenuud.length,
+    });
 
     let workbook = new excel.Workbook();
     let worksheet = workbook.addWorksheet("Цахилгааны заалт");
