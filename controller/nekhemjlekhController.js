@@ -516,11 +516,28 @@ const gereeNeesNekhemjlekhUusgekh = async (
             tempData.zaaltTog !== undefined ||
             tempData.zaaltUs !== undefined
           )) {
+            // Find the electricity zardal in finalZardluud to get calculation details
+            const zaaltZardalInGeree = finalZardluud.find(
+              (z) => z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
+            );
+            
             zaaltMedeelel = {
               umnukhZaalt: tempData.umnukhZaalt || 0,
               suuliinZaalt: tempData.suuliinZaalt || 0,
               zaaltTog: tempData.zaaltTog || 0, // Өдөр (Day)
               zaaltUs: tempData.zaaltUs || 0, // Шөнө (Night)
+              // Include tariff and calculation details for transparency
+              tariff: zaaltZardalInGeree?.tariff || zaaltZardal.zaaltTariff || 0,
+              tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
+              tariffType: zaaltZardal.zardliinTurul, // Tariff type identifier to distinguish different кВт types
+              tariffName: zaaltZardal.ner, // Tariff name to distinguish different кВт types
+              defaultDun: zaaltZardal.zaaltDefaultDun || 2000,
+              // Include calculation breakdown if available
+              ...(zaaltZardalInGeree?.zaaltCalculation ? {
+                calculation: zaaltZardalInGeree.zaaltCalculation
+              } : {
+                zoruu: (tempData.suuliinZaalt || 0) - (tempData.umnukhZaalt || 0) // Calculate usage
+              }),
             };
             console.log("⚡ [INVOICE] Adding electricity readings to invoice:", zaaltMedeelel);
           }
@@ -637,6 +654,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // }
 
     // Send notification (medegdel) to orshinSuugch when invoice is created
+    let savedMedegdel = null;
     try {
       if (tempData.orshinSuugchId) {
         const baiguullagiinId = org._id ? org._id.toString() : (org.id ? org.id.toString() : String(org));
@@ -657,9 +675,24 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
           await medegdel.save();
 
-          // Try to emit socket event if socket.io is available via global
-          // Socket events will be emitted by route handlers that have access to req.app.get("socketio")
-          // For now, notification is saved in database and can be retrieved by clients
+          // Convert dates to Mongolian time (UTC+8) for response
+          const medegdelObj = medegdel.toObject();
+          const mongolianOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+          
+          if (medegdelObj.createdAt) {
+            const createdAtMongolian = new Date(medegdelObj.createdAt.getTime() + mongolianOffset);
+            medegdelObj.createdAt = createdAtMongolian.toISOString();
+          }
+          if (medegdelObj.updatedAt) {
+            const updatedAtMongolian = new Date(medegdelObj.updatedAt.getTime() + mongolianOffset);
+            medegdelObj.updatedAt = updatedAtMongolian.toISOString();
+          }
+          if (medegdelObj.ognoo) {
+            const ognooMongolian = new Date(medegdelObj.ognoo.getTime() + mongolianOffset);
+            medegdelObj.ognoo = ognooMongolian.toISOString();
+          }
+
+          savedMedegdel = medegdelObj;
         }
       }
     } catch (notificationError) {
@@ -673,6 +706,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       gereeniiId: tempData._id,
       gereeniiDugaar: tempData.gereeniiDugaar,
       tulbur: tempData.niitTulbur,
+      medegdel: savedMedegdel, // Include notification for socket emission
     };
   } catch (error) {
     return {
