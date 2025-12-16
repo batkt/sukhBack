@@ -2197,7 +2197,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
 exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const { baiguullagiinId, barilgiinId } = req.body;
+    const { baiguullagiinId, barilgiinId } = req.query;
 
     if (!baiguullagiinId) {
       throw new aldaa("Байгууллагын ID хоосон");
