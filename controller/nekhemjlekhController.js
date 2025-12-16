@@ -488,6 +488,48 @@ const gereeNeesNekhemjlekhUusgekh = async (
     const finalZardluud =
       shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice ? [] : filteredZardluud;
 
+    // Check if electricity zardal exists and geree has electricity readings
+    let zaaltMedeelel = null;
+    if (finalZardluud.length > 0 && tempData.barilgiinId && tempData.baiguullagiinId) {
+      try {
+        const { db } = require("zevbackv2");
+        const Baiguullaga = require("../models/baiguullaga");
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+          tempData.baiguullagiinId
+        );
+        const targetBarilga = baiguullaga?.barilguud?.find(
+          (b) => String(b._id) === String(tempData.barilgiinId)
+        );
+        const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
+        const zaaltZardal = zardluud.find((z) => z.zaalt === true);
+
+        // Check if electricity zardal exists in finalZardluud
+        if (zaaltZardal) {
+          const hasZaaltZardal = finalZardluud.some(
+            (z) => z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
+          );
+
+          // If electricity zardal exists and geree has electricity readings, add to medeelel
+          if (hasZaaltZardal && (
+            tempData.umnukhZaalt !== undefined ||
+            tempData.suuliinZaalt !== undefined ||
+            tempData.zaaltTog !== undefined ||
+            tempData.zaaltUs !== undefined
+          )) {
+            zaaltMedeelel = {
+              umnukhZaalt: tempData.umnukhZaalt || 0,
+              suuliinZaalt: tempData.suuliinZaalt || 0,
+              zaaltTog: tempData.zaaltTog || 0, // Өдөр (Day)
+              zaaltUs: tempData.zaaltUs || 0, // Шөнө (Night)
+            };
+            console.log("⚡ [INVOICE] Adding electricity readings to invoice:", zaaltMedeelel);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking electricity zardal:", error.message);
+      }
+    }
+
     tuukh.medeelel = {
       zardluud: finalZardluud,
       guilgeenuud: guilgeenuudForNekhemjlekh, // Include one-time guilgeenuud
@@ -498,6 +540,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tailbar: tempData.temdeglel || "", // Save tailbar from geree temdeglel
       uusgegsenEsekh: uusgegsenEsekh,
       uusgegsenOgnoo: new Date(),
+      ...(zaaltMedeelel ? { zaalt: zaaltMedeelel } : {}), // Add electricity readings if available
     };
     tuukh.nekhemjlekh =
       tempData.nekhemjlekh ||
@@ -512,7 +555,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.temdeglel !== "Excel файлаас автоматаар үүссэн гэрээ"
         ? `\nТайлбар: ${tempData.temdeglel}`
         : "";
-    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${finalNiitTulbur}₮${tailbarText}`;
+    
+    // Include electricity readings in content if available
+    const zaaltText = zaaltMedeelel
+      ? `\nЦахилгаан: Өмнө: ${zaaltMedeelel.umnukhZaalt}, Өдөр: ${zaaltMedeelel.zaaltTog}, Шөнө: ${zaaltMedeelel.zaaltUs}, Нийт: ${zaaltMedeelel.suuliinZaalt}`
+      : "";
+    
+    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${finalNiitTulbur}₮${tailbarText}${zaaltText}`;
     tuukh.nekhemjlekhiinDans =
       tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
     tuukh.nekhemjlekhiinDansniiNer =
