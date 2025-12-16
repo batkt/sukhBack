@@ -2041,7 +2041,8 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         }
 
         // Calculate: (Нийт (одоо) - Өмнө) * кВт tariff + default
-        const zaaltDun = (niitOdoo - umnu) * zaaltTariff + zaaltDefaultDun;
+        const zoruu = niitOdoo - umnu; // Usage amount (Зөрүү)
+        const zaaltDun = zoruu * zaaltTariff + zaaltDefaultDun;
 
         // Update geree with electricity readings
         geree.umnukhZaalt = umnu;
@@ -2059,14 +2060,29 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           (z) => z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
         );
 
+        // Best Practice: Save tariff and calculation details for transparency and audit
+        // Identify tariff type by ner (name) and zardliinTurul to distinguish different кВт tariff types
         const zaaltZardalData = {
-          ner: zaaltZardal.ner,
+          ner: zaaltZardal.ner, // Tariff name/identifier (e.g., "Цахилгаан - Байгаль", "Цахилгаан - Ажлын")
           turul: zaaltZardal.turul,
-          tariff: zaaltTariff,
+          tariff: zaaltTariff, // кВт tariff rate used for calculation
           tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
-          zardliinTurul: zaaltZardal.zardliinTurul,
+          zardliinTurul: zaaltZardal.zardliinTurul, // Tariff type identifier (e.g., "Цахилгаан", "Цахилгаан - Өдөр", "Цахилгаан - Шөнө")
           barilgiinId: barilgiinId,
-          dun: zaaltDun,
+          dun: zaaltDun, // Final calculated amount
+          // Save calculation details for transparency/audit
+          zaaltCalculation: {
+            umnukhZaalt: umnu, // Previous reading
+            suuliinZaalt: niitOdoo, // Total now
+            zaaltTog: odor, // Day reading
+            zaaltUs: shone, // Night reading
+            zoruu: zoruu, // Usage amount (Зөрүү) = Нийт (одоо) - Өмнө
+            tariff: zaaltTariff, // кВт tariff rate used
+            tariffType: zaaltZardal.zardliinTurul, // Tariff type identifier to distinguish different кВт types
+            tariffName: zaaltZardal.ner, // Tariff name to distinguish different кВт types
+            defaultDun: zaaltDefaultDun, // Default amount used
+            calculatedAt: new Date(), // When calculation was performed
+          },
           bodokhArga: zaaltZardal.bodokhArga || "",
           tseverUsDun: zaaltZardal.tseverUsDun || 0,
           bokhirUsDun: zaaltZardal.bokhirUsDun || 0,

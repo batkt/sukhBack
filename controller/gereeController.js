@@ -169,30 +169,122 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             // Emit socket event for invoice notification if invoice was created successfully
             if (invoiceResult && invoiceResult.success && invoiceResult.nekhemjlekh && freshGeree.orshinSuugchId) {
               try {
+                console.log("🔍 [SOCKET] Starting socket emission process...", {
+                  invoiceId: invoiceResult.nekhemjlekh._id,
+                  orshinSuugchId: freshGeree.orshinSuugchId,
+                  baiguullagiinId: baiguullagiinId,
+                  hasMedegdel: !!invoiceResult.medegdel,
+                });
+
                 const io = req.app.get("socketio");
-                if (io) {
-                  // Get the notification that was created by gereeNeesNekhemjlekhUusgekh
+                
+                if (!io) {
+                  console.error("❌ [SOCKET] Socket.io instance not found in req.app");
+                  return;
+                }
+
+                console.log("✅ [SOCKET] Socket.io instance found");
+
+                // Use the medegdel returned from invoice creation, or find the most recent one
+                let medegdelToEmit = invoiceResult.medegdel;
+                
+                if (!medegdelToEmit) {
+                  console.log("⚠️ [SOCKET] No medegdel in invoice result, querying database...");
+                  // Fallback: Get the notification that was created by gereeNeesNekhemjlekhUusgekh
                   const kholbolt = db.kholboltuud.find(
                     (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
                   );
-                  if (kholbolt) {
-                    // Find the most recent notification for this orshinSuugch
-                    const recentMedegdel = await Medegdel(kholbolt)
-                      .findOne({ orshinSuugchId: freshGeree.orshinSuugchId })
-                      .sort({ createdAt: -1 })
-                      .lean();
-                    if (recentMedegdel) {
-                      io.emit("orshinSuugch" + freshGeree.orshinSuugchId, recentMedegdel);
-                    }
+                  
+                  if (!kholbolt) {
+                    console.error("❌ [SOCKET] Kholbolt not found for baiguullagiinId:", baiguullagiinId);
+                    return;
                   }
+
+                  console.log("🔍 [SOCKET] Querying for recent medegdel...", {
+                    orshinSuugchId: freshGeree.orshinSuugchId,
+                    kholbolt: kholbolt.kholbolt,
+                  });
+
+                  // Find the most recent notification for this orshinSuugch
+                  const recentMedegdel = await Medegdel(kholbolt)
+                    .findOne({ orshinSuugchId: freshGeree.orshinSuugchId })
+                    .sort({ createdAt: -1 })
+                    .lean();
+                  
+                  if (recentMedegdel) {
+                    console.log("✅ [SOCKET] Found recent medegdel:", recentMedegdel._id);
+                    // Convert dates to Mongolian time (UTC+8) for socket emission
+                    const mongolianOffset = 8 * 60 * 60 * 1000;
+                    if (recentMedegdel.createdAt) {
+                      recentMedegdel.createdAt = new Date(recentMedegdel.createdAt.getTime() + mongolianOffset).toISOString();
+                    }
+                    if (recentMedegdel.updatedAt) {
+                      recentMedegdel.updatedAt = new Date(recentMedegdel.updatedAt.getTime() + mongolianOffset).toISOString();
+                    }
+                    if (recentMedegdel.ognoo) {
+                      recentMedegdel.ognoo = new Date(recentMedegdel.ognoo.getTime() + mongolianOffset).toISOString();
+                    }
+                    medegdelToEmit = recentMedegdel;
+                  } else {
+                    console.warn("⚠️ [SOCKET] No recent medegdel found for orshinSuugchId:", freshGeree.orshinSuugchId);
+                  }
+                } else {
+                  console.log("✅ [SOCKET] Using medegdel from invoice result");
+                }
+                
+                if (medegdelToEmit) {
+                  const eventName = "orshinSuugch" + freshGeree.orshinSuugchId;
+                  
+                  console.log("📡 [SOCKET] Emitting invoice notification...", {
+                    eventName: eventName,
+                    orshinSuugchId: freshGeree.orshinSuugchId,
+                    medegdelId: medegdelToEmit._id,
+                    title: medegdelToEmit.title,
+                    message: medegdelToEmit.message,
+                    timestamp: new Date().toISOString(),
+                  });
+
+                  io.emit(eventName, medegdelToEmit);
+                  
+                  console.log("✅ [SOCKET] Invoice notification emitted successfully", {
+                    eventName: eventName,
+                    timestamp: new Date().toISOString(),
+                  });
+                } else {
+                  console.error("❌ [SOCKET] No medegdel to emit");
                 }
               } catch (socketError) {
-                console.error("Error emitting socket event for invoice notification:", socketError);
+                console.error("❌ [SOCKET] Error emitting socket event for invoice notification:", {
+                  error: socketError.message,
+                  stack: socketError.stack,
+                  orshinSuugchId: freshGeree.orshinSuugchId,
+                  timestamp: new Date().toISOString(),
+                });
               }
+            } else {
+              console.warn("⚠️ [SOCKET] Invoice notification not emitted - conditions not met:", {
+                hasInvoiceResult: !!invoiceResult,
+                invoiceSuccess: invoiceResult?.success,
+                hasNekhemjlekh: !!invoiceResult?.nekhemjlekh,
+                hasOrshinSuugchId: !!freshGeree?.orshinSuugchId,
+                orshinSuugchId: freshGeree?.orshinSuugchId,
+                invoiceResultKeys: invoiceResult ? Object.keys(invoiceResult) : [],
+                freshGereeKeys: freshGeree ? Object.keys(freshGeree) : [],
+              });
             }
           }
+        } else {
+          console.warn("⚠️ [SOCKET] Baiguullaga not found for baiguullagiinId:", baiguullagiinId);
         }
+      } else {
+        console.warn("⚠️ [SOCKET] Fresh geree not found for gereeniiId:", guilgee.gereeniiId);
+      }
       } catch (invoiceError) {
+        console.error("❌ [SOCKET] Error creating invoice from avlaga:", {
+          error: invoiceError.message,
+          stack: invoiceError.stack,
+          gereeniiId: guilgee.gereeniiId,
+        });
         // Don't fail the guilgee addition if invoice creation fails
       }
     }
