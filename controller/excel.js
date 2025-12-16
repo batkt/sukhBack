@@ -1800,7 +1800,10 @@ exports.gereeniiExcelTatya = asyncHandler(async (req, res, next) => {
 
 /**
  * Download Excel template for electricity readings
- * Columns: Гэрээний дугаар, Өмнө, Өдөр, Шөнө, Нийт (одоо), Зэрэг
+ * Columns: Гэрээний дугаар, Өмнө, Өдөр, Шөнө, Нийт (одоо), Зөрүү
+ * Formulas:
+ * - Нийт (одоо) = Өдөр + Шөнө
+ * - Зөрүү = Нийт (одоо) - Өмнө
  */
 exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
   try {
@@ -1846,29 +1849,17 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
     let workbook = new excel.Workbook();
     let worksheet = workbook.addWorksheet("Цахилгаан");
 
-    // Headers
-    const headers = [
-      "Гэрээний дугаар",
-      "Өмнө",
-      "Өдөр",
-      "Шөнө",
-      "Нийт (одоо)",
-      "Зэрэг",
-    ];
-
+    // Define columns (headers are automatically created in row 1)
     worksheet.columns = [
       { header: "Гэрээний дугаар", key: "gereeniiDugaar", width: 20 },
       { header: "Өмнө", key: "umnu", width: 15 },
       { header: "Өдөр", key: "odor", width: 15 },
       { header: "Шөнө", key: "shone", width: 15 },
       { header: "Нийт (одоо)", key: "niitOdoo", width: 15 },
-      { header: "Зэрэг", key: "zereg", width: 15 },
+      { header: "Зөрүү", key: "zoruu", width: 15 },
     ];
 
-    // Add header row
-    worksheet.addRow(headers);
-
-    // Style header row
+    // Style header row (worksheet.columns already creates headers in row 1)
     worksheet.getRow(1).font = { bold: true };
     worksheet.getRow(1).fill = {
       type: "pattern",
@@ -1884,19 +1875,30 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
         odor: "",
         shone: "",
         niitOdoo: "",
-        zereg: "",
+        zoruu: "",
       });
     });
 
     // Add formula for "Нийт (одоо)" column (Өдөр + Шөнө)
     // Formula: =C2+D2 (assuming C=Өдөр, D=Шөнө)
+    // Add formula for "Зөрүү" column (Нийт (одоо) - Өмнө)
+    // Formula: =E2-B2 (assuming E=Нийт (одоо), B=Өмнө)
     gereenuud.forEach((geree, index) => {
       const rowNumber = index + 2; // +2 because row 1 is header
-      const cell = worksheet.getCell(`E${rowNumber}`);
-      cell.value = {
+      
+      // Нийт (одоо) = Өдөр + Шөнө (Column E = C + D)
+      const niitCell = worksheet.getCell(`E${rowNumber}`);
+      niitCell.value = {
         formula: `C${rowNumber}+D${rowNumber}`,
       };
-      cell.numFmt = "0.00";
+      niitCell.numFmt = "0.00";
+      
+      // Зөрүү = Нийт (одоо) - Өмнө (Column F = E - B)
+      const zoruuCell = worksheet.getCell(`F${rowNumber}`);
+      zoruuCell.value = {
+        formula: `E${rowNumber}-B${rowNumber}`,
+      };
+      zoruuCell.numFmt = "0.00";
     });
 
     res.setHeader(
@@ -2027,7 +2029,6 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         const shone = parseFloat(row["Шөнө"] || 0) || 0;
         const niitOdooRaw = row["Нийт (одоо)"];
         const niitOdoo = niitOdooRaw ? (parseFloat(niitOdooRaw) || 0) : (odor + shone);
-        const zereg = row["Зэрэг"]?.toString().trim() || "";
 
         // Validate readings
         if (odor < 0 || shone < 0 || umnu < 0) {
@@ -2102,7 +2103,6 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           shone: shone,
           niitOdoo: niitOdoo,
           zaaltDun: zaaltDun,
-          zereg: zereg,
         });
 
         console.log(`✅ [ZAALT IMPORT] Processed geree ${gereeniiDugaar}: ${zaaltDun} MNT`);
