@@ -323,9 +323,50 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    // Check for existing user by utas
+    const phoneNumber = String(req.body.utas).trim();
+    let walletUserInfo = null;
+    let walletUserId = null;
+
+    if (!req.body.mail) {
+      throw new aldaa("И-мэйл заавал бөглөх шаардлагатай! (Wallet API integration)");
+    }
+
+    const email = String(req.body.mail).trim();
+
+    try {
+      // First, try to get existing user from Wallet API
+      console.log("📞 [WEBSITE REGISTER] Checking Wallet API for existing user...");
+      walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+
+      if (walletUserInfo && walletUserInfo.userId) {
+        // User exists in Wallet API
+        walletUserId = walletUserInfo.userId;
+        console.log("✅ [WEBSITE REGISTER] User found in Wallet API:", walletUserId);
+      } else {
+        // User doesn't exist in Wallet API, register them
+        console.log("📞 [WEBSITE REGISTER] Registering user in Wallet API...");
+        walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+
+        if (!walletUserInfo || !walletUserInfo.userId) {
+          throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
+        }
+
+        walletUserId = walletUserInfo.userId;
+        console.log("✅ [WEBSITE REGISTER] User registered in Wallet API:", walletUserId);
+      }
+    } catch (walletError) {
+      console.error("❌ [WEBSITE REGISTER] Wallet API error:", walletError.message);
+      // If Wallet API fails, we can still proceed with registration
+      // but user won't be able to login via mobile until they register there
+      console.warn("⚠️ [WEBSITE REGISTER] Continuing without Wallet API integration");
+    }
+
+    // Check for existing user by utas OR walletUserId (unified check)
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      utas: req.body.utas,
+      $or: [
+        { utas: phoneNumber },
+        ...(walletUserId ? [{ walletUserId: walletUserId }] : [])
+      ]
     });
 
     // If user exists and is active (not deleted), throw error
@@ -667,7 +708,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       baiguullagiinId: baiguullaga._id,
       baiguullagiinNer: baiguullaga.ner,
       barilgiinId: barilgiinId,
-      mail: req.body.mail,
+      mail: walletUserInfo?.email || req.body.mail || email, // Use email from Wallet API if available
       erkh: "OrshinSuugch",
       duureg: req.body.duureg,
       horoo: req.body.horoo,
@@ -679,9 +720,55 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       ekhniiUldegdel: req.body.ekhniiUldegdel
         ? parseFloat(req.body.ekhniiUldegdel) || 0
         : 0, // Optional: from frontend
+      // Link to Wallet API (unifies website and mobile users)
+      ...(walletUserId ? { walletUserId: walletUserId } : {}),
     };
 
     orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    
+    if (!orshinSuugch.toots) {
+      orshinSuugch.toots = [];
+    }
+    
+    if (orshinSuugch.toot && barilgiinId) {
+      const targetBarilga = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+      
+      if (targetBarilga) {
+        const duuregNer = targetBarilga.tokhirgoo?.duuregNer || req.body.duureg || "";
+        const horooData = targetBarilga.tokhirgoo?.horoo || req.body.horoo || {};
+        const sohNer = targetBarilga.tokhirgoo?.sohNer || req.body.soh || "";
+        
+        const tootEntry = {
+          toot: orshinSuugch.toot,
+          source: "OWN_ORG",
+          baiguullagiinId: baiguullaga._id.toString(),
+          barilgiinId: barilgiinId,
+          davkhar: orshinSuugch.davkhar || "",
+          orts: orshinSuugch.orts || "1",
+          duureg: duuregNer,
+          horoo: horooData,
+          soh: sohNer,
+          bairniiNer: targetBarilga.ner || "",
+          createdAt: new Date()
+        };
+        
+        const existingTootIndex = orshinSuugch.toots.findIndex(
+          t => t.toot === tootEntry.toot && 
+               t.barilgiinId === tootEntry.barilgiinId
+        );
+        
+        if (existingTootIndex >= 0) {
+          orshinSuugch.toots[existingTootIndex] = tootEntry;
+          console.log(`🔄 [WEBSITE REGISTER] Updated existing toot in array: ${tootEntry.toot}`);
+        } else {
+          orshinSuugch.toots.push(tootEntry);
+          console.log(`➕ [WEBSITE REGISTER] Added new toot to array: ${tootEntry.toot}`);
+        }
+      }
+    }
+    
     await orshinSuugch.save();
 
     try {
@@ -1388,7 +1475,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       orshinSuugch.toot = userData.newTootEntry.toot;
       orshinSuugch.baiguullagiinId = userData.newTootEntry.baiguullagiinId;
       orshinSuugch.barilgiinId = userData.newTootEntry.barilgiinId;
-      orshinSuugch.davkhar = userData.newTootEntry.davkhar;
+      orshinSuugch.davkhar = userData.newTootEntry.davkhar; // Auto-determined from toot
+      orshinSuugch.orts = userData.newTootEntry.orts; // Auto-determined from toot
       orshinSuugch.duureg = userData.newTootEntry.duureg;
       orshinSuugch.horoo = userData.newTootEntry.horoo;
       orshinSuugch.soh = userData.newTootEntry.soh;
@@ -2020,16 +2108,20 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
         }
 
         const tootToValidate = req.body.doorNo.trim();
-        const davkharToValidate = (req.body.davkhar || "").trim();
-        const ortsToValidate = (req.body.orts || "1").trim();
+        const davkharFromRequest = (req.body.davkhar || "").trim();
+        const ortsFromRequest = (req.body.orts || "1").trim();
         
         // Check if toot exists in davkhariinToonuud (available toots)
+        // Automatically determine orts and davkhar from toot (same as website registration)
         const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
         let tootFound = false;
+        let foundDavkhar = null;
+        let foundOrts = null;
+        let matchedFloorKey = null;
 
-        if (davkharToValidate) {
-          // If davkhar is provided, check specific floor
-          const floorKey = `${ortsToValidate}::${davkharToValidate}`;
+        if (davkharFromRequest) {
+          // If davkhar is provided, check specific floor first
+          const floorKey = `${ortsFromRequest}::${davkharFromRequest}`;
           const tootArray = davkhariinToonuud[floorKey];
           
           if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
@@ -2042,11 +2134,21 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
             
             if (tootList.includes(tootToValidate)) {
               tootFound = true;
+              matchedFloorKey = floorKey;
+              foundDavkhar = davkharFromRequest;
+              foundOrts = ortsFromRequest;
             }
           }
-        } else {
-          // If davkhar not provided, search all floors
+        }
+        
+        // If not found with provided davkhar/orts, or davkhar not provided, search all floors
+        if (!tootFound) {
           for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+            // Skip invalid entries that don't have :: separator
+            if (!floorKey.includes("::")) {
+              continue;
+            }
+            
             if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
               let tootList = [];
               if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
@@ -2057,6 +2159,14 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
               
               if (tootList.includes(tootToValidate)) {
                 tootFound = true;
+                matchedFloorKey = floorKey;
+                
+                // Extract orts and davkhar from floorKey (format: "orts::davkhar")
+                const parts = floorKey.split("::");
+                if (parts.length === 2) {
+                  foundOrts = parts[0].trim(); // orts (entrance)
+                  foundDavkhar = parts[1].trim(); // davkhar (floor)
+                }
                 break;
               }
             }
@@ -2067,9 +2177,24 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           throw new aldaa(`(${tootToValidate}) тоот энэ барилгад бүртгэлгүй байна`);
         }
 
+        // Use found values, fallback to request values if not found
+        const finalDavkhar = foundDavkhar || davkharFromRequest || "";
+        const finalOrts = foundOrts || ortsFromRequest || "1";
+
         // Validation passes - toot will be added to toots array
         // Multiple users can have the same toot, so no unique check needed
-        console.log(`✅ [WALLET REGISTER] OWN_ORG toot validated: ${tootToValidate}`);
+        console.log(`✅ [WALLET REGISTER] OWN_ORG toot validated: ${tootToValidate}, auto-determined davkhar=${finalDavkhar}, orts=${finalOrts}`);
+        
+        // Set auto-determined values in userData for backward compatibility
+        // This ensures davkhar and orts are available even if not provided in request
+        if (finalDavkhar) {
+          userData.davkhar = finalDavkhar;
+        }
+        if (finalOrts) {
+          userData.orts = finalOrts;
+        }
+        // Also set toot in userData for backward compatibility
+        userData.toot = tootToValidate;
         
         // Prepare toot entry for toots array
         userData.newTootEntry = {
@@ -2077,8 +2202,8 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           source: "OWN_ORG",
           baiguullagiinId: req.body.baiguullagiinId,
           barilgiinId: req.body.barilgiinId,
-          davkhar: davkharToValidate || "",
-          orts: ortsToValidate || "1",
+          davkhar: finalDavkhar, // Auto-determined from toot
+          orts: finalOrts, // Auto-determined from toot
           duureg: targetBarilga.tokhirgoo?.duuregNer || "",
           horoo: targetBarilga.tokhirgoo?.horoo || {},
           soh: targetBarilga.tokhirgoo?.sohNer || "",
@@ -2127,7 +2252,8 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       orshinSuugch.toot = userData.newTootEntry.toot;
       orshinSuugch.baiguullagiinId = userData.newTootEntry.baiguullagiinId;
       orshinSuugch.barilgiinId = userData.newTootEntry.barilgiinId;
-      orshinSuugch.davkhar = userData.newTootEntry.davkhar;
+      orshinSuugch.davkhar = userData.newTootEntry.davkhar; // Auto-determined from toot
+      orshinSuugch.orts = userData.newTootEntry.orts; // Auto-determined from toot
       orshinSuugch.duureg = userData.newTootEntry.duureg;
       orshinSuugch.horoo = userData.newTootEntry.horoo;
       orshinSuugch.soh = userData.newTootEntry.soh;
