@@ -19,6 +19,8 @@ const {
 const {
   gereeniiExcelAvya,
   gereeniiExcelTatya,
+  zaaltExcelTemplateAvya,
+  zaaltExcelTatya,
 } = require("../controller/excel");
 const {
   downloadGuilgeeniiTuukhExcel,
@@ -36,6 +38,14 @@ router
 router
   .route("/gereeniiExcelTatya")
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiExcelTatya);
+
+// Electricity (Цахилгаан) Excel routes
+router
+  .route("/zaaltExcelTemplateAvya")
+  .post(tokenShalgakh, zaaltExcelTemplateAvya);
+router
+  .route("/zaaltExcelTatya")
+  .post(uploadFile.single("file"), tokenShalgakh, zaaltExcelTatya);
 
 // GuilgeeniiTuukh Excel download route - MUST be before crud to avoid conflicts
 router.post(

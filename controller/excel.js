@@ -1794,6 +1794,339 @@ exports.gereeniiExcelTatya = asyncHandler(async (req, res, next) => {
   }
 });
 
+// ============================================
+// ELECTRICITY (ЦАХИЛГААН) EXCEL IMPORT/EXPORT
+// ============================================
+
+/**
+ * Download Excel template for electricity readings
+ * Columns: Гэрээний дугаар, Өмнө, Өдөр, Шөнө, Нийт (одоо), Зэрэг
+ */
+exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, barilgiinId } = req.body;
+
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID хоосон");
+    }
+
+    if (!barilgiinId) {
+      throw new aldaa("Барилгын ID хоосон");
+    }
+
+    const Baiguullaga = require("../models/baiguullaga");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллага олдсонгүй");
+    }
+
+    const targetBarilga = baiguullaga.barilguud?.find(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+    if (!targetBarilga) {
+      throw new aldaa("Барилга олдсонгүй");
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболт олдсонгүй");
+    }
+
+    // Get all active gerees for this building
+    const Geree = require("../models/geree");
+    const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
+      baiguullagiinId: baiguullaga._id.toString(),
+      barilgiinId: barilgiinId,
+      tuluv: "Идэвхтэй",
+    }).select("gereeniiDugaar toot").lean();
+
+    let workbook = new excel.Workbook();
+    let worksheet = workbook.addWorksheet("Цахилгаан");
+
+    // Headers
+    const headers = [
+      "Гэрээний дугаар",
+      "Өмнө",
+      "Өдөр",
+      "Шөнө",
+      "Нийт (одоо)",
+      "Зэрэг",
+    ];
+
+    worksheet.columns = [
+      { header: "Гэрээний дугаар", key: "gereeniiDugaar", width: 20 },
+      { header: "Өмнө", key: "umnu", width: 15 },
+      { header: "Өдөр", key: "odor", width: 15 },
+      { header: "Шөнө", key: "shone", width: 15 },
+      { header: "Нийт (одоо)", key: "niitOdoo", width: 15 },
+      { header: "Зэрэг", key: "zereg", width: 15 },
+    ];
+
+    // Add header row
+    worksheet.addRow(headers);
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    };
+
+    // Add data rows with geree numbers
+    gereenuud.forEach((geree) => {
+      worksheet.addRow({
+        gereeniiDugaar: geree.gereeniiDugaar || "",
+        umnu: "",
+        odor: "",
+        shone: "",
+        niitOdoo: "",
+        zereg: "",
+      });
+    });
+
+    // Add formula for "Нийт (одоо)" column (Өдөр + Шөнө)
+    // Formula: =C2+D2 (assuming C=Өдөр, D=Шөнө)
+    gereenuud.forEach((geree, index) => {
+      const rowNumber = index + 2; // +2 because row 1 is header
+      const cell = worksheet.getCell(`E${rowNumber}`);
+      cell.value = {
+        formula: `C${rowNumber}+D${rowNumber}`,
+      };
+      cell.numFmt = "0.00";
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="zaalt_template_${Date.now()}.xlsx"`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Error generating electricity Excel template:", error);
+    next(error);
+  }
+});
+
+/**
+ * Import electricity readings from Excel
+ * Calculation: (Өдөр + Шөнө) = Нийт (одоо)
+ * Then: (Нийт (одоо) - Өмнө) * кВт tariff + 2000 (default)
+ */
+exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, barilgiinId, ognoo } = req.body;
+
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID хоосон");
+    }
+
+    if (!barilgiinId) {
+      throw new aldaa("Барилгын ID хоосон");
+    }
+
+    if (!ognoo) {
+      throw new aldaa("Огноо заавал бөглөх шаардлагатай");
+    }
+
+    if (!req.file) {
+      throw new aldaa("Excel файл оруулах");
+    }
+
+    const Baiguullaga = require("../models/baiguullaga");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллага олдсонгүй");
+    }
+
+    const targetBarilga = baiguullaga.barilguud?.find(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+    if (!targetBarilga) {
+      throw new aldaa("Барилга олдсонгүй");
+    }
+
+    // Find electricity zardal (zaalt = true)
+    const zardluud = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+    const zaaltZardal = zardluud.find((z) => z.zaalt === true);
+    
+    if (!zaaltZardal) {
+      throw new aldaa("Цахилгааны зардал тохируулаагүй байна. Эхлээд зардлыг тохируулна уу.");
+    }
+
+    const zaaltTariff = zaaltZardal.zaaltTariff || 0;
+    const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 2000;
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболт олдсонгүй");
+    }
+
+    // Read Excel file
+    const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(worksheet, { raw: false });
+
+    if (!data || data.length === 0) {
+      throw new aldaa("Excel хоосон");
+    }
+
+    const Geree = require("../models/geree");
+    const results = {
+      success: [],
+      failed: [],
+      total: data.length,
+    };
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNumber = i + 2; // +2 because Excel row 1 is header
+
+      try {
+        const gereeniiDugaar = row["Гэрээний дугаар"]?.toString().trim();
+        if (!gereeniiDugaar) {
+          results.failed.push({
+            row: rowNumber,
+            gereeniiDugaar: "",
+            error: "Гэрээний дугаар хоосон",
+          });
+          continue;
+        }
+
+        // Find geree by gereeniiDugaar
+        const geree = await Geree(tukhainBaaziinKholbolt).findOne({
+          gereeniiDugaar: gereeniiDugaar,
+          baiguullagiinId: baiguullaga._id.toString(),
+          barilgiinId: barilgiinId,
+        });
+
+        if (!geree) {
+          results.failed.push({
+            row: rowNumber,
+            gereeniiDugaar: gereeniiDugaar,
+            error: "Гэрээ олдсонгүй",
+          });
+          continue;
+        }
+
+        // Parse readings
+        const umnu = parseFloat(row["Өмнө"] || 0) || 0;
+        const odor = parseFloat(row["Өдөр"] || 0) || 0;
+        const shone = parseFloat(row["Шөнө"] || 0) || 0;
+        const niitOdooRaw = row["Нийт (одоо)"];
+        const niitOdoo = niitOdooRaw ? (parseFloat(niitOdooRaw) || 0) : (odor + shone);
+        const zereg = row["Зэрэг"]?.toString().trim() || "";
+
+        // Validate readings
+        if (odor < 0 || shone < 0 || umnu < 0) {
+          results.failed.push({
+            row: rowNumber,
+            gereeniiDugaar: gereeniiDugaar,
+            error: "Уншилтын утга сөрөг байж болохгүй",
+          });
+          continue;
+        }
+
+        // Calculate: (Нийт (одоо) - Өмнө) * кВт tariff + default
+        const zaaltDun = (niitOdoo - umnu) * zaaltTariff + zaaltDefaultDun;
+
+        // Update geree with electricity readings
+        geree.umnukhZaalt = umnu;
+        geree.suuliinZaalt = niitOdoo;
+        geree.zaaltTog = odor;
+        geree.zaaltUs = shone;
+
+        // Update or add electricity zardal in geree.zardluud
+        if (!geree.zardluud) {
+          geree.zardluud = [];
+        }
+
+        // Find existing electricity zardal
+        const existingZaaltIndex = geree.zardluud.findIndex(
+          (z) => z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
+        );
+
+        const zaaltZardalData = {
+          ner: zaaltZardal.ner,
+          turul: zaaltZardal.turul,
+          tariff: zaaltTariff,
+          tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
+          zardliinTurul: zaaltZardal.zardliinTurul,
+          barilgiinId: barilgiinId,
+          dun: zaaltDun,
+          bodokhArga: zaaltZardal.bodokhArga || "",
+          tseverUsDun: zaaltZardal.tseverUsDun || 0,
+          bokhirUsDun: zaaltZardal.bokhirUsDun || 0,
+          usKhalaasniiDun: zaaltZardal.usKhalaasniiDun || 0,
+          tsakhilgaanUrjver: zaaltZardal.tsakhilgaanUrjver || 1,
+          tsakhilgaanChadal: zaaltZardal.tsakhilgaanChadal || 0,
+          tsakhilgaanDemjikh: zaaltZardal.tsakhilgaanDemjikh || 0,
+          suuriKhuraamj: zaaltZardal.suuriKhuraamj || 0,
+          nuatNemekhEsekh: zaaltZardal.nuatNemekhEsekh || false,
+          ognoonuud: zaaltZardal.ognoonuud || [],
+        };
+
+        if (existingZaaltIndex >= 0) {
+          geree.zardluud[existingZaaltIndex] = zaaltZardalData;
+        } else {
+          geree.zardluud.push(zaaltZardalData);
+        }
+
+        // Recalculate niitTulbur
+        const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
+          return sum + (zardal.dun || 0);
+        }, 0);
+
+        geree.niitTulbur = niitTulbur;
+        geree.ashiglaltiinZardal = niitTulbur;
+
+        await geree.save();
+
+        results.success.push({
+          row: rowNumber,
+          gereeniiDugaar: gereeniiDugaar,
+          umnu: umnu,
+          odor: odor,
+          shone: shone,
+          niitOdoo: niitOdoo,
+          zaaltDun: zaaltDun,
+          zereg: zereg,
+        });
+
+        console.log(`✅ [ZAALT IMPORT] Processed geree ${gereeniiDugaar}: ${zaaltDun} MNT`);
+      } catch (error) {
+        console.error(`❌ [ZAALT IMPORT] Error processing row ${rowNumber}:`, error.message);
+        results.failed.push({
+          row: rowNumber,
+          gereeniiDugaar: row["Гэрээний дугаар"]?.toString().trim() || "",
+          error: error.message || "Алдаа гарлаа",
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Цахилгааны уншилт импорт хийгдлээ. Амжилттай: ${results.success.length}, Алдаатай: ${results.failed.length}`,
+      results: results,
+    });
+  } catch (error) {
+    console.error("Error importing electricity Excel:", error);
+    next(error);
+  }
+});
+
 // exports.orshinSuugchTatya = asyncHandler(async (req, res, next) => {
 //   try {
 //     const workbook = xlsx.read(req.file.buffer);

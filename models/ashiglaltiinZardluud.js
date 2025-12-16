@@ -19,7 +19,6 @@ const ashiglaltiinZardluudSchema = new Schema(
     tariff: Number,
     tariffUsgeer: String,
     suuriKhuraamj: Number,
-    turul: String,
     nuatNemekhEsekh: Boolean,
     togtmolUtga: Number,
     choloolugdsonDavkhar: Boolean,
@@ -27,6 +26,9 @@ const ashiglaltiinZardluudSchema = new Schema(
     dun: Number,
     ognoonuud: [Date],
     nuatBodokhEsekh: Boolean,
+    zaalt: Boolean, // Electricity (цахилгаан) flag
+    zaaltTariff: Number, // кВт tariff for electricity
+    zaaltDefaultDun: Number, // Default amount (default: 2000)
   },
   {
     timestamps: true,
