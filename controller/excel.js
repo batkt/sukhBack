@@ -2243,6 +2243,13 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
     // Debug: Log sample geree data
     if (allGereenuud.length > 0) {
       const sampleGeree = allGereenuud[0];
+      const zaaltZardluud = sampleGeree.zardluud?.filter((z) => {
+        if (z.zaalt === true) return true;
+        if (z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0) return true;
+        if (z.ner && (z.ner.includes("Цахилгаан") || z.ner.trim() === "Цахилгаан")) return true;
+        return false;
+      }) || [];
+      
       console.log("📋 [ZAALT EXPORT] Sample geree data:", {
         gereeniiDugaar: sampleGeree.gereeniiDugaar,
         tuluv: sampleGeree.tuluv,
@@ -2252,10 +2259,12 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
         zaaltUs: sampleGeree.zaaltUs,
         hasZardluud: !!sampleGeree.zardluud,
         zardluudLength: sampleGeree.zardluud?.length || 0,
-        zardluudSample: sampleGeree.zardluud?.[0] ? {
-          ner: sampleGeree.zardluud[0].ner,
-          hasZaaltCalculation: !!sampleGeree.zardluud[0].zaaltCalculation,
-        } : null,
+        zaaltZardluudCount: zaaltZardluud.length,
+        zaaltZardluudSample: zaaltZardluud.length > 0 ? zaaltZardluud.map(z => ({
+          ner: z.ner,
+          zaalt: z.zaalt,
+          hasZaaltCalculation: !!(z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0),
+        })) : null,
       });
     }
     // Filter to only those with electricity readings
@@ -2268,14 +2277,21 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
         (geree.zaaltTog !== undefined && geree.zaaltTog !== null) ||
         (geree.zaaltUs !== undefined && geree.zaaltUs !== null);
 
-      // Check if zardluud has electricity zardal with zaaltCalculation
+      // Check if zardluud has electricity zardal
+      // Must have: zaalt: true OR zaaltCalculation OR name contains "Цахилгаан"
       const hasZaaltInZardluud =
         geree.zardluud &&
         Array.isArray(geree.zardluud) &&
         geree.zardluud.some(
-          (z) => 
-            (z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0) || 
-            (z.ner && (z.ner.includes("Цахилгаан") || z.ner.trim() === "Цахилгаан"))
+          (z) => {
+            // Primary check: zaalt flag
+            if (z.zaalt === true) return true;
+            // Secondary check: has zaaltCalculation with data
+            if (z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0) return true;
+            // Tertiary check: name contains "Цахилгаан"
+            if (z.ner && (z.ner.includes("Цахилгаан") || z.ner.trim() === "Цахилгаан")) return true;
+            return false;
+          }
         );
 
       return hasDirectFields || hasZaaltInZardluud;
@@ -2334,8 +2350,14 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
     // Add data rows
     gereenuud.forEach((geree) => {
       // Find electricity zardal in geree.zardluud
+      // Priority: zaalt: true > zaaltCalculation > name contains "Цахилгаан"
       const zaaltZardal = geree.zardluud?.find(
-        (z) => z.zaaltCalculation || (z.ner && z.ner.includes("Цахилгаан"))
+        (z) => {
+          if (z.zaalt === true) return true;
+          if (z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0) return true;
+          if (z.ner && (z.ner.includes("Цахилгаан") || z.ner.trim() === "Цахилгаан")) return true;
+          return false;
+        }
       );
 
       const umnukhZaalt = geree.umnukhZaalt || 0;
