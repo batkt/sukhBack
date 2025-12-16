@@ -2158,6 +2158,59 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
 
         await geree.save();
 
+        // Save to dedicated zaaltUnshlalt model for easier querying and export
+        const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+        const zaaltUnshlalt = new ZaaltUnshlalt(tukhainBaaziinKholbolt)({
+          gereeniiId: geree._id.toString(),
+          gereeniiDugaar: gereeniiDugaar,
+          toot: geree.toot || "",
+          baiguullagiinId: baiguullaga._id.toString(),
+          barilgiinId: barilgiinId,
+          unshlaltiinOgnoo: new Date(ognoo), // Date from import request
+          umnukhZaalt: umnu,
+          suuliinZaalt: niitOdoo,
+          zaaltTog: odor,
+          zaaltUs: shone,
+          zoruu: zoruu,
+          zaaltZardliinId: zaaltZardal._id?.toString() || "",
+          zaaltZardliinNer: zaaltZardal.ner,
+          zaaltZardliinTurul: zaaltZardal.zardliinTurul,
+          tariff: usedTariff,
+          tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
+          defaultDun: zaaltDefaultDun,
+          usedTier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null,
+          zaaltDun: zaaltDun,
+          zaaltCalculation: {
+            umnukhZaalt: umnu,
+            suuliinZaalt: niitOdoo,
+            zaaltTog: odor,
+            zaaltUs: shone,
+            zoruu: zoruu,
+            tariff: usedTariff,
+            tariffType: zaaltZardal.zardliinTurul,
+            tariffName: zaaltZardal.ner,
+            defaultDun: zaaltDefaultDun,
+            tier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null,
+            calculatedAt: new Date(),
+          },
+          bodokhArga: zaaltZardal.bodokhArga || "",
+          tseverUsDun: zaaltZardal.tseverUsDun || 0,
+          bokhirUsDun: zaaltZardal.bokhirUsDun || 0,
+          usKhalaasniiDun: zaaltZardal.usKhalaasniiDun || 0,
+          tsakhilgaanUrjver: zaaltZardal.tsakhilgaanUrjver || 1,
+          tsakhilgaanChadal: zaaltZardal.tsakhilgaanChadal || 0,
+          tsakhilgaanDemjikh: zaaltZardal.tsakhilgaanDemjikh || 0,
+          suuriKhuraamj: zaaltZardal.suuriKhuraamj || 0,
+          nuatNemekhEsekh: zaaltZardal.nuatNemekhEsekh || false,
+          ognoonuud: zaaltZardal.ognoonuud || [],
+          importOgnoo: new Date(),
+          importAjiltniiId: req.nevtersenAjiltniiToken?.id || "",
+          importAjiltniiNer: req.nevtersenAjiltniiToken?.ner || "",
+        });
+        
+        await zaaltUnshlalt.save();
+        console.log(`💾 [ZAALT IMPORT] Saved to zaaltUnshlalt model: ${gereeniiDugaar}`);
+
         results.success.push({
           row: rowNumber,
           gereeniiDugaar: gereeniiDugaar,
@@ -2196,16 +2249,30 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
  */
 exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
   try {
+    console.log("📥 [ZAALT EXPORT] Request received:", {
+      method: req.method,
+      path: req.path,
+      originalUrl: req.originalUrl,
+      query: req.query,
+    });
+    
     const { db } = require("zevbackv2");
     const { baiguullagiinId, barilgiinId } = req.query;
 
     if (!baiguullagiinId) {
+      console.error("❌ [ZAALT EXPORT] Missing baiguullagiinId");
       throw new aldaa("Байгууллагын ID хоосон");
     }
 
     if (!barilgiinId) {
+      console.error("❌ [ZAALT EXPORT] Missing barilgiinId");
       throw new aldaa("Барилгын ID хоосон");
     }
+    
+    console.log("✅ [ZAALT EXPORT] Parameters validated:", {
+      baiguullagiinId,
+      barilgiinId,
+    });
 
     const Baiguullaga = require("../models/baiguullaga");
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
@@ -2220,105 +2287,50 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       throw new aldaa("Холболт олдсонгүй");
     }
 
-    // Get all gerees with electricity readings for this building
-    const Geree = require("../models/geree");
+    // Get electricity readings from dedicated zaaltUnshlalt model
+    const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
     
     console.log("🔍 [ZAALT EXPORT] Searching for electricity data:", {
       baiguullagiinId: baiguullaga._id.toString(),
       barilgiinId: barilgiinId,
     });
     
-    // First, get all gerees for this building (without status filter)
-    const allGereenuud = await Geree(tukhainBaaziinKholbolt)
+    // Get all electricity readings for this building, sorted by contract number and date
+    const zaaltUnshlaltuud = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
       .find({
         baiguullagiinId: baiguullaga._id.toString(),
         barilgiinId: barilgiinId,
       })
-      .select("gereeniiDugaar toot tuluv umnukhZaalt suuliinZaalt zaaltTog zaaltUs zardluud")
-      .lean()
-      .sort({ gereeniiDugaar: 1 });
+      .sort({ gereeniiDugaar: 1, unshlaltiinOgnoo: -1 }) // Latest reading first for each contract
+      .lean();
 
-    console.log("📊 [ZAALT EXPORT] Total gerees found:", allGereenuud.length);
-    
-    // Debug: Log sample geree data
-    if (allGereenuud.length > 0) {
-      const sampleGeree = allGereenuud[0];
-      const zaaltZardluud = sampleGeree.zardluud?.filter((z) => {
-        if (z.zaalt === true) return true;
-        if (z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0) return true;
-        if (z.ner && (z.ner.includes("Цахилгаан") || z.ner.trim() === "Цахилгаан")) return true;
-        return false;
-      }) || [];
-      
-      console.log("📋 [ZAALT EXPORT] Sample geree data:", {
-        gereeniiDugaar: sampleGeree.gereeniiDugaar,
-        tuluv: sampleGeree.tuluv,
-        umnukhZaalt: sampleGeree.umnukhZaalt,
-        suuliinZaalt: sampleGeree.suuliinZaalt,
-        zaaltTog: sampleGeree.zaaltTog,
-        zaaltUs: sampleGeree.zaaltUs,
-        hasZardluud: !!sampleGeree.zardluud,
-        zardluudLength: sampleGeree.zardluud?.length || 0,
-        zaaltZardluudCount: zaaltZardluud.length,
-        zaaltZardluudSample: zaaltZardluud.length > 0 ? zaaltZardluud.map(z => ({
-          ner: z.ner,
-          zaalt: z.zaalt,
-          hasZaaltCalculation: !!(z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0),
-        })) : null,
-      });
-    }
-    // Filter to only those with electricity readings
-    // Check if they have any electricity data (either in direct fields or in zardluud)
-    const gereenuud = allGereenuud.filter((geree) => {
-      // Check direct fields (even if 0, it means data was imported)
-      const hasDirectFields =
-        (geree.umnukhZaalt !== undefined && geree.umnukhZaalt !== null) ||
-        (geree.suuliinZaalt !== undefined && geree.suuliinZaalt !== null) ||
-        (geree.zaaltTog !== undefined && geree.zaaltTog !== null) ||
-        (geree.zaaltUs !== undefined && geree.zaaltUs !== null);
+    console.log("📊 [ZAALT EXPORT] Total electricity readings found:", zaaltUnshlaltuud.length);
 
-      // Check if zardluud has electricity zardal
-      // Must have: zaalt: true OR zaaltCalculation OR name contains "Цахилгаан"
-      const hasZaaltInZardluud =
-        geree.zardluud &&
-        Array.isArray(geree.zardluud) &&
-        geree.zardluud.some(
-          (z) => {
-            // Primary check: zaalt flag
-            if (z.zaalt === true) return true;
-            // Secondary check: has zaaltCalculation with data
-            if (z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0) return true;
-            // Tertiary check: name contains "Цахилгаан"
-            if (z.ner && (z.ner.includes("Цахилгаан") || z.ner.trim() === "Цахилгаан")) return true;
-            return false;
-          }
-        );
-
-      return hasDirectFields || hasZaaltInZardluud;
-    });
-
-    if (!gereenuud || gereenuud.length === 0) {
+    if (!zaaltUnshlaltuud || zaaltUnshlaltuud.length === 0) {
       console.log("❌ [ZAALT EXPORT] No electricity data found:", {
         baiguullagiinId: baiguullaga._id.toString(),
         barilgiinId: barilgiinId,
-        totalGerees: allGereenuud.length,
-        gereesWithData: gereenuud.length,
-        sampleGereeFields: allGereenuud.length > 0 ? {
-          umnukhZaalt: allGereenuud[0].umnukhZaalt,
-          suuliinZaalt: allGereenuud[0].suuliinZaalt,
-          zaaltTog: allGereenuud[0].zaaltTog,
-          zaaltUs: allGereenuud[0].zaaltUs,
-          zardluudCount: allGereenuud[0].zardluud?.length || 0,
-        } : null,
       });
       throw new aldaa("Цахилгааны уншилтын мэдээлэл олдсонгүй");
     }
 
+    // Get unique contracts (latest reading for each contract)
+    const latestReadings = new Map();
+    zaaltUnshlaltuud.forEach((reading) => {
+      const key = reading.gereeniiDugaar;
+      if (!latestReadings.has(key) || 
+          new Date(reading.unshlaltiinOgnoo) > new Date(latestReadings.get(key).unshlaltiinOgnoo)) {
+        latestReadings.set(key, reading);
+      }
+    });
+
+    const gereenuud = Array.from(latestReadings.values());
+
     console.log("✅ [ZAALT EXPORT] Found electricity data:", {
       baiguullagiinId: baiguullaga._id.toString(),
       barilgiinId: barilgiinId,
-      totalGerees: allGereenuud.length,
-      gereesWithElectricityData: gereenuud.length,
+      totalReadings: zaaltUnshlaltuud.length,
+      uniqueContracts: gereenuud.length,
     });
 
     let workbook = new excel.Workbook();
@@ -2347,39 +2359,32 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       fgColor: { argb: "FFE0E0E0" },
     };
 
-    // Add data rows
-    gereenuud.forEach((geree) => {
-      // Find electricity zardal in geree.zardluud
-      // Priority: zaalt: true > zaaltCalculation > name contains "Цахилгаан"
-      const zaaltZardal = geree.zardluud?.find(
-        (z) => {
-          if (z.zaalt === true) return true;
-          if (z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0) return true;
-          if (z.ner && (z.ner.includes("Цахилгаан") || z.ner.trim() === "Цахилгаан")) return true;
-          return false;
-        }
-      );
-
-      const umnukhZaalt = geree.umnukhZaalt || 0;
-      const suuliinZaalt = geree.suuliinZaalt || 0;
-      const zaaltTog = geree.zaaltTog || 0;
-      const zaaltUs = geree.zaaltUs || 0;
-      const zoruu = suuliinZaalt - umnukhZaalt;
+    // Add data rows from zaaltUnshlalt model
+    gereenuud.forEach((reading) => {
+      const umnukhZaalt = reading.umnukhZaalt || 0;
+      const suuliinZaalt = reading.suuliinZaalt || 0;
+      const zaaltTog = reading.zaaltTog || 0;
+      const zaaltUs = reading.zaaltUs || 0;
+      const zoruu = reading.zoruu || (suuliinZaalt - umnukhZaalt);
 
       // Get tariff and calculation details from zaaltCalculation if available
-      const zaaltCalculation = zaaltZardal?.zaaltCalculation;
-      const tariff = zaaltCalculation?.tariff || zaaltZardal?.tariff || 0;
-      const defaultDun = zaaltCalculation?.defaultDun || 0;
-      const zaaltDun = zaaltZardal?.dun || zoruu * tariff + defaultDun;
+      const zaaltCalculation = reading.zaaltCalculation;
+      const tariff = zaaltCalculation?.tariff || reading.tariff || 0;
+      const defaultDun = zaaltCalculation?.defaultDun || reading.defaultDun || 0;
+      const zaaltDun = reading.zaaltDun || (zoruu * tariff + defaultDun);
       const calculatedAt = zaaltCalculation?.calculatedAt
         ? new Date(zaaltCalculation.calculatedAt).toLocaleString("mn-MN", {
+            timeZone: "Asia/Ulaanbaatar",
+          })
+        : reading.unshlaltiinOgnoo
+        ? new Date(reading.unshlaltiinOgnoo).toLocaleString("mn-MN", {
             timeZone: "Asia/Ulaanbaatar",
           })
         : "";
 
       worksheet.addRow({
-        gereeniiDugaar: geree.gereeniiDugaar || "",
-        toot: geree.toot || "",
+        gereeniiDugaar: reading.gereeniiDugaar || "",
+        toot: reading.toot || "",
         umnukhZaalt: umnukhZaalt,
         zaaltTog: zaaltTog,
         zaaltUs: zaaltUs,

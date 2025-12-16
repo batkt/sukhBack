@@ -47,9 +47,8 @@ router
 router
   .route("/zaaltExcelTatya")
   .post(uploadFile.single("file"), tokenShalgakh, zaaltExcelTatya);
-router
-  .route("/zaaltExcelDataAvya")
-  .get(tokenShalgakh, zaaltExcelDataAvya);
+// Electricity data export - MUST be before crud to avoid conflicts
+router.get("/zaaltExcelDataAvya", tokenShalgakh, zaaltExcelDataAvya);
 
 // GuilgeeniiTuukh Excel download route - MUST be before crud to avoid conflicts
 router.post(
