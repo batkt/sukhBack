@@ -100,12 +100,20 @@ async function automataarNekhemjlekhUusgekh() {
     const Baiguullaga = require("./models/baiguullaga");
     const Geree = require("./models/geree");
 
+    const odoo = new Date();
+    const nekhemjlekhUusgekhOgnoo = odoo.getDate();
+
     console.log(
       "=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ЭХЭЛЛЭЭ ==="
     );
-
-    const odoo = new Date();
-    const nekhemjlekhUusgekhOgnoo = odoo.getDate();
+    console.log(
+      `📅 Огноо: ${odoo.toLocaleString("mn-MN", {
+        timeZone: "Asia/Ulaanbaatar",
+      })}`
+    );
+    console.log(
+      `🔍 Хайж байна: Сарын ${nekhemjlekhUusgekhOgnoo} өдрийн тохиргоо`
+    );
 
     const baiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
 
@@ -126,6 +134,10 @@ async function automataarNekhemjlekhUusgekh() {
           nekhemjlekhUusgekhOgnoo: nekhemjlekhUusgekhOgnoo,
           idevkhitei: true,
         });
+
+        console.log(
+          `🔍 Байгууллага ${baiguullaga.ner}: ${schedules.length} тохиргоо олдлоо`
+        );
 
         for (const schedule of schedules) {
           tovchoonuud.push({
@@ -163,17 +175,23 @@ async function automataarNekhemjlekhUusgekh() {
           (k) => k.baiguullagiinId === baiguullaga._id.toString()
         );
 
+        // Only process active contracts
         const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
           baiguullagiinId: baiguullaga._id.toString(),
+          tuluv: "Идэвхтэй", // Only active contracts
         });
 
         if (gereenuud.length === 0) {
-          console.log(`${baiguullaga.ner}-д боловсруулах гэрээ олдсонгүй`);
+          console.log(
+            `ℹ️  ${baiguullaga.ner}-д идэвхтэй гэрээ олдсонгүй (нийт: ${await Geree(tukhainBaaziinKholbolt).countDocuments({
+              baiguullagiinId: baiguullaga._id.toString(),
+            })})`
+          );
           continue;
         }
 
         console.log(
-          `${baiguullaga.ner}-д ${gereenuud.length} гэрээ боловсруулах олдлоо`
+          `✅ ${baiguullaga.ner}-д ${gereenuud.length} идэвхтэй гэрээ боловсруулах олдлоо`
         );
 
         const batchSize = 20;
@@ -204,6 +222,10 @@ async function automataarNekhemjlekhUusgekh() {
                 console.log(
                   `ℹ️  [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} - Нэхэмжлэх энэ сард аль хэдийн байна (${urdun.nekhemjlekh._id})`
                 );
+              } else {
+                console.log(
+                  `✅ [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} - Шинэ нэхэмжлэх үүсгэлээ (${urdun.nekhemjlekh._id})`
+                );
               }
             } else {
               errorCount++;
@@ -211,9 +233,11 @@ async function automataarNekhemjlekhUusgekh() {
                 result.status === "rejected"
                   ? result.reason
                   : result.value?.error || "Unknown error";
+              const errorMessage =
+                error?.message || error?.toString() || JSON.stringify(error);
               console.error(
                 `❌ [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} боловсруулах алдаа:`,
-                error
+                errorMessage
               );
             }
           });
@@ -245,9 +269,16 @@ async function automataarNekhemjlekhUusgekh() {
   }
 }
 
-cron.schedule(
-  "18 16 * * *",
+// Schedule cron job to run daily at 16:18 (4:18 PM) Mongolia time
+const cronJob = cron.schedule(
+  "27 16 * * *",
   function () {
+    const now = new Date();
+    console.log(
+      `⏰ [CRON] Cron job triggered at ${now.toLocaleString("mn-MN", {
+        timeZone: "Asia/Ulaanbaatar",
+      })}`
+    );
     automataarNekhemjlekhUusgekh();
   },
   {
@@ -257,5 +288,8 @@ cron.schedule(
 );
 
 console.log(
-  "🕐 Cron job тохируулагдлаа: Өдөр бүр 10:10 цагт автоматаар нэхэмжлэх үүсгэх"
+  "🕐 Cron job тохируулагдлаа: Өдөр бүр 16:18 цагт автоматаар нэхэмжлэх үүсгэх"
+);
+console.log(
+  `🕐 Cron job status: ${cronJob.running ? "Ажиллаж байна" : "Зогссон"}`
 );
