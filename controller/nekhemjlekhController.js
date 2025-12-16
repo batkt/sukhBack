@@ -656,13 +656,26 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Send notification (medegdel) to orshinSuugch when invoice is created
     let savedMedegdel = null;
     try {
+      console.log("🔔 [NOTIFICATION] Creating notification for invoice...", {
+        orshinSuugchId: tempData.orshinSuugchId,
+        gereeniiDugaar: tempData.gereeniiDugaar,
+        finalNiitTulbur: finalNiitTulbur,
+        timestamp: new Date().toISOString(),
+      });
+
       if (tempData.orshinSuugchId) {
         const baiguullagiinId = org._id ? org._id.toString() : (org.id ? org.id.toString() : String(org));
+        console.log("🔍 [NOTIFICATION] Looking for kholbolt...", { baiguullagiinId });
+        
         const kholbolt = db.kholboltuud.find(
           (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
         );
 
-        if (kholbolt) {
+        if (!kholbolt) {
+          console.error("❌ [NOTIFICATION] Kholbolt not found for baiguullagiinId:", baiguullagiinId);
+        } else {
+          console.log("✅ [NOTIFICATION] Kholbolt found, creating medegdel...");
+          
           const medegdel = new Medegdel(kholbolt)();
           medegdel.orshinSuugchId = tempData.orshinSuugchId;
           medegdel.baiguullagiinId = baiguullagiinId;
@@ -673,11 +686,25 @@ const gereeNeesNekhemjlekhUusgekh = async (
           medegdel.turul = "мэдэгдэл";
           medegdel.ognoo = new Date();
 
+          console.log("💾 [NOTIFICATION] Saving medegdel to database...", {
+            orshinSuugchId: medegdel.orshinSuugchId,
+            title: medegdel.title,
+            message: medegdel.message,
+          });
+
           await medegdel.save();
+          
+          console.log("✅ [NOTIFICATION] Medegdel saved successfully:", {
+            medegdelId: medegdel._id,
+            orshinSuugchId: medegdel.orshinSuugchId,
+            timestamp: new Date().toISOString(),
+          });
 
           // Convert dates to Mongolian time (UTC+8) for response
           const medegdelObj = medegdel.toObject();
           const mongolianOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+          
+          console.log("🕐 [NOTIFICATION] Converting dates to Mongolian time...");
           
           if (medegdelObj.createdAt) {
             const createdAtMongolian = new Date(medegdelObj.createdAt.getTime() + mongolianOffset);
@@ -693,10 +720,24 @@ const gereeNeesNekhemjlekhUusgekh = async (
           }
 
           savedMedegdel = medegdelObj;
+          
+          console.log("✅ [NOTIFICATION] Medegdel prepared for socket emission:", {
+            medegdelId: medegdelObj._id,
+            orshinSuugchId: medegdelObj.orshinSuugchId,
+            eventName: `orshinSuugch${medegdelObj.orshinSuugchId}`,
+            timestamp: new Date().toISOString(),
+          });
         }
+      } else {
+        console.warn("⚠️ [NOTIFICATION] No orshinSuugchId in tempData, skipping notification");
       }
     } catch (notificationError) {
-      console.error("Error sending notification for invoice:", notificationError);
+      console.error("❌ [NOTIFICATION] Error sending notification for invoice:", {
+        error: notificationError.message,
+        stack: notificationError.stack,
+        orshinSuugchId: tempData.orshinSuugchId,
+        timestamp: new Date().toISOString(),
+      });
       // Don't fail the invoice creation if notification fails
     }
 

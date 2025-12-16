@@ -87,7 +87,24 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       sonorduulgaList.push(sonorduulgaObj);
 
       if (io) {
-        io.emit("orshinSuugch" + id, sonorduulga);
+        const eventName = "orshinSuugch" + id;
+        console.log("📡 [SOCKET] Emitting notification via medegdelIlgeeye route...", {
+          eventName: eventName,
+          orshinSuugchId: id,
+          medegdelId: sonorduulgaObj._id,
+          title: sonorduulgaObj.title,
+          message: sonorduulgaObj.message,
+          timestamp: new Date().toISOString(),
+        });
+        
+        io.emit(eventName, sonorduulgaObj);
+        
+        console.log("✅ [SOCKET] Notification emitted successfully", {
+          eventName: eventName,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        console.warn("⚠️ [SOCKET] Socket.io instance not available in req.app");
       }
     }
 
