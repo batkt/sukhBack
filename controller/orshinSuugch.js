@@ -1325,7 +1325,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     }
 
     // Validate OWN_ORG bair toot/doorNo if provided
-    if (req.body.baiguullagiinId && req.body.barilgiinId && req.body.doorNo) {
+    // Check for OWN_ORG: baiguullagiinId is required, and either barilgiinId OR bairId (frontend might send bairId)
+    const isOwnOrgAddressLogin = req.body.baiguullagiinId && req.body.doorNo && (req.body.barilgiinId || req.body.bairId);
+    const ownOrgBarilgiinIdLogin = req.body.barilgiinId || req.body.bairId; // Use barilgiinId if provided, otherwise bairId
+    
+    if (isOwnOrgAddressLogin) {
       try {
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
         if (!baiguullaga) {
@@ -1333,7 +1337,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         }
 
         const targetBarilga = baiguullaga.barilguud?.find(
-          (b) => String(b._id) === String(req.body.barilgiinId)
+          (b) => String(b._id) === String(ownOrgBarilgiinIdLogin)
         );
 
         if (!targetBarilga) {
@@ -1345,8 +1349,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         const ortsToValidate = (req.body.orts || "1").trim();
         
         // Check if toot exists in davkhariinToonuud (available toots)
+        // Automatically determine orts and davkhar from toot
         const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
         let tootFound = false;
+        let foundDavkhar = null;
+        let foundOrts = null;
 
         if (davkharToValidate) {
           // If davkhar is provided, check specific floor
@@ -1363,11 +1370,18 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             
             if (tootList.includes(tootToValidate)) {
               tootFound = true;
+              foundDavkhar = davkharToValidate;
+              foundOrts = ortsToValidate;
             }
           }
         } else {
           // If davkhar not provided, search all floors
           for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+            // Skip invalid entries that don't have :: separator
+            if (!floorKey.includes("::")) {
+              continue;
+            }
+            
             if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
               let tootList = [];
               if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
@@ -1378,6 +1392,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
               
               if (tootList.includes(tootToValidate)) {
                 tootFound = true;
+                // Extract orts and davkhar from floorKey (format: "orts::davkhar")
+                const parts = floorKey.split("::");
+                if (parts.length === 2) {
+                  foundOrts = parts[0].trim(); // orts (entrance)
+                  foundDavkhar = parts[1].trim(); // davkhar (floor)
+                }
                 break;
               }
             }
@@ -1388,18 +1408,22 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           throw new aldaa(`(${tootToValidate}) тоот энэ барилгад бүртгэлгүй байна`);
         }
 
+        // Use found values, fallback to request values if not found
+        const finalDavkhar = foundDavkhar || davkharToValidate || "";
+        const finalOrts = foundOrts || ortsToValidate || "1";
+
         // Validation passes - toot will be added to toots array
         // Multiple users can have the same toot, so no unique check needed
-        console.log(`✅ [WALLET LOGIN] OWN_ORG toot validated: ${tootToValidate}`);
+        console.log(`✅ [WALLET LOGIN] OWN_ORG toot validated: ${tootToValidate}, auto-determined davkhar=${finalDavkhar}, orts=${finalOrts}`);
         
         // Prepare toot entry for toots array
         userData.newTootEntry = {
           toot: tootToValidate,
           source: "OWN_ORG",
           baiguullagiinId: req.body.baiguullagiinId,
-          barilgiinId: req.body.barilgiinId,
-          davkhar: davkharToValidate || "",
-          orts: ortsToValidate || "1",
+          barilgiinId: ownOrgBarilgiinIdLogin, // Use the resolved barilgiinId (from barilgiinId or bairId)
+          davkhar: finalDavkhar, // Auto-determined from toot
+          orts: finalOrts, // Auto-determined from toot
           duureg: targetBarilga.tokhirgoo?.duuregNer || "",
           horoo: targetBarilga.tokhirgoo?.horoo || {},
           soh: targetBarilga.tokhirgoo?.sohNer || "",
@@ -1480,8 +1504,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       orshinSuugch.duureg = userData.newTootEntry.duureg;
       orshinSuugch.horoo = userData.newTootEntry.horoo;
       orshinSuugch.soh = userData.newTootEntry.soh;
-    } else if (bairIdToUse && doorNoToUse) {
+    } else if (bairIdToUse && doorNoToUse && !req.body.baiguullagiinId) {
       // Handle Wallet API address - add to toots array
+      // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
       const walletTootEntry = {
         toot: doorNoToUse,
         source: "WALLET_API",
@@ -2064,6 +2089,26 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       nevtrekhNer: phoneNumber,
     };
 
+    // Preserve existing baiguullagiinId if user already has one
+    if (orshinSuugch && orshinSuugch.baiguullagiinId) {
+      userData.baiguullagiinId = orshinSuugch.baiguullagiinId;
+      userData.baiguullagiinNer = orshinSuugch.baiguullagiinNer;
+    }
+
+    // Save baiguullagiinId if provided (from OWN_ORG bair selection or WALLET_API)
+    if (req.body.baiguullagiinId) {
+      userData.baiguullagiinId = req.body.baiguullagiinId;
+      // Try to get baiguullagiinNer if baiguullagiinId is provided
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (baiguullaga) {
+          userData.baiguullagiinNer = baiguullaga.ner;
+        }
+      } catch (error) {
+        console.warn("⚠️ [WALLET REGISTER] Could not fetch baiguullagiinNer:", error.message);
+      }
+    }
+
     if (req.body.barilgiinId) {
       userData.barilgiinId = req.body.barilgiinId;
     }
@@ -2082,17 +2127,13 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     if (req.body.doorNo) {
       userData.walletDoorNo = req.body.doorNo;
     }
-    
-    // Save baiguullagiinId and barilgiinId if provided (from OWN_ORG bair selection)
-    if (req.body.baiguullagiinId) {
-      userData.baiguullagiinId = req.body.baiguullagiinId;
-    }
-    if (req.body.barilgiinId) {
-      userData.barilgiinId = req.body.barilgiinId;
-    }
 
     // Validate OWN_ORG bair toot/doorNo if provided
-    if (req.body.baiguullagiinId && req.body.barilgiinId && req.body.doorNo) {
+    // Check for OWN_ORG: baiguullagiinId is required, and either barilgiinId OR bairId (frontend might send bairId)
+    const isOwnOrgAddress = req.body.baiguullagiinId && req.body.doorNo && (req.body.barilgiinId || req.body.bairId);
+    const ownOrgBarilgiinId = req.body.barilgiinId || req.body.bairId; // Use barilgiinId if provided, otherwise bairId
+    
+    if (isOwnOrgAddress) {
       try {
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
         if (!baiguullaga) {
@@ -2100,7 +2141,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
         }
 
         const targetBarilga = baiguullaga.barilguud?.find(
-          (b) => String(b._id) === String(req.body.barilgiinId)
+          (b) => String(b._id) === String(ownOrgBarilgiinId)
         );
 
         if (!targetBarilga) {
@@ -2201,7 +2242,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           toot: tootToValidate,
           source: "OWN_ORG",
           baiguullagiinId: req.body.baiguullagiinId,
-          barilgiinId: req.body.barilgiinId,
+          barilgiinId: ownOrgBarilgiinId, // Use the resolved barilgiinId (from barilgiinId or bairId)
           davkhar: finalDavkhar, // Auto-determined from toot
           orts: finalOrts, // Auto-determined from toot
           duureg: targetBarilga.tokhirgoo?.duuregNer || "",
@@ -2257,8 +2298,9 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       orshinSuugch.duureg = userData.newTootEntry.duureg;
       orshinSuugch.horoo = userData.newTootEntry.horoo;
       orshinSuugch.soh = userData.newTootEntry.soh;
-    } else if (req.body.bairId && req.body.doorNo) {
+    } else if (req.body.bairId && req.body.doorNo && !req.body.baiguullagiinId) {
       // Handle Wallet API address - add to toots array
+      // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
       const walletTootEntry = {
         toot: req.body.doorNo,
         source: "WALLET_API",
