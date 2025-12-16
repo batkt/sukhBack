@@ -143,6 +143,10 @@ async function handleZardluudUpdate(doc) {
         suuriKhuraamj: doc.suuriKhuraamj || 0,
         nuatNemekhEsekh: doc.nuatNemekhEsekh || false,
         ognoonuud: doc.ognoonuud || [],
+        // Include electricity-specific fields
+        zaalt: doc.zaalt || false,
+        zaaltTariff: doc.zaaltTariff || 0,
+        zaaltDefaultDun: doc.zaaltDefaultDun || 2000,
       };
 
       geree.zardluud.push(newZardal);

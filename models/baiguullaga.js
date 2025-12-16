@@ -100,6 +100,9 @@ const baiguullagaSchema = new Schema(
               dun: Number,
               ognoonuud: [Date],
               nuatBodokhEsekh: Boolean,
+              zaalt: Boolean, // Electricity (цахилгаан) flag
+              zaaltTariff: Number, // кВт tariff for electricity
+              zaaltDefaultDun: Number, // Default amount (default: 2000)
             },
           ],
           /** Лифт шалгая - хөлөгдсөн давхрууд */
