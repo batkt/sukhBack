@@ -501,7 +501,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
           (b) => String(b._id) === String(tempData.barilgiinId)
         );
         const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
-        const zaaltZardal = zardluud.find((z) => z.zaalt === true);
+        const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
+        
+        // Prioritize exact "Цахилгаан" match (no trailing space)
+        let zaaltZardal = zaaltZardluud.find(
+          (z) => z.ner && z.ner.trim() === "Цахилгаан"
+        );
+        
+        // If no exact match, use first one
+        if (!zaaltZardal && zaaltZardluud.length > 0) {
+          zaaltZardal = zaaltZardluud[0];
+        }
 
         // Check if electricity zardal exists in finalZardluud
         if (zaaltZardal) {

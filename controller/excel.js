@@ -2223,17 +2223,41 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
     // Get all gerees with electricity readings for this building
     const Geree = require("../models/geree");
     
-    // First, get all active gerees for this building
+    console.log("🔍 [ZAALT EXPORT] Searching for electricity data:", {
+      baiguullagiinId: baiguullaga._id.toString(),
+      barilgiinId: barilgiinId,
+    });
+    
+    // First, get all gerees for this building (without status filter)
     const allGereenuud = await Geree(tukhainBaaziinKholbolt)
       .find({
         baiguullagiinId: baiguullaga._id.toString(),
         barilgiinId: barilgiinId,
-        tuluv: "Идэвхтэй", // Only active contracts
       })
-      .select("gereeniiDugaar toot umnukhZaalt suuliinZaalt zaaltTog zaaltUs zardluud")
+      .select("gereeniiDugaar toot tuluv umnukhZaalt suuliinZaalt zaaltTog zaaltUs zardluud")
       .lean()
       .sort({ gereeniiDugaar: 1 });
 
+    console.log("📊 [ZAALT EXPORT] Total gerees found:", allGereenuud.length);
+    
+    // Debug: Log sample geree data
+    if (allGereenuud.length > 0) {
+      const sampleGeree = allGereenuud[0];
+      console.log("📋 [ZAALT EXPORT] Sample geree data:", {
+        gereeniiDugaar: sampleGeree.gereeniiDugaar,
+        tuluv: sampleGeree.tuluv,
+        umnukhZaalt: sampleGeree.umnukhZaalt,
+        suuliinZaalt: sampleGeree.suuliinZaalt,
+        zaaltTog: sampleGeree.zaaltTog,
+        zaaltUs: sampleGeree.zaaltUs,
+        hasZardluud: !!sampleGeree.zardluud,
+        zardluudLength: sampleGeree.zardluud?.length || 0,
+        zardluudSample: sampleGeree.zardluud?.[0] ? {
+          ner: sampleGeree.zardluud[0].ner,
+          hasZaaltCalculation: !!sampleGeree.zardluud[0].zaaltCalculation,
+        } : null,
+      });
+    }
     // Filter to only those with electricity readings
     // Check if they have any electricity data (either in direct fields or in zardluud)
     const gereenuud = allGereenuud.filter((geree) => {
@@ -2247,19 +2271,29 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       // Check if zardluud has electricity zardal with zaaltCalculation
       const hasZaaltInZardluud =
         geree.zardluud &&
+        Array.isArray(geree.zardluud) &&
         geree.zardluud.some(
-          (z) => z.zaaltCalculation || (z.ner && z.ner.includes("Цахилгаан"))
+          (z) => 
+            (z.zaaltCalculation && Object.keys(z.zaaltCalculation).length > 0) || 
+            (z.ner && (z.ner.includes("Цахилгаан") || z.ner.trim() === "Цахилгаан"))
         );
 
       return hasDirectFields || hasZaaltInZardluud;
     });
 
     if (!gereenuud || gereenuud.length === 0) {
-      console.log("🔍 [ZAALT EXPORT] No electricity data found:", {
+      console.log("❌ [ZAALT EXPORT] No electricity data found:", {
         baiguullagiinId: baiguullaga._id.toString(),
         barilgiinId: barilgiinId,
         totalGerees: allGereenuud.length,
         gereesWithData: gereenuud.length,
+        sampleGereeFields: allGereenuud.length > 0 ? {
+          umnukhZaalt: allGereenuud[0].umnukhZaalt,
+          suuliinZaalt: allGereenuud[0].suuliinZaalt,
+          zaaltTog: allGereenuud[0].zaaltTog,
+          zaaltUs: allGereenuud[0].zaaltUs,
+          zardluudCount: allGereenuud[0].zardluud?.length || 0,
+        } : null,
       });
       throw new aldaa("Цахилгааны уншилтын мэдээлэл олдсонгүй");
     }

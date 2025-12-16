@@ -101,8 +101,15 @@ const baiguullagaSchema = new Schema(
               ognoonuud: [Date],
               nuatBodokhEsekh: Boolean,
               zaalt: Boolean, // Electricity (цахилгаан) flag
-              zaaltTariff: Number, // кВт tariff for electricity
+              zaaltTariff: Number, // кВт tariff for electricity (legacy - use zaaltTariffTiers if available)
               zaaltDefaultDun: Number, // Default amount for electricity calculation
+              // Tiered pricing: zaaltTariffTiers = [{ threshold: 175, tariff: 175 }, { threshold: 256, tariff: 256 }, { threshold: Infinity, tariff: 285 }]
+              zaaltTariffTiers: [
+                {
+                  threshold: Number, // Usage threshold (кВт)
+                  tariff: Number, // Tariff rate for this tier (Төг/кВт.цаг)
+                },
+              ],
             },
           ],
           /** Лифт шалгая - хөлөгдсөн давхрууд */
