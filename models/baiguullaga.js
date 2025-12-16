@@ -102,7 +102,7 @@ const baiguullagaSchema = new Schema(
               nuatBodokhEsekh: Boolean,
               zaalt: Boolean, // Electricity (цахилгаан) flag
               zaaltTariff: Number, // кВт tariff for electricity
-              zaaltDefaultDun: Number, // Default amount (default: 2000)
+              zaaltDefaultDun: Number, // Default amount for electricity calculation
             },
           ],
           /** Лифт шалгая - хөлөгдсөн давхрууд */

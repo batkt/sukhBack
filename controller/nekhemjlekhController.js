@@ -531,7 +531,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
               tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
               tariffType: zaaltZardal.zardliinTurul, // Tariff type identifier to distinguish different кВт types
               tariffName: zaaltZardal.ner, // Tariff name to distinguish different кВт types
-              defaultDun: zaaltZardal.zaaltDefaultDun || 2000,
+              defaultDun: zaaltZardal.zaaltDefaultDun || 0,
               // Include calculation breakdown if available
               ...(zaaltZardalInGeree?.zaaltCalculation ? {
                 calculation: zaaltZardalInGeree.zaaltCalculation

@@ -1966,7 +1966,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
     }
 
     const zaaltTariff = zaaltZardal.zaaltTariff || 0;
-    const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 2000;
+    const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 0;
 
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
       (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()

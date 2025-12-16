@@ -28,7 +28,7 @@ const ashiglaltiinZardluudSchema = new Schema(
     nuatBodokhEsekh: Boolean,
     zaalt: Boolean, // Electricity (цахилгаан) flag
     zaaltTariff: Number, // кВт tariff for electricity
-    zaaltDefaultDun: Number, // Default amount (default: 2000)
+    zaaltDefaultDun: Number, // Default amount for electricity calculation
   },
   {
     timestamps: true,
@@ -146,7 +146,7 @@ async function handleZardluudUpdate(doc) {
         // Include electricity-specific fields
         zaalt: doc.zaalt || false,
         zaaltTariff: doc.zaaltTariff || 0,
-        zaaltDefaultDun: doc.zaaltDefaultDun || 2000,
+        zaaltDefaultDun: doc.zaaltDefaultDun || 0,
       };
 
       geree.zardluud.push(newZardal);
