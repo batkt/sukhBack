@@ -727,6 +727,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
             eventName: `orshinSuugch${medegdelObj.orshinSuugchId}`,
             timestamp: new Date().toISOString(),
           });
+
+          // Try to emit socket event if available (for cases where invoice is created outside of avlaga flow)
+          // Note: This requires req to be passed or socket.io to be available globally
+          // For now, we'll rely on the caller (gereeController.js) to emit the socket event
+          // But we'll log that the medegdel is ready for emission
+          console.log("📡 [NOTIFICATION] Medegdel ready for socket emission - caller should emit:", {
+            eventName: `orshinSuugch${medegdelObj.orshinSuugchId}`,
+            note: "Socket emission will be handled by caller (gereeController.js) if invoice created from avlaga",
+          });
         }
       } else {
         console.warn("⚠️ [NOTIFICATION] No orshinSuugchId in tempData, skipping notification");
