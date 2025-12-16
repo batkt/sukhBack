@@ -31,6 +31,7 @@ const pdfRoute = require("./routes/pdfRoute");
 const medegdelRoute = require("./routes/medegdelRoute");
 const msgRoute = require("./routes/msgRoute");
 const mailRoute = require("./routes/mailRoute");
+const ashiglaltiinZardluudRoute = require("./routes/ashiglaltiinZardluudRoute");
 
 const { db } = require("zevbackv2");
 
@@ -89,6 +90,7 @@ app.use(qpayRoute);
 app.use(tailanRoute);
 app.use(pdfRoute);
 app.use(mailRoute);
+app.use(ashiglaltiinZardluudRoute);
 
 app.use(aldaaBarigch);
 
