@@ -2143,6 +2143,156 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
   }
 });
 
+/**
+ * Export electricity readings data that has been imported
+ * Shows all gerees with electricity readings in Excel format
+ */
+exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, barilgiinId } = req.body;
+
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID хоосон");
+    }
+
+    if (!barilgiinId) {
+      throw new aldaa("Барилгын ID хоосон");
+    }
+
+    const Baiguullaga = require("../models/baiguullaga");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллага олдсонгүй");
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболт олдсонгүй");
+    }
+
+    // Get all gerees with electricity readings for this building
+    const Geree = require("../models/geree");
+    const gereenuud = await Geree(tukhainBaaziinKholbolt)
+      .find({
+        baiguullagiinId: baiguullaga._id.toString(),
+        barilgiinId: barilgiinId,
+        $or: [
+          { umnukhZaalt: { $exists: true, $ne: null } },
+          { suuliinZaalt: { $exists: true, $ne: null } },
+          { zaaltTog: { $exists: true, $ne: null } },
+          { zaaltUs: { $exists: true, $ne: null } },
+        ],
+      })
+      .select("gereeniiDugaar toot umnukhZaalt suuliinZaalt zaaltTog zaaltUs zardluud")
+      .lean()
+      .sort({ gereeniiDugaar: 1 });
+
+    if (!gereenuud || gereenuud.length === 0) {
+      throw new aldaa("Цахилгааны уншилтын мэдээлэл олдсонгүй");
+    }
+
+    let workbook = new excel.Workbook();
+    let worksheet = workbook.addWorksheet("Цахилгааны заалт");
+
+    // Define columns
+    worksheet.columns = [
+      { header: "Гэрээний дугаар", key: "gereeniiDugaar", width: 20 },
+      { header: "Тоот", key: "toot", width: 15 },
+      { header: "Өмнө", key: "umnukhZaalt", width: 15 },
+      { header: "Өдөр", key: "zaaltTog", width: 15 },
+      { header: "Шөнө", key: "zaaltUs", width: 15 },
+      { header: "Нийт (одоо)", key: "suuliinZaalt", width: 15 },
+      { header: "Зөрүү", key: "zoruu", width: 15 },
+      { header: "Тариф (кВт)", key: "tariff", width: 15 },
+      { header: "Суурь хураамж", key: "defaultDun", width: 15 },
+      { header: "Төлбөр", key: "zaaltDun", width: 15 },
+      { header: "Тооцоолсон огноо", key: "calculatedAt", width: 20 },
+    ];
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    };
+
+    // Add data rows
+    gereenuud.forEach((geree) => {
+      // Find electricity zardal in geree.zardluud
+      const zaaltZardal = geree.zardluud?.find(
+        (z) => z.zaaltCalculation || (z.ner && z.ner.includes("Цахилгаан"))
+      );
+
+      const umnukhZaalt = geree.umnukhZaalt || 0;
+      const suuliinZaalt = geree.suuliinZaalt || 0;
+      const zaaltTog = geree.zaaltTog || 0;
+      const zaaltUs = geree.zaaltUs || 0;
+      const zoruu = suuliinZaalt - umnukhZaalt;
+
+      // Get tariff and calculation details from zaaltCalculation if available
+      const zaaltCalculation = zaaltZardal?.zaaltCalculation;
+      const tariff = zaaltCalculation?.tariff || zaaltZardal?.tariff || 0;
+      const defaultDun = zaaltCalculation?.defaultDun || 0;
+      const zaaltDun = zaaltZardal?.dun || zoruu * tariff + defaultDun;
+      const calculatedAt = zaaltCalculation?.calculatedAt
+        ? new Date(zaaltCalculation.calculatedAt).toLocaleString("mn-MN", {
+            timeZone: "Asia/Ulaanbaatar",
+          })
+        : "";
+
+      worksheet.addRow({
+        gereeniiDugaar: geree.gereeniiDugaar || "",
+        toot: geree.toot || "",
+        umnukhZaalt: umnukhZaalt,
+        zaaltTog: zaaltTog,
+        zaaltUs: zaaltUs,
+        suuliinZaalt: suuliinZaalt,
+        zoruu: zoruu,
+        tariff: tariff,
+        defaultDun: defaultDun,
+        zaaltDun: zaaltDun,
+        calculatedAt: calculatedAt,
+      });
+    });
+
+    // Format number columns
+    worksheet.getColumn("umnukhZaalt").numFmt = "0.00";
+    worksheet.getColumn("zaaltTog").numFmt = "0.00";
+    worksheet.getColumn("zaaltUs").numFmt = "0.00";
+    worksheet.getColumn("suuliinZaalt").numFmt = "0.00";
+    worksheet.getColumn("zoruu").numFmt = "0.00";
+    worksheet.getColumn("tariff").numFmt = "0.00";
+    worksheet.getColumn("defaultDun").numFmt = "#,##0";
+    worksheet.getColumn("zaaltDun").numFmt = "#,##0";
+
+    // Auto-fit columns
+    worksheet.columns.forEach((column) => {
+      if (column.width) {
+        column.width = Math.max(column.width, 12);
+      }
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="zaalt_data_${Date.now()}.xlsx"`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Error exporting electricity readings data:", error);
+    next(error);
+  }
+});
+
 // exports.orshinSuugchTatya = asyncHandler(async (req, res, next) => {
 //   try {
 //     const workbook = xlsx.read(req.file.buffer);

@@ -21,6 +21,7 @@ const {
   gereeniiExcelTatya,
   zaaltExcelTemplateAvya,
   zaaltExcelTatya,
+  zaaltExcelDataAvya,
 } = require("../controller/excel");
 const {
   downloadGuilgeeniiTuukhExcel,
@@ -46,6 +47,9 @@ router
 router
   .route("/zaaltExcelTatya")
   .post(uploadFile.single("file"), tokenShalgakh, zaaltExcelTatya);
+router
+  .route("/zaaltExcelDataAvya")
+  .post(tokenShalgakh, zaaltExcelDataAvya);
 
 // GuilgeeniiTuukh Excel download route - MUST be before crud to avoid conflicts
 router.post(
