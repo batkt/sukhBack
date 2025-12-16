@@ -272,13 +272,12 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 freshGereeKeys: freshGeree ? Object.keys(freshGeree) : [],
               });
             }
+          } else {
+            console.warn("⚠️ [SOCKET] Baiguullaga not found for baiguullagiinId:", baiguullagiinId);
           }
         } else {
-          console.warn("⚠️ [SOCKET] Baiguullaga not found for baiguullagiinId:", baiguullagiinId);
+          console.warn("⚠️ [SOCKET] Fresh geree not found for gereeniiId:", guilgee.gereeniiId);
         }
-      } else {
-        console.warn("⚠️ [SOCKET] Fresh geree not found for gereeniiId:", guilgee.gereeniiId);
-      }
       } catch (invoiceError) {
         console.error("❌ [SOCKET] Error creating invoice from avlaga:", {
           error: invoiceError.message,
