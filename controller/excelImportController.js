@@ -989,15 +989,13 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             }
           }
 
-          // If no toots were found, throw error
+          // If no toots were found, log warning but allow import to proceed
           if (foundToonuud.length === 0) {
-            throw new Error(`Бүртгэлгүй тоот байна: ${tootListToValidate.join(", ")}`);
-          }
-          
-          // Log which toots were found
-          if (foundToonuud.length < tootListToValidate.length) {
+            console.log(`⚠️  [EXCEL IMPORT] Row ${rowNumber}: Бүртгэлгүй тоот байна: ${tootListToValidate.join(", ")}. Import will proceed with provided toot values.`);
+          } else if (foundToonuud.length < tootListToValidate.length) {
+            // Log which toots were found and which were not
             const notFound = tootListToValidate.filter(t => !foundToonuud.includes(t));
-            console.log(`⚠️  Some toots not found: ${notFound.join(", ")}. Found: ${foundToonuud.join(", ")}`);
+            console.log(`⚠️  [EXCEL IMPORT] Row ${rowNumber}: Some toots not found: ${notFound.join(", ")}. Found: ${foundToonuud.join(", ")}. Import will proceed with all provided toot values.`);
           }
         }
 
