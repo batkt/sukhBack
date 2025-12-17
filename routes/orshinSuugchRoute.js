@@ -14,6 +14,7 @@ const {
 } = require("zevbackv2");
 const {
   orshinSuugchNevtrey,
+  orshinSuugchBurtgey,
   walletBurtgey,
   walletBillingHavakh,
   walletAddressCities,
@@ -162,6 +163,7 @@ crud(router, "backTuukh", BackTuukh, UstsanBarimt);
 crud(router, "session", session, UstsanBarimt);
 
 router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
+router.route("/orshinSuugchBurtgey").post(orshinSuugchBurtgey);
 router.route("/walletBurtgey").post(walletBurtgey);
 router.route("/walletBillingHavakh").post(tokenShalgakh, walletBillingHavakh);
 router.route("/walletAddress/city").get(walletAddressCities);
