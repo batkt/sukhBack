@@ -859,7 +859,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           duureg: req.body.duureg || existingCancelledGeree.duureg,
           horoo: req.body.horoo || existingCancelledGeree.horoo,
           sohNer: req.body.soh || existingCancelledGeree.sohNer,
+          // Update electricity readings if provided
+          umnukhZaalt: tsahilgaaniiZaalt, // Previous reading (initial reading at reactivation)
+          suuliinZaalt: tsahilgaaniiZaalt, // Current reading (same as initial at reactivation)
+          zaaltTog: 0, // Day reading (will be updated later)
+          zaaltUs: 0, // Night reading (will be updated later)
         };
+
+        console.log("⚡ [REACTIVATE] Setting electricity readings in geree:", {
+          umnukhZaalt: tsahilgaaniiZaalt,
+          suuliinZaalt: tsahilgaaniiZaalt
+        });
 
         // Add optional fields from frontend if provided
         if (req.body.tailbar) {
@@ -932,8 +942,20 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           khungulultuud: [],
         };
 
+        console.log("⚡ [NEW GEREE] Setting electricity readings in contractData:", {
+          umnukhZaalt: contractData.umnukhZaalt,
+          suuliinZaalt: contractData.suuliinZaalt,
+          tsahilgaaniiZaalt: tsahilgaaniiZaalt
+        });
+
         const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
         await geree.save();
+        
+        console.log("✅ [NEW GEREE] Geree saved with electricity readings:", {
+          gereeniiDugaar: geree.gereeniiDugaar,
+          umnukhZaalt: geree.umnukhZaalt,
+          suuliinZaalt: geree.suuliinZaalt
+        });
 
         // Update davkhar with toot if provided from frontend
         // Frontend should send: { toot: "102", davkhar: "1", barilgiinId: "..." }
