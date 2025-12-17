@@ -534,10 +534,26 @@ const gereeNeesNekhemjlekhUusgekh = async (
             // Calculate usage (difference between current and previous reading)
             const zoruu = (tempData.suuliinZaalt || 0) - (tempData.umnukhZaalt || 0);
             
-            // Get tariff values
-            const zaaltTariff = zaaltZardalInGeree?.tariff || zaaltZardal.zaaltTariff || 0;
+            // Get tariff values - prioritize from geree.zardluud for tariff, but ALWAYS use building level for defaultDun
+            const zaaltTariff = zaaltZardalInGeree?.zaaltTariff || zaaltZardalInGeree?.tariff || zaaltZardal.zaaltTariff || 0;
+            const zaaltTariffTiers = zaaltZardalInGeree?.zaaltTariffTiers || zaaltZardal.zaaltTariffTiers || [];
+            // ALWAYS use building level defaultDun (shared for all contracts)
             const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 0;
-            const zaaltTariffTiers = zaaltZardal.zaaltTariffTiers || [];
+            
+            // Log tariff source for debugging
+            if (zaaltZardalInGeree?.zaaltTariff || zaaltZardalInGeree?.zaaltTariffTiers) {
+              console.log("⚡ [INVOICE] Using tariff from geree.zardluud, defaultDun from building:", {
+                tariff: zaaltTariff,
+                defaultDun: zaaltDefaultDun,
+                hasTiers: zaaltTariffTiers.length > 0
+              });
+            } else {
+              console.log("⚡ [INVOICE] Using tariff and defaultDun from building level:", {
+                tariff: zaaltTariff,
+                defaultDun: zaaltDefaultDun,
+                hasTiers: zaaltTariffTiers.length > 0
+              });
+            }
             
             // Calculate electricity amount using tiered pricing if available
             let tsahilgaanNekhemjlekh = 0;

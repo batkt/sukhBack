@@ -2057,21 +2057,51 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         // Calculate: (Нийт (одоо) - Өмнө) * кВт tariff + default
         const zoruu = niitOdoo - umnu; // Usage amount (Зөрүү)
         
+        // Get tariff from geree.zardluud first, fallback to building level
+        // BUT always use building level defaultDun (shared for all contracts)
+        let gereeZaaltZardal = null;
+        if (geree.zardluud && Array.isArray(geree.zardluud)) {
+          gereeZaaltZardal = geree.zardluud.find(
+            (z) => z.zaalt === true && z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
+          );
+        }
+        
+        // Prioritize tariff from geree, fallback to building level
+        const gereeZaaltTariff = gereeZaaltZardal?.zaaltTariff || gereeZaaltZardal?.tariff || zaaltTariff;
+        const gereeZaaltTariffTiers = gereeZaaltZardal?.zaaltTariffTiers || zaaltZardal.zaaltTariffTiers || [];
+        // ALWAYS use building level defaultDun (shared for all contracts)
+        const gereeZaaltDefaultDun = zaaltDefaultDun;
+        
+        // Log tariff source for debugging
+        if (gereeZaaltZardal) {
+          console.log(`⚡ [EXCEL] Using tariff from geree.zardluud, defaultDun from building for ${gereeniiDugaar}:`, {
+            tariff: gereeZaaltTariff,
+            defaultDun: gereeZaaltDefaultDun,
+            hasTiers: gereeZaaltTariffTiers.length > 0
+          });
+        } else {
+          console.log(`⚡ [EXCEL] Using tariff and defaultDun from building level for ${gereeniiDugaar}:`, {
+            tariff: gereeZaaltTariff,
+            defaultDun: gereeZaaltDefaultDun,
+            hasTiers: gereeZaaltTariffTiers.length > 0
+          });
+        }
+        
         // Calculate tiered pricing if zaaltTariffTiers is available
         let zaaltDun = 0;
-        let usedTariff = zaaltTariff;
+        let usedTariff = gereeZaaltTariff;
         let usedTier = null;
         
-        if (zaaltZardal.zaaltTariffTiers && zaaltZardal.zaaltTariffTiers.length > 0) {
+        if (gereeZaaltTariffTiers && gereeZaaltTariffTiers.length > 0) {
           // Sort tiers by threshold (ascending)
-          const sortedTiers = [...zaaltZardal.zaaltTariffTiers].sort(
+          const sortedTiers = [...gereeZaaltTariffTiers].sort(
             (a, b) => (a.threshold || 0) - (b.threshold || 0)
           );
           
           // Find the appropriate tier based on zoruu (usage)
           for (const tier of sortedTiers) {
             if (zoruu <= (tier.threshold || Infinity)) {
-              usedTariff = tier.tariff || zaaltTariff;
+              usedTariff = tier.tariff || gereeZaaltTariff;
               usedTier = tier;
               break;
             }
@@ -2080,14 +2110,14 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           // If zoruu exceeds all tiers, use the last (highest) tier
           if (!usedTier && sortedTiers.length > 0) {
             const lastTier = sortedTiers[sortedTiers.length - 1];
-            usedTariff = lastTier.tariff || zaaltTariff;
+            usedTariff = lastTier.tariff || gereeZaaltTariff;
             usedTier = lastTier;
           }
           
-          zaaltDun = zoruu * usedTariff + zaaltDefaultDun;
+          zaaltDun = zoruu * usedTariff + gereeZaaltDefaultDun;
         } else {
           // Fallback to simple calculation if no tiers defined
-          zaaltDun = zoruu * zaaltTariff + zaaltDefaultDun;
+          zaaltDun = zoruu * gereeZaaltTariff + gereeZaaltDefaultDun;
         }
 
         // Update geree with electricity readings
@@ -2111,6 +2141,10 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         const zaaltZardalData = {
           ner: zaaltZardal.ner, // Tariff name/identifier (e.g., "Цахилгаан - Байгаль", "Цахилгаан - Ажлын")
           turul: zaaltZardal.turul,
+          zaalt: true, // Mark as electricity zardal
+          zaaltTariff: gereeZaaltTariff, // Save tariff from geree (or building fallback)
+          // Note: defaultDun is NOT saved to geree - it's always from building level
+          zaaltTariffTiers: gereeZaaltTariffTiers.length > 0 ? gereeZaaltTariffTiers : undefined, // Save tiers from geree if available
           tariff: usedTariff, // кВт tariff rate used for calculation (from tier if applicable)
           tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
           zardliinTurul: zaaltZardal.zardliinTurul, // Tariff type identifier (e.g., "Цахилгаан", "Цахилгаан - Өдөр", "Цахилгаан - Шөнө")
@@ -2126,7 +2160,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
             tariff: usedTariff, // кВт tariff rate used (from tier if applicable)
             tariffType: zaaltZardal.zardliinTurul, // Tariff type identifier to distinguish different кВт types
             tariffName: zaaltZardal.ner, // Tariff name to distinguish different кВт types
-            defaultDun: zaaltDefaultDun, // Default amount used
+            defaultDun: gereeZaaltDefaultDun, // Default amount used (always from building level, shared for all contracts)
             tier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null, // Tier used for calculation
             calculatedAt: new Date(), // When calculation was performed
           },
