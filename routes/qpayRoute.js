@@ -1222,6 +1222,31 @@ router.get(
         }
       }
 
+      // Reset electricity readings to 0 if electricity invoice is paid
+      // User will upload new readings for next month
+      if (nekhemjlekh.tsahilgaanNekhemjlekh && nekhemjlekh.tsahilgaanNekhemjlekh > 0) {
+        try {
+          const gereeForUpdate = await Geree(kholbolt).findById(
+            nekhemjlekh.gereeniiId
+          );
+          if (gereeForUpdate) {
+            gereeForUpdate.umnukhZaalt = 0;
+            gereeForUpdate.suuliinZaalt = 0;
+            gereeForUpdate.zaaltTog = 0;
+            gereeForUpdate.zaaltUs = 0;
+            await gereeForUpdate.save();
+            console.log(
+              `✅ Reset electricity readings to 0 for geree ${gereeForUpdate._id} (invoice paid)`
+            );
+          }
+        } catch (zaaltError) {
+          console.error(
+            "❌ Error resetting electricity readings:",
+            zaaltError.message
+          );
+        }
+      }
+
       if (nekhemjlekh.qpayInvoiceId && nekhemjlekh._id) {
         try {
           const nekhemjlekhiinId = nekhemjlekh._id.toString();
@@ -1558,6 +1583,31 @@ router.get(
               console.error(
                 "❌ Error updating geree.ekhniiUldegdel:",
                 ekhniiUldegdelError.message
+              );
+            }
+          }
+
+          // Reset electricity readings to 0 if electricity invoice is paid
+          // User will upload new readings for next month
+          if (nekhemjlekh.tsahilgaanNekhemjlekh && nekhemjlekh.tsahilgaanNekhemjlekh > 0) {
+            try {
+              const gereeForUpdate = await Geree(kholbolt).findById(
+                nekhemjlekh.gereeniiId
+              );
+              if (gereeForUpdate) {
+                gereeForUpdate.umnukhZaalt = 0;
+                gereeForUpdate.suuliinZaalt = 0;
+                gereeForUpdate.zaaltTog = 0;
+                gereeForUpdate.zaaltUs = 0;
+                await gereeForUpdate.save();
+                console.log(
+                  `✅ Reset electricity readings to 0 for geree ${gereeForUpdate._id} (invoice paid)`
+                );
+              }
+            } catch (zaaltError) {
+              console.error(
+                "❌ Error resetting electricity readings:",
+                zaaltError.message
               );
             }
           }
