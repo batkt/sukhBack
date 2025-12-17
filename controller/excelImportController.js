@@ -714,10 +714,10 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
       const rowNumber = i + 2;
 
       try {
-        // Get initial electricity reading from Excel (optional, defaults to 200)
+        // Get initial electricity reading from Excel (optional, defaults to 0)
         const tsahilgaaniiZaalt = row["Цахилгаан кВт"] !== undefined && row["Цахилгаан кВт"] !== null && row["Цахилгаан кВт"] !== ""
-          ? parseFloat(row["Цахилгаан кВт"]) || 200
-          : 200; // Default to 200 кВт if not provided
+          ? parseFloat(row["Цахилгаан кВт"]) || 0
+          : 0; // Default to 0 кВт if not provided
 
         const userData = {
           ovog: row["Овог"]?.toString().trim() || "",
@@ -1034,7 +1034,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           toot: userData.toot || "", // Keep for backward compatibility
           orts: userData.orts || "",
           ekhniiUldegdel: userData.ekhniiUldegdel || 0,
-          tsahilgaaniiZaalt: userData.tsahilgaaniiZaalt || 200, // Save electricity reading from Excel
+          tsahilgaaniiZaalt: userData.tsahilgaaniiZaalt || 0, // Save electricity reading from Excel
           tailbar: userData.tailbar || "", // Save tailbar to orshinSuugch
           toots: [], // Initialize toots array
           // Link to Wallet API (unifies Excel-imported users with website/mobile users)
@@ -1238,8 +1238,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 baritsaaniiUldegdel: 0,
                 ekhniiUldegdel: userData.ekhniiUldegdel || 0,
                 // Save initial electricity reading (will be used in invoice calculations)
-                umnukhZaalt: userData.tsahilgaaniiZaalt || 200, // Previous reading (initial reading from Excel)
-                suuliinZaalt: userData.tsahilgaaniiZaalt || 200, // Current reading (same as initial at import)
+                umnukhZaalt: userData.tsahilgaaniiZaalt || 0, // Previous reading (initial reading from Excel)
+                suuliinZaalt: userData.tsahilgaaniiZaalt || 0, // Current reading (same as initial at import)
                 zaaltTog: 0, // Day reading (will be updated later)
                 zaaltUs: 0, // Night reading (will be updated later)
                 zardluud: zardluudArray,

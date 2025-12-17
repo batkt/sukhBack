@@ -701,10 +701,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     let orshinSuugch;
     let isReactivating = false;
 
-    // Get initial electricity reading from request (default to 200 if not provided)
+    // Get initial electricity reading from request (default to 0 if not provided)
     const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined 
-      ? parseFloat(req.body.tsahilgaaniiZaalt) || 200 
-      : 200; // Default to 200 кВт if not provided
+      ? parseFloat(req.body.tsahilgaaniiZaalt) || 0 
+      : 0; // Default to 0 кВт if not provided
     
     console.log("⚡ [REGISTER] Request body tsahilgaaniiZaalt:", req.body.tsahilgaaniiZaalt);
     console.log("⚡ [REGISTER] Parsed tsahilgaaniiZaalt:", tsahilgaaniiZaalt, "кВт");

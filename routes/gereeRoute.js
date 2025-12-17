@@ -260,10 +260,10 @@ crud(
           return next();
         }
 
-        // Parse tsahilgaaniiZaalt (default to 200 if invalid)
+        // Parse tsahilgaaniiZaalt (default to 0 if invalid)
         const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined 
-          ? parseFloat(req.body.tsahilgaaniiZaalt) || 200 
-          : 200;
+          ? parseFloat(req.body.tsahilgaaniiZaalt) || 0 
+          : 0;
 
         // Automatically update electricity readings in req.body
         req.body.umnukhZaalt = tsahilgaaniiZaalt;

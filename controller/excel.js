@@ -2449,11 +2449,36 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
         // Get the geree document for this reading
         const geree = gereeMap.get(reading.gereeniiDugaar);
         
+        console.log(`🔍 [ZAALT EXPORT] Looking for tariff for contract ${reading.gereeniiDugaar}:`, {
+          hasGeree: !!geree,
+          hasZardluud: !!(geree && geree.zardluud),
+          zardluudLength: geree?.zardluud?.length || 0,
+          buildingZaaltZardal: {
+            ner: zaaltZardal.ner,
+            zardliinTurul: zaaltZardal.zardliinTurul,
+            zaaltTariff: zaaltZardal.zaaltTariff,
+            tariff: zaaltZardal.tariff
+          }
+        });
+        
         if (geree && geree.zardluud && Array.isArray(geree.zardluud)) {
           // Find all matching electricity zardluud entries (may have duplicates)
+          // Try matching by ner first, then by zardliinTurul if ner matches
           const matchingZaaltZardluud = geree.zardluud.filter(
-            (z) => zaaltZardal.ner && z.ner === zaaltZardal.ner.trim() && 
-                   zaaltZardal.zardliinTurul && z.zardliinTurul === zaaltZardal.zardliinTurul
+            (z) => {
+              const nerMatch = zaaltZardal.ner && z.ner && z.ner.trim() === zaaltZardal.ner.trim();
+              const turulMatch = !zaaltZardal.zardliinTurul || !z.zardliinTurul || z.zardliinTurul === zaaltZardal.zardliinTurul;
+              return nerMatch && turulMatch;
+            }
+          );
+          
+          console.log(`🔍 [ZAALT EXPORT] Found ${matchingZaaltZardluud.length} matching zardluud entries:`, 
+            matchingZaaltZardluud.map(z => ({
+              ner: z.ner,
+              zardliinTurul: z.zardliinTurul,
+              zaaltTariff: z.zaaltTariff,
+              tariff: z.tariff
+            }))
           );
           
           let zaaltZardalInGeree = null;
@@ -2468,18 +2493,47 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
             ) || matchingZaaltZardluud[0];
             
             // Use contract-specific tariff if available
-            tariff = zaaltZardalInGeree.zaaltTariff || zaaltZardalInGeree.tariff || zaaltZardal.zaaltTariff || 0;
+            tariff = zaaltZardalInGeree.zaaltTariff || zaaltZardalInGeree.tariff || zaaltZardal.zaaltTariff || zaaltZardal.tariff || 0;
+            
+            console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} tariff:`, {
+              selectedZardal: {
+                ner: zaaltZardalInGeree.ner,
+                zaaltTariff: zaaltZardalInGeree.zaaltTariff,
+                tariff: zaaltZardalInGeree.tariff
+              },
+              fromGeree: zaaltZardalInGeree.zaaltTariff || zaaltZardalInGeree.tariff,
+              fromBuilding: zaaltZardal.zaaltTariff || zaaltZardal.tariff,
+              final: tariff
+            });
           } else {
             // Fall back to building level tariff
-            tariff = zaaltZardal.zaaltTariff || 0;
+            tariff = zaaltZardal.zaaltTariff || zaaltZardal.tariff || 0;
+            
+            console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - no contract-specific tariff, using building level:`, {
+              zaaltTariff: zaaltZardal.zaaltTariff,
+              tariff: zaaltZardal.tariff,
+              final: tariff
+            });
           }
         } else {
           // Fall back to building level tariff
-          tariff = zaaltZardal.zaaltTariff || 0;
+          tariff = zaaltZardal.zaaltTariff || zaaltZardal.tariff || 0;
+          
+          console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - no geree.zardluud, using building level:`, {
+            zaaltTariff: zaaltZardal.zaaltTariff,
+            tariff: zaaltZardal.tariff,
+            final: tariff
+          });
         }
         
         // ALWAYS use building level defaultDun (shared for all contracts)
         defaultDun = zaaltZardal.zaaltDefaultDun || 0;
+        
+        // If tariff is still 0, try to get from the reading itself (stored during import)
+        if (tariff === 0 && reading.tariff) {
+          tariff = reading.tariff;
+          console.log(`⚡ [ZAALT EXPORT] Using tariff from reading record:`, tariff);
+        }
       } else {
         // If no building-level zaaltZardal, try to get from zaaltCalculation or reading
         const zaaltCalculation = reading.zaaltCalculation;
