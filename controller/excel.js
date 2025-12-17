@@ -2367,6 +2367,45 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       uniqueContracts: gereenuud.length,
     });
 
+    // Get building-level electricity zardal configuration
+    const targetBarilga = baiguullaga.barilguud?.find(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+    if (!targetBarilga) {
+      throw new aldaa("Барилга олдсонгүй");
+    }
+
+    const zardluud = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+    const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
+    
+    // Prioritize exact "Цахилгаан" match (no trailing space)
+    let zaaltZardal = zaaltZardluud.find(
+      (z) => z.ner && z.ner.trim() === "Цахилгаан"
+    );
+    
+    // If no exact match, use first one
+    if (!zaaltZardal && zaaltZardluud.length > 0) {
+      zaaltZardal = zaaltZardluud[0];
+    }
+
+    // Fetch all gerees for the unique contract numbers to get contract-specific tariffs
+    const Geree = require("../models/geree");
+    const uniqueGereeniiDugaaruud = [...new Set(gereenuud.map(r => r.gereeniiDugaar))];
+    const gerees = await Geree(tukhainBaaziinKholbolt)
+      .find({
+        gereeniiDugaar: { $in: uniqueGereeniiDugaaruud },
+        baiguullagiinId: baiguullaga._id.toString(),
+        barilgiinId: barilgiinId,
+      })
+      .select("gereeniiDugaar zardluud")
+      .lean();
+
+    // Create a map for quick lookup: gereeniiDugaar -> geree
+    const gereeMap = new Map();
+    gerees.forEach((geree) => {
+      gereeMap.set(geree.gereeniiDugaar, geree);
+    });
+
     let workbook = new excel.Workbook();
     let worksheet = workbook.addWorksheet("Цахилгааны заалт");
 
@@ -2401,13 +2440,46 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       const zaaltUs = reading.zaaltUs || 0;
       const zoruu = reading.zoruu || (suuliinZaalt - umnukhZaalt);
 
-      // Get tariff and calculation details from zaaltCalculation if available
-      const zaaltCalculation = reading.zaaltCalculation;
-      const tariff = zaaltCalculation?.tariff || reading.tariff || 0;
-      const defaultDun = zaaltCalculation?.defaultDun || reading.defaultDun || 0;
+      // Get tariff from geree.zardluud (contract-specific) or fall back to building level
+      // Same logic as invoice calculation
+      let tariff = 0;
+      let defaultDun = 0;
+      
+      if (zaaltZardal) {
+        // Get the geree document for this reading
+        const geree = gereeMap.get(reading.gereeniiDugaar);
+        
+        if (geree && geree.zardluud && Array.isArray(geree.zardluud)) {
+          // Find electricity zardal in geree.zardluud
+          const zaaltZardalInGeree = geree.zardluud.find(
+            (z) => zaaltZardal.ner && z.ner === zaaltZardal.ner.trim() && 
+                   zaaltZardal.zardliinTurul && z.zardliinTurul === zaaltZardal.zardliinTurul
+          );
+          
+          if (zaaltZardalInGeree) {
+            // Use contract-specific tariff if available
+            tariff = zaaltZardalInGeree.zaaltTariff || zaaltZardalInGeree.tariff || zaaltZardal.zaaltTariff || 0;
+          } else {
+            // Fall back to building level tariff
+            tariff = zaaltZardal.zaaltTariff || 0;
+          }
+        } else {
+          // Fall back to building level tariff
+          tariff = zaaltZardal.zaaltTariff || 0;
+        }
+        
+        // ALWAYS use building level defaultDun (shared for all contracts)
+        defaultDun = zaaltZardal.zaaltDefaultDun || 0;
+      } else {
+        // If no building-level zaaltZardal, try to get from zaaltCalculation or reading
+        const zaaltCalculation = reading.zaaltCalculation;
+        tariff = zaaltCalculation?.tariff || reading.tariff || 0;
+        defaultDun = zaaltCalculation?.defaultDun || reading.defaultDun || 0;
+      }
+
       const zaaltDun = reading.zaaltDun || (zoruu * tariff + defaultDun);
-      const calculatedAt = zaaltCalculation?.calculatedAt
-        ? new Date(zaaltCalculation.calculatedAt).toLocaleString("mn-MN", {
+      const calculatedAt = reading.zaaltCalculation?.calculatedAt
+        ? new Date(reading.zaaltCalculation.calculatedAt).toLocaleString("mn-MN", {
             timeZone: "Asia/Ulaanbaatar",
           })
         : reading.unshlaltiinOgnoo
