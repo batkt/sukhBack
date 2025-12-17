@@ -1034,11 +1034,14 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           toot: userData.toot || "", // Keep for backward compatibility
           orts: userData.orts || "",
           ekhniiUldegdel: userData.ekhniiUldegdel || 0,
+          tsahilgaaniiZaalt: userData.tsahilgaaniiZaalt || 200, // Save electricity reading from Excel
           tailbar: userData.tailbar || "", // Save tailbar to orshinSuugch
           toots: [], // Initialize toots array
           // Link to Wallet API (unifies Excel-imported users with website/mobile users)
           ...(walletUserId ? { walletUserId: walletUserId } : {})
         };
+        
+        console.log(`⚡ [EXCEL IMPORT] Setting tsahilgaaniiZaalt in userObject:`, userObject.tsahilgaaniiZaalt);
 
         // If user already exists, update it; otherwise create new
         let orshinSuugch;
@@ -1060,10 +1063,13 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             toot: userObject.toot,
             orts: userObject.orts,
             ekhniiUldegdel: userObject.ekhniiUldegdel,
+            tsahilgaaniiZaalt: userObject.tsahilgaaniiZaalt, // Update electricity reading
             tailbar: userObject.tailbar,
             // Update walletUserId if we got it from Wallet API
             ...(walletUserId ? { walletUserId: walletUserId } : {})
           });
+          
+          console.log(`⚡ [EXCEL IMPORT] Updated existing user with tsahilgaaniiZaalt:`, orshinSuugch.tsahilgaaniiZaalt);
           // Initialize toots array if it doesn't exist
           if (!orshinSuugch.toots) {
             orshinSuugch.toots = [];
@@ -1119,6 +1125,14 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         }
 
         await orshinSuugch.save();
+        
+        // Verify tsahilgaaniiZaalt was saved
+        const savedOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("tsahilgaaniiZaalt ner utas");
+        console.log(`✅ [EXCEL IMPORT] Verified tsahilgaaniiZaalt saved to orshinSuugch:`, {
+          ner: savedOrshinSuugch?.ner,
+          utas: savedOrshinSuugch?.utas,
+          tsahilgaaniiZaalt: savedOrshinSuugch?.tsahilgaaniiZaalt
+        });
 
         // Create gerees for all OWN_ORG toots that don't have gerees yet
         if (orshinSuugch.toots && Array.isArray(orshinSuugch.toots) && orshinSuugch.toots.length > 0) {
