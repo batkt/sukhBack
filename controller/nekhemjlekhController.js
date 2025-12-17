@@ -526,10 +526,22 @@ const gereeNeesNekhemjlekhUusgekh = async (
             tempData.zaaltTog !== undefined ||
             tempData.zaaltUs !== undefined
           )) {
-            // Find the electricity zardal in finalZardluud to get calculation details
-            const zaaltZardalInGeree = finalZardluud.find(
+            // Find all matching electricity zardal entries in finalZardluud (may have duplicates)
+            const matchingZaaltZardluud = finalZardluud.filter(
               (z) => z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
             );
+            
+            let zaaltZardalInGeree = null;
+            
+            if (matchingZaaltZardluud.length > 0) {
+              // If multiple matches, prioritize entry with non-zero tariff
+              // Priority: 1) non-zero zaaltTariff, 2) non-zero tariff, 3) non-zero dun, 4) first match
+              zaaltZardalInGeree = matchingZaaltZardluud.find(
+                (z) => (z.zaaltTariff && z.zaaltTariff > 0) || (z.tariff && z.tariff > 0)
+              ) || matchingZaaltZardluud.find(
+                (z) => z.dun && z.dun > 0
+              ) || matchingZaaltZardluud[0];
+            }
             
             // Calculate usage (difference between current and previous reading)
             const zoruu = (tempData.suuliinZaalt || 0) - (tempData.umnukhZaalt || 0);

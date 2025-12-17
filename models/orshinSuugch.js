@@ -62,6 +62,7 @@ const orshinSuugchSchema = new Schema(
     tailbar: String,
     ekhniiUldegdel : Number,
     ekhniiUldegdelUsgeer: String,
+    tsahilgaaniiZaalt: Number, // Initial electricity reading (кВт) - defaults to 200 if not provided
     walletUserId: String,
     walletCustomerId: String,
     walletCustomerCode: String,

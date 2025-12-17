@@ -701,6 +701,13 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     let orshinSuugch;
     let isReactivating = false;
 
+    // Get initial electricity reading from request (default to 200 if not provided)
+    const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined 
+      ? parseFloat(req.body.tsahilgaaniiZaalt) || 200 
+      : 200; // Default to 200 кВт if not provided
+    
+    console.log("⚡ [REGISTER] Saving tsahilgaaniiZaalt to orshinSuugch:", tsahilgaaniiZaalt, "кВт");
+
     // Create new user (existing user check already handled above)
     const userData = {
       ...req.body,
@@ -719,6 +726,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       ekhniiUldegdel: req.body.ekhniiUldegdel
         ? parseFloat(req.body.ekhniiUldegdel) || 0
         : 0, // Optional: from frontend
+      tsahilgaaniiZaalt: tsahilgaaniiZaalt, // Save initial electricity reading to orshinSuugch
       // Link to Wallet API (unifies website and mobile users)
       ...(walletUserId ? { walletUserId: walletUserId } : {}),
     };
@@ -880,12 +888,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       // Only create new geree if not reactivating (no cancelled geree found)
       if (!isReactivating) {
-        // Get initial electricity reading from request (default to 200 if not provided)
-        const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined 
-          ? parseFloat(req.body.tsahilgaaniiZaalt) || 200 
-          : 200; // Default to 200 кВт if not provided
-        
-        console.log("⚡ [REGISTER] Initial electricity reading:", tsahilgaaniiZaalt, "кВт");
+        // tsahilgaaniiZaalt is already declared above (line ~705), reuse it here
+        console.log("⚡ [REGISTER] Using tsahilgaaniiZaalt for geree:", tsahilgaaniiZaalt, "кВт");
 
         const contractData = {
           gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,

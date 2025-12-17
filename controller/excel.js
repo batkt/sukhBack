@@ -2450,13 +2450,23 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
         const geree = gereeMap.get(reading.gereeniiDugaar);
         
         if (geree && geree.zardluud && Array.isArray(geree.zardluud)) {
-          // Find electricity zardal in geree.zardluud
-          const zaaltZardalInGeree = geree.zardluud.find(
+          // Find all matching electricity zardluud entries (may have duplicates)
+          const matchingZaaltZardluud = geree.zardluud.filter(
             (z) => zaaltZardal.ner && z.ner === zaaltZardal.ner.trim() && 
                    zaaltZardal.zardliinTurul && z.zardliinTurul === zaaltZardal.zardliinTurul
           );
           
-          if (zaaltZardalInGeree) {
+          let zaaltZardalInGeree = null;
+          
+          if (matchingZaaltZardluud.length > 0) {
+            // If multiple matches, prioritize entry with non-zero tariff
+            // Priority: 1) non-zero zaaltTariff, 2) non-zero tariff, 3) non-zero dun, 4) first match
+            zaaltZardalInGeree = matchingZaaltZardluud.find(
+              (z) => (z.zaaltTariff && z.zaaltTariff > 0) || (z.tariff && z.tariff > 0)
+            ) || matchingZaaltZardluud.find(
+              (z) => z.dun && z.dun > 0
+            ) || matchingZaaltZardluud[0];
+            
             // Use contract-specific tariff if available
             tariff = zaaltZardalInGeree.zaaltTariff || zaaltZardalInGeree.tariff || zaaltZardal.zaaltTariff || 0;
           } else {
