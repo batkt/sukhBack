@@ -447,6 +447,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       skipDuplicateCheck && guilgeenuudForNekhemjlekh.length > 0;
 
     // Use ekhniiUldegdel for first invoice if conditions are met, otherwise use normal charges
+    // When using ekhniiUldegdel or avlaga-only invoice, do NOT include zardluud charges in medeelel
+    // Only include zardluud when cron is activated (after first invoice) and not avlaga-only
+    // Use let instead of const so we can modify it when adding electricity charges
+    let finalZardluud =
+      shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice ? [] : [...filteredZardluud];
+
     // But exclude zardluud if this is an avlaga-only invoice
     const zardluudTotal =
       shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
@@ -465,13 +471,14 @@ const gereeNeesNekhemjlekhUusgekh = async (
       : 0;
 
     // Recalculate zardluudTotal after adding electricity charge (if electricity was added)
-    const updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+    // This will be updated after electricity processing
+    let updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
       ? 0
       : finalZardluud.reduce((sum, zardal) => {
           return sum + (zardal.tariff || 0);
         }, 0);
 
-    const finalNiitTulbur = shouldUseEkhniiUldegdel
+    let finalNiitTulbur = shouldUseEkhniiUldegdel
       ? ekhniiUldegdelAmount + guilgeenuudTotal
       : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
 
@@ -489,11 +496,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
         skipReason: "zero_amount",
       };
     }
-
-    // When using ekhniiUldegdel or avlaga-only invoice, do NOT include zardluud charges in medeelel
-    // Only include zardluud when cron is activated (after first invoice) and not avlaga-only
-    const finalZardluud =
-      shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice ? [] : filteredZardluud;
 
     // Check if electricity zardal exists and geree has electricity readings
     let zaaltMedeelel = null;
@@ -596,6 +598,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
           // Update finalZardluud to include electricity charge
           finalZardluud.length = 0;
           finalZardluud.push(...filteredZardluudWithoutZaalt);
+          
+          // Recalculate totals after adding electricity charge
+          updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+            ? 0
+            : finalZardluud.reduce((sum, zardal) => {
+                return sum + (zardal.tariff || 0);
+              }, 0);
+          
+          finalNiitTulbur = shouldUseEkhniiUldegdel
+            ? ekhniiUldegdelAmount + guilgeenuudTotal
+            : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
           
           // Also store detailed electricity info in zaaltMedeelel for backward compatibility
           zaaltMedeelel = {
