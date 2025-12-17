@@ -2253,11 +2253,11 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       method: req.method,
       path: req.path,
       originalUrl: req.originalUrl,
-      query: req.query,
+      body: req.body,
     });
     
     const { db } = require("zevbackv2");
-    const { baiguullagiinId, barilgiinId } = req.query;
+    const { baiguullagiinId, barilgiinId } = req.body;
 
     if (!baiguullagiinId) {
       console.error("❌ [ZAALT EXPORT] Missing baiguullagiinId");

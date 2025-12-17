@@ -34,6 +34,7 @@ const {
   orshinSuugchUstgakh,
   tootShalgaya,
   validateOwnOrgToot,
+  utasBatalgaajuulakhLogin,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
@@ -177,6 +178,7 @@ router
   .get(khayagaarBaiguullagaAvya);
 
 router.post("/orshinSuugchBatalgaajuulya", orshinSuugchBatalgaajuulya);
+router.post("/utasBatalgaajuulakhLogin", utasBatalgaajuulakhLogin);
 router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
 router.post("/orshinSuugchNuutsUgSoliyo", tokenShalgakh, orshinSuugchiinNuutsUgSoliyo);
 router.post("/davhardsanOrshinSuugchShalgayy", davhardsanOrshinSuugchShalgayy);

@@ -881,6 +881,13 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       // Only create new geree if not reactivating (no cancelled geree found)
       if (!isReactivating) {
+        // Get initial electricity reading from request (default to 200 if not provided)
+        const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined 
+          ? parseFloat(req.body.tsahilgaaniiZaalt) || 200 
+          : 200; // Default to 200 кВт if not provided
+        
+        console.log("⚡ [REGISTER] Initial electricity reading:", tsahilgaaniiZaalt, "кВт");
+
         const contractData = {
           gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
           gereeniiOgnoo: new Date(),
@@ -912,6 +919,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           ekhniiUldegdel: req.body.ekhniiUldegdel
             ? parseFloat(req.body.ekhniiUldegdel) || 0
             : 0, // Optional: from frontend
+          // Save initial electricity reading (will be used in invoice calculations)
+          umnukhZaalt: tsahilgaaniiZaalt, // Previous reading (initial reading at registration)
+          suuliinZaalt: tsahilgaaniiZaalt, // Current reading (same as initial at registration)
+          zaaltTog: 0, // Day reading (will be updated later)
+          zaaltUs: 0, // Night reading (will be updated later)
           zardluud: zardluudArray,
           segmentuud: [],
           khungulultuud: [],
@@ -1270,9 +1282,9 @@ exports.tootShalgaya = asyncHandler(async (req, res, next) => {
 
 exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   try {
-    console.log("🔐 [WALLET LOGIN] Login request received");
-    console.log("🔐 [WALLET LOGIN] Phone:", req.body.utas);
-    console.log("🔐 [WALLET LOGIN] Firebase token provided:", !!req.body.firebaseToken);
+    console.log("🔐 [LOGIN] Login request received");
+    console.log("🔐 [LOGIN] Phone:", req.body.utas);
+    console.log("🔐 [LOGIN] Firebase token provided:", !!req.body.firebaseToken);
 
     const { db } = require("zevbackv2");
 
@@ -1282,29 +1294,144 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     const phoneNumber = String(req.body.utas).trim();
 
-    console.log("📞 [WALLET LOGIN] Fetching user from Wallet API...");
-    const walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
-
-    if (!walletUserInfo || !walletUserInfo.userId) {
-      throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд хэтэвчний системд бүртгүүлнэ үү.");
+    // Password validation - support both local and Wallet API passwords
+    if (!req.body.nuutsUg) {
+      throw new aldaa("Нууц үг заавал бөглөх шаардлагатай!");
     }
 
-    console.log("✅ [WALLET LOGIN] User found in Wallet API:", walletUserInfo.userId);
+    const providedPassword = String(req.body.nuutsUg).trim();
 
-    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      $or: [
-        { utas: phoneNumber },
-        { walletUserId: walletUserInfo.userId }
-      ]
-    });
+    // Find user in local database first (password is stored locally, NOT in Wallet API)
+    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+      .findOne({
+        utas: phoneNumber
+      })
+      .select("+nuutsUg"); // Include password field (normally excluded by select: false)
+
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    // Get Wallet API user info for other operations (billing, etc.) but NOT for password validation
+    let walletUserInfo = null;
+    let walletUserId = null;
+    
+    try {
+      console.log("📞 [LOGIN] Fetching user from Wallet API for billing info...");
+      walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+      
+      if (walletUserInfo && walletUserInfo.userId) {
+        walletUserId = walletUserInfo.userId;
+        console.log("✅ [LOGIN] User found in Wallet API:", walletUserId);
+      } else {
+        console.warn("⚠️ [LOGIN] User not found in Wallet API (will continue with local login)");
+      }
+    } catch (walletError) {
+      console.warn("⚠️ [LOGIN] Wallet API error (will continue with local login):", walletError.message);
+      // Continue without Wallet API - password validation is local only
+    }
+
+    // Validate password - only use local password (stored in our own DB)
+    // Password is NOT sent to Wallet API, only stored in our database
+    let passwordValid = false;
+
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    if (!orshinSuugch.nuutsUg) {
+      throw new aldaa("Нууц үг тохируулаагүй байна. Эхлээд бүртгүүлнэ үү.");
+    }
+
+    // Validate against local password (stored in our database)
+    console.log("🔐 [LOGIN] Validating password from local database...");
+    try {
+      passwordValid = await orshinSuugch.passwordShalgaya(providedPassword);
+      if (passwordValid) {
+        console.log("✅ [LOGIN] Password validated successfully");
+      } else {
+        console.log("❌ [LOGIN] Password validation failed");
+      }
+    } catch (passwordError) {
+      console.error("❌ [LOGIN] Error validating password:", passwordError.message);
+      passwordValid = false;
+    }
+
+    if (!passwordValid) {
+      throw new aldaa("Нууц үг буруу байна!");
+    }
+
+    // Send SMS verification code on login
+    // Frontend will handle verification status in local storage
+    try {
+      console.log("📱 [LOGIN] Sending SMS verification code");
+      
+      // Get baiguullaga for SMS sending
+      let baiguullagiinId = orshinSuugch.baiguullagiinId;
+      if (!baiguullagiinId && req.body.baiguullagiinId) {
+        baiguullagiinId = req.body.baiguullagiinId;
+      }
+      
+      if (baiguullagiinId) {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+        if (baiguullaga) {
+          const tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+          
+          if (tukhainBaaziinKholbolt) {
+            // Generate and send verification code
+            const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
+            const verificationCodeDoc = await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
+              phoneNumber,
+              "login", // Purpose: login verification
+              10 // Expires in 10 minutes
+            );
+
+            // Send SMS
+            var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
+            var msgIlgeekhDugaar = "72002002";
+            var smsText = `AmarSukh: Tany nevtrekh batalgaajuulax code: ${verificationCodeDoc.code}.`;
+            
+            var ilgeexList = [
+              {
+                to: phoneNumber,
+                text: smsText,
+                gereeniiId: "login_verification",
+              },
+            ];
+
+            var khariu = [];
+            msgIlgeeye(
+              ilgeexList,
+              msgIlgeekhKey,
+              msgIlgeekhDugaar,
+              khariu,
+              0,
+              tukhainBaaziinKholbolt,
+              baiguullagiinId
+            );
+
+            console.log("✅ [LOGIN] SMS verification code sent to:", phoneNumber);
+          }
+        }
+      }
+    } catch (smsError) {
+      console.error("⚠️ [LOGIN] Error sending SMS (continuing with login):", smsError.message);
+      // Don't fail login if SMS fails
+    }
 
     const userData = {
       utas: phoneNumber,
-      mail: walletUserInfo.email || (orshinSuugch?.mail || ""),
-      walletUserId: walletUserInfo.userId,
+      mail: walletUserInfo?.email || orshinSuugch.mail || "",
       erkh: "OrshinSuugch",
       nevtrekhNer: phoneNumber,
     };
+
+    // Update walletUserId if available (for billing, etc.) but password stays local
+    if (walletUserId) {
+      userData.walletUserId = walletUserId;
+    }
 
     // Preserve existing baiguullagiinId if user already has one
     if (orshinSuugch && orshinSuugch.baiguullagiinId) {
@@ -2088,6 +2215,12 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       erkh: "OrshinSuugch",
       nevtrekhNer: phoneNumber,
     };
+
+    // Save password locally if provided (password is NOT sent to Wallet API, only stored in our DB)
+    if (req.body.nuutsUg) {
+      userData.nuutsUg = req.body.nuutsUg;
+      console.log("🔐 [WALLET REGISTER] Password will be saved locally (not sent to Wallet API)");
+    }
 
     // Preserve existing baiguullagiinId if user already has one
     if (orshinSuugch && orshinSuugch.baiguullagiinId) {
@@ -3499,6 +3632,74 @@ function msgIlgeeye(
     console.error("msgIlgeeye error:", err);
   }
 }
+
+// Verify login code for first-time login
+exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
+  try {
+    const { baiguullagiinId, utas, code } = req.body;
+
+    if (!baiguullagiinId || !utas || !code) {
+      return res.status(400).json({
+        success: false,
+        message: "Байгууллагын ID, утас, код заавал бөглөх шаардлагатай!",
+      });
+    }
+
+    const { db } = require("zevbackv2");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын мэдээлэл олдсонгүй!",
+      });
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболт олдсонгүй!",
+      });
+    }
+
+    // Verify code
+    const verificationResult = await validateCodeOnly(
+      baiguullagiinId,
+      utas,
+      code,
+      "login" // Purpose: login verification
+    );
+
+    if (!verificationResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message,
+      });
+    }
+
+    // Verify code - frontend handles local storage
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
+    if (!orshinSuugch) {
+      return res.status(404).json({
+        success: false,
+        message: "Хэрэглэгч олдсонгүй!",
+      });
+    }
+
+    console.log("✅ [LOGIN VERIFY] Code verified for user:", orshinSuugch._id);
+
+    res.json({
+      success: true,
+      message: "Код амжилттай баталгаажлаа",
+      // Frontend should save verification status to local storage
+    });
+  } catch (error) {
+    console.error("❌ [LOGIN VERIFY] Error:", error.message);
+    next(error);
+  }
+});
 
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {

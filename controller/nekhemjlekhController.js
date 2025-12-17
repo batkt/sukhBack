@@ -531,25 +531,70 @@ const gereeNeesNekhemjlekhUusgekh = async (
               (z) => z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
             );
             
+            // Calculate usage (difference between current and previous reading)
+            const zoruu = (tempData.suuliinZaalt || 0) - (tempData.umnukhZaalt || 0);
+            
+            // Get tariff values
+            const zaaltTariff = zaaltZardalInGeree?.tariff || zaaltZardal.zaaltTariff || 0;
+            const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 0;
+            const zaaltTariffTiers = zaaltZardal.zaaltTariffTiers || [];
+            
+            // Calculate electricity amount using tiered pricing if available
+            let tsahilgaanNekhemjlekh = 0;
+            let usedTariff = zaaltTariff;
+            let usedTier = null;
+            
+            if (zaaltTariffTiers && zaaltTariffTiers.length > 0) {
+              // Sort tiers by threshold (ascending)
+              const sortedTiers = [...zaaltTariffTiers].sort(
+                (a, b) => (a.threshold || 0) - (b.threshold || 0)
+              );
+              
+              // Find the appropriate tier based on zoruu (usage)
+              for (const tier of sortedTiers) {
+                if (zoruu <= (tier.threshold || Infinity)) {
+                  usedTariff = tier.tariff || zaaltTariff;
+                  usedTier = tier;
+                  break;
+                }
+              }
+              
+              // If zoruu exceeds all tiers, use the last (highest) tier
+              if (!usedTier && sortedTiers.length > 0) {
+                const lastTier = sortedTiers[sortedTiers.length - 1];
+                usedTariff = lastTier.tariff || zaaltTariff;
+                usedTier = lastTier;
+              }
+              
+              tsahilgaanNekhemjlekh = zoruu * usedTariff + zaaltDefaultDun;
+            } else {
+              // Fallback to simple calculation if no tiers defined
+              tsahilgaanNekhemjlekh = zoruu * zaaltTariff + zaaltDefaultDun;
+            }
+            
             zaaltMedeelel = {
               umnukhZaalt: tempData.umnukhZaalt || 0,
               suuliinZaalt: tempData.suuliinZaalt || 0,
               zaaltTog: tempData.zaaltTog || 0, // Өдөр (Day)
               zaaltUs: tempData.zaaltUs || 0, // Шөнө (Night)
+              zoruu: zoruu, // Usage amount
               // Include tariff and calculation details for transparency
-              tariff: zaaltZardalInGeree?.tariff || zaaltZardal.zaaltTariff || 0,
+              tariff: usedTariff,
               tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
               tariffType: zaaltZardal.zardliinTurul, // Tariff type identifier to distinguish different кВт types
               tariffName: zaaltZardal.ner, // Tariff name to distinguish different кВт types
-              defaultDun: zaaltZardal.zaaltDefaultDun || 0,
+              defaultDun: zaaltDefaultDun,
+              zaaltDun: tsahilgaanNekhemjlekh, // Calculated electricity amount
               // Include calculation breakdown if available
               ...(zaaltZardalInGeree?.zaaltCalculation ? {
                 calculation: zaaltZardalInGeree.zaaltCalculation
-              } : {
-                zoruu: (tempData.suuliinZaalt || 0) - (tempData.umnukhZaalt || 0) // Calculate usage
-              }),
+              } : {}),
+              // Include tier information if used
+              ...(usedTier ? { tier: { threshold: usedTier.threshold, tariff: usedTier.tariff } } : {}),
             };
+            
             console.log("⚡ [INVOICE] Adding electricity readings to invoice:", zaaltMedeelel);
+            console.log("⚡ [INVOICE] Calculated electricity amount (tsahilgaanNekhemjlekh):", tsahilgaanNekhemjlekh);
           }
         }
       } catch (error) {
@@ -600,6 +645,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = finalNiitTulbur;
+    
+    // Save electricity invoice amount if calculated
+    if (zaaltMedeelel && zaaltMedeelel.zaaltDun !== undefined) {
+      tuukh.tsahilgaanNekhemjlekh = zaaltMedeelel.zaaltDun;
+      console.log("⚡ [INVOICE] Saved tsahilgaanNekhemjlekh:", tuukh.tsahilgaanNekhemjlekh);
+    }
 
     // Initialize payment status
     tuukh.tuluv = "Төлөөгүй";
