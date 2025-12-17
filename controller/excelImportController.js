@@ -1342,10 +1342,22 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             actOgnoo: new Date(),
             baritsaaniiUldegdel: 0,
             ekhniiUldegdel: userData.ekhniiUldegdel || 0,
+            // Save initial electricity reading (will be used in invoice calculations)
+            umnukhZaalt: tsahilgaaniiZaalt, // Previous reading (initial reading at import)
+            suuliinZaalt: tsahilgaaniiZaalt, // Current reading (same as initial at import)
+            zaaltTog: 0, // Day reading (will be updated later)
+            zaaltUs: 0, // Night reading (will be updated later)
             zardluud: zardluudArray,
             segmentuud: [],
             khungulultuud: [],
           };
+          
+          console.log(`⚡ [EXCEL IMPORT] Setting electricity readings in geree:`, {
+            gereeniiDugaar: contractData.gereeniiDugaar,
+            tsahilgaaniiZaalt: tsahilgaaniiZaalt,
+            umnukhZaalt: contractData.umnukhZaalt,
+            suuliinZaalt: contractData.suuliinZaalt
+          });
 
           const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
           await geree.save();

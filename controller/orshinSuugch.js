@@ -706,9 +706,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       ? parseFloat(req.body.tsahilgaaniiZaalt) || 200 
       : 200; // Default to 200 кВт if not provided
     
-    console.log("⚡ [REGISTER] Saving tsahilgaaniiZaalt to orshinSuugch:", tsahilgaaniiZaalt, "кВт");
+    console.log("⚡ [REGISTER] Request body tsahilgaaniiZaalt:", req.body.tsahilgaaniiZaalt);
+    console.log("⚡ [REGISTER] Parsed tsahilgaaniiZaalt:", tsahilgaaniiZaalt, "кВт");
 
     // Create new user (existing user check already handled above)
+    // IMPORTANT: Set tsahilgaaniiZaalt explicitly to ensure it's saved
     const userData = {
       ...req.body,
       baiguullagiinId: baiguullaga._id,
@@ -726,12 +728,18 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       ekhniiUldegdel: req.body.ekhniiUldegdel
         ? parseFloat(req.body.ekhniiUldegdel) || 0
         : 0, // Optional: from frontend
-      tsahilgaaniiZaalt: tsahilgaaniiZaalt, // Save initial electricity reading to orshinSuugch
       // Link to Wallet API (unifies website and mobile users)
       ...(walletUserId ? { walletUserId: walletUserId } : {}),
     };
+    
+    userData.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
+    
+    console.log("⚡ [REGISTER] userData.tsahilgaaniiZaalt:", userData.tsahilgaaniiZaalt);
+    console.log("⚡ [REGISTER] Full userData keys:", Object.keys(userData));
 
     orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    
+    console.log("⚡ [REGISTER] orshinSuugch.tsahilgaaniiZaalt after creation:", orshinSuugch.tsahilgaaniiZaalt);
     
     if (!orshinSuugch.toots) {
       orshinSuugch.toots = [];
@@ -777,6 +785,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
     
     await orshinSuugch.save();
+    
+    // Verify tsahilgaaniiZaalt was saved
+    const savedOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("tsahilgaaniiZaalt");
+    console.log("✅ [REGISTER] Verified tsahilgaaniiZaalt saved to orshinSuugch:", savedOrshinSuugch?.tsahilgaaniiZaalt);
 
     try {
       // Reuse tukhainBaaziinKholbolt from above (already declared)
