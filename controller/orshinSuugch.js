@@ -327,38 +327,39 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     let walletUserInfo = null;
     let walletUserId = null;
 
-    if (!req.body.mail) {
-      throw new aldaa("И-мэйл заавал бөглөх шаардлагатай! (Wallet API integration)");
-    }
+    // Email is optional - only register with Wallet API if email is provided
+    const email = req.body.mail ? String(req.body.mail).trim() : null;
 
-    const email = String(req.body.mail).trim();
+    if (email) {
+      try {
+        // First, try to get existing user from Wallet API
+        console.log("📞 [WEBSITE REGISTER] Checking Wallet API for existing user...");
+        walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
 
-    try {
-      // First, try to get existing user from Wallet API
-      console.log("📞 [WEBSITE REGISTER] Checking Wallet API for existing user...");
-      walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+        if (walletUserInfo && walletUserInfo.userId) {
+          // User exists in Wallet API
+          walletUserId = walletUserInfo.userId;
+          console.log("✅ [WEBSITE REGISTER] User found in Wallet API:", walletUserId);
+        } else {
+          // User doesn't exist in Wallet API, register them
+          console.log("📞 [WEBSITE REGISTER] Registering user in Wallet API...");
+          walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
 
-      if (walletUserInfo && walletUserInfo.userId) {
-        // User exists in Wallet API
-        walletUserId = walletUserInfo.userId;
-        console.log("✅ [WEBSITE REGISTER] User found in Wallet API:", walletUserId);
-      } else {
-        // User doesn't exist in Wallet API, register them
-        console.log("📞 [WEBSITE REGISTER] Registering user in Wallet API...");
-        walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+          if (!walletUserInfo || !walletUserInfo.userId) {
+            throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
+          }
 
-        if (!walletUserInfo || !walletUserInfo.userId) {
-          throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
+          walletUserId = walletUserInfo.userId;
+          console.log("✅ [WEBSITE REGISTER] User registered in Wallet API:", walletUserId);
         }
-
-        walletUserId = walletUserInfo.userId;
-        console.log("✅ [WEBSITE REGISTER] User registered in Wallet API:", walletUserId);
+      } catch (walletError) {
+        console.error("❌ [WEBSITE REGISTER] Wallet API error:", walletError.message);
+        // If Wallet API fails, we can still proceed with registration
+        // but user won't be able to login via mobile until they register there
+        console.warn("⚠️ [WEBSITE REGISTER] Continuing without Wallet API integration");
       }
-    } catch (walletError) {
-      console.error("❌ [WEBSITE REGISTER] Wallet API error:", walletError.message);
-      // If Wallet API fails, we can still proceed with registration
-      // but user won't be able to login via mobile until they register there
-      console.warn("⚠️ [WEBSITE REGISTER] Continuing without Wallet API integration");
+    } else {
+      console.log("ℹ️ [WEBSITE REGISTER] Email not provided, skipping Wallet API registration");
     }
 
     // Check for existing user by utas OR walletUserId (unified check)
@@ -2184,34 +2185,38 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
     }
 
-    if (!req.body.mail) {
-      throw new aldaa("И-мэйл заавал бөглөх шаардлагатай!");
-    }
+    // Email is optional - only register with Wallet API if email is provided
+    const email = req.body.mail ? String(req.body.mail).trim() : null;
 
     const { db } = require("zevbackv2");
     const phoneNumber = String(req.body.utas).trim();
-    const email = String(req.body.mail).trim();
 
-    console.log("📞 [WALLET REGISTER] Registering user in Wallet API...");
-    const walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+    let walletUserInfo = null;
 
-    if (!walletUserInfo || !walletUserInfo.userId) {
-      throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
+    if (email) {
+      console.log("📞 [WALLET REGISTER] Registering user in Wallet API...");
+      walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+
+      if (!walletUserInfo || !walletUserInfo.userId) {
+        throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
+      }
+
+      console.log("✅ [WALLET REGISTER] User registered in Wallet API:", walletUserInfo.userId);
+    } else {
+      console.log("ℹ️ [WALLET REGISTER] Email not provided, skipping Wallet API registration");
     }
-
-    console.log("✅ [WALLET REGISTER] User registered in Wallet API:", walletUserInfo.userId);
 
     let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [
         { utas: phoneNumber },
-        { walletUserId: walletUserInfo.userId }
+        ...(walletUserInfo?.userId ? [{ walletUserId: walletUserInfo.userId }] : [])
       ]
     });
 
     const userData = {
       utas: phoneNumber,
-      mail: walletUserInfo.email || email,
-      walletUserId: walletUserInfo.userId,
+      mail: walletUserInfo?.email || email || "",
+      ...(walletUserInfo?.userId ? { walletUserId: walletUserInfo.userId } : {}),
       erkh: "OrshinSuugch",
       nevtrekhNer: phoneNumber,
     };
