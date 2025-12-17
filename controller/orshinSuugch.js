@@ -295,9 +295,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     });
     const { db } = require("zevbackv2");
 
-    if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
-      throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
-    }
+    // Note: duureg, horoo, and soh are optional - can be retrieved from baiguullaga if not provided
 
     if (!req.body.baiguullagiinId) {
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");

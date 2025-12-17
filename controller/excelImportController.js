@@ -615,7 +615,7 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
 exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
   try {
     // Building detection is automatic based on davkhar + orts + toot combination
-    const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Орц", "Давхар", "Тоот", "Эхний үлдэгдэл", "Тайлбар"];
+    const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Орц", "Давхар", "Тоот", "Эхний үлдэгдэл", "Цахилгаан кВт", "Тайлбар"];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([headers]);
@@ -629,6 +629,7 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       { wch: 10 }, // Давхар
       { wch: 10 }, // Тоот
       { wch: 15 }, // Эхний үлдэгдэл
+      { wch: 15 }, // Цахилгаан кВт
       { wch: 30 }, // Тайлбар
     ];
     ws["!cols"] = colWidths;
@@ -713,6 +714,11 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
       const rowNumber = i + 2;
 
       try {
+        // Get initial electricity reading from Excel (optional, defaults to 200)
+        const tsahilgaaniiZaalt = row["Цахилгаан кВт"] !== undefined && row["Цахилгаан кВт"] !== null && row["Цахилгаан кВт"] !== ""
+          ? parseFloat(row["Цахилгаан кВт"]) || 200
+          : 200; // Default to 200 кВт if not provided
+
         const userData = {
           ovog: row["Овог"]?.toString().trim() || "",
           ner: row["Нэр"]?.toString().trim() || "",
@@ -722,6 +728,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           toot: row["Тоот"]?.toString().trim() || "",
           orts: row["Орц"]?.toString().trim() || "",
           ekhniiUldegdel: row["Эхний үлдэгдэл"] ? parseFloat(row["Эхний үлдэгдэл"]) || 0 : 0,
+          tsahilgaaniiZaalt: tsahilgaaniiZaalt, // Initial electricity reading
           tailbar: row["Тайлбар"]?.toString().trim() || "",
         };
 
@@ -1218,6 +1225,11 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 actOgnoo: new Date(),
                 baritsaaniiUldegdel: 0,
                 ekhniiUldegdel: userData.ekhniiUldegdel || 0,
+                // Save initial electricity reading (will be used in invoice calculations)
+                umnukhZaalt: userData.tsahilgaaniiZaalt || 200, // Previous reading (initial reading from Excel)
+                suuliinZaalt: userData.tsahilgaaniiZaalt || 200, // Current reading (same as initial at import)
+                zaaltTog: 0, // Day reading (will be updated later)
+                zaaltUs: 0, // Night reading (will be updated later)
                 zardluud: zardluudArray,
                 segmentuud: [],
                 khungulultuud: [],
