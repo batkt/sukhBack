@@ -2487,7 +2487,17 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
         defaultDun = reading.defaultDun || 0;
       }
 
-      const zaaltDun = reading.zaaltDun || (zoruu * tariff + defaultDun);
+      // Always recalculate payment: (usage * tariff) + base fee
+      // Formula: zaaltDun = zoruu * tariff + defaultDun
+      const zaaltDun = (zoruu * tariff) + defaultDun;
+      
+      console.log(`💰 [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} payment calculation:`, {
+        zoruu: zoruu,
+        tariff: tariff,
+        defaultDun: defaultDun,
+        calculation: `${zoruu} * ${tariff} + ${defaultDun}`,
+        zaaltDun: zaaltDun
+      });
       const calculatedAt = reading.zaaltCalculation?.calculatedAt
         ? new Date(reading.zaaltCalculation.calculatedAt).toLocaleString("mn-MN", {
             timeZone: "Asia/Ulaanbaatar",
