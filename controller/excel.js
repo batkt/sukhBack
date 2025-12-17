@@ -2388,8 +2388,9 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       zaaltZardal = zaaltZardluud[0];
     }
 
-    // Fetch all gerees for the unique contract numbers to get contract-specific tariffs
+    // Fetch all gerees to get orshinSuugchId for each contract
     const Geree = require("../models/geree");
+    const OrshinSuugch = require("../models/orshinSuugch");
     const uniqueGereeniiDugaaruud = [...new Set(gereenuud.map(r => r.gereeniiDugaar))];
     const gerees = await Geree(tukhainBaaziinKholbolt)
       .find({
@@ -2397,13 +2398,31 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
         baiguullagiinId: baiguullaga._id.toString(),
         barilgiinId: barilgiinId,
       })
-      .select("gereeniiDugaar zardluud")
+      .select("gereeniiDugaar orshinSuugchId")
       .lean();
 
-    // Create a map for quick lookup: gereeniiDugaar -> geree
-    const gereeMap = new Map();
+    // Get all unique orshinSuugchIds
+    const orshinSuugchIds = [...new Set(gerees.map(g => g.orshinSuugchId).filter(id => id))];
+    
+    // Fetch all orshinSuugch documents to get tsahilgaaniiZaalt (tariff)
+    const orshinSuugchuud = await OrshinSuugch(db.erunkhiiKholbolt)
+      .find({
+        _id: { $in: orshinSuugchIds }
+      })
+      .select("_id tsahilgaaniiZaalt")
+      .lean();
+
+    // Create maps for quick lookup
+    const gereeToOrshinSuugchMap = new Map();
     gerees.forEach((geree) => {
-      gereeMap.set(geree.gereeniiDugaar, geree);
+      if (geree.orshinSuugchId) {
+        gereeToOrshinSuugchMap.set(geree.gereeniiDugaar, geree.orshinSuugchId);
+      }
+    });
+
+    const orshinSuugchMap = new Map();
+    orshinSuugchuud.forEach((orshinSuugch) => {
+      orshinSuugchMap.set(orshinSuugch._id.toString(), orshinSuugch);
     });
 
     let workbook = new excel.Workbook();
@@ -2440,105 +2459,32 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       const zaaltUs = reading.zaaltUs || 0;
       const zoruu = reading.zoruu || (suuliinZaalt - umnukhZaalt);
 
-      // Get tariff from geree.zardluud (contract-specific) or fall back to building level
-      // Same logic as invoice calculation
+      // Get tariff from orshinSuugch.tsahilgaaniiZaalt (ignore geree.zardluud)
       let tariff = 0;
       let defaultDun = 0;
       
-      if (zaaltZardal) {
-        // Get the geree document for this reading
-        const geree = gereeMap.get(reading.gereeniiDugaar);
+      // Get orshinSuugchId from geree
+      const orshinSuugchId = gereeToOrshinSuugchMap.get(reading.gereeniiDugaar);
+      
+      if (orshinSuugchId) {
+        const orshinSuugch = orshinSuugchMap.get(orshinSuugchId);
         
-        console.log(`🔍 [ZAALT EXPORT] Looking for tariff for contract ${reading.gereeniiDugaar}:`, {
-          hasGeree: !!geree,
-          hasZardluud: !!(geree && geree.zardluud),
-          zardluudLength: geree?.zardluud?.length || 0,
-          buildingZaaltZardal: {
-            ner: zaaltZardal.ner,
-            zardliinTurul: zaaltZardal.zardliinTurul,
-            zaaltTariff: zaaltZardal.zaaltTariff,
-            tariff: zaaltZardal.tariff
-          }
-        });
-        
-        if (geree && geree.zardluud && Array.isArray(geree.zardluud)) {
-          // Find all matching electricity zardluud entries (may have duplicates)
-          // Try matching by ner first, then by zardliinTurul if ner matches
-          const matchingZaaltZardluud = geree.zardluud.filter(
-            (z) => {
-              const nerMatch = zaaltZardal.ner && z.ner && z.ner.trim() === zaaltZardal.ner.trim();
-              const turulMatch = !zaaltZardal.zardliinTurul || !z.zardliinTurul || z.zardliinTurul === zaaltZardal.zardliinTurul;
-              return nerMatch && turulMatch;
-            }
-          );
-          
-          console.log(`🔍 [ZAALT EXPORT] Found ${matchingZaaltZardluud.length} matching zardluud entries:`, 
-            matchingZaaltZardluud.map(z => ({
-              ner: z.ner,
-              zardliinTurul: z.zardliinTurul,
-              zaaltTariff: z.zaaltTariff,
-              tariff: z.tariff
-            }))
-          );
-          
-          let zaaltZardalInGeree = null;
-          
-          if (matchingZaaltZardluud.length > 0) {
-            // If multiple matches, prioritize entry with non-zero tariff
-            // Priority: 1) non-zero zaaltTariff, 2) non-zero tariff, 3) non-zero dun, 4) first match
-            zaaltZardalInGeree = matchingZaaltZardluud.find(
-              (z) => (z.zaaltTariff && z.zaaltTariff > 0) || (z.tariff && z.tariff > 0)
-            ) || matchingZaaltZardluud.find(
-              (z) => z.dun && z.dun > 0
-            ) || matchingZaaltZardluud[0];
-            
-            // Use contract-specific tariff if available
-            tariff = zaaltZardalInGeree.zaaltTariff || zaaltZardalInGeree.tariff || zaaltZardal.zaaltTariff || zaaltZardal.tariff || 0;
-            
-            console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} tariff:`, {
-              selectedZardal: {
-                ner: zaaltZardalInGeree.ner,
-                zaaltTariff: zaaltZardalInGeree.zaaltTariff,
-                tariff: zaaltZardalInGeree.tariff
-              },
-              fromGeree: zaaltZardalInGeree.zaaltTariff || zaaltZardalInGeree.tariff,
-              fromBuilding: zaaltZardal.zaaltTariff || zaaltZardal.tariff,
-              final: tariff
-            });
-          } else {
-            // Fall back to building level tariff
-            tariff = zaaltZardal.zaaltTariff || zaaltZardal.tariff || 0;
-            
-            console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - no contract-specific tariff, using building level:`, {
-              zaaltTariff: zaaltZardal.zaaltTariff,
-              tariff: zaaltZardal.tariff,
-              final: tariff
-            });
-          }
+        if (orshinSuugch && orshinSuugch.tsahilgaaniiZaalt !== undefined) {
+          tariff = orshinSuugch.tsahilgaaniiZaalt || 0;
+          console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - Using tariff from orshinSuugch.tsahilgaaniiZaalt:`, tariff);
         } else {
-          // Fall back to building level tariff
-          tariff = zaaltZardal.zaaltTariff || zaaltZardal.tariff || 0;
-          
-          console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - no geree.zardluud, using building level:`, {
-            zaaltTariff: zaaltZardal.zaaltTariff,
-            tariff: zaaltZardal.tariff,
-            final: tariff
-          });
-        }
-        
-        // ALWAYS use building level defaultDun (shared for all contracts)
-        defaultDun = zaaltZardal.zaaltDefaultDun || 0;
-        
-        // If tariff is still 0, try to get from the reading itself (stored during import)
-        if (tariff === 0 && reading.tariff) {
-          tariff = reading.tariff;
-          console.log(`⚡ [ZAALT EXPORT] Using tariff from reading record:`, tariff);
+          console.log(`⚠️ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - orshinSuugch not found or tsahilgaaniiZaalt not set`);
         }
       } else {
-        // If no building-level zaaltZardal, try to get from zaaltCalculation or reading
-        const zaaltCalculation = reading.zaaltCalculation;
-        tariff = zaaltCalculation?.tariff || reading.tariff || 0;
-        defaultDun = zaaltCalculation?.defaultDun || reading.defaultDun || 0;
+        console.log(`⚠️ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - No orshinSuugchId found in geree`);
+      }
+      
+      // ALWAYS use building level defaultDun (shared for all contracts)
+      if (zaaltZardal) {
+        defaultDun = zaaltZardal.zaaltDefaultDun || 0;
+      } else {
+        // Fallback to reading if no building level config
+        defaultDun = reading.defaultDun || 0;
       }
 
       const zaaltDun = reading.zaaltDun || (zoruu * tariff + defaultDun);
