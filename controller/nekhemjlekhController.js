@@ -464,9 +464,16 @@ const gereeNeesNekhemjlekhUusgekh = async (
       ? tempData.ekhniiUldegdel || 0
       : 0;
 
+    // Recalculate zardluudTotal after adding electricity charge (if electricity was added)
+    const updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+      ? 0
+      : finalZardluud.reduce((sum, zardal) => {
+          return sum + (zardal.tariff || 0);
+        }, 0);
+
     const finalNiitTulbur = shouldUseEkhniiUldegdel
       ? ekhniiUldegdelAmount + guilgeenuudTotal
-      : zardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
+      : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
 
     // Don't create invoice if total amount is 0 (for new users with no charges)
     // BUT create invoice if ekhniiUldegdel exists (even if other charges are 0)
@@ -490,7 +497,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // Check if electricity zardal exists and geree has electricity readings
     let zaaltMedeelel = null;
-    if (finalZardluud.length > 0 && tempData.barilgiinId && tempData.baiguullagiinId) {
+    let tsahilgaanNekhemjlekh = 0;
+    let electricityZardalEntry = null;
+    
+    if (tempData.barilgiinId && tempData.baiguullagiinId && tempData.orshinSuugchId) {
       try {
         const { db } = require("zevbackv2");
         const Baiguullaga = require("../models/baiguullaga");
@@ -513,120 +523,103 @@ const gereeNeesNekhemjlekhUusgekh = async (
           zaaltZardal = zaaltZardluud[0];
         }
 
-        // Check if electricity zardal exists in finalZardluud
-        if (zaaltZardal) {
-          const hasZaaltZardal = finalZardluud.some(
-            (z) => z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
+        // Check if geree has electricity readings
+        if (zaaltZardal && (
+          tempData.umnukhZaalt !== undefined ||
+          tempData.suuliinZaalt !== undefined ||
+          tempData.zaaltTog !== undefined ||
+          tempData.zaaltUs !== undefined
+        )) {
+          // Get tariff from orshinSuugch.tsahilgaaniiZaalt (ignore geree.zardluud)
+          const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+            tempData.orshinSuugchId
+          ).select("tsahilgaaniiZaalt").lean();
+          
+          // Use tariff from orshinSuugch.tsahilgaaniiZaalt
+          const zaaltTariff = orshinSuugch?.tsahilgaaniiZaalt || 0;
+          // ALWAYS use building level defaultDun (shared for all contracts)
+          const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 0;
+          
+          // Calculate usage (difference between current and previous reading)
+          const zoruu = (tempData.suuliinZaalt || 0) - (tempData.umnukhZaalt || 0);
+          
+          // Calculate electricity amount: (usage * tariff) + base fee
+          tsahilgaanNekhemjlekh = (zoruu * zaaltTariff) + zaaltDefaultDun;
+          
+          console.log("⚡ [INVOICE] Electricity calculation:", {
+            orshinSuugchId: tempData.orshinSuugchId,
+            tariffFromOrshinSuugch: zaaltTariff,
+            zoruu: zoruu,
+            defaultDun: zaaltDefaultDun,
+            calculatedAmount: tsahilgaanNekhemjlekh
+          });
+          
+          // Create electricity zardal entry to add to medeelel.zardluud (like other charges)
+          electricityZardalEntry = {
+            ner: zaaltZardal.ner || "Цахилгаан",
+            turul: zaaltZardal.turul || "Тогтмол",
+            tariff: tsahilgaanNekhemjlekh, // Total calculated amount (not per unit)
+            tariffUsgeer: "₮", // Total amount, not per кВт
+            zardliinTurul: zaaltZardal.zardliinTurul || "Энгийн",
+            barilgiinId: tempData.barilgiinId,
+            dun: tsahilgaanNekhemjlekh, // Total amount
+            bodokhArga: zaaltZardal.bodokhArga || "тогтмол",
+            tseverUsDun: 0,
+            bokhirUsDun: 0,
+            usKhalaasniiDun: 0,
+            tsakhilgaanUrjver: 1,
+            tsakhilgaanChadal: 0,
+            tsakhilgaanDemjikh: 0,
+            suuriKhuraamj: "0",
+            nuatNemekhEsekh: false,
+            ognoonuud: [],
+            // Store electricity-specific details
+            zaalt: true,
+            zaaltTariff: zaaltTariff, // кВт tariff rate used
+            zaaltDefaultDun: zaaltDefaultDun, // Base fee
+            umnukhZaalt: tempData.umnukhZaalt || 0,
+            suuliinZaalt: tempData.suuliinZaalt || 0,
+            zaaltTog: tempData.zaaltTog || 0,
+            zaaltUs: tempData.zaaltUs || 0,
+            zoruu: zoruu, // Usage amount
+          };
+          
+          // Add electricity charge to finalZardluud array (like other charges)
+          // Remove existing electricity entries from finalZardluud first
+          const filteredZardluudWithoutZaalt = finalZardluud.filter(
+            (z) => !(z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul)
           );
-
-          // If electricity zardal exists and geree has electricity readings, add to medeelel
-          if (hasZaaltZardal && (
-            tempData.umnukhZaalt !== undefined ||
-            tempData.suuliinZaalt !== undefined ||
-            tempData.zaaltTog !== undefined ||
-            tempData.zaaltUs !== undefined
-          )) {
-            // Find all matching electricity zardal entries in finalZardluud (may have duplicates)
-            const matchingZaaltZardluud = finalZardluud.filter(
-              (z) => z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
-            );
-            
-            let zaaltZardalInGeree = null;
-            
-            if (matchingZaaltZardluud.length > 0) {
-              // If multiple matches, prioritize entry with non-zero tariff
-              // Priority: 1) non-zero zaaltTariff, 2) non-zero tariff, 3) non-zero dun, 4) first match
-              zaaltZardalInGeree = matchingZaaltZardluud.find(
-                (z) => (z.zaaltTariff && z.zaaltTariff > 0) || (z.tariff && z.tariff > 0)
-              ) || matchingZaaltZardluud.find(
-                (z) => z.dun && z.dun > 0
-              ) || matchingZaaltZardluud[0];
-            }
-            
-            // Calculate usage (difference between current and previous reading)
-            const zoruu = (tempData.suuliinZaalt || 0) - (tempData.umnukhZaalt || 0);
-            
-            // Get tariff values - prioritize from geree.zardluud for tariff, but ALWAYS use building level for defaultDun
-            const zaaltTariff = zaaltZardalInGeree?.zaaltTariff || zaaltZardalInGeree?.tariff || zaaltZardal.zaaltTariff || 0;
-            const zaaltTariffTiers = zaaltZardalInGeree?.zaaltTariffTiers || zaaltZardal.zaaltTariffTiers || [];
-            // ALWAYS use building level defaultDun (shared for all contracts)
-            const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 0;
-            
-            // Log tariff source for debugging
-            if (zaaltZardalInGeree?.zaaltTariff || zaaltZardalInGeree?.zaaltTariffTiers) {
-              console.log("⚡ [INVOICE] Using tariff from geree.zardluud, defaultDun from building:", {
-                tariff: zaaltTariff,
-                defaultDun: zaaltDefaultDun,
-                hasTiers: zaaltTariffTiers.length > 0
-              });
-            } else {
-              console.log("⚡ [INVOICE] Using tariff and defaultDun from building level:", {
-                tariff: zaaltTariff,
-                defaultDun: zaaltDefaultDun,
-                hasTiers: zaaltTariffTiers.length > 0
-              });
-            }
-            
-            // Calculate electricity amount using tiered pricing if available
-            let tsahilgaanNekhemjlekh = 0;
-            let usedTariff = zaaltTariff;
-            let usedTier = null;
-            
-            if (zaaltTariffTiers && zaaltTariffTiers.length > 0) {
-              // Sort tiers by threshold (ascending)
-              const sortedTiers = [...zaaltTariffTiers].sort(
-                (a, b) => (a.threshold || 0) - (b.threshold || 0)
-              );
-              
-              // Find the appropriate tier based on zoruu (usage)
-              for (const tier of sortedTiers) {
-                if (zoruu <= (tier.threshold || Infinity)) {
-                  usedTariff = tier.tariff || zaaltTariff;
-                  usedTier = tier;
-                  break;
-                }
-              }
-              
-              // If zoruu exceeds all tiers, use the last (highest) tier
-              if (!usedTier && sortedTiers.length > 0) {
-                const lastTier = sortedTiers[sortedTiers.length - 1];
-                usedTariff = lastTier.tariff || zaaltTariff;
-                usedTier = lastTier;
-              }
-              
-              tsahilgaanNekhemjlekh = zoruu * usedTariff + zaaltDefaultDun;
-            } else {
-              // Fallback to simple calculation if no tiers defined
-              tsahilgaanNekhemjlekh = zoruu * zaaltTariff + zaaltDefaultDun;
-            }
-            
-            zaaltMedeelel = {
-              umnukhZaalt: tempData.umnukhZaalt || 0,
-              suuliinZaalt: tempData.suuliinZaalt || 0,
-              zaaltTog: tempData.zaaltTog || 0, // Өдөр (Day)
-              zaaltUs: tempData.zaaltUs || 0, // Шөнө (Night)
-              zoruu: zoruu, // Usage amount
-              // Include tariff and calculation details for transparency
-              tariff: usedTariff,
-              tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
-              tariffType: zaaltZardal.zardliinTurul, // Tariff type identifier to distinguish different кВт types
-              tariffName: zaaltZardal.ner, // Tariff name to distinguish different кВт types
-              defaultDun: zaaltDefaultDun,
-              zaaltDun: tsahilgaanNekhemjlekh, // Calculated electricity amount
-              // Include calculation breakdown if available
-              ...(zaaltZardalInGeree?.zaaltCalculation ? {
-                calculation: zaaltZardalInGeree.zaaltCalculation
-              } : {}),
-              // Include tier information if used
-              ...(usedTier ? { tier: { threshold: usedTier.threshold, tariff: usedTier.tariff } } : {}),
-            };
-            
-            console.log("⚡ [INVOICE] Adding electricity readings to invoice:", zaaltMedeelel);
-            console.log("⚡ [INVOICE] Calculated electricity amount (tsahilgaanNekhemjlekh):", tsahilgaanNekhemjlekh);
-          }
+          
+          // Add the calculated electricity charge
+          filteredZardluudWithoutZaalt.push(electricityZardalEntry);
+          
+          // Update finalZardluud to include electricity charge
+          finalZardluud.length = 0;
+          finalZardluud.push(...filteredZardluudWithoutZaalt);
+          
+          // Also store detailed electricity info in zaaltMedeelel for backward compatibility
+          zaaltMedeelel = {
+            umnukhZaalt: tempData.umnukhZaalt || 0,
+            suuliinZaalt: tempData.suuliinZaalt || 0,
+            zaaltTog: tempData.zaaltTog || 0,
+            zaaltUs: tempData.zaaltUs || 0,
+            zoruu: zoruu,
+            tariff: zaaltTariff,
+            tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
+            tariffType: zaaltZardal.zardliinTurul,
+            tariffName: zaaltZardal.ner,
+            defaultDun: zaaltDefaultDun,
+            zaaltDun: tsahilgaanNekhemjlekh,
+          };
+          
+          console.log("⚡ [INVOICE] Added electricity charge to zardluud array:", {
+            ner: electricityZardalEntry.ner,
+            tariff: electricityZardalEntry.tariff,
+            dun: electricityZardalEntry.dun
+          });
         }
       } catch (error) {
-        console.error("Error checking electricity zardal:", error.message);
+        console.error("Error processing electricity for invoice:", error.message);
       }
     }
 
@@ -675,8 +668,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.niitTulbur = finalNiitTulbur;
     
     // Save electricity invoice amount if calculated
-    if (zaaltMedeelel && zaaltMedeelel.zaaltDun !== undefined) {
-      tuukh.tsahilgaanNekhemjlekh = zaaltMedeelel.zaaltDun;
+    if (tsahilgaanNekhemjlekh > 0) {
+      tuukh.tsahilgaanNekhemjlekh = tsahilgaanNekhemjlekh;
       console.log("⚡ [INVOICE] Saved tsahilgaanNekhemjlekh:", tuukh.tsahilgaanNekhemjlekh);
     }
 
