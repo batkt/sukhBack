@@ -224,6 +224,150 @@ const baiguullagaSchema = new Schema(
   }
 );
 
+// Post-save hook to update geree.zardluud when baiguullaga.barilguud[].tokhirgoo.ashiglaltiinZardluud changes
+baiguullagaSchema.post("save", async function (doc) {
+  try {
+    if (!doc || !doc.barilguud || !Array.isArray(doc.barilguud)) {
+      return;
+    }
+
+    const { db } = require("zevbackv2");
+    const Geree = require("./geree");
+
+    const kholbolt = db.kholboltuud.find(
+      (a) => String(a.baiguullagiinId) === String(doc._id)
+    );
+
+    if (!kholbolt) {
+      return;
+    }
+
+    // Process each barilga's ashiglaltiinZardluud
+    for (const barilga of doc.barilguud) {
+      if (
+        !barilga._id ||
+        !barilga.tokhirgoo ||
+        !barilga.tokhirgoo.ashiglaltiinZardluud ||
+        !Array.isArray(barilga.tokhirgoo.ashiglaltiinZardluud)
+      ) {
+        continue;
+      }
+
+      const barilgiinId = barilga._id.toString();
+      const ashiglaltiinZardluud = barilga.tokhirgoo.ashiglaltiinZardluud;
+
+      // Find all active geree documents for this baiguullaga and barilga
+      const gereenuud = await Geree(kholbolt, true).find({
+        baiguullagiinId: doc._id.toString(),
+        barilgiinId: barilgiinId,
+        tuluv: "Идэвхтэй", // Only update active contracts
+      });
+
+      for (const geree of gereenuud) {
+        if (!geree.zardluud) {
+          geree.zardluud = [];
+        }
+
+        // Get current zardluud from building config
+        const buildingZardluudMap = new Map();
+        for (const zardal of ashiglaltiinZardluud) {
+          const key = `${zardal.ner || ""}_${zardal.turul || ""}_${zardal.zardliinTurul || ""}`;
+          buildingZardluudMap.set(key, zardal);
+        }
+
+        // Remove zardluud that no longer exist in building config (matching by barilgiinId)
+        geree.zardluud = geree.zardluud.filter((z) => {
+          // Keep zardluud from other barilgas
+          if (z.barilgiinId && String(z.barilgiinId) !== barilgiinId) {
+            return true;
+          }
+          // Keep zardluud that don't have barilgiinId (backward compatibility)
+          if (!z.barilgiinId) {
+            // Only remove if it matches a building zardal (to avoid removing unrelated zardluud)
+            const key = `${z.ner || ""}_${z.turul || ""}_${z.zardliinTurul || ""}`;
+            return !buildingZardluudMap.has(key);
+          }
+          // For zardluud from this barilga, check if it still exists in building config
+          const key = `${z.ner || ""}_${z.turul || ""}_${z.zardliinTurul || ""}`;
+          return buildingZardluudMap.has(key);
+        });
+
+        // Update or add zardluud from building config
+        for (const buildingZardal of ashiglaltiinZardluud) {
+          const key = `${buildingZardal.ner || ""}_${buildingZardal.turul || ""}_${buildingZardal.zardliinTurul || ""}`;
+          
+          // Find existing zardal in geree
+          const existingIndex = geree.zardluud.findIndex((z) => {
+            const matchesNer = z.ner === buildingZardal.ner;
+            const matchesTurul = z.turul === buildingZardal.turul;
+            const matchesZardliinTurul = z.zardliinTurul === buildingZardal.zardliinTurul;
+            const matchesBarilgiinId =
+              (!buildingZardal.barilgiinId && !z.barilgiinId) ||
+              (z.barilgiinId && String(z.barilgiinId) === barilgiinId);
+            
+            return matchesNer && matchesTurul && matchesZardliinTurul && matchesBarilgiinId;
+          });
+
+          const newZardal = {
+            ner: buildingZardal.ner,
+            turul: buildingZardal.turul,
+            tariff: buildingZardal.tariff,
+            tariffUsgeer: buildingZardal.tariffUsgeer,
+            zardliinTurul: buildingZardal.zardliinTurul,
+            barilgiinId: barilgiinId,
+            tulukhDun: 0,
+            dun: buildingZardal.dun || 0,
+            bodokhArga: buildingZardal.bodokhArga || "",
+            tseverUsDun: buildingZardal.tseverUsDun || 0,
+            bokhirUsDun: buildingZardal.bokhirUsDun || 0,
+            usKhalaasniiDun: buildingZardal.usKhalaasniiDun || 0,
+            tsakhilgaanUrjver: buildingZardal.tsakhilgaanUrjver || 1,
+            tsakhilgaanChadal: buildingZardal.tsakhilgaanChadal || 0,
+            tsakhilgaanDemjikh: buildingZardal.tsakhilgaanDemjikh || 0,
+            suuriKhuraamj: buildingZardal.suuriKhuraamj || 0,
+            nuatNemekhEsekh: buildingZardal.nuatNemekhEsekh || false,
+            ognoonuud: buildingZardal.ognoonuud || [],
+            zaalt: buildingZardal.zaalt || false,
+            zaaltTariff: buildingZardal.zaaltTariff || 0,
+            zaaltDefaultDun: buildingZardal.zaaltDefaultDun || 0,
+            zaaltTariffTiers: buildingZardal.zaaltTariffTiers || [],
+          };
+
+          if (existingIndex !== -1) {
+            // Update existing zardal
+            geree.zardluud[existingIndex] = {
+              ...geree.zardluud[existingIndex].toObject(),
+              ...newZardal,
+            };
+          } else {
+            // Add new zardal
+            geree.zardluud.push(newZardal);
+          }
+        }
+
+        // Recalculate niitTulbur
+        const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
+          return sum + (zardal.tariff || 0);
+        }, 0);
+
+        geree.niitTulbur = niitTulbur;
+
+        // Save the updated geree
+        await geree.save();
+
+        // NOTE: Do NOT update existing nekhemjlekhiinTuukh (invoice) records
+        // Once an invoice is created, it should NEVER be modified
+        // This ensures historical accuracy - invoices represent what was billed at a specific point in time
+      }
+    }
+  } catch (error) {
+    console.error(
+      "Error updating geree.zardluud after baiguullaga.ashiglaltiinZardluud update:",
+      error
+    );
+  }
+});
+
 //const BaiguullagaModel = mongoose.model("baiguullaga", baiguullagaSchema);
 
 module.exports = function a(conn) {
