@@ -352,21 +352,83 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 
                 if (existingPayments && existingPayments.length > 0) {
                   console.log("✅ [QPAY] Found existing payments:", existingPayments.length);
+                  console.log("✅ [QPAY] Latest payment structure:", JSON.stringify(existingPayments[existingPayments.length - 1], null, 2));
+                  
                   // Get the most recent payment
                   const latestPayment = existingPayments[existingPayments.length - 1];
                   
-                  // Return the existing payment info instead of creating a new one
-                  return res.status(200).json({
-                    success: true,
-                    data: {
-                      paymentId: latestPayment.paymentId,
-                      paymentAmount: latestPayment.paymentAmount || latestPayment.amount,
-                      message: "Төлбөр аль хэдийн үүссэн байна",
-                      existingPayment: true,
-                    },
-                    message: "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
-                    source: "WALLET_API",
-                  });
+                  // Extract paymentId - it might be in different fields
+                  const paymentId = latestPayment.paymentId || latestPayment.id || latestPayment._id;
+                  
+                  if (paymentId) {
+                    console.log("✅ [QPAY] Found existing payment ID:", paymentId);
+                    
+                    // Fetch full payment details to get bank information
+                    try {
+                      const fullPaymentDetails = await walletApiService.getPayment(userPhoneNumber, paymentId);
+                      
+                      if (fullPaymentDetails) {
+                        // Extract bank details from payment status
+                        let bankCode = fullPaymentDetails.receiverBankCode;
+                        let accountNo = fullPaymentDetails.receiverAccountNo;
+                        let accountName = fullPaymentDetails.receiverAccountName;
+                        
+                        // Check in lines -> billTransactions
+                        if (!bankCode && fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
+                          for (const line of fullPaymentDetails.lines) {
+                            if (line.billTransactions && Array.isArray(line.billTransactions) && line.billTransactions.length > 0) {
+                              const transaction = line.billTransactions[0];
+                              bankCode = bankCode || transaction.receiverBankCode;
+                              accountNo = accountNo || transaction.receiverAccountNo;
+                              accountName = accountName || transaction.receiverAccountName;
+                              if (bankCode && accountNo) break;
+                            }
+                          }
+                        }
+                        
+                        // Return the existing payment with full details
+                        return res.status(200).json({
+                          success: true,
+                          data: {
+                            paymentId: paymentId,
+                            paymentAmount: fullPaymentDetails.amount || fullPaymentDetails.totalAmount || fullPaymentDetails.paymentAmount || latestPayment.paymentAmount || latestPayment.amount,
+                            receiverBankCode: bankCode || "",
+                            receiverAccountNo: accountNo || "",
+                            receiverAccountName: accountName || "",
+                            transactionDescription: fullPaymentDetails.transactionDescription || latestPayment.transactionDescription || "",
+                            paymentStatus: fullPaymentDetails.paymentStatus,
+                            paymentStatusText: fullPaymentDetails.paymentStatusText,
+                            message: "Төлбөр аль хэдийн үүссэн байна",
+                            existingPayment: true,
+                          },
+                          message: "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
+                          source: "WALLET_API",
+                        });
+                      }
+                    } catch (getPaymentError) {
+                      console.log("⚠️ [QPAY] Could not fetch full payment details:", getPaymentError.message);
+                      // Fall through to return basic payment info
+                    }
+                    
+                    // If we couldn't get full details, return what we have
+                    return res.status(200).json({
+                      success: true,
+                      data: {
+                        paymentId: paymentId,
+                        paymentAmount: latestPayment.paymentAmount || latestPayment.amount || latestPayment.totalAmount,
+                        receiverBankCode: latestPayment.receiverBankCode || "",
+                        receiverAccountNo: latestPayment.receiverAccountNo || "",
+                        receiverAccountName: latestPayment.receiverAccountName || "",
+                        transactionDescription: latestPayment.transactionDescription || "",
+                        message: "Төлбөр аль хэдийн үүссэн байна",
+                        existingPayment: true,
+                      },
+                      message: "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
+                      source: "WALLET_API",
+                    });
+                  } else {
+                    console.log("⚠️ [QPAY] Payment ID not found in existing payment structure");
+                  }
                 } else {
                   console.log("ℹ️ [QPAY] No existing payments found for this billing");
                 }
