@@ -1208,8 +1208,10 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
               const sohNer = targetBarilgaForToot.tokhirgoo?.sohNer || tootEntry.soh || "";
 
               // Create geree (contract) for this specific toot
+              // Use timestamp + microsecond precision to ensure uniqueness
+              const uniqueSuffix = Date.now() + i;
               const contractData = {
-                gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}-${tootEntry.toot}-${i}`,
+                gereeniiDugaar: `ГД-${uniqueSuffix.toString().slice(-8)}`,
                 gereeniiOgnoo: new Date(),
                 turul: "Үндсэн",
                 tuluv: "Идэвхтэй",
@@ -1327,8 +1329,10 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             return total + tariff;
           }, 0);
 
+          // Use timestamp + microsecond precision to ensure uniqueness
+          const uniqueSuffix = Date.now() + i;
           const contractData = {
-            gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}-${i}`,
+            gereeniiDugaar: `ГД-${uniqueSuffix.toString().slice(-8)}`,
             gereeniiOgnoo: new Date(),
             turul: "Үндсэн",
             tuluv: "Идэвхтэй",

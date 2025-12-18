@@ -1935,6 +1935,76 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             continue;
           }
 
+          // Check if there's a cancelled geree for this toot that we can reactivate
+          const existingCancelledGeree = await GereeModel.findOne({
+            barilgiinId: tootEntry.barilgiinId,
+            toot: tootEntry.toot,
+            tuluv: "Цуцалсан",
+            orshinSuugchId: orshinSuugch._id.toString()
+          });
+
+          if (existingCancelledGeree) {
+            // Reactivate the cancelled geree instead of creating a new one
+            const targetBarilga = baiguullaga.barilguud?.find(
+              (b) => String(b._id) === String(tootEntry.barilgiinId)
+            );
+
+            if (targetBarilga) {
+              const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+              const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+              const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+              const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                ner: zardal.ner,
+                turul: zardal.turul,
+                zardliinTurul: zardal.zardliinTurul,
+                tariff: zardal.tariff,
+                tariffUsgeer: zardal.tariffUsgeer || "",
+                tulukhDun: 0,
+                dun: zardal.dun || 0,
+                bodokhArga: zardal.bodokhArga || "",
+                tseverUsDun: zardal.tseverUsDun || 0,
+                bokhirUsDun: zardal.bokhirUsDun || 0,
+                usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                ognoonuud: zardal.ognoonuud || [],
+              }));
+
+              const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+                const tariff = zardal.tariff || 0;
+                const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                if (isLiftItem && tootEntry.davkhar && choloolugdokhDavkhar.includes(tootEntry.davkhar)) {
+                  return total;
+                }
+                return total + tariff;
+              }, 0);
+
+              const updateData = {
+                tuluv: "Идэвхтэй",
+                gereeniiOgnoo: new Date(),
+                orshinSuugchId: orshinSuugch._id.toString(),
+                zardluud: zardluudArray,
+                niitTulbur: niitTulbur,
+                ashiglaltiinZardal: 0,
+                ovog: orshinSuugch.ovog || existingCancelledGeree.ovog,
+                ner: orshinSuugch.ner || existingCancelledGeree.ner,
+                register: orshinSuugch.register || existingCancelledGeree.register,
+                utas: [orshinSuugch.utas],
+                mail: orshinSuugch.mail || existingCancelledGeree.mail,
+              };
+
+              await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
+                $set: updateData,
+              });
+              console.log(`orshinSuugch service`);
+              continue; // Skip creating new contract, we reactivated the old one
+            }
+          }
+
           // Validate: One toot cannot have different owners
           // Check if this toot already has an active contract with a different orshinSuugchId
           const conflictingGeree = await GereeModel.findOne({
@@ -1995,7 +2065,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
             // Create geree (contract) for this specific toot
             const contractData = {
-              gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}-${tootEntry.toot}`,
+              gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
               gereeniiOgnoo: new Date(),
               turul: "Үндсэн",
               tuluv: "Идэвхтэй",
@@ -2547,11 +2617,79 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           });
 
           if (existingGeree) {
-            console.log(`ℹ️ [WALLET REGISTER] Geree already exists for toot ${tootEntry.toot}:`, existingGeree._id);
+            console.log(`orshinSuugch service`);
             continue;
           }
-          
-          console.log(`📋 [WALLET REGISTER] No active geree found for toot ${tootEntry.toot} - creating new geree...`);
+
+          // Check if there's a cancelled geree for this toot that we can reactivate
+          const existingCancelledGeree = await GereeModel.findOne({
+            barilgiinId: tootEntry.barilgiinId,
+            toot: tootEntry.toot,
+            tuluv: "Цуцалсан",
+            orshinSuugchId: orshinSuugch._id.toString()
+          });
+
+          if (existingCancelledGeree) {
+            // Reactivate the cancelled geree instead of creating a new one
+            const targetBarilga = baiguullaga.barilguud?.find(
+              (b) => String(b._id) === String(tootEntry.barilgiinId)
+            );
+
+            if (targetBarilga) {
+              const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+              const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+              const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+              const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                ner: zardal.ner,
+                turul: zardal.turul,
+                zardliinTurul: zardal.zardliinTurul,
+                tariff: zardal.tariff,
+                tariffUsgeer: zardal.tariffUsgeer || "",
+                tulukhDun: 0,
+                dun: zardal.dun || 0,
+                bodokhArga: zardal.bodokhArga || "",
+                tseverUsDun: zardal.tseverUsDun || 0,
+                bokhirUsDun: zardal.bokhirUsDun || 0,
+                usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                ognoonuud: zardal.ognoonuud || [],
+              }));
+
+              const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+                const tariff = zardal.tariff || 0;
+                const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                if (isLiftItem && tootEntry.davkhar && choloolugdokhDavkhar.includes(tootEntry.davkhar)) {
+                  return total;
+                }
+                return total + tariff;
+              }, 0);
+
+              const updateData = {
+                tuluv: "Идэвхтэй",
+                gereeniiOgnoo: new Date(),
+                orshinSuugchId: orshinSuugch._id.toString(),
+                zardluud: zardluudArray,
+                niitTulbur: niitTulbur,
+                ashiglaltiinZardal: 0,
+                ovog: orshinSuugch.ovog || existingCancelledGeree.ovog,
+                ner: orshinSuugch.ner || existingCancelledGeree.ner,
+                register: orshinSuugch.register || existingCancelledGeree.register,
+                utas: [orshinSuugch.utas],
+                mail: orshinSuugch.mail || existingCancelledGeree.mail,
+              };
+
+              await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
+                $set: updateData,
+              });
+              console.log(`orshinSuugch service`);
+              continue; // Skip creating new contract, we reactivated the old one
+            }
+          }
           const targetBarilga = baiguullaga.barilguud?.find(
             (b) => String(b._id) === String(tootEntry.barilgiinId)
           );
@@ -2597,7 +2735,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
 
             // Create geree (contract) for this specific toot
             const contractData = {
-              gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}-${tootEntry.toot}`,
+              gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
               gereeniiOgnoo: new Date(),
               turul: "Үндсэн",
               tuluv: "Идэвхтэй",
