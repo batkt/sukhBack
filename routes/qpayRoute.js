@@ -483,8 +483,17 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         console.log("✅ [QPAY] Payment response keys:", Object.keys(result));
         console.log("✅ [QPAY] Full payment response:", JSON.stringify(result, null, 2));
         
+        // Check if bank details are in the initial createPayment response
+        const hasInitialBankDetails = result.receiverBankCode && result.receiverAccountNo;
+        console.log("📋 [QPAY] Initial bank details check:", {
+          hasBankCode: !!result.receiverBankCode,
+          hasAccountNo: !!result.receiverAccountNo,
+          bankCode: result.receiverBankCode || "(empty)",
+          accountNo: result.receiverAccountNo || "(empty)",
+        });
+        
         // If bank details are empty, try to get full payment details with retry
-        if (!result.receiverBankCode || !result.receiverAccountNo) {
+        if (!hasInitialBankDetails) {
           console.log("⚠️ [QPAY] Bank details are empty, fetching full payment details...");
           
           // Retry mechanism: Payment might be in NEW status and needs time to process
@@ -494,8 +503,13 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           let paymentStatus = null;
           let paymentStatusText = null;
           
-          const maxRetries = 3;
-          const retryDelay = 1000; // 1 second delay between retries
+          const maxRetries = 5; // Increased from 3 to 5
+          const retryDelay = 2000; // Increased from 1 second to 2 seconds
+          const initialDelay = 3000; // Wait 3 seconds before first attempt (payment needs time to process)
+          
+          // Wait initially before first attempt (payment needs time to be processed by Wallet API)
+          console.log(`⏳ [QPAY] Waiting ${initialDelay}ms for payment to be processed by Wallet API...`);
+          await new Promise(resolve => setTimeout(resolve, initialDelay));
           
           for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
@@ -512,24 +526,66 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 paymentStatus = fullPaymentDetails.paymentStatus;
                 paymentStatusText = fullPaymentDetails.paymentStatusText;
                 
+                console.log(`📋 [QPAY] Attempt ${attempt} - Payment status: ${paymentStatus}`);
+                console.log(`📋 [QPAY] Full payment details structure:`, JSON.stringify({
+                  hasLines: !!fullPaymentDetails.lines,
+                  linesCount: fullPaymentDetails.lines?.length || 0,
+                  rootBankCode: fullPaymentDetails.receiverBankCode,
+                  rootAccountNo: fullPaymentDetails.receiverAccountNo,
+                }, null, 2));
+                
                 // Try root level first
                 bankCode = fullPaymentDetails.receiverBankCode;
                 accountNo = fullPaymentDetails.receiverAccountNo;
                 accountName = fullPaymentDetails.receiverAccountName;
                 
+                console.log(`📋 [QPAY] Root level bank details:`, {
+                  bankCode: bankCode || "(empty)",
+                  accountNo: accountNo || "(empty)",
+                  accountName: accountName || "(empty)",
+                });
+                
                 // Check in lines -> billTransactions (as seen in Postman collection)
                 if ((!bankCode || !accountNo) && fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
-                  for (const line of fullPaymentDetails.lines) {
+                  console.log(`📋 [QPAY] Checking ${fullPaymentDetails.lines.length} line(s) for billTransactions...`);
+                  
+                  for (let lineIdx = 0; lineIdx < fullPaymentDetails.lines.length; lineIdx++) {
+                    const line = fullPaymentDetails.lines[lineIdx];
+                    console.log(`📋 [QPAY] Line ${lineIdx}:`, {
+                      lineId: line.lineId,
+                      billerName: line.billerName,
+                      hasBillTransactions: !!line.billTransactions,
+                      billTransactionsCount: line.billTransactions?.length || 0,
+                    });
+                    
                     if (line.billTransactions && Array.isArray(line.billTransactions) && line.billTransactions.length > 0) {
+                      console.log(`✅ [QPAY] Line ${lineIdx} has ${line.billTransactions.length} transaction(s)`);
                       const transaction = line.billTransactions[0];
+                      console.log(`📋 [QPAY] First transaction:`, JSON.stringify({
+                        trxNo: transaction.trxNo,
+                        trxStatus: transaction.trxStatus,
+                        receiverBankCode: transaction.receiverBankCode,
+                        receiverAccountNo: transaction.receiverAccountNo,
+                        receiverAccountName: transaction.receiverAccountName,
+                      }, null, 2));
+                      
                       bankCode = bankCode || transaction.receiverBankCode;
                       accountNo = accountNo || transaction.receiverAccountNo;
                       accountName = accountName || transaction.receiverAccountName;
+                      
                       if (bankCode && accountNo) {
                         console.log("✅ [QPAY] Bank details found in billTransactions");
                         break;
                       }
+                    } else {
+                      console.log(`⚠️ [QPAY] Line ${lineIdx} has no billTransactions or array is empty`);
                     }
+                  }
+                } else {
+                  if (!fullPaymentDetails.lines) {
+                    console.log(`⚠️ [QPAY] Payment response has no 'lines' field`);
+                  } else if (!Array.isArray(fullPaymentDetails.lines)) {
+                    console.log(`⚠️ [QPAY] Payment response 'lines' is not an array:`, typeof fullPaymentDetails.lines);
                   }
                 }
                 
@@ -541,8 +597,25 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                   break; // Success, exit retry loop
                 } else {
                   console.log(`⚠️ [QPAY] Attempt ${attempt}: Payment status is "${paymentStatus}" - bank details not ready yet`);
+                  
+                  // Log detailed structure for debugging
+                  if (fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
+                    console.log(`📋 [QPAY] Lines count: ${fullPaymentDetails.lines.length}`);
+                    fullPaymentDetails.lines.forEach((line, idx) => {
+                      console.log(`📋 [QPAY] Line ${idx}: billTransactions count: ${line.billTransactions?.length || 0}`);
+                      if (line.billTransactions && line.billTransactions.length > 0) {
+                        console.log(`📋 [QPAY] Line ${idx} first transaction:`, JSON.stringify(line.billTransactions[0], null, 2));
+                      }
+                    });
+                  } else {
+                    console.log(`📋 [QPAY] No lines array found in payment response`);
+                  }
+                  
                   if (attempt < maxRetries) {
                     console.log(`⏳ [QPAY] Waiting ${retryDelay}ms before retry...`);
+                  } else {
+                    console.log(`❌ [QPAY] All ${maxRetries} retry attempts completed - bank details still not available`);
+                    console.log(`ℹ️ [QPAY] Payment may need more time to process. Frontend should poll payment status.`);
                   }
                 }
               }
