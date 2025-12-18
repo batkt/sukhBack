@@ -421,7 +421,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     });
 
     // If barilgiinId is provided, use it directly - don't search!
-    if (barilgiinId) {
+    // Only validate if baiguullaga exists (OWN_ORG registration)
+    if (barilgiinId && baiguullaga) {
       // Validate that this barilgiinId exists in baiguullaga
       const providedBarilga = baiguullaga.barilguud?.find(
         (b) => String(b._id) === String(barilgiinId)
@@ -439,7 +440,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     // If barilgiinId not provided but bairniiNer (building name) is provided, find by name
-    if (!barilgiinId && req.body.bairniiNer && baiguullaga.barilguud) {
+    // Only search if baiguullaga exists (OWN_ORG registration)
+    if (!barilgiinId && req.body.bairniiNer && baiguullaga && baiguullaga.barilguud) {
       const bairniiNerToFind = req.body.bairniiNer.toString().trim();
       const barilgaByName = baiguullaga.barilguud.find(
         (b) => String(b.ner).trim() === bairniiNerToFind
@@ -458,11 +460,13 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     // If still no barilgiinId, try to match by location (duureg, horoo, sohNer)
+    // Only search if baiguullaga exists (OWN_ORG registration)
     if (
       !barilgiinId &&
       req.body.duureg &&
       req.body.horoo &&
       req.body.soh &&
+      baiguullaga &&
       baiguullaga.barilguud
     ) {
       const duuregToFind = req.body.duureg.toString().trim();
@@ -513,9 +517,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     // Only search for building if barilgiinId is NOT provided in the request
+    // Only search if baiguullaga exists (OWN_ORG registration)
     if (
       !barilgiinId &&
       req.body.toot &&
+      baiguullaga &&
       baiguullaga.barilguud &&
       baiguullaga.barilguud.length > 1
     ) {
@@ -622,9 +628,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     // Toot validation will be done when adding to toots array
 
     // Automatically determine davkhar from toot if toot is provided
+    // Only do this for OWN_ORG registrations (requires baiguullaga)
     let determinedDavkhar = req.body.davkhar || "";
 
-    if (req.body.toot && barilgiinId) {
+    if (req.body.toot && barilgiinId && baiguullaga) {
       const targetBarilga = baiguullaga.barilguud?.find(
         (b) => String(b._id) === String(barilgiinId)
       );
