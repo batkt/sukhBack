@@ -200,7 +200,18 @@ crud(
             ? Math.floor(niitMur / body.khuudasniiKhemjee)
             : Math.floor(niitMur / body.khuudasniiKhemjee) + 1;
 
-        if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
+        // Normalize horoo field to always be an object format for consistency
+        if (jagsaalt != null) {
+          jagsaalt.forEach((mur) => {
+            mur.key = mur._id;
+            // Normalize horoo field: convert string to object if needed
+            if (mur.horoo && typeof mur.horoo === 'string') {
+              mur.horoo = { ner: mur.horoo, kod: mur.horoo };
+            } else if (!mur.horoo || typeof mur.horoo !== 'object') {
+              mur.horoo = {};
+            }
+          });
+        }
 
         console.log("Found contracts:", jagsaalt.length);
 
@@ -283,6 +294,38 @@ crud(
         delete req.body.tsahilgaaniiZaalt;
       } catch (error) {
         console.error("⚠️ [GEREE PUT] Error updating electricity readings:", error);
+        // Don't block the request, just log the error
+      }
+    }
+    
+    // IMPORTANT: When cancelling a geree (tuluv: "Цуцалсан"), preserve the original barilgiinId
+    // Do NOT allow barilgiinId to be changed when cancelling a contract
+    if (req.method === "PUT" && req.body.tuluv === "Цуцалсан" && req.params.id) {
+      try {
+        const { db } = require("zevbackv2");
+        const allConnections = db.kholboltuud || [];
+        let originalGeree = null;
+        
+        // Find the original geree to preserve its barilgiinId
+        for (const conn of allConnections) {
+          try {
+            const tempGeree = await Geree(conn, true).findById(req.params.id).select("barilgiinId");
+            if (tempGeree) {
+              originalGeree = tempGeree;
+              break;
+            }
+          } catch (err) {
+            // Continue searching
+          }
+        }
+        
+        // If original geree found, preserve its barilgiinId
+        if (originalGeree && originalGeree.barilgiinId) {
+          req.body.barilgiinId = originalGeree.barilgiinId;
+          console.log(`🔒 [GEREE PUT] Preserving original barilgiinId: ${originalGeree.barilgiinId} when cancelling contract`);
+        }
+      } catch (error) {
+        console.error("⚠️ [GEREE PUT] Error preserving barilgiinId:", error);
         // Don't block the request, just log the error
       }
     }

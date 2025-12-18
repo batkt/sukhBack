@@ -773,7 +773,13 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       
       if (targetBarilga) {
         const duuregNer = targetBarilga.tokhirgoo?.duuregNer || req.body.duureg || "";
-        const horooData = targetBarilga.tokhirgoo?.horoo || req.body.horoo || {};
+        // Normalize horoo to always be an object format
+        let horooData = targetBarilga.tokhirgoo?.horoo || req.body.horoo || {};
+        if (typeof horooData === 'string') {
+          horooData = { ner: horooData, kod: horooData };
+        } else if (!horooData || typeof horooData !== 'object') {
+          horooData = {};
+        }
         const sohNer = targetBarilga.tokhirgoo?.sohNer || req.body.soh || "";
         
         // Use toot from request body, not from orshinSuugch (which might be old toot for existing users)
@@ -962,7 +968,13 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       const duuregNer =
         targetBarilga?.tokhirgoo?.duuregNer || req.body.duureg || "";
-      const horooData = targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
+      // Normalize horoo to always be an object format
+      let horooData = targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
+      if (typeof horooData === 'string') {
+        horooData = { ner: horooData, kod: horooData };
+      } else if (!horooData || typeof horooData !== 'object') {
+        horooData = {};
+      }
       const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
 
       // Only create new geree if not reactivating (no cancelled geree found)
@@ -1008,7 +1020,13 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           }
 
           const duuregNerForToot = targetBarilgaForToot.tokhirgoo?.duuregNer || tootEntry.duureg || duuregNer || "";
-          const horooDataForToot = targetBarilgaForToot.tokhirgoo?.horoo || tootEntry.horoo || horooData || {};
+          // Normalize horoo to always be an object format
+          let horooDataForToot = targetBarilgaForToot.tokhirgoo?.horoo || tootEntry.horoo || horooData || {};
+          if (typeof horooDataForToot === 'string') {
+            horooDataForToot = { ner: horooDataForToot, kod: horooDataForToot };
+          } else if (!horooDataForToot || typeof horooDataForToot !== 'object') {
+            horooDataForToot = {};
+          }
           const sohNerForToot = targetBarilgaForToot.tokhirgoo?.sohNer || tootEntry.soh || sohNer || "";
 
           const contractData = {
@@ -2121,7 +2139,13 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             }, 0);
 
             const duuregNer = targetBarilga.tokhirgoo?.duuregNer || tootEntry.duureg || "";
-            const horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+            // Normalize horoo to always be an object format
+            let horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+            if (typeof horooData === 'string') {
+              horooData = { ner: horooData, kod: horooData };
+            } else if (!horooData || typeof horooData !== 'object') {
+              horooData = {};
+            }
             const sohNer = targetBarilga.tokhirgoo?.sohNer || tootEntry.soh || "";
 
             // Create geree (contract) for this specific toot
@@ -2262,7 +2286,13 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 }, 0);
 
                 const duuregNer = targetBarilga.tokhirgoo?.duuregNer || orshinSuugch.duureg || "";
-                const horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
+                // Normalize horoo to always be an object format
+                let horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
+                if (typeof horooData === 'string') {
+                  horooData = { ner: horooData, kod: horooData };
+                } else if (!horooData || typeof horooData !== 'object') {
+                  horooData = {};
+                }
                 const sohNer = targetBarilga.tokhirgoo?.sohNer || orshinSuugch.soh || "";
 
                 // Create geree (contract)
@@ -2791,7 +2821,13 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
             }, 0);
 
             const duuregNer = targetBarilga.tokhirgoo?.duuregNer || tootEntry.duureg || "";
-            const horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+            // Normalize horoo to always be an object format
+            let horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+            if (typeof horooData === 'string') {
+              horooData = { ner: horooData, kod: horooData };
+            } else if (!horooData || typeof horooData !== 'object') {
+              horooData = {};
+            }
             const sohNer = targetBarilga.tokhirgoo?.sohNer || tootEntry.soh || "";
 
             // Create geree (contract) for this specific toot
@@ -2924,7 +2960,13 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                 }, 0);
 
                 const duuregNer = targetBarilga.tokhirgoo?.duuregNer || orshinSuugch.duureg || "";
-                const horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
+                // Normalize horoo to always be an object format
+                let horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
+                if (typeof horooData === 'string') {
+                  horooData = { ner: horooData, kod: horooData };
+                } else if (!horooData || typeof horooData !== 'object') {
+                  horooData = {};
+                }
                 const sohNer = targetBarilga.tokhirgoo?.sohNer || orshinSuugch.soh || "";
 
                 // Create geree (contract)
@@ -4233,7 +4275,8 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
       });
 
       if (gereesToCancel.length > 0) {
-        // Mark all gerees as "Цуцалсан" (Cancelled) - update tuluv field, keep turul unchanged
+        // Mark all gerees as "Цуцалсан" (Cancelled) - update ONLY tuluv field
+        // IMPORTANT: Do NOT update barilgiinId or any other fields - preserve all original data
         await GereeModel.updateMany(
           { orshinSuugchId: userIdString },
           { $set: { tuluv: "Цуцалсан" } }
@@ -4302,7 +4345,8 @@ exports.orshinSuugchUstgakh = asyncHandler(async (req, res, next) => {
       });
 
       if (gereesToCancel.length > 0) {
-        // Mark all gerees as "Цуцалсан" (Cancelled) - update tuluv field, keep turul unchanged
+        // Mark all gerees as "Цуцалсан" (Cancelled) - update ONLY tuluv field
+        // IMPORTANT: Do NOT update barilgiinId or any other fields - preserve all original data
         await GereeModel.updateMany(
           { orshinSuugchId: userIdString },
           { $set: { tuluv: "Цуцалсан" } }
