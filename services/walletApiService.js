@@ -679,6 +679,7 @@ async function createInvoice(userId, invoiceData) {
 
     console.log("📝 [WALLET API] Invoice creation response status:", response.status);
     console.log("📝 [WALLET API] Invoice creation responseCode:", response.data?.responseCode);
+    console.log("📝 [WALLET API] Invoice creation response data:", JSON.stringify(response.data, null, 2));
     
     if (response.data && response.data.responseCode && response.data.data) {
       console.log("✅ [WALLET API] Invoice created successfully");
@@ -688,8 +689,13 @@ async function createInvoice(userId, invoiceData) {
       return response.data.data;
     }
 
+    // If responseCode is false, log the error message
+    const errorMsg = response.data?.responseMsg || response.data?.message || "Failed to create invoice in Wallet API";
     console.error("❌ [WALLET API] Invoice creation failed - invalid response");
-    throw new Error("Failed to create invoice in Wallet API");
+    console.error("❌ [WALLET API] Error message:", errorMsg);
+    console.error("❌ [WALLET API] Full response:", JSON.stringify(response.data, null, 2));
+    
+    throw new Error(errorMsg);
   } catch (error) {
     if (error.response && error.response.data) {
       console.error("❌ [WALLET API] Error response status:", error.response.status);
