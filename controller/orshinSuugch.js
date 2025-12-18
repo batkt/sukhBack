@@ -298,7 +298,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
 
     // Note: duureg, horoo, and soh are optional - can be retrieved from baiguullaga if not provided
-
+    // baiguullagiinId is optional if wallet address (bairId, doorNo) is provided (WALLET_API source)
+    // baiguullagiinId is required only for OWN_ORG registrations (no wallet address)
 
     if (!req.body.utas) {
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
@@ -312,9 +313,24 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Нэр заавал бөглөх шаардлагатай!");
     }
 
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      req.body.baiguullagiinId
-    );
+    // Check if this is a wallet address registration (WALLET_API source)
+    const isWalletAddressRegistration = req.body.bairId && req.body.doorNo;
+    
+    // baiguullagiinId is required only for OWN_ORG registrations (not wallet address)
+    if (!isWalletAddressRegistration && !req.body.baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай! Эсвэл Wallet хаяг (bairId, doorNo) өгнө үү.");
+    }
+
+    let baiguullaga = null;
+    if (req.body.baiguullagiinId) {
+      baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        req.body.baiguullagiinId
+      );
+
+      if (!baiguullaga) {
+        throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+      }
+    }
 
  
 
@@ -369,12 +385,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     // Check for cancelled gerees by utas (user might have been deleted but gerees still exist)
     // This allows restoring data when re-registering
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
-    );
+    // Only check if baiguullaga exists (not for wallet address registrations)
+    let tukhainBaaziinKholbolt = null;
+    if (baiguullaga) {
+      tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+      );
+    }
 
     let existingCancelledGeree = null;
-    if (tukhainBaaziinKholbolt) {
+    if (tukhainBaaziinKholbolt && baiguullaga) {
       const GereeModel = Geree(tukhainBaaziinKholbolt);
       // Find cancelled geree by utas (not by orshinSuugchId since user was deleted)
       existingCancelledGeree = await GereeModel.findOne({
@@ -720,9 +740,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       // IMPORTANT: Set tsahilgaaniiZaalt explicitly to ensure it's saved
       const userData = {
         ...req.body,
-        baiguullagiinId: baiguullaga._id,
-        baiguullagiinNer: baiguullaga.ner,
-        barilgiinId: barilgiinId,
         mail: walletUserInfo?.email || req.body.mail || email, // Use email from Wallet API if available
         erkh: "OrshinSuugch",
         duureg: req.body.duureg,
@@ -739,6 +756,25 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         ...(walletUserId ? { walletUserId: walletUserId } : {}),
       };
       
+      // Only set baiguullaga fields if baiguullaga exists (OWN_ORG registration)
+      if (baiguullaga) {
+        userData.baiguullagiinId = baiguullaga._id;
+        userData.baiguullagiinNer = baiguullaga.ner;
+      }
+      
+      // Only set barilgiinId if it exists (OWN_ORG registration)
+      if (barilgiinId) {
+        userData.barilgiinId = barilgiinId;
+      }
+      
+      // Save wallet address if provided (WALLET_API registration)
+      if (req.body.bairId) {
+        userData.walletBairId = req.body.bairId;
+      }
+      if (req.body.doorNo) {
+        userData.walletDoorNo = req.body.doorNo;
+      }
+      
       userData.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
       
       console.log("⚡ [REGISTER] userData.tsahilgaaniiZaalt:", userData.tsahilgaaniiZaalt);
@@ -753,7 +789,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       orshinSuugch.toots = [];
     }
     
-    if (orshinSuugch.toot && barilgiinId) {
+    // Handle OWN_ORG toot (requires baiguullaga and barilgiinId)
+    if (req.body.toot && barilgiinId && baiguullaga) {
       const targetBarilga = baiguullaga.barilguud?.find(
         (b) => String(b._id) === String(barilgiinId)
       );
@@ -790,7 +827,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         
         const existingTootIndex = orshinSuugch.toots.findIndex(
           t => t.toot === tootEntry.toot && 
-               t.barilgiinId === tootEntry.barilgiinId
+               t.barilgiinId === tootEntry.barilgiinId &&
+               t.source === "OWN_ORG"
         );
         
         if (existingTootIndex >= 0) {
@@ -816,6 +854,36 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       }
     }
     
+    // Handle WALLET_API toot (wallet address registration)
+    if (isWalletAddressRegistration && req.body.doorNo) {
+      const walletTootEntry = {
+        toot: req.body.doorNo,
+        source: "WALLET_API",
+        walletBairId: req.body.bairId,
+        walletDoorNo: req.body.doorNo,
+        createdAt: new Date()
+      };
+      
+      const existingWalletTootIndex = orshinSuugch.toots.findIndex(
+        t => t.source === "WALLET_API" && 
+             t.walletBairId === req.body.bairId &&
+             t.walletDoorNo === req.body.doorNo
+      );
+      
+      if (existingWalletTootIndex >= 0) {
+        orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+        console.log("🔄 [REGISTER] Updated existing Wallet API toot in array");
+      } else {
+        orshinSuugch.toots.push(walletTootEntry);
+        console.log("➕ [REGISTER] Added new Wallet API toot to array");
+      }
+      
+      // For new users with wallet address, set primary toot to doorNo
+      if (!existingUser && req.body.doorNo) {
+        orshinSuugch.toot = req.body.doorNo;
+      }
+    }
+    
     await orshinSuugch.save();
     console.log("✅ [REGISTER] orshinSuugch saved successfully:", orshinSuugch._id);
     
@@ -824,13 +892,19 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     console.log("✅ [REGISTER] Verified tsahilgaaniiZaalt saved to orshinSuugch:", savedOrshinSuugch?.tsahilgaaniiZaalt);
 
     try {
-      // Reuse tukhainBaaziinKholbolt from above (already declared)
-      if (!tukhainBaaziinKholbolt) {
-        console.error("❌ [REGISTER] tukhainBaaziinKholbolt not found for baiguullaga:", baiguullaga._id);
-        throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
-      }
-      
-      console.log("✅ [REGISTER] tukhainBaaziinKholbolt found, proceeding with contract creation");
+      // Only create contracts for OWN_ORG registrations (requires baiguullaga)
+      // WALLET_API registrations don't create contracts here - they're handled separately
+      if (!baiguullaga || !tukhainBaaziinKholbolt) {
+        if (isWalletAddressRegistration) {
+          console.log("ℹ️ [REGISTER] Wallet address registration - skipping contract creation (WALLET_API source)");
+        } else {
+          console.error("❌ [REGISTER] tukhainBaaziinKholbolt not found for baiguullaga");
+          throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
+        }
+        // Skip contract creation for wallet address registrations
+        // Continue to return success response
+      } else {
+        console.log("✅ [REGISTER] tukhainBaaziinKholbolt found, proceeding with contract creation");
 
       // Get ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo
       const targetBarilgaForZardluud = baiguullaga.barilguud?.find(
@@ -1149,6 +1223,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
             console.log("orshinSuugch service");
           }
         }
+      }
       }
     } catch (contractError) {
       console.error("❌ [REGISTER] Error creating contract:", contractError);
