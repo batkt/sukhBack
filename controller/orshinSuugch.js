@@ -936,6 +936,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           mail: req.body.mail || existingCancelledGeree.mail,
           toot: orshinSuugch.toot || existingCancelledGeree.toot,
           davkhar: orshinSuugch.davkhar || existingCancelledGeree.davkhar,
+          bairNer: targetBarilgaForZardluud?.ner || existingCancelledGeree.bairNer || "", // Update building name
           duureg: req.body.duureg || existingCancelledGeree.duureg,
           horoo: req.body.horoo || existingCancelledGeree.horoo,
           sohNer: req.body.soh || existingCancelledGeree.sohNer,
@@ -2064,10 +2065,26 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 return total + tariff;
               }, 0);
 
+              const duuregNer = targetBarilga.tokhirgoo?.duuregNer || tootEntry.duureg || "";
+              // Normalize horoo to always be an object format
+              let horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+              if (typeof horooData === 'string') {
+                horooData = { ner: horooData, kod: horooData };
+              } else if (!horooData || typeof horooData !== 'object') {
+                horooData = {};
+              }
+              const sohNer = targetBarilga.tokhirgoo?.sohNer || tootEntry.soh || "";
+
               const updateData = {
                 tuluv: "Идэвхтэй",
                 gereeniiOgnoo: new Date(),
                 orshinSuugchId: orshinSuugch._id.toString(),
+                barilgiinId: tootEntry.barilgiinId, // Update to new barilgiinId if changed
+                bairNer: targetBarilga.ner || existingCancelledGeree.bairNer || "", // Update building name
+                sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
+                duureg: duuregNer,
+                horoo: horooData,
+                sohNer: sohNer,
                 zardluud: zardluudArray,
                 niitTulbur: niitTulbur,
                 ashiglaltiinZardal: 0,
@@ -2762,10 +2779,26 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                 return total + tariff;
               }, 0);
 
+              const duuregNer = targetBarilga.tokhirgoo?.duuregNer || tootEntry.duureg || "";
+              // Normalize horoo to always be an object format
+              let horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+              if (typeof horooData === 'string') {
+                horooData = { ner: horooData, kod: horooData };
+              } else if (!horooData || typeof horooData !== 'object') {
+                horooData = {};
+              }
+              const sohNer = targetBarilga.tokhirgoo?.sohNer || tootEntry.soh || "";
+
               const updateData = {
                 tuluv: "Идэвхтэй",
                 gereeniiOgnoo: new Date(),
                 orshinSuugchId: orshinSuugch._id.toString(),
+                barilgiinId: tootEntry.barilgiinId, // Update to new barilgiinId if changed
+                bairNer: targetBarilga.ner || existingCancelledGeree.bairNer || "", // Update building name
+                sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
+                duureg: duuregNer,
+                horoo: horooData,
+                sohNer: sohNer,
                 zardluud: zardluudArray,
                 niitTulbur: niitTulbur,
                 ashiglaltiinZardal: 0,
