@@ -462,8 +462,12 @@ async function getBillingPayments(userId, billingId) {
   try {
     const token = await getWalletServiceToken();
     
+    console.log("📋 [WALLET API] Getting billing payments...");
+    console.log("📋 [WALLET API] userId:", userId);
+    console.log("📋 [WALLET API] billingId:", billingId);
+    
     const response = await axios.get(
-      `${WALLET_API_BASE_URL}/api/billing/${billingId}/payments`,
+      `${WALLET_API_BASE_URL}/api/billing/payments/${billingId}`,
       {
         headers: {
           userId: userId,
@@ -472,23 +476,36 @@ async function getBillingPayments(userId, billingId) {
       }
     );
 
+    console.log("📋 [WALLET API] Payments response status:", response.status);
+    console.log("📋 [WALLET API] Payments responseCode:", response.data?.responseCode);
+
     if (response.data && response.data.responseCode) {
       if (response.data.data) {
         let data = response.data.data;
         
         if (Array.isArray(data)) {
+          console.log("✅ [WALLET API] Found", data.length, "payment(s)");
           return data.map(item => sanitizeNullValues(item));
         } else if (typeof data === 'object') {
+          console.log("✅ [WALLET API] Found 1 payment");
           return [sanitizeNullValues(data)];
         }
       }
     }
 
+    console.log("⚠️ [WALLET API] No payments found");
     return [];
   } catch (error) {
-    console.error("Error getting billing payments from wallet API:", error.message);
+    console.error("❌ [WALLET API] Error getting billing payments:", error.message);
     if (error.response) {
-      console.error("Error response data:", JSON.stringify(error.response.data));
+      console.error("❌ [WALLET API] Error response status:", error.response.status);
+      console.error("❌ [WALLET API] Error response data:", error.response.data);
+      
+      // If 404, return empty array (no payments exist yet)
+      if (error.response.status === 404) {
+        console.log("ℹ️ [WALLET API] No payments found (404) - returning empty array");
+        return [];
+      }
     }
     throw error;
   }

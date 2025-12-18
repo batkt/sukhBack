@@ -336,9 +336,13 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             console.log("⚠️ [QPAY] Error:", errorMessage);
             
             // Check if error indicates bill is already being paid
-            if (errorMessage.includes("өөр нэхэмжлэлээр төлөлт") || 
-                errorMessage.includes("already") || 
-                errorMessage.includes("төлөлт хийгдэж")) {
+            const isBillAlreadyInInvoice = 
+              errorMessage.includes("өөр нэхэмжлэлээр төлөлт") || 
+              errorMessage.includes("already") || 
+              errorMessage.includes("төлөлт хийгдэж") ||
+              errorMessage.includes("Билл өөр нэхэмжлэлээр");
+            
+            if (isBillAlreadyInInvoice) {
               console.log("⚠️ [QPAY] Bill is already being paid by another invoice");
               console.log("⚠️ [QPAY] Checking for existing payments...");
               
@@ -363,9 +367,12 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                     message: "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
                     source: "WALLET_API",
                   });
+                } else {
+                  console.log("ℹ️ [QPAY] No existing payments found for this billing");
                 }
               } catch (paymentError) {
                 console.log("⚠️ [QPAY] Could not fetch existing payments:", paymentError.message);
+                // Don't throw - continue to return error about bill already in invoice
               }
               
               // If no existing payments found, return clear error
@@ -373,7 +380,10 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 success: false,
                 message: errorMessage,
                 error: "BILL_ALREADY_IN_INVOICE",
+                errorCode: "BILL_ALREADY_IN_INVOICE",
                 suggestion: "Энэ биллийг өөр нэхэмжлэлээр төлөлт хийгдэж байна. Төлбөрийн түүхийг шалгана уу.",
+                billingId: req.body.billingId,
+                billIds: req.body.billIds,
               });
             }
             
