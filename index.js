@@ -130,9 +130,11 @@ async function automataarNekhemjlekhUusgekh() {
           continue;
         }
 
+        // Find all schedules for today (both organization-level and building-level)
         const schedules = await NekhemjlekhCron(tukhainBaaziinKholbolt).find({
           nekhemjlekhUusgekhOgnoo: nekhemjlekhUusgekhOgnoo,
           idevkhitei: true,
+          baiguullagiinId: baiguullaga._id.toString(),
         });
 
         console.log(
@@ -175,11 +177,20 @@ async function automataarNekhemjlekhUusgekh() {
           (k) => k.baiguullagiinId === baiguullaga._id.toString()
         );
 
-        // Only process active contracts
-        const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
+        // Process contracts based on schedule type (organization-level or building-level)
+        // If schedule has barilgiinId, only process contracts for that building
+        // If schedule has barilgiinId: null, process all contracts for the organization
+        const gereeQuery = {
           baiguullagiinId: baiguullaga._id.toString(),
           tuluv: "Идэвхтэй", // Only active contracts
-        });
+        };
+        
+        // If this is a building-level schedule, filter by barilgiinId
+        if (tovchoo.barilgiinId) {
+          gereeQuery.barilgiinId = tovchoo.barilgiinId;
+        }
+        
+        const gereenuud = await Geree(tukhainBaaziinKholbolt).find(gereeQuery);
 
         if (gereenuud.length === 0) {
           console.log(
