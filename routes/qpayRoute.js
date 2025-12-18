@@ -330,13 +330,55 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
               throw new Error("Failed to create invoice - invoiceId not returned");
             }
           } catch (invoiceError) {
-            // If invoice creation fails, it might already exist - try to find existing invoice
-            console.log("⚠️ [QPAY] Invoice creation failed, checking if invoice already exists...");
-            console.log("⚠️ [QPAY] Error:", invoiceError.message);
+            // If invoice creation fails because bill is already in another invoice
+            const errorMessage = invoiceError.message || "";
+            console.log("⚠️ [QPAY] Invoice creation failed");
+            console.log("⚠️ [QPAY] Error:", errorMessage);
             
-            // For now, re-throw the error - the frontend should handle duplicate invoice creation
-            // by checking for existing invoices before creating payment
-            throw new Error(`Invoice creation failed: ${invoiceError.message}. If invoice already exists, please provide invoiceId.`);
+            // Check if error indicates bill is already being paid
+            if (errorMessage.includes("өөр нэхэмжлэлээр төлөлт") || 
+                errorMessage.includes("already") || 
+                errorMessage.includes("төлөлт хийгдэж")) {
+              console.log("⚠️ [QPAY] Bill is already being paid by another invoice");
+              console.log("⚠️ [QPAY] Checking for existing payments...");
+              
+              try {
+                // Try to get existing payments for this billing
+                const existingPayments = await walletApiService.getBillingPayments(userPhoneNumber, req.body.billingId);
+                
+                if (existingPayments && existingPayments.length > 0) {
+                  console.log("✅ [QPAY] Found existing payments:", existingPayments.length);
+                  // Get the most recent payment
+                  const latestPayment = existingPayments[existingPayments.length - 1];
+                  
+                  // Return the existing payment info instead of creating a new one
+                  return res.status(200).json({
+                    success: true,
+                    data: {
+                      paymentId: latestPayment.paymentId,
+                      paymentAmount: latestPayment.paymentAmount || latestPayment.amount,
+                      message: "Төлбөр аль хэдийн үүссэн байна",
+                      existingPayment: true,
+                    },
+                    message: "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
+                    source: "WALLET_API",
+                  });
+                }
+              } catch (paymentError) {
+                console.log("⚠️ [QPAY] Could not fetch existing payments:", paymentError.message);
+              }
+              
+              // If no existing payments found, return clear error
+              return res.status(400).json({
+                success: false,
+                message: errorMessage,
+                error: "BILL_ALREADY_IN_INVOICE",
+                suggestion: "Энэ биллийг өөр нэхэмжлэлээр төлөлт хийгдэж байна. Төлбөрийн түүхийг шалгана уу.",
+              });
+            }
+            
+            // For other errors, re-throw
+            throw invoiceError;
           }
         } else if (!invoiceId) {
           console.log("⚠️ [QPAY] Invoice ID not provided and cannot auto-create:");
