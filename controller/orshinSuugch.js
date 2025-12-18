@@ -875,6 +875,12 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         ognoonuud: zardal.ognoonuud || [],
       }));
 
+      // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+      const tailbarFromZardluud = ashiglaltiinZardluudData
+        .map((zardal) => zardal.tailbar)
+        .filter((tailbar) => tailbar && tailbar.trim())
+        .join("; ") || "";
+
       const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
         const tariff = zardal.tariff || 0;
 
@@ -952,6 +958,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         // Add optional fields from frontend if provided
         if (req.body.tailbar) {
           updateData.temdeglel = req.body.tailbar;
+          updateData.tailbar = req.body.tailbar;
         }
         if (req.body.ekhniiUldegdel !== undefined) {
           updateData.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
@@ -1058,6 +1065,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
             burtgesenAjiltan: orshinSuugch._id,
             orshinSuugchId: orshinSuugch._id.toString(),
             temdeglel: req.body.tailbar || `Автоматаар үүссэн гэрээ (Тоот: ${tootEntry.toot})`,
+            tailbar: req.body.tailbar || tailbarFromZardluud || "",
             actOgnoo: new Date(),
             baritsaaniiUldegdel: 0,
             ekhniiUldegdel: req.body.ekhniiUldegdel
@@ -2056,6 +2064,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 ognoonuud: zardal.ognoonuud || [],
               }));
 
+              // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+              const tailbarFromZardluud = ashiglaltiinZardluudData
+                .map((zardal) => zardal.tailbar)
+                .filter((tailbar) => tailbar && tailbar.trim())
+                .join("; ") || "";
+
               const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
                 const tariff = zardal.tariff || 0;
                 const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
@@ -2093,6 +2107,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 register: orshinSuugch.register || existingCancelledGeree.register,
                 utas: [orshinSuugch.utas],
                 mail: orshinSuugch.mail || existingCancelledGeree.mail,
+                tailbar: existingCancelledGeree.tailbar || "", // Preserve tailbar if exists
               };
 
               await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
@@ -2194,6 +2209,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
               burtgesenAjiltan: orshinSuugch._id,
               orshinSuugchId: orshinSuugch._id.toString(),
               temdeglel: `Wallet API-аас автоматаар үүссэн гэрээ (Тоот: ${tootEntry.toot})`,
+              tailbar: "",
               actOgnoo: new Date(),
               baritsaaniiUldegdel: 0,
               ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,
@@ -2341,6 +2357,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                   burtgesenAjiltan: orshinSuugch._id,
                   orshinSuugchId: orshinSuugch._id.toString(),
                   temdeglel: "Wallet API-аас автоматаар үүссэн гэрээ",
+                  tailbar: tailbarFromZardluud || "",
                   actOgnoo: new Date(),
                   baritsaaniiUldegdel: 0,
                   ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,
@@ -2770,6 +2787,12 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                 ognoonuud: zardal.ognoonuud || [],
               }));
 
+              // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+              const tailbarFromZardluud = ashiglaltiinZardluudData
+                .map((zardal) => zardal.tailbar)
+                .filter((tailbar) => tailbar && tailbar.trim())
+                .join("; ") || "";
+
               const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
                 const tariff = zardal.tariff || 0;
                 const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
@@ -2807,6 +2830,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                 register: orshinSuugch.register || existingCancelledGeree.register,
                 utas: [orshinSuugch.utas],
                 mail: orshinSuugch.mail || existingCancelledGeree.mail,
+                tailbar: existingCancelledGeree.tailbar || "", // Preserve tailbar if exists
               };
 
               await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
@@ -2892,6 +2916,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
               burtgesenAjiltan: orshinSuugch._id,
               orshinSuugchId: orshinSuugch._id.toString(),
               temdeglel: `Wallet API-аас автоматаар үүссэн гэрээ (Тоот: ${tootEntry.toot})`,
+              tailbar: "",
               actOgnoo: new Date(),
               baritsaaniiUldegdel: 0,
               ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,

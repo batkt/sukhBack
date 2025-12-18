@@ -1193,6 +1193,12 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 barilgiinId: zardal.barilgiinId || tootEntry.barilgiinId || "",
               }));
 
+              // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+              const tailbarFromZardluud = ashiglaltiinZardluudData
+                .map((zardal) => zardal.tailbar)
+                .filter((tailbar) => tailbar && tailbar.trim())
+                .join("; ") || "";
+
               const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
                 const tariff = zardal.tariff || 0;
                 const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
@@ -1236,6 +1242,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 burtgesenAjiltan: orshinSuugch._id,
                 orshinSuugchId: orshinSuugch._id.toString(),
                 temdeglel: `${userData.tailbar || "Excel файлаас автоматаар үүссэн гэрээ"} (Тоот: ${tootEntry.toot})`,
+                tailbar: userData.tailbar || tailbarFromZardluud || "",
                 actOgnoo: new Date(),
                 baritsaaniiUldegdel: 0,
                 ekhniiUldegdel: userData.ekhniiUldegdel || 0,
@@ -1320,6 +1327,12 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             barilgiinId: zardal.barilgiinId || finalBarilgiinId || "",
           }));
 
+          // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+          const tailbarFromZardluud = ashiglaltiinZardluudData
+            .map((zardal) => zardal.tailbar)
+            .filter((tailbar) => tailbar && tailbar.trim())
+            .join("; ") || "";
+
           const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
             const tariff = zardal.tariff || 0;
             const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
@@ -1357,6 +1370,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             burtgesenAjiltan: orshinSuugch._id,
             orshinSuugchId: orshinSuugch._id.toString(),
             temdeglel: userData.tailbar || "Excel файлаас автоматаар үүссэн гэрээ",
+            tailbar: userData.tailbar || tailbarFromZardluud || "",
             actOgnoo: new Date(),
             baritsaaniiUldegdel: 0,
             ekhniiUldegdel: userData.ekhniiUldegdel || 0,
