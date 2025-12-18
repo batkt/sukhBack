@@ -286,7 +286,24 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
       try {
         console.log("💳 [QPAY] Routing to Wallet API QPay payment");
         console.log("📋 [QPAY] Request body keys:", Object.keys(req.body));
-        console.log("📋 [QPAY] Request body:", JSON.stringify(req.body, null, 2));
+        
+        // Create a safe copy of request body for logging (exclude Mongoose objects)
+        const safeBody = {};
+        for (const key in req.body) {
+          if (key !== 'tukhainBaaziinKholbolt' && key !== 'erunkhiiKholbolt' && 
+              typeof req.body[key] !== 'object' || req.body[key] === null || 
+              Array.isArray(req.body[key]) || req.body[key].constructor?.name === 'String') {
+            try {
+              JSON.stringify(req.body[key]);
+              safeBody[key] = req.body[key];
+            } catch (e) {
+              safeBody[key] = `[${typeof req.body[key]}]`;
+            }
+          } else {
+            safeBody[key] = `[${req.body[key]?.constructor?.name || typeof req.body[key]}]`;
+          }
+        }
+        console.log("📋 [QPAY] Request body (safe):", JSON.stringify(safeBody, null, 2));
         
         let invoiceId = req.body.invoiceId || req.body.walletInvoiceId;
         
@@ -315,11 +332,19 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           console.log("⚠️ [QPAY] Invoice ID not provided and cannot auto-create:");
           console.log("⚠️ [QPAY] - billingId:", req.body.billingId ? "✅" : "❌");
           console.log("⚠️ [QPAY] - billIds:", req.body.billIds ? (Array.isArray(req.body.billIds) ? `✅ (${req.body.billIds.length} items)` : "❌ (not array)") : "❌");
+          console.log("⚠️ [QPAY] Available fields in request:", Object.keys(req.body).filter(k => !['tukhainBaaziinKholbolt', 'erunkhiiKholbolt'].includes(k)).join(', '));
         }
         
         // Check if invoiceId is available (required for Wallet API payment)
         if (!invoiceId) {
-          throw new Error("Invoice ID is required for Wallet API QPay payment. Provide invoiceId, or billingId + billIds to create invoice automatically.");
+          const errorMsg = "Invoice ID is required for Wallet API QPay payment. " +
+            "Please provide one of the following:\n" +
+            "1. invoiceId (if invoice already created)\n" +
+            "2. billingId + billIds[] (to auto-create invoice)\n\n" +
+            "Current request has: " + Object.keys(req.body).filter(k => 
+              !['tukhainBaaziinKholbolt', 'erunkhiiKholbolt', 'nevtersenAjiltniiToken'].includes(k)
+            ).join(', ');
+          throw new Error(errorMsg);
         }
         
         const paymentData = {
