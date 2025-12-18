@@ -19,6 +19,9 @@ const {
 const {
   gereeniiExcelAvya,
   gereeniiExcelTatya,
+  zaaltExcelTemplateAvya,
+  zaaltExcelTatya,
+  zaaltExcelDataAvya,
 } = require("../controller/excel");
 const {
   downloadGuilgeeniiTuukhExcel,
@@ -36,6 +39,16 @@ router
 router
   .route("/gereeniiExcelTatya")
   .post(uploadFile.single("file"), tokenShalgakh, gereeniiExcelTatya);
+
+// Electricity (Цахилгаан) Excel routes
+router
+  .route("/zaaltExcelTemplateAvya")
+  .post(tokenShalgakh, zaaltExcelTemplateAvya);
+router
+  .route("/zaaltExcelTatya")
+  .post(uploadFile.single("file"), tokenShalgakh, zaaltExcelTatya);
+// Electricity data export - MUST be before crud to avoid conflicts
+router.post("/zaaltExcelDataAvya", tokenShalgakh, zaaltExcelDataAvya);
 
 // GuilgeeniiTuukh Excel download route - MUST be before crud to avoid conflicts
 router.post(
@@ -187,7 +200,18 @@ crud(
             ? Math.floor(niitMur / body.khuudasniiKhemjee)
             : Math.floor(niitMur / body.khuudasniiKhemjee) + 1;
 
-        if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
+        // Normalize horoo field to always be an object format for consistency
+        if (jagsaalt != null) {
+          jagsaalt.forEach((mur) => {
+            mur.key = mur._id;
+            // Normalize horoo field: convert string to object if needed
+            if (mur.horoo && typeof mur.horoo === 'string') {
+              mur.horoo = { ner: mur.horoo, kod: mur.horoo };
+            } else if (!mur.horoo || typeof mur.horoo !== 'object') {
+              mur.horoo = {};
+            }
+          });
+        }
 
         console.log("Found contracts:", jagsaalt.length);
 
@@ -205,6 +229,107 @@ crud(
         return;
       }
     }
+    
+    // Handle PUT requests - automatically update electricity readings if tsahilgaaniiZaalt is provided
+    if (req.method === "PUT" && req.body.tsahilgaaniiZaalt !== undefined) {
+      try {
+        const { db } = require("zevbackv2");
+        const baiguullagiinId = req.body.baiguullagiinId;
+        
+        if (!baiguullagiinId) {
+          // Try to get baiguullagiinId from the geree document if ID is provided
+          if (req.params.id) {
+            const allConnections = db.kholboltuud || [];
+            let foundGeree = null;
+            
+            for (const conn of allConnections) {
+              try {
+                const tempGeree = await Geree(conn, true).findById(req.params.id).select("baiguullagiinId");
+                if (tempGeree) {
+                  foundGeree = tempGeree;
+                  req.body.baiguullagiinId = tempGeree.baiguullagiinId;
+                  break;
+                }
+              } catch (err) {
+                // Continue searching
+              }
+            }
+          }
+          
+          if (!req.body.baiguullagiinId) {
+            console.log("⚠️ [GEREE PUT] baiguullagiinId not found, skipping automatic electricity update");
+            return next();
+          }
+        }
+        
+        const tukhainBaaziinKholbolt = db.kholboltuud.find(
+          (kholbolt) => String(kholbolt.baiguullagiinId) === String(req.body.baiguullagiinId)
+        );
+
+        if (!tukhainBaaziinKholbolt) {
+          console.log("⚠️ [GEREE PUT] Connection not found, skipping automatic electricity update");
+          return next();
+        }
+
+        // Parse tsahilgaaniiZaalt (default to 0 if invalid)
+        const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined 
+          ? parseFloat(req.body.tsahilgaaniiZaalt) || 0 
+          : 0;
+
+        // Automatically update electricity readings in req.body
+        req.body.umnukhZaalt = tsahilgaaniiZaalt;
+        req.body.suuliinZaalt = tsahilgaaniiZaalt;
+        req.body.zaaltTog = req.body.zaaltTog !== undefined ? req.body.zaaltTog : 0;
+        req.body.zaaltUs = req.body.zaaltUs !== undefined ? req.body.zaaltUs : 0;
+
+        console.log("⚡ [GEREE PUT] Automatically updated electricity readings from tsahilgaaniiZaalt:", {
+          tsahilgaaniiZaalt: tsahilgaaniiZaalt,
+          umnukhZaalt: req.body.umnukhZaalt,
+          suuliinZaalt: req.body.suuliinZaalt,
+          zaaltTog: req.body.zaaltTog,
+          zaaltUs: req.body.zaaltUs
+        });
+
+        // Remove tsahilgaaniiZaalt from body as it's not a geree field
+        delete req.body.tsahilgaaniiZaalt;
+      } catch (error) {
+        console.error("⚠️ [GEREE PUT] Error updating electricity readings:", error);
+        // Don't block the request, just log the error
+      }
+    }
+    
+    // IMPORTANT: When cancelling a geree (tuluv: "Цуцалсан"), preserve the original barilgiinId
+    // Do NOT allow barilgiinId to be changed when cancelling a contract
+    if (req.method === "PUT" && req.body.tuluv === "Цуцалсан" && req.params.id) {
+      try {
+        const { db } = require("zevbackv2");
+        const allConnections = db.kholboltuud || [];
+        let originalGeree = null;
+        
+        // Find the original geree to preserve its barilgiinId
+        for (const conn of allConnections) {
+          try {
+            const tempGeree = await Geree(conn, true).findById(req.params.id).select("barilgiinId");
+            if (tempGeree) {
+              originalGeree = tempGeree;
+              break;
+            }
+          } catch (err) {
+            // Continue searching
+          }
+        }
+        
+        // If original geree found, preserve its barilgiinId
+        if (originalGeree && originalGeree.barilgiinId) {
+          req.body.barilgiinId = originalGeree.barilgiinId;
+          console.log(`🔒 [GEREE PUT] Preserving original barilgiinId: ${originalGeree.barilgiinId} when cancelling contract`);
+        }
+      } catch (error) {
+        console.error("⚠️ [GEREE PUT] Error preserving barilgiinId:", error);
+        // Don't block the request, just log the error
+      }
+    }
+    
     next();
   }
 );

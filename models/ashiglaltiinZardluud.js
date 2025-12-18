@@ -26,6 +26,16 @@ const ashiglaltiinZardluudSchema = new Schema(
     dun: Number,
     ognoonuud: [Date],
     nuatBodokhEsekh: Boolean,
+    zaalt: Boolean, // Electricity (цахилгаан) flag
+    zaaltTariff: Number, // кВт tariff for electricity (legacy - use zaaltTariffTiers if available)
+    zaaltDefaultDun: Number, // Default amount for electricity calculation
+    // Tiered pricing: zaaltTariffTiers = [{ threshold: 175, tariff: 175 }, { threshold: 256, tariff: 256 }, { threshold: Infinity, tariff: 285 }]
+    zaaltTariffTiers: [
+      {
+        threshold: Number, // Usage threshold (кВт) - e.g., 175, 256
+        tariff: Number, // Tariff rate for this tier (Төг/кВт.цаг) - e.g., 175, 256, 285
+      },
+    ],
   },
   {
     timestamps: true,
@@ -141,6 +151,11 @@ async function handleZardluudUpdate(doc) {
         suuriKhuraamj: doc.suuriKhuraamj || 0,
         nuatNemekhEsekh: doc.nuatNemekhEsekh || false,
         ognoonuud: doc.ognoonuud || [],
+        // Include electricity-specific fields
+        zaalt: doc.zaalt || false,
+        zaaltTariff: doc.zaaltTariff || 0,
+        zaaltDefaultDun: doc.zaaltDefaultDun || 0,
+        zaaltTariffTiers: doc.zaaltTariffTiers || [],
       };
 
       geree.zardluud.push(newZardal);

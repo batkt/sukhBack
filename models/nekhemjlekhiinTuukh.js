@@ -60,6 +60,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
       },
     ],
     orts: String, // Web only field
+    tsahilgaanNekhemjlekh: Number, // Electricity invoice amount (calculated from zaalt readings)
   },
   {
     timestamps: true,

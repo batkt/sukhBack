@@ -121,11 +121,17 @@ const gereeSchema = new Schema(
     baiguullagiinNer: String,
     barilgiinId: String,
     temdeglel: String,
+    tailbar: String, // Additional description/notes field
     orts: String, // Web only field
     baritsaaniiUldegdel: {
       type: Number,
       default: 0,
     },
+    // Electricity readings (цахилгаан заалт)
+    umnukhZaalt: Number, // Previous reading (Өмнө)
+    suuliinZaalt: Number, // Current total reading (Нийт одоо)
+    zaaltTog: Number, // Day reading (Өдөр)
+    zaaltUs: Number, // Night reading (Шөнө)
     zardluud: [
       {
         ner: String,

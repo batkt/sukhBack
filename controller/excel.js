@@ -1794,6 +1794,769 @@ exports.gereeniiExcelTatya = asyncHandler(async (req, res, next) => {
   }
 });
 
+// ============================================
+// ELECTRICITY (ЦАХИЛГААН) EXCEL IMPORT/EXPORT
+// ============================================
+
+/**
+ * Download Excel template for electricity readings
+ * Columns: Гэрээний дугаар, Өмнө, Өдөр, Шөнө, Нийт (одоо), Зөрүү
+ * Formulas:
+ * - Нийт (одоо) = Өдөр + Шөнө
+ * - Зөрүү = Нийт (одоо) - Өмнө
+ */
+exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, barilgiinId } = req.body;
+
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID хоосон");
+    }
+
+    if (!barilgiinId) {
+      throw new aldaa("Барилгын ID хоосон");
+    }
+
+    const Baiguullaga = require("../models/baiguullaga");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллага олдсонгүй");
+    }
+
+    const targetBarilga = baiguullaga.barilguud?.find(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+    if (!targetBarilga) {
+      throw new aldaa("Барилга олдсонгүй");
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболт олдсонгүй");
+    }
+
+    // Get all active gerees for this building
+    const Geree = require("../models/geree");
+    const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
+      baiguullagiinId: baiguullaga._id.toString(),
+      barilgiinId: barilgiinId,
+      tuluv: "Идэвхтэй",
+    }).select("gereeniiDugaar toot").lean();
+
+    let workbook = new excel.Workbook();
+    let worksheet = workbook.addWorksheet("Цахилгаан");
+
+    // Define columns (headers are automatically created in row 1)
+    worksheet.columns = [
+      { header: "Гэрээний дугаар", key: "gereeniiDugaar", width: 20 },
+      { header: "Өмнө", key: "umnu", width: 15 },
+      { header: "Өдөр", key: "odor", width: 15 },
+      { header: "Шөнө", key: "shone", width: 15 },
+      { header: "Нийт (одоо)", key: "niitOdoo", width: 15 },
+      { header: "Зөрүү", key: "zoruu", width: 15 },
+    ];
+
+    // Style header row (worksheet.columns already creates headers in row 1)
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    };
+
+    // Add data rows with geree numbers
+    gereenuud.forEach((geree) => {
+      worksheet.addRow({
+        gereeniiDugaar: geree.gereeniiDugaar || "",
+        umnu: "",
+        odor: "",
+        shone: "",
+        niitOdoo: "",
+        zoruu: "",
+      });
+    });
+
+    // Add formula for "Нийт (одоо)" column (Өдөр + Шөнө)
+    // Formula: =C2+D2 (assuming C=Өдөр, D=Шөнө)
+    // Add formula for "Зөрүү" column (Нийт (одоо) - Өмнө)
+    // Formula: =E2-B2 (assuming E=Нийт (одоо), B=Өмнө)
+    gereenuud.forEach((geree, index) => {
+      const rowNumber = index + 2; // +2 because row 1 is header
+      
+      // Нийт (одоо) = Өдөр + Шөнө (Column E = C + D)
+      const niitCell = worksheet.getCell(`E${rowNumber}`);
+      niitCell.value = {
+        formula: `C${rowNumber}+D${rowNumber}`,
+      };
+      niitCell.numFmt = "0.00";
+      
+      // Зөрүү = Нийт (одоо) - Өмнө (Column F = E - B)
+      const zoruuCell = worksheet.getCell(`F${rowNumber}`);
+      zoruuCell.value = {
+        formula: `E${rowNumber}-B${rowNumber}`,
+      };
+      zoruuCell.numFmt = "0.00";
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="zaalt_template_${Date.now()}.xlsx"`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Error generating electricity Excel template:", error);
+    next(error);
+  }
+});
+
+/**
+ * Import electricity readings from Excel
+ * Calculation: (Өдөр + Шөнө) = Нийт (одоо)
+ * Then: (Нийт (одоо) - Өмнө) * кВт tariff + 2000 (default)
+ */
+exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, barilgiinId, ognoo } = req.body;
+
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID хоосон");
+    }
+
+    if (!barilgiinId) {
+      throw new aldaa("Барилгын ID хоосон");
+    }
+
+    if (!ognoo) {
+      throw new aldaa("Огноо заавал бөглөх шаардлагатай");
+    }
+
+    if (!req.file) {
+      throw new aldaa("Excel файл оруулах");
+    }
+
+    const Baiguullaga = require("../models/baiguullaga");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллага олдсонгүй");
+    }
+
+    const targetBarilga = baiguullaga.barilguud?.find(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+    if (!targetBarilga) {
+      throw new aldaa("Барилга олдсонгүй");
+    }
+
+    // Find electricity zardal (zaalt = true)
+    // If multiple exist, prioritize exact "Цахилгаан" match (no trailing space)
+    const zardluud = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+    const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
+    
+    // Prioritize exact "Цахилгаан" match (no trailing space)
+    let zaaltZardal = zaaltZardluud.find(
+      (z) => z.ner && z.ner.trim() === "Цахилгаан"
+    );
+    
+    // If no exact match, use first one
+    if (!zaaltZardal && zaaltZardluud.length > 0) {
+      zaaltZardal = zaaltZardluud[0];
+      console.warn(
+        `⚠️  [ZAALT] Multiple electricity tariffs found (${zaaltZardluud.length}). Using: ${zaaltZardal.ner} (tariff: ${zaaltZardal.zaaltTariff}, default: ${zaaltZardal.zaaltDefaultDun})`
+      );
+    }
+    
+    if (!zaaltZardal) {
+      throw new aldaa("Цахилгааны зардал тохируулаагүй байна. Эхлээд зардлыг тохируулна уу.");
+    }
+
+    const zaaltTariff = zaaltZardal.zaaltTariff || 0;
+    const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 0;
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболт олдсонгүй");
+    }
+
+    // Read Excel file
+    const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(worksheet, { raw: false });
+
+    if (!data || data.length === 0) {
+      throw new aldaa("Excel хоосон");
+    }
+
+    const Geree = require("../models/geree");
+    const results = {
+      success: [],
+      failed: [],
+      total: data.length,
+    };
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const rowNumber = i + 2; // +2 because Excel row 1 is header
+
+      try {
+        const gereeniiDugaar = row["Гэрээний дугаар"]?.toString().trim();
+        if (!gereeniiDugaar) {
+          results.failed.push({
+            row: rowNumber,
+            gereeniiDugaar: "",
+            error: "Гэрээний дугаар хоосон",
+          });
+          continue;
+        }
+
+        // Find geree by gereeniiDugaar
+        const geree = await Geree(tukhainBaaziinKholbolt).findOne({
+          gereeniiDugaar: gereeniiDugaar,
+          baiguullagiinId: baiguullaga._id.toString(),
+          barilgiinId: barilgiinId,
+        });
+
+        if (!geree) {
+          results.failed.push({
+            row: rowNumber,
+            gereeniiDugaar: gereeniiDugaar,
+            error: "Гэрээ олдсонгүй",
+          });
+          continue;
+        }
+
+        // Parse readings
+        const umnu = parseFloat(row["Өмнө"] || 0) || 0;
+        const odor = parseFloat(row["Өдөр"] || 0) || 0;
+        const shone = parseFloat(row["Шөнө"] || 0) || 0;
+        const niitOdooRaw = row["Нийт (одоо)"];
+        const niitOdoo = niitOdooRaw ? (parseFloat(niitOdooRaw) || 0) : (odor + shone);
+
+        // Validate readings
+        if (odor < 0 || shone < 0 || umnu < 0) {
+          results.failed.push({
+            row: rowNumber,
+            gereeniiDugaar: gereeniiDugaar,
+            error: "Уншилтын утга сөрөг байж болохгүй",
+          });
+          continue;
+        }
+
+        // Calculate: (Нийт (одоо) - Өмнө) * кВт tariff + default
+        const zoruu = niitOdoo - umnu; // Usage amount (Зөрүү)
+        
+        // Get tariff from geree.zardluud first, fallback to building level
+        // BUT always use building level defaultDun (shared for all contracts)
+        let gereeZaaltZardal = null;
+        if (geree.zardluud && Array.isArray(geree.zardluud)) {
+          gereeZaaltZardal = geree.zardluud.find(
+            (z) => z.zaalt === true && z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
+          );
+        }
+        
+        // Prioritize tariff from geree, fallback to building level
+        const gereeZaaltTariff = gereeZaaltZardal?.zaaltTariff || gereeZaaltZardal?.tariff || zaaltTariff;
+        const gereeZaaltTariffTiers = gereeZaaltZardal?.zaaltTariffTiers || zaaltZardal.zaaltTariffTiers || [];
+        // ALWAYS use building level defaultDun (shared for all contracts)
+        const gereeZaaltDefaultDun = zaaltDefaultDun;
+        
+        // Log tariff source for debugging
+        if (gereeZaaltZardal) {
+          console.log(`⚡ [EXCEL] Using tariff from geree.zardluud, defaultDun from building for ${gereeniiDugaar}:`, {
+            tariff: gereeZaaltTariff,
+            defaultDun: gereeZaaltDefaultDun,
+            hasTiers: gereeZaaltTariffTiers.length > 0
+          });
+        } else {
+          console.log(`⚡ [EXCEL] Using tariff and defaultDun from building level for ${gereeniiDugaar}:`, {
+            tariff: gereeZaaltTariff,
+            defaultDun: gereeZaaltDefaultDun,
+            hasTiers: gereeZaaltTariffTiers.length > 0
+          });
+        }
+        
+        // Calculate tiered pricing if zaaltTariffTiers is available
+        let zaaltDun = 0;
+        let usedTariff = gereeZaaltTariff;
+        let usedTier = null;
+        
+        if (gereeZaaltTariffTiers && gereeZaaltTariffTiers.length > 0) {
+          // Sort tiers by threshold (ascending)
+          const sortedTiers = [...gereeZaaltTariffTiers].sort(
+            (a, b) => (a.threshold || 0) - (b.threshold || 0)
+          );
+          
+          // Find the appropriate tier based on zoruu (usage)
+          for (const tier of sortedTiers) {
+            if (zoruu <= (tier.threshold || Infinity)) {
+              usedTariff = tier.tariff || gereeZaaltTariff;
+              usedTier = tier;
+              break;
+            }
+          }
+          
+          // If zoruu exceeds all tiers, use the last (highest) tier
+          if (!usedTier && sortedTiers.length > 0) {
+            const lastTier = sortedTiers[sortedTiers.length - 1];
+            usedTariff = lastTier.tariff || gereeZaaltTariff;
+            usedTier = lastTier;
+          }
+          
+          zaaltDun = zoruu * usedTariff + gereeZaaltDefaultDun;
+        } else {
+          // Fallback to simple calculation if no tiers defined
+          zaaltDun = zoruu * gereeZaaltTariff + gereeZaaltDefaultDun;
+        }
+
+        // Update geree with electricity readings
+        geree.umnukhZaalt = umnu;
+        geree.suuliinZaalt = niitOdoo;
+        geree.zaaltTog = odor;
+        geree.zaaltUs = shone;
+
+        // Update or add electricity zardal in geree.zardluud
+        if (!geree.zardluud) {
+          geree.zardluud = [];
+        }
+
+        // Find existing electricity zardal
+        const existingZaaltIndex = geree.zardluud.findIndex(
+          (z) => z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul
+        );
+
+        // Best Practice: Save tariff and calculation details for transparency and audit
+        // Identify tariff type by ner (name) and zardliinTurul to distinguish different кВт tariff types
+        const zaaltZardalData = {
+          ner: zaaltZardal.ner, // Tariff name/identifier (e.g., "Цахилгаан - Байгаль", "Цахилгаан - Ажлын")
+          turul: zaaltZardal.turul,
+          zaalt: true, // Mark as electricity zardal
+          zaaltTariff: gereeZaaltTariff, // Save tariff from geree (or building fallback)
+          // Note: defaultDun is NOT saved to geree - it's always from building level
+          zaaltTariffTiers: gereeZaaltTariffTiers.length > 0 ? gereeZaaltTariffTiers : undefined, // Save tiers from geree if available
+          tariff: usedTariff, // кВт tariff rate used for calculation (from tier if applicable)
+          tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
+          zardliinTurul: zaaltZardal.zardliinTurul, // Tariff type identifier (e.g., "Цахилгаан", "Цахилгаан - Өдөр", "Цахилгаан - Шөнө")
+          barilgiinId: barilgiinId,
+          dun: zaaltDun, // Final calculated amount
+          // Save calculation details for transparency/audit
+          zaaltCalculation: {
+            umnukhZaalt: umnu, // Previous reading
+            suuliinZaalt: niitOdoo, // Total now
+            zaaltTog: odor, // Day reading
+            zaaltUs: shone, // Night reading
+            zoruu: zoruu, // Usage amount (Зөрүү) = Нийт (одоо) - Өмнө
+            tariff: usedTariff, // кВт tariff rate used (from tier if applicable)
+            tariffType: zaaltZardal.zardliinTurul, // Tariff type identifier to distinguish different кВт types
+            tariffName: zaaltZardal.ner, // Tariff name to distinguish different кВт types
+            defaultDun: gereeZaaltDefaultDun, // Default amount used (always from building level, shared for all contracts)
+            tier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null, // Tier used for calculation
+            calculatedAt: new Date(), // When calculation was performed
+          },
+          bodokhArga: zaaltZardal.bodokhArga || "",
+          tseverUsDun: zaaltZardal.tseverUsDun || 0,
+          bokhirUsDun: zaaltZardal.bokhirUsDun || 0,
+          usKhalaasniiDun: zaaltZardal.usKhalaasniiDun || 0,
+          tsakhilgaanUrjver: zaaltZardal.tsakhilgaanUrjver || 1,
+          tsakhilgaanChadal: zaaltZardal.tsakhilgaanChadal || 0,
+          tsakhilgaanDemjikh: zaaltZardal.tsakhilgaanDemjikh || 0,
+          suuriKhuraamj: zaaltZardal.suuriKhuraamj || 0,
+          nuatNemekhEsekh: zaaltZardal.nuatNemekhEsekh || false,
+          ognoonuud: zaaltZardal.ognoonuud || [],
+        };
+
+        if (existingZaaltIndex >= 0) {
+          geree.zardluud[existingZaaltIndex] = zaaltZardalData;
+        } else {
+          geree.zardluud.push(zaaltZardalData);
+        }
+
+        // Recalculate niitTulbur
+        const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
+          return sum + (zardal.dun || 0);
+        }, 0);
+
+        geree.niitTulbur = niitTulbur;
+        geree.ashiglaltiinZardal = niitTulbur;
+
+        await geree.save();
+
+        // Save to dedicated zaaltUnshlalt model for easier querying and export
+        const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+        const zaaltUnshlalt = new ZaaltUnshlalt(tukhainBaaziinKholbolt)({
+          gereeniiId: geree._id.toString(),
+          gereeniiDugaar: gereeniiDugaar,
+          toot: geree.toot || "",
+          baiguullagiinId: baiguullaga._id.toString(),
+          barilgiinId: barilgiinId,
+          unshlaltiinOgnoo: new Date(ognoo), // Date from import request
+          umnukhZaalt: umnu,
+          suuliinZaalt: niitOdoo,
+          zaaltTog: odor,
+          zaaltUs: shone,
+          zoruu: zoruu,
+          zaaltZardliinId: zaaltZardal._id?.toString() || "",
+          zaaltZardliinNer: zaaltZardal.ner,
+          zaaltZardliinTurul: zaaltZardal.zardliinTurul,
+          tariff: usedTariff,
+          tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
+          defaultDun: zaaltDefaultDun,
+          usedTier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null,
+          zaaltDun: zaaltDun,
+          zaaltCalculation: {
+            umnukhZaalt: umnu,
+            suuliinZaalt: niitOdoo,
+            zaaltTog: odor,
+            zaaltUs: shone,
+            zoruu: zoruu,
+            tariff: usedTariff,
+            tariffType: zaaltZardal.zardliinTurul,
+            tariffName: zaaltZardal.ner,
+            defaultDun: zaaltDefaultDun,
+            tier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null,
+            calculatedAt: new Date(),
+          },
+          bodokhArga: zaaltZardal.bodokhArga || "",
+          tseverUsDun: zaaltZardal.tseverUsDun || 0,
+          bokhirUsDun: zaaltZardal.bokhirUsDun || 0,
+          usKhalaasniiDun: zaaltZardal.usKhalaasniiDun || 0,
+          tsakhilgaanUrjver: zaaltZardal.tsakhilgaanUrjver || 1,
+          tsakhilgaanChadal: zaaltZardal.tsakhilgaanChadal || 0,
+          tsakhilgaanDemjikh: zaaltZardal.tsakhilgaanDemjikh || 0,
+          suuriKhuraamj: zaaltZardal.suuriKhuraamj || 0,
+          nuatNemekhEsekh: zaaltZardal.nuatNemekhEsekh || false,
+          ognoonuud: zaaltZardal.ognoonuud || [],
+          importOgnoo: new Date(),
+          importAjiltniiId: req.nevtersenAjiltniiToken?.id || "",
+          importAjiltniiNer: req.nevtersenAjiltniiToken?.ner || "",
+        });
+        
+        await zaaltUnshlalt.save();
+        console.log(`💾 [ZAALT IMPORT] Saved to zaaltUnshlalt model: ${gereeniiDugaar}`);
+
+        results.success.push({
+          row: rowNumber,
+          gereeniiDugaar: gereeniiDugaar,
+          umnu: umnu,
+          odor: odor,
+          shone: shone,
+          niitOdoo: niitOdoo,
+          zaaltDun: zaaltDun,
+        });
+
+        console.log(`✅ [ZAALT IMPORT] Processed geree ${gereeniiDugaar}: ${zaaltDun} MNT`);
+      } catch (error) {
+        console.error(`❌ [ZAALT IMPORT] Error processing row ${rowNumber}:`, error.message);
+        results.failed.push({
+          row: rowNumber,
+          gereeniiDugaar: row["Гэрээний дугаар"]?.toString().trim() || "",
+          error: error.message || "Алдаа гарлаа",
+        });
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Цахилгааны уншилт импорт хийгдлээ. Амжилттай: ${results.success.length}, Алдаатай: ${results.failed.length}`,
+      results: results,
+    });
+  } catch (error) {
+    console.error("Error importing electricity Excel:", error);
+    next(error);
+  }
+});
+
+/**
+ * Export electricity readings data that has been imported
+ * Shows all gerees with electricity readings in Excel format
+ */
+exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
+  try {
+    console.log("📥 [ZAALT EXPORT] Request received:", {
+      method: req.method,
+      path: req.path,
+      originalUrl: req.originalUrl,
+      body: req.body,
+    });
+    
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, barilgiinId } = req.body;
+
+    if (!baiguullagiinId) {
+      console.error("❌ [ZAALT EXPORT] Missing baiguullagiinId");
+      throw new aldaa("Байгууллагын ID хоосон");
+    }
+
+    if (!barilgiinId) {
+      console.error("❌ [ZAALT EXPORT] Missing barilgiinId");
+      throw new aldaa("Барилгын ID хоосон");
+    }
+    
+    console.log("✅ [ZAALT EXPORT] Parameters validated:", {
+      baiguullagiinId,
+      barilgiinId,
+    });
+
+    const Baiguullaga = require("../models/baiguullaga");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      throw new aldaa("Байгууллага олдсонгүй");
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
+    if (!tukhainBaaziinKholbolt) {
+      throw new aldaa("Холболт олдсонгүй");
+    }
+
+    // Get electricity readings from dedicated zaaltUnshlalt model
+    const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+    
+    console.log("🔍 [ZAALT EXPORT] Searching for electricity data:", {
+      baiguullagiinId: baiguullaga._id.toString(),
+      barilgiinId: barilgiinId,
+    });
+    
+    // Get all electricity readings for this building, sorted by contract number and date
+    const zaaltUnshlaltuud = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+      .find({
+        baiguullagiinId: baiguullaga._id.toString(),
+        barilgiinId: barilgiinId,
+      })
+      .sort({ gereeniiDugaar: 1, unshlaltiinOgnoo: -1 }) // Latest reading first for each contract
+      .lean();
+
+    console.log("📊 [ZAALT EXPORT] Total electricity readings found:", zaaltUnshlaltuud.length);
+
+    if (!zaaltUnshlaltuud || zaaltUnshlaltuud.length === 0) {
+      console.log("❌ [ZAALT EXPORT] No electricity data found:", {
+        baiguullagiinId: baiguullaga._id.toString(),
+        barilgiinId: barilgiinId,
+      });
+      throw new aldaa("Цахилгааны уншилтын мэдээлэл олдсонгүй");
+    }
+
+    // Get unique contracts (latest reading for each contract)
+    const latestReadings = new Map();
+    zaaltUnshlaltuud.forEach((reading) => {
+      const key = reading.gereeniiDugaar;
+      if (!latestReadings.has(key) || 
+          new Date(reading.unshlaltiinOgnoo) > new Date(latestReadings.get(key).unshlaltiinOgnoo)) {
+        latestReadings.set(key, reading);
+      }
+    });
+
+    const gereenuud = Array.from(latestReadings.values());
+
+    console.log("✅ [ZAALT EXPORT] Found electricity data:", {
+      baiguullagiinId: baiguullaga._id.toString(),
+      barilgiinId: barilgiinId,
+      totalReadings: zaaltUnshlaltuud.length,
+      uniqueContracts: gereenuud.length,
+    });
+
+    // Get building-level electricity zardal configuration
+    const targetBarilga = baiguullaga.barilguud?.find(
+      (b) => String(b._id) === String(barilgiinId)
+    );
+    if (!targetBarilga) {
+      throw new aldaa("Барилга олдсонгүй");
+    }
+
+    const zardluud = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+    const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
+    
+    // Prioritize exact "Цахилгаан" match (no trailing space)
+    let zaaltZardal = zaaltZardluud.find(
+      (z) => z.ner && z.ner.trim() === "Цахилгаан"
+    );
+    
+    // If no exact match, use first one
+    if (!zaaltZardal && zaaltZardluud.length > 0) {
+      zaaltZardal = zaaltZardluud[0];
+    }
+
+    // Fetch all gerees to get orshinSuugchId for each contract
+    const Geree = require("../models/geree");
+    const OrshinSuugch = require("../models/orshinSuugch");
+    const uniqueGereeniiDugaaruud = [...new Set(gereenuud.map(r => r.gereeniiDugaar))];
+    const gerees = await Geree(tukhainBaaziinKholbolt)
+      .find({
+        gereeniiDugaar: { $in: uniqueGereeniiDugaaruud },
+        baiguullagiinId: baiguullaga._id.toString(),
+        barilgiinId: barilgiinId,
+      })
+      .select("gereeniiDugaar orshinSuugchId")
+      .lean();
+
+    // Get all unique orshinSuugchIds
+    const orshinSuugchIds = [...new Set(gerees.map(g => g.orshinSuugchId).filter(id => id))];
+    
+    // Fetch all orshinSuugch documents to get tsahilgaaniiZaalt (tariff)
+    const orshinSuugchuud = await OrshinSuugch(db.erunkhiiKholbolt)
+      .find({
+        _id: { $in: orshinSuugchIds }
+      })
+      .select("_id tsahilgaaniiZaalt")
+      .lean();
+
+    // Create maps for quick lookup
+    const gereeToOrshinSuugchMap = new Map();
+    gerees.forEach((geree) => {
+      if (geree.orshinSuugchId) {
+        gereeToOrshinSuugchMap.set(geree.gereeniiDugaar, geree.orshinSuugchId);
+      }
+    });
+
+    const orshinSuugchMap = new Map();
+    orshinSuugchuud.forEach((orshinSuugch) => {
+      orshinSuugchMap.set(orshinSuugch._id.toString(), orshinSuugch);
+    });
+
+    let workbook = new excel.Workbook();
+    let worksheet = workbook.addWorksheet("Цахилгааны заалт");
+
+    // Define columns
+    worksheet.columns = [
+      { header: "Гэрээний дугаар", key: "gereeniiDugaar", width: 20 },
+      { header: "Тоот", key: "toot", width: 15 },
+      { header: "Өмнө", key: "umnukhZaalt", width: 15 },
+      { header: "Өдөр", key: "zaaltTog", width: 15 },
+      { header: "Шөнө", key: "zaaltUs", width: 15 },
+      { header: "Нийт (одоо)", key: "suuliinZaalt", width: 15 },
+      { header: "Зөрүү", key: "zoruu", width: 15 },
+      { header: "Тариф (кВт)", key: "tariff", width: 15 },
+      { header: "Суурь хураамж", key: "defaultDun", width: 15 },
+      { header: "Төлбөр", key: "zaaltDun", width: 15 },
+      { header: "Тооцоолсон огноо", key: "calculatedAt", width: 20 },
+    ];
+
+    // Style header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    };
+
+    // Add data rows from zaaltUnshlalt model
+    gereenuud.forEach((reading) => {
+      const umnukhZaalt = reading.umnukhZaalt || 0;
+      const suuliinZaalt = reading.suuliinZaalt || 0;
+      const zaaltTog = reading.zaaltTog || 0;
+      const zaaltUs = reading.zaaltUs || 0;
+      const zoruu = reading.zoruu || (suuliinZaalt - umnukhZaalt);
+
+      // Get tariff from orshinSuugch.tsahilgaaniiZaalt (ignore geree.zardluud)
+      let tariff = 0;
+      let defaultDun = 0;
+      
+      // Get orshinSuugchId from geree
+      const orshinSuugchId = gereeToOrshinSuugchMap.get(reading.gereeniiDugaar);
+      
+      if (orshinSuugchId) {
+        const orshinSuugch = orshinSuugchMap.get(orshinSuugchId);
+        
+        if (orshinSuugch && orshinSuugch.tsahilgaaniiZaalt !== undefined) {
+          tariff = orshinSuugch.tsahilgaaniiZaalt || 0;
+          console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - Using tariff from orshinSuugch.tsahilgaaniiZaalt:`, tariff);
+        } else {
+          console.log(`⚠️ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - orshinSuugch not found or tsahilgaaniiZaalt not set`);
+        }
+      } else {
+        console.log(`⚠️ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - No orshinSuugchId found in geree`);
+      }
+      
+      // ALWAYS use building level defaultDun (shared for all contracts)
+      if (zaaltZardal) {
+        defaultDun = zaaltZardal.zaaltDefaultDun || 0;
+      } else {
+        // Fallback to reading if no building level config
+        defaultDun = reading.defaultDun || 0;
+      }
+
+      // Always recalculate payment: (usage * tariff) + base fee
+      // Formula: zaaltDun = zoruu * tariff + defaultDun
+      const zaaltDun = (zoruu * tariff) + defaultDun;
+      
+      console.log(`💰 [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} payment calculation:`, {
+        zoruu: zoruu,
+        tariff: tariff,
+        defaultDun: defaultDun,
+        calculation: `${zoruu} * ${tariff} + ${defaultDun}`,
+        zaaltDun: zaaltDun
+      });
+      const calculatedAt = reading.zaaltCalculation?.calculatedAt
+        ? new Date(reading.zaaltCalculation.calculatedAt).toLocaleString("mn-MN", {
+            timeZone: "Asia/Ulaanbaatar",
+          })
+        : reading.unshlaltiinOgnoo
+        ? new Date(reading.unshlaltiinOgnoo).toLocaleString("mn-MN", {
+            timeZone: "Asia/Ulaanbaatar",
+          })
+        : "";
+
+      worksheet.addRow({
+        gereeniiDugaar: reading.gereeniiDugaar || "",
+        toot: reading.toot || "",
+        umnukhZaalt: umnukhZaalt,
+        zaaltTog: zaaltTog,
+        zaaltUs: zaaltUs,
+        suuliinZaalt: suuliinZaalt,
+        zoruu: zoruu,
+        tariff: tariff,
+        defaultDun: defaultDun,
+        zaaltDun: zaaltDun,
+        calculatedAt: calculatedAt,
+      });
+    });
+
+    // Format number columns
+    worksheet.getColumn("umnukhZaalt").numFmt = "0.00";
+    worksheet.getColumn("zaaltTog").numFmt = "0.00";
+    worksheet.getColumn("zaaltUs").numFmt = "0.00";
+    worksheet.getColumn("suuliinZaalt").numFmt = "0.00";
+    worksheet.getColumn("zoruu").numFmt = "0.00";
+    worksheet.getColumn("tariff").numFmt = "0.00";
+    worksheet.getColumn("defaultDun").numFmt = "#,##0";
+    worksheet.getColumn("zaaltDun").numFmt = "#,##0";
+
+    // Auto-fit columns
+    worksheet.columns.forEach((column) => {
+      if (column.width) {
+        column.width = Math.max(column.width, 12);
+      }
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="zaalt_data_${Date.now()}.xlsx"`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error("Error exporting electricity readings data:", error);
+    next(error);
+  }
+});
+
 // exports.orshinSuugchTatya = asyncHandler(async (req, res, next) => {
 //   try {
 //     const workbook = xlsx.read(req.file.buffer);

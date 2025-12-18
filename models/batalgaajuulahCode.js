@@ -55,6 +55,23 @@ batalgaajuulkhCodeSchema.statics.batalgaajuulkhCodeUusgeye = async function (
   const code = Math.floor(1000 + Math.random() * 9000).toString();
   const expiresAt = new Date(Date.now() + expirationMinutes * 60 * 1000);
 
+  // IMPORTANT: When creating a new code, mark all previous unused codes for the same phone and purpose as used
+  // This ensures only the latest code is valid
+  await this.updateMany(
+    {
+      utas,
+      purpose,
+      khereglesenEsekh: false,
+      expiresAt: { $gt: new Date() }, // Only mark non-expired codes
+    },
+    {
+      $set: {
+        khereglesenEsekh: true,
+        khereglesenOgnoo: new Date(),
+      },
+    }
+  );
+
   const result = await this.create({
     utas,
     code,
@@ -73,13 +90,15 @@ batalgaajuulkhCodeSchema.statics.verifyCode = async function (
   code,
   purpose = "password_reset"
 ) {
+  // Find the most recent code that matches (sort by createdAt descending)
+  // This ensures we use the latest code if multiple codes exist for the same phone
   const verificationCode = await this.findOne({
     utas,
     code,
     purpose,
     khereglesenEsekh: false,
     expiresAt: { $gt: new Date() },
-  });
+  }).sort({ createdAt: -1 });
 
   if (!verificationCode) {
     return { success: false, message: "Хүчингүй код байна!" };

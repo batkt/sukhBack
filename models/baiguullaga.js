@@ -100,6 +100,16 @@ const baiguullagaSchema = new Schema(
               dun: Number,
               ognoonuud: [Date],
               nuatBodokhEsekh: Boolean,
+              zaalt: Boolean, // Electricity (цахилгаан) flag
+              zaaltTariff: Number, // кВт tariff for electricity (legacy - use zaaltTariffTiers if available)
+              zaaltDefaultDun: Number, // Default amount for electricity calculation
+              // Tiered pricing: zaaltTariffTiers = [{ threshold: 175, tariff: 175 }, { threshold: 256, tariff: 256 }, { threshold: Infinity, tariff: 285 }]
+              zaaltTariffTiers: [
+                {
+                  threshold: Number, // Usage threshold (кВт)
+                  tariff: Number, // Tariff rate for this tier (Төг/кВт.цаг)
+                },
+              ],
             },
           ],
           /** Лифт шалгая - хөлөгдсөн давхрууд */
@@ -213,6 +223,190 @@ const baiguullagaSchema = new Schema(
     timestamps: true,
   }
 );
+
+// Shared function to update geree.zardluud when baiguullaga.barilguud[].tokhirgoo.ashiglaltiinZardluud changes
+async function updateGereeFromBaiguullagaZardluud(doc) {
+  try {
+    if (!doc || !doc.barilguud || !Array.isArray(doc.barilguud)) {
+      return;
+    }
+
+    console.log("🔄 [BAIGULLAGA HOOK] Post-save hook triggered for baiguullaga:", doc._id);
+
+    const { db } = require("zevbackv2");
+    const Geree = require("./geree");
+
+    const kholbolt = db.kholboltuud.find(
+      (a) => String(a.baiguullagiinId) === String(doc._id)
+    );
+
+    if (!kholbolt) {
+      console.log("⚠️ [BAIGULLAGA HOOK] No kholbolt found for baiguullaga:", doc._id);
+      return;
+    }
+
+    // Process each barilga's ashiglaltiinZardluud
+    for (const barilga of doc.barilguud) {
+      if (
+        !barilga._id ||
+        !barilga.tokhirgoo ||
+        !barilga.tokhirgoo.ashiglaltiinZardluud ||
+        !Array.isArray(barilga.tokhirgoo.ashiglaltiinZardluud)
+      ) {
+        continue;
+      }
+
+      const barilgiinId = barilga._id.toString();
+      const ashiglaltiinZardluud = barilga.tokhirgoo.ashiglaltiinZardluud;
+
+      // Find all active geree documents for this baiguullaga and barilga
+      const gereenuud = await Geree(kholbolt, true).find({
+        baiguullagiinId: doc._id.toString(),
+        barilgiinId: barilgiinId,
+        tuluv: "Идэвхтэй", // Only update active contracts
+      });
+
+      console.log(
+        `🔄 [BAIGULLAGA HOOK] Found ${gereenuud.length} active geree for barilga ${barilgiinId} with ${ashiglaltiinZardluud.length} zardluud`
+      );
+
+      for (const geree of gereenuud) {
+        if (!geree.zardluud) {
+          geree.zardluud = [];
+        }
+
+        // Get current zardluud from building config
+        const buildingZardluudMap = new Map();
+        for (const zardal of ashiglaltiinZardluud) {
+          const key = `${zardal.ner || ""}_${zardal.turul || ""}_${zardal.zardliinTurul || ""}`;
+          buildingZardluudMap.set(key, zardal);
+        }
+
+        // Remove zardluud that no longer exist in building config (matching by barilgiinId)
+        geree.zardluud = geree.zardluud.filter((z) => {
+          // Keep zardluud from other barilgas
+          if (z.barilgiinId && String(z.barilgiinId) !== barilgiinId) {
+            return true;
+          }
+          // Keep zardluud that don't have barilgiinId (backward compatibility)
+          if (!z.barilgiinId) {
+            // Only remove if it matches a building zardal (to avoid removing unrelated zardluud)
+            const key = `${z.ner || ""}_${z.turul || ""}_${z.zardliinTurul || ""}`;
+            return !buildingZardluudMap.has(key);
+          }
+          // For zardluud from this barilga, check if it still exists in building config
+          const key = `${z.ner || ""}_${z.turul || ""}_${z.zardliinTurul || ""}`;
+          return buildingZardluudMap.has(key);
+        });
+
+        // Update or add zardluud from building config
+        for (const buildingZardal of ashiglaltiinZardluud) {
+          const key = `${buildingZardal.ner || ""}_${buildingZardal.turul || ""}_${buildingZardal.zardliinTurul || ""}`;
+          
+          // Find existing zardal in geree
+          // Match by ner, turul, zardliinTurul
+          // For barilgiinId: if geree zardal doesn't have barilgiinId, it's from this building (backward compatibility)
+          // If geree zardal has barilgiinId, it must match this building's barilgiinId
+          const existingIndex = geree.zardluud.findIndex((z) => {
+            const matchesNer = z.ner === buildingZardal.ner;
+            const matchesTurul = z.turul === buildingZardal.turul;
+            const matchesZardliinTurul = z.zardliinTurul === buildingZardal.zardliinTurul;
+            
+            // For backward compatibility: if zardal doesn't have barilgiinId, assume it's from this building
+            // If zardal has barilgiinId, it must match this building's barilgiinId
+            const matchesBarilgiinId = !z.barilgiinId || String(z.barilgiinId) === barilgiinId;
+            
+            return matchesNer && matchesTurul && matchesZardliinTurul && matchesBarilgiinId;
+          });
+
+          const newZardal = {
+            ner: buildingZardal.ner,
+            turul: buildingZardal.turul,
+            tariff: buildingZardal.tariff,
+            tariffUsgeer: buildingZardal.tariffUsgeer,
+            zardliinTurul: buildingZardal.zardliinTurul,
+            barilgiinId: barilgiinId,
+            tulukhDun: 0,
+            dun: buildingZardal.dun || 0,
+            bodokhArga: buildingZardal.bodokhArga || "",
+            tseverUsDun: buildingZardal.tseverUsDun || 0,
+            bokhirUsDun: buildingZardal.bokhirUsDun || 0,
+            usKhalaasniiDun: buildingZardal.usKhalaasniiDun || 0,
+            tsakhilgaanUrjver: buildingZardal.tsakhilgaanUrjver || 1,
+            tsakhilgaanChadal: buildingZardal.tsakhilgaanChadal || 0,
+            tsakhilgaanDemjikh: buildingZardal.tsakhilgaanDemjikh || 0,
+            suuriKhuraamj: buildingZardal.suuriKhuraamj || 0,
+            nuatNemekhEsekh: buildingZardal.nuatNemekhEsekh || false,
+            ognoonuud: buildingZardal.ognoonuud || [],
+            zaalt: buildingZardal.zaalt || false,
+            zaaltTariff: buildingZardal.zaaltTariff || 0,
+            zaaltDefaultDun: buildingZardal.zaaltDefaultDun || 0,
+            zaaltTariffTiers: buildingZardal.zaaltTariffTiers || [],
+          };
+
+          if (existingIndex !== -1) {
+            // Update existing zardal
+            geree.zardluud[existingIndex] = {
+              ...geree.zardluud[existingIndex].toObject(),
+              ...newZardal,
+            };
+          } else {
+            // Add new zardal
+            geree.zardluud.push(newZardal);
+          }
+        }
+
+        // Recalculate niitTulbur
+        const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
+          return sum + (zardal.tariff || 0);
+        }, 0);
+
+        const oldNiitTulbur = geree.niitTulbur;
+        geree.niitTulbur = niitTulbur;
+
+        // Save the updated geree
+        await geree.save();
+
+        console.log(
+          `✅ [BAIGULLAGA HOOK] Updated geree ${geree.gereeniiDugaar}: niitTulbur ${oldNiitTulbur} → ${niitTulbur}, zardluud count: ${geree.zardluud.length}`
+        );
+
+        // NOTE: Do NOT update existing nekhemjlekhiinTuukh (invoice) records
+        // Once an invoice is created, it should NEVER be modified
+        // This ensures historical accuracy - invoices represent what was billed at a specific point in time
+      }
+    }
+  } catch (error) {
+    console.error(
+      "Error updating geree.zardluud after baiguullaga.ashiglaltiinZardluud update:",
+      error
+    );
+  }
+}
+
+// Post-save hook
+baiguullagaSchema.post("save", async function (doc) {
+  await updateGereeFromBaiguullagaZardluud(doc);
+});
+
+// Post-findOneAndUpdate hook (for findOneAndUpdate operations)
+baiguullagaSchema.post("findOneAndUpdate", async function (doc) {
+  if (doc) {
+    await updateGereeFromBaiguullagaZardluud(doc);
+  }
+});
+
+// Post-updateOne hook (for updateOne operations)
+baiguullagaSchema.post("updateOne", async function () {
+  try {
+    const doc = await this.model.findOne(this.getQuery());
+    if (doc) {
+      await updateGereeFromBaiguullagaZardluud(doc);
+    }
+  } catch (error) {
+    console.error("Error in updateOne hook:", error);
+  }
+});
 
 //const BaiguullagaModel = mongoose.model("baiguullaga", baiguullagaSchema);
 
