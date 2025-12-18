@@ -822,6 +822,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
     
     await orshinSuugch.save();
+    console.log("✅ [REGISTER] orshinSuugch saved successfully:", orshinSuugch._id);
     
     // Verify tsahilgaaniiZaalt was saved
     const savedOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("tsahilgaaniiZaalt");
@@ -830,8 +831,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     try {
       // Reuse tukhainBaaziinKholbolt from above (already declared)
       if (!tukhainBaaziinKholbolt) {
+        console.error("❌ [REGISTER] tukhainBaaziinKholbolt not found for baiguullaga:", baiguullaga._id);
         throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
       }
+      
+      console.log("✅ [REGISTER] tukhainBaaziinKholbolt found, proceeding with contract creation");
 
       // Get ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo
       const targetBarilgaForZardluud = baiguullaga.barilguud?.find(
@@ -1152,7 +1156,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         }
       }
     } catch (contractError) {
-      console.log("orshinSuugch service");
+      console.error("❌ [REGISTER] Error creating contract:", contractError);
+      console.error("❌ [REGISTER] Contract error stack:", contractError?.stack);
+      // Don't fail registration if contract creation fails - user is already saved
     }
 
     const response = {
@@ -1171,7 +1177,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     res.status(201).json(response);
   } catch (error) {
-    console.log("orshinSuugch service");
+    console.error("❌ [REGISTER] Error in orshinSuugchBurtgey:", error);
+    console.error("❌ [REGISTER] Error stack:", error?.stack);
     next(error);
   }
 });
