@@ -286,27 +286,61 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
       try {
         console.log("💳 [QPAY] Routing to Wallet API QPay payment");
         
-        // Check if invoiceId is provided (required for Wallet API payment)
-        if (!req.body.invoiceId && !req.body.walletInvoiceId) {
-          throw new Error("Invoice ID is required for Wallet API QPay payment");
+        let invoiceId = req.body.invoiceId || req.body.walletInvoiceId;
+        
+        // If invoiceId is not provided, but billingId and billIds are provided, create invoice first
+        if (!invoiceId && req.body.billingId && req.body.billIds && Array.isArray(req.body.billIds) && req.body.billIds.length > 0) {
+          console.log("📝 [QPAY] Invoice ID not provided, creating invoice from billing and bills...");
+          console.log("📝 [QPAY] billingId:", req.body.billingId);
+          console.log("📝 [QPAY] billIds:", req.body.billIds);
+          
+          const invoiceData = {
+            billingId: req.body.billingId,
+            billIds: req.body.billIds,
+            vatReceiveType: req.body.vatReceiveType || "CITIZEN",
+            vatCompanyReg: req.body.vatCompanyReg || "",
+          };
+          
+          const invoiceResult = await walletApiService.createInvoice(userPhoneNumber, invoiceData);
+          
+          if (invoiceResult && invoiceResult.invoiceId) {
+            invoiceId = invoiceResult.invoiceId;
+            console.log("✅ [QPAY] Invoice created successfully, invoiceId:", invoiceId);
+          } else {
+            throw new Error("Failed to create invoice - invoiceId not returned");
+          }
+        }
+        
+        // Check if invoiceId is available (required for Wallet API payment)
+        if (!invoiceId) {
+          throw new Error("Invoice ID is required for Wallet API QPay payment. Provide invoiceId, or billingId + billIds to create invoice automatically.");
         }
         
         const paymentData = {
-          invoiceId: req.body.invoiceId || req.body.walletInvoiceId,
-          paymentMethod: req.body.paymentMethod || "QPAY",
+          invoiceId: invoiceId,
+          // paymentMethod is not needed - Wallet API auto-detects QPay
         };
         
         const result = await walletApiService.createPayment(userPhoneNumber, paymentData);
         
         console.log("✅ [QPAY] Wallet API QPay payment created successfully");
+        console.log("✅ [QPAY] Payment ID:", result.paymentId);
+        if (result.qrText) {
+          console.log("✅ [QPAY] QR code generated");
+        }
+        
         return res.status(200).json({
           success: true,
           data: result,
           message: "QPay төлбөр амжилттай үүсгэлээ",
           source: "WALLET_API",
+          invoiceId: invoiceId, // Return invoiceId in case frontend needs it
         });
       } catch (walletQPayError) {
         console.error("❌ [QPAY] Wallet API QPay error:", walletQPayError.message);
+        if (walletQPayError.response) {
+          console.error("❌ [QPAY] Error response:", JSON.stringify(walletQPayError.response.data));
+        }
         // Fall back to custom QPay if Wallet QPay fails
         console.log("⚠️ [QPAY] Falling back to custom QPay");
         useWalletQPay = false;
