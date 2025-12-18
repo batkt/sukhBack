@@ -3413,18 +3413,24 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
 
+    // Use walletUserId if available, otherwise fall back to phone number
+    // Wallet API might need the walletUserId (UUID) instead of phone number
+    const userIdForWalletApi = orshinSuugch.walletUserId || orshinSuugch.utas;
     const phoneNumber = orshinSuugch.utas;
     const bairId = req.body.bairId;
     const doorNo = req.body.doorNo;
 
     console.log("🏠 [WALLET BILLING] Fetching billing info from Wallet API...");
-    console.log("🏠 [WALLET BILLING] User:", phoneNumber, "bairId:", bairId, "doorNo:", doorNo);
+    console.log("🏠 [WALLET BILLING] User (phoneNumber):", phoneNumber);
+    console.log("🏠 [WALLET BILLING] User (walletUserId):", orshinSuugch.walletUserId || "N/A");
+    console.log("🏠 [WALLET BILLING] Using userIdForWalletApi:", userIdForWalletApi);
+    console.log("🏠 [WALLET BILLING] bairId:", bairId, "doorNo:", doorNo);
 
     let billingInfo = null;
     try {
-      // getBillingByAddress requires phoneNumber, not walletUserId
+      // Try with walletUserId first if available, otherwise use phone number
       const billingResponse = await walletApiService.getBillingByAddress(
-        phoneNumber,
+        userIdForWalletApi,
         bairId,
         doorNo
       );
@@ -3441,9 +3447,9 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           try {
             console.log("🔍 [WALLET BILLING] Billing ID not found, fetching by customer ID...");
             console.log("🔍 [WALLET BILLING] Customer ID:", billingInfo.customerId);
-            // Wallet API userId means phoneNumber
+            // Use walletUserId if available, otherwise phoneNumber
             const billingByCustomer = await walletApiService.getBillingByCustomer(
-              phoneNumber,
+              userIdForWalletApi,
               billingInfo.customerId
             );
             if (billingByCustomer && billingByCustomer.billingId) {
@@ -3456,8 +3462,8 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
               // Try to find billingId from billing list
               try {
                 console.log("🔍 [WALLET BILLING] Trying to find billingId from billing list...");
-                // Wallet API userId means phoneNumber
-                const billingList = await walletApiService.getBillingList(phoneNumber);
+                // Use walletUserId if available, otherwise phoneNumber
+                const billingList = await walletApiService.getBillingList(userIdForWalletApi);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
                     b.customerId === billingInfo.customerId || 
@@ -3486,8 +3492,8 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
             // Try billing list as fallback
             try {
               console.log("🔍 [WALLET BILLING] Trying billing list as fallback...");
-                // Wallet API userId means phoneNumber
-                const billingList = await walletApiService.getBillingList(phoneNumber);
+                // Use walletUserId if available, otherwise phoneNumber
+                const billingList = await walletApiService.getBillingList(userIdForWalletApi);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
                     b.customerId === billingInfo.customerId
@@ -4067,10 +4073,35 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
 
-    if (!baiguullagiinId || !utas || !code) {
+    // If baiguullagiinId is not provided, skip OTP verification and proceed
+    // This allows wallet-only registrations (without organization) to proceed
+    if (!baiguullagiinId) {
+      console.log("ℹ️ [LOGIN VERIFY] No baiguullagiinId provided, skipping OTP verification");
+      
+      const { db } = require("zevbackv2");
+      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
+      
+      if (!orshinSuugch) {
+        return res.status(404).json({
+          success: false,
+          message: "Хэрэглэгч олдсонгүй!",
+        });
+      }
+
+      console.log("✅ [LOGIN VERIFY] Skipped OTP verification for wallet-only user:", orshinSuugch._id);
+
+      return res.json({
+        success: true,
+        message: "Баталгаажуулалт алгассан (байгууллагын ID байхгүй)",
+        // Frontend should save verification status to local storage
+      });
+    }
+
+    // If baiguullagiinId is provided, proceed with normal OTP verification
+    if (!utas || !code) {
       return res.status(400).json({
         success: false,
-        message: "Байгууллагын ID, утас, код заавал бөглөх шаардлагатай!",
+        message: "Утас, код заавал бөглөх шаардлагатай!",
       });
     }
 
