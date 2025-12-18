@@ -285,6 +285,8 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
     if (useWalletQPay && userPhoneNumber) {
       try {
         console.log("💳 [QPAY] Routing to Wallet API QPay payment");
+        console.log("📋 [QPAY] Request body keys:", Object.keys(req.body));
+        console.log("📋 [QPAY] Request body:", JSON.stringify(req.body, null, 2));
         
         let invoiceId = req.body.invoiceId || req.body.walletInvoiceId;
         
@@ -309,6 +311,10 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           } else {
             throw new Error("Failed to create invoice - invoiceId not returned");
           }
+        } else if (!invoiceId) {
+          console.log("⚠️ [QPAY] Invoice ID not provided and cannot auto-create:");
+          console.log("⚠️ [QPAY] - billingId:", req.body.billingId ? "✅" : "❌");
+          console.log("⚠️ [QPAY] - billIds:", req.body.billIds ? (Array.isArray(req.body.billIds) ? `✅ (${req.body.billIds.length} items)` : "❌ (not array)") : "❌");
         }
         
         // Check if invoiceId is available (required for Wallet API payment)
