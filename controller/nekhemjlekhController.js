@@ -33,11 +33,26 @@ const gereeNeesNekhemjlekhUusgekh = async (
     const NekhemjlekhCron = require("../models/cronSchedule");
 
     try {
-      const cronSchedule = await NekhemjlekhCron(
-        tukhainBaaziinKholbolt
-      ).findOne({
-        baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
-      });
+      // First try to find building-level schedule, then fall back to organization-level
+      let cronSchedule = null;
+      if (tempData.barilgiinId) {
+        cronSchedule = await NekhemjlekhCron(
+          tukhainBaaziinKholbolt
+        ).findOne({
+          baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+          barilgiinId: tempData.barilgiinId,
+        });
+      }
+      
+      // If no building-level schedule found, try organization-level
+      if (!cronSchedule) {
+        cronSchedule = await NekhemjlekhCron(
+          tukhainBaaziinKholbolt
+        ).findOne({
+          baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+          barilgiinId: null, // Organization-level schedule
+        });
+      }
 
       if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
         const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
@@ -377,14 +392,29 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     // Set payment due date based on nekhemjlekhCron schedule
-    // Get the cron schedule for this baiguullaga
+    // Get the cron schedule: first try building-level, then fall back to organization-level
     let tulukhOgnoo = null;
     try {
-      const cronSchedule = await NekhemjlekhCron(
-        tukhainBaaziinKholbolt
-      ).findOne({
-        baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
-      });
+      // First try to find building-level schedule, then fall back to organization-level
+      let cronSchedule = null;
+      if (tempData.barilgiinId) {
+        cronSchedule = await NekhemjlekhCron(
+          tukhainBaaziinKholbolt
+        ).findOne({
+          baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+          barilgiinId: tempData.barilgiinId,
+        });
+      }
+      
+      // If no building-level schedule found, try organization-level
+      if (!cronSchedule) {
+        cronSchedule = await NekhemjlekhCron(
+          tukhainBaaziinKholbolt
+        ).findOne({
+          baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+          barilgiinId: null, // Organization-level schedule
+        });
+      }
 
       if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
         // Calculate next month's scheduled date

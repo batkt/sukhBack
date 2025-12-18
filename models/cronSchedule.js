@@ -7,7 +7,10 @@ const nekhemjlekhCronSchema = new Schema({
   baiguullagiinId: {
     type: String,
     required: true,
-    unique: true,
+  },
+  barilgiinId: {
+    type: String,
+    default: null, // null means organization-level, otherwise building-level
   },
   nekhemjlekhUusgekhOgnoo: {
     type: Number,
@@ -37,6 +40,12 @@ const nekhemjlekhCronSchema = new Schema({
     default: Date.now,
   },
 });
+
+// Unique constraint: one schedule per baiguullaga OR per baiguullaga+barilga combination
+nekhemjlekhCronSchema.index(
+  { baiguullagiinId: 1, barilgiinId: 1 },
+  { unique: true, sparse: true }
+);
 
 nekhemjlekhCronSchema.pre("save", function (next) {
   this.shinechilsenOgnoo = new Date();

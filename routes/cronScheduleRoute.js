@@ -8,6 +8,7 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
     const { db } = require("zevbackv2");
 
     const baiguullagiinId = req.body.baiguullagiinId;
+    const barilgiinId = req.body.barilgiinId || null; // Optional: if provided, schedule is per building
     const { nekhemjlekhUusgekhOgnoo, idevkhitei = true } = req.body;
 
     if (!baiguullagiinId || !nekhemjlekhUusgekhOgnoo) {
@@ -35,6 +36,19 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
       }
     }
 
+    // If barilgiinId is provided, validate it exists in baiguullaga
+    if (barilgiinId) {
+      const targetBarilga = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+      if (!targetBarilga) {
+        return res.status(404).json({
+          success: false,
+          message: "Барилгын мэдээлэл олдсонгүй!",
+        });
+      }
+    }
+
     let tukhainBaaziinKholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
@@ -48,12 +62,21 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
       });
     }
 
+    // Query by both baiguullagiinId and barilgiinId (barilgiinId can be null for org-level)
+    const query = { baiguullagiinId };
+    if (barilgiinId) {
+      query.barilgiinId = barilgiinId;
+    } else {
+      query.barilgiinId = null; // Explicitly set to null for organization-level
+    }
+
     const cronSchedule = await nekhemjlekhCron(
       tukhainBaaziinKholbolt
     ).findOneAndUpdate(
-      { baiguullagiinId },
+      query,
       {
         baiguullagiinId,
+        barilgiinId: barilgiinId || null,
         nekhemjlekhUusgekhOgnoo,
         idevkhitei,
         shinechilsenOgnoo: new Date(),
@@ -61,9 +84,10 @@ router.post("/", tokenShalgakh, async (req, res, next) => {
       { upsert: true, new: true }
     );
 
+    const scheduleType = barilgiinId ? "барилга" : "байгууллага";
     res.json({
       success: true,
-      message: `Амжилттай тохируулагдлаа! Нэхэмжлэх ${nekhemjlekhUusgekhOgnoo} сарын ${nekhemjlekhUusgekhOgnoo} өдөр үүсгэгдэнэ.`,
+      message: `Амжилттай тохируулагдлаа! Нэхэмжлэх ${nekhemjlekhUusgekhOgnoo} сарын ${nekhemjlekhUusgekhOgnoo} өдөр үүсгэгдэнэ (${scheduleType} түвшинд).`,
       data: cronSchedule,
     });
   } catch (error) {
@@ -76,6 +100,7 @@ router.get("/:baiguullagiinId", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     const { baiguullagiinId } = req.params;
+    const { barilgiinId } = req.query; // Optional: filter by building
 
     let tukhainBaaziinKholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
@@ -88,9 +113,13 @@ router.get("/:baiguullagiinId", tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    const schedules = await nekhemjlekhCron(tukhainBaaziinKholbolt).find({
-      baiguullagiinId,
-    });
+    // Build query: if barilgiinId provided, get that specific schedule, otherwise get all
+    const query = { baiguullagiinId };
+    if (barilgiinId) {
+      query.barilgiinId = barilgiinId;
+    }
+
+    const schedules = await nekhemjlekhCron(tukhainBaaziinKholbolt).find(query);
     res.json({ success: true, data: schedules });
   } catch (error) {
     console.error("Cron schedule fetch error:", error);
