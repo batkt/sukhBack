@@ -556,15 +556,28 @@ const gereeNeesNekhemjlekhUusgekh = async (
             calculatedAmount: tsahilgaanNekhemjlekh
           });
           
+          // Find existing electricity zardal in geree.zardluud to preserve tariff if no readings
+          const existingZaaltZardal = tempData.zardluud?.find(
+            (z) => z.zaalt === true || (z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul)
+          );
+          
+          // If no readings or calculated amount is 0, use tariff from geree (if exists)
+          // This preserves the original tariff from contract when readings are not available
+          const finalZaaltTariff = (zoruu === 0 || tsahilgaanNekhemjlekh === 0) && existingZaaltZardal?.tariff
+            ? existingZaaltZardal.tariff
+            : tsahilgaanNekhemjlekh;
+          
           // Create electricity zardal entry to add to medeelel.zardluud (like other charges)
           electricityZardalEntry = {
             ner: zaaltZardal.ner || "Цахилгаан",
             turul: zaaltZardal.turul || "Тогтмол",
-            tariff: tsahilgaanNekhemjlekh, // Total calculated amount (not per unit)
-            tariffUsgeer: "₮", // Total amount, not per кВт
+            tariff: finalZaaltTariff, // Use preserved tariff if no readings, otherwise calculated amount
+            tariffUsgeer: zoruu === 0 || tsahilgaanNekhemjlekh === 0 
+              ? (existingZaaltZardal?.tariffUsgeer || zaaltZardal.tariffUsgeer || "₮")
+              : "₮", // Total amount, not per кВт
             zardliinTurul: zaaltZardal.zardliinTurul || "Энгийн",
             barilgiinId: tempData.barilgiinId,
-            dun: tsahilgaanNekhemjlekh, // Total amount
+            dun: finalZaaltTariff, // Total amount
             bodokhArga: zaaltZardal.bodokhArga || "тогтмол",
             tseverUsDun: 0,
             bokhirUsDun: 0,
@@ -588,8 +601,21 @@ const gereeNeesNekhemjlekhUusgekh = async (
           
           // Add electricity charge to finalZardluud array (like other charges)
           // Remove existing electricity entries from finalZardluud first
+          // Match by zaalt flag OR by name and zardliinTurul to handle cases where
+          // geree has "Дулаан, агаар сэлгэлт" but building config has "Цахилгаан"
           const filteredZardluudWithoutZaalt = finalZardluud.filter(
-            (z) => !(z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul)
+            (z) => {
+              // Remove if it matches the zaaltZardal by name and zardliinTurul
+              if (z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul) {
+                return false;
+              }
+              // Also remove if it has zaalt flag (electricity charge from geree)
+              // This handles cases where geree has "Дулаан, агаар сэлгэлт" with zaalt: true
+              if (z.zaalt === true) {
+                return false;
+              }
+              return true;
+            }
           );
           
           // Add the calculated electricity charge
