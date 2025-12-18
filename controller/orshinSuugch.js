@@ -316,9 +316,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       req.body.baiguullagiinId
     );
 
-    if (!baiguullaga) {
-      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
-    }
+ 
 
     const phoneNumber = String(req.body.utas).trim();
     let walletUserInfo = null;
