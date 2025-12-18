@@ -417,15 +417,42 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           try {
             const fullPaymentDetails = await walletApiService.getPayment(userPhoneNumber, result.paymentId);
             if (fullPaymentDetails) {
+              // Try to extract bank details from various locations in the response
+              let bankCode = fullPaymentDetails.receiverBankCode;
+              let accountNo = fullPaymentDetails.receiverAccountNo;
+              let accountName = fullPaymentDetails.receiverAccountName;
+              
+              // Check in lines -> billTransactions (as seen in Postman collection)
+              if (!bankCode && fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
+                for (const line of fullPaymentDetails.lines) {
+                  if (line.billTransactions && Array.isArray(line.billTransactions) && line.billTransactions.length > 0) {
+                    const transaction = line.billTransactions[0];
+                    bankCode = bankCode || transaction.receiverBankCode;
+                    accountNo = accountNo || transaction.receiverAccountNo;
+                    accountName = accountName || transaction.receiverAccountName;
+                    if (bankCode && accountNo) break;
+                  }
+                }
+              }
+              
               // Merge full payment details with initial response
               Object.assign(result, {
-                receiverBankCode: fullPaymentDetails.receiverBankCode || result.receiverBankCode,
-                receiverAccountNo: fullPaymentDetails.receiverAccountNo || result.receiverAccountNo,
-                receiverAccountName: fullPaymentDetails.receiverAccountName || result.receiverAccountName,
+                receiverBankCode: bankCode || result.receiverBankCode,
+                receiverAccountNo: accountNo || result.receiverAccountNo,
+                receiverAccountName: accountName || result.receiverAccountName,
                 paymentStatus: fullPaymentDetails.paymentStatus,
                 paymentStatusText: fullPaymentDetails.paymentStatusText,
               });
-              console.log("✅ [QPAY] Full payment details retrieved");
+              
+              if (bankCode && accountNo) {
+                console.log("✅ [QPAY] Bank details found in payment status");
+                console.log("✅ [QPAY] - receiverBankCode:", bankCode);
+                console.log("✅ [QPAY] - receiverAccountNo:", accountNo);
+                console.log("✅ [QPAY] - receiverAccountName:", accountName);
+              } else {
+                console.log("⚠️ [QPAY] Bank details still not found - payment may be in NEW status");
+                console.log("⚠️ [QPAY] Payment status:", fullPaymentDetails.paymentStatus);
+              }
             }
           } catch (getPaymentError) {
             console.log("⚠️ [QPAY] Could not fetch full payment details:", getPaymentError.message);

@@ -873,6 +873,22 @@ async function getPayment(userId, paymentId) {
       console.log("✅ [WALLET API] Payment found");
       console.log("✅ [WALLET API] Payment status:", response.data.data.paymentStatus);
       console.log("✅ [WALLET API] Payment amount:", response.data.data.amount || response.data.data.paymentAmount);
+      console.log("✅ [WALLET API] Payment response keys:", Object.keys(response.data.data));
+      console.log("✅ [WALLET API] Full payment response:", JSON.stringify(response.data.data, null, 2));
+      
+      // Check for bank details in various possible locations
+      const paymentData = response.data.data;
+      if (paymentData.lines && Array.isArray(paymentData.lines) && paymentData.lines.length > 0) {
+        const firstLine = paymentData.lines[0];
+        if (firstLine.billTransactions && Array.isArray(firstLine.billTransactions) && firstLine.billTransactions.length > 0) {
+          const transaction = firstLine.billTransactions[0];
+          console.log("✅ [WALLET API] Found transaction with bank details:");
+          console.log("✅ [WALLET API] - receiverBankCode:", transaction.receiverBankCode);
+          console.log("✅ [WALLET API] - receiverAccountNo:", transaction.receiverAccountNo);
+          console.log("✅ [WALLET API] - receiverAccountName:", transaction.receiverAccountName);
+        }
+      }
+      
       return response.data.data;
     }
 
