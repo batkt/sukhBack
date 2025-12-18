@@ -224,8 +224,8 @@ const baiguullagaSchema = new Schema(
   }
 );
 
-// Post-save hook to update geree.zardluud when baiguullaga.barilguud[].tokhirgoo.ashiglaltiinZardluud changes
-baiguullagaSchema.post("save", async function (doc) {
+// Shared function to update geree.zardluud when baiguullaga.barilguud[].tokhirgoo.ashiglaltiinZardluud changes
+async function updateGereeFromBaiguullagaZardluud(doc) {
   try {
     if (!doc || !doc.barilguud || !Array.isArray(doc.barilguud)) {
       return;
@@ -381,6 +381,30 @@ baiguullagaSchema.post("save", async function (doc) {
       "Error updating geree.zardluud after baiguullaga.ashiglaltiinZardluud update:",
       error
     );
+  }
+}
+
+// Post-save hook
+baiguullagaSchema.post("save", async function (doc) {
+  await updateGereeFromBaiguullagaZardluud(doc);
+});
+
+// Post-findOneAndUpdate hook (for findOneAndUpdate operations)
+baiguullagaSchema.post("findOneAndUpdate", async function (doc) {
+  if (doc) {
+    await updateGereeFromBaiguullagaZardluud(doc);
+  }
+});
+
+// Post-updateOne hook (for updateOne operations)
+baiguullagaSchema.post("updateOne", async function () {
+  try {
+    const doc = await this.model.findOne(this.getQuery());
+    if (doc) {
+      await updateGereeFromBaiguullagaZardluud(doc);
+    }
+  } catch (error) {
+    console.error("Error in updateOne hook:", error);
   }
 });
 
