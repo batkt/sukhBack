@@ -401,6 +401,64 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // If baiguullaga is not set yet but we have address info, try to find it
+    // This can happen when email is provided but baiguullagiinId wasn't in request body
+    if (!baiguullaga && req.body.bairniiNer) {
+      // Try to find baiguullaga by searching through all organizations
+      // This is a fallback when baiguullagiinId wasn't provided upfront
+      const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
+      for (const org of allBaiguullaguud) {
+        const matchingBarilga = org.barilguud?.find(
+          (b) => String(b.ner).trim() === String(req.body.bairniiNer).trim()
+        );
+        if (matchingBarilga) {
+          baiguullaga = org;
+          console.log(`✅ Found baiguullaga from address: ${baiguullaga.ner} (${baiguullaga._id})`);
+          // Also set tukhainBaaziinKholbolt now that we have baiguullaga
+          tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+          break;
+        }
+      }
+    }
+
+    // If still no baiguullaga and we need it, try to get it from address selection
+    // This handles the case where email is provided but baiguullagiinId needs to be determined
+    if (!baiguullaga && (req.body.duureg || req.body.horoo || req.body.soh)) {
+      // Try to find baiguullaga by location matching
+      // This is a fallback when baiguullagiinId wasn't provided upfront
+      const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
+      for (const org of allBaiguullaguud) {
+        for (const barilga of org.barilguud || []) {
+          const tokhirgoo = barilga.tokhirgoo || {};
+          const matchesDuureg = !req.body.duureg || !tokhirgoo.duuregNer || 
+            String(tokhirgoo.duuregNer).trim() === String(req.body.duureg).trim();
+          const matchesHoroo = !req.body.horoo || !tokhirgoo.horoo?.ner || 
+            String(tokhirgoo.horoo.ner).trim() === String(req.body.horoo).trim();
+          const matchesSoh = !req.body.soh || !tokhirgoo.sohNer || 
+            String(tokhirgoo.sohNer).trim() === String(req.body.soh).trim();
+          
+          if (matchesDuureg && matchesHoroo && matchesSoh) {
+            baiguullaga = org;
+            console.log(`✅ Found baiguullaga from location: ${baiguullaga.ner} (${baiguullaga._id})`);
+            // Also set tukhainBaaziinKholbolt now that we have baiguullaga
+            tukhainBaaziinKholbolt = db.kholboltuud.find(
+              (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+            );
+            break;
+          }
+        }
+        if (baiguullaga) break;
+      }
+    }
+
+    // If baiguullaga is still not found and we need it for OWN_ORG registration, throw error
+    // But if email is provided, allow registration to proceed without baiguullaga (wallet-only)
+    if (!baiguullaga && !email) {
+      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй! Хаягийн мэдээлэлээс байгууллагыг олж чадсангүй.");
+    }
+
     // Use barilgiinId from request if provided - RESPECT IT!
     // Check all possible fields where barilgiinId might be sent
     let barilgiinId =
@@ -418,7 +476,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     });
 
     // If barilgiinId is provided, use it directly - don't search!
-    if (barilgiinId) {
+    // Only validate if baiguullaga exists
+    if (barilgiinId && baiguullaga) {
       // Validate that this barilgiinId exists in baiguullaga
       const providedBarilga = baiguullaga.barilguud?.find(
         (b) => String(b._id) === String(barilgiinId)
@@ -737,9 +796,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       // IMPORTANT: Set tsahilgaaniiZaalt explicitly to ensure it's saved
       const userData = {
         ...req.body,
-        baiguullagiinId: baiguullaga._id,
-        baiguullagiinNer: baiguullaga.ner,
-        barilgiinId: barilgiinId,
         mail: walletUserInfo?.email || req.body.mail || email, // Use email from Wallet API if available
         erkh: "OrshinSuugch",
         duureg: req.body.duureg,
@@ -755,6 +811,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         // Link to Wallet API (unifies website and mobile users)
         ...(walletUserId ? { walletUserId: walletUserId } : {}),
       };
+      
+      // Only set baiguullaga fields if baiguullaga exists (OWN_ORG registration)
+      if (baiguullaga) {
+        userData.baiguullagiinId = baiguullaga._id;
+        userData.baiguullagiinNer = baiguullaga.ner;
+      }
+      
+      // Only set barilgiinId if it exists (OWN_ORG registration)
+      if (barilgiinId) {
+        userData.barilgiinId = barilgiinId;
+      }
       
       userData.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
       
