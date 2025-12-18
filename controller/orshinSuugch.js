@@ -85,13 +85,15 @@ async function validateCodeOnly(
 
   const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
 
+  // Find the most recent code that matches (sort by createdAt descending)
+  // This ensures we use the latest code if multiple codes exist for the same phone
   const verificationCode = await BatalgaajuulahCodeModel.findOne({
     utas,
     code,
     purpose,
     khereglesenEsekh: false,
     expiresAt: { $gt: new Date() },
-  });
+  }).sort({ createdAt: -1 });
 
   if (!verificationCode) {
     return {
