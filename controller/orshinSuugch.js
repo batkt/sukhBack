@@ -299,9 +299,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     // Note: duureg, horoo, and soh are optional - can be retrieved from baiguullaga if not provided
 
-    if (!req.body.baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
-    }
 
     if (!req.body.utas) {
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
