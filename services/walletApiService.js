@@ -865,6 +865,59 @@ async function editUser(userId, userData) {
   }
 }
 
+async function loginUser(phone, password) {
+  try {
+    console.log("🔐 [WALLET API] Attempting user login...");
+    console.log("🔐 [WALLET API] Phone:", phone);
+    
+    const token = await getWalletServiceToken();
+    
+    // TODO: Update this endpoint if Wallet API has a different login endpoint
+    // Common endpoints might be: /api/auth/login, /api/user/login, /api/login
+    const response = await axios.post(
+      `${WALLET_API_BASE_URL}/api/auth/login`,
+      {
+        phone: phone,
+        password: password,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode) {
+      if (response.data.data) {
+        console.log("✅ [WALLET API] User login successful");
+        return { success: true, data: response.data.data };
+      }
+      console.log("❌ [WALLET API] Login failed - invalid credentials");
+      return { success: false, message: response.data.responseMsg || "Invalid credentials" };
+    }
+
+    console.log("❌ [WALLET API] Login failed - invalid response");
+    return { success: false, message: "Login failed" };
+  } catch (error) {
+    if (error.response) {
+      if (error.response.status === 401 || error.response.status === 403) {
+        console.log("❌ [WALLET API] Login failed - invalid credentials (401/403)");
+        return { success: false, message: "Invalid phone or password" };
+      }
+      console.error("❌ [WALLET API] Login error response:", error.response.status, error.response.data);
+      return { success: false, message: error.response.data?.responseMsg || "Login failed" };
+    }
+    // If endpoint doesn't exist (404), return false but don't throw
+    if (error.code === 'ECONNREFUSED' || error.response?.status === 404) {
+      console.warn("⚠️ [WALLET API] Login endpoint not found or not available");
+      return { success: false, message: "Login endpoint not available" };
+    }
+    console.error("❌ [WALLET API] Error during login:", error.message);
+    return { success: false, message: "Login failed" };
+  }
+}
+
 module.exports = {
   getUserInfo,
   getBillingByAddress,
@@ -890,5 +943,6 @@ module.exports = {
   cancelInvoice,
   createPayment,
   editUser,
+  loginUser,
 };
 

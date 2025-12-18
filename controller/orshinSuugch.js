@@ -85,13 +85,15 @@ async function validateCodeOnly(
 
   const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
 
+  // Find the most recent code that matches (sort by createdAt descending)
+  // This ensures we use the latest code if multiple codes exist for the same phone
   const verificationCode = await BatalgaajuulahCodeModel.findOne({
     utas,
     code,
     purpose,
     khereglesenEsekh: false,
     expiresAt: { $gt: new Date() },
-  });
+  }).sort({ createdAt: -1 });
 
   if (!verificationCode) {
     return {
@@ -295,9 +297,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     });
     const { db } = require("zevbackv2");
 
-    if (!req.body.duureg || !req.body.horoo || !req.body.soh) {
-      throw new aldaa("Дүүрэг, Хороо, СӨХ заавал бөглөх шаардлагатай!");
-    }
+    // Note: duureg, horoo, and soh are optional - can be retrieved from baiguullaga if not provided
 
     if (!req.body.baiguullagiinId) {
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
@@ -323,15 +323,54 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
     }
 
-    // Check for existing user by utas
-    const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      utas: req.body.utas,
-    });
+    const phoneNumber = String(req.body.utas).trim();
+    let walletUserInfo = null;
+    let walletUserId = null;
 
-    // If user exists and is active (not deleted), throw error
-    if (existingUser) {
-      throw new aldaa("Утасны дугаар давхардаж байна!");
+    // Email is optional - only register with Wallet API if email is provided
+    const email = req.body.mail ? String(req.body.mail).trim() : null;
+
+    if (email) {
+      try {
+        // First, try to get existing user from Wallet API
+        console.log("📞 [WEBSITE REGISTER] Checking Wallet API for existing user...");
+        walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+
+        if (walletUserInfo && walletUserInfo.userId) {
+          // User exists in Wallet API
+          walletUserId = walletUserInfo.userId;
+          console.log("✅ [WEBSITE REGISTER] User found in Wallet API:", walletUserId);
+        } else {
+          // User doesn't exist in Wallet API, register them
+          console.log("📞 [WEBSITE REGISTER] Registering user in Wallet API...");
+          walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+
+          if (!walletUserInfo || !walletUserInfo.userId) {
+            throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
+          }
+
+          walletUserId = walletUserInfo.userId;
+          console.log("✅ [WEBSITE REGISTER] User registered in Wallet API:", walletUserId);
+        }
+      } catch (walletError) {
+        console.error("❌ [WEBSITE REGISTER] Wallet API error:", walletError.message);
+        // If Wallet API fails, we can still proceed with registration
+        // but user won't be able to login via mobile until they register there
+        console.warn("⚠️ [WEBSITE REGISTER] Continuing without Wallet API integration");
+      }
+    } else {
+      console.log("ℹ️ [WEBSITE REGISTER] Email not provided, skipping Wallet API registration");
     }
+
+    // Check for existing user by utas OR walletUserId (unified check)
+    // Allow same phone number to register multiple toots - no duplicate check
+    // If user exists, we'll use that user and add new toot to their toots array
+    const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      $or: [
+        { utas: phoneNumber },
+        ...(walletUserId ? [{ walletUserId: walletUserId }] : [])
+      ]
+    });
 
     // Check for cancelled gerees by utas (user might have been deleted but gerees still exist)
     // This allows restoring data when re-registering
@@ -564,30 +603,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       }
     }
 
-    // If still no barilgiinId, use first building as fallback
-    if (
-      !barilgiinId &&
-      baiguullaga.barilguud &&
-      baiguullaga.barilguud.length > 0
-    ) {
-      barilgiinId = String(baiguullaga.barilguud[0]._id);
-      console.log(`⚠️  Using first building as fallback: ${barilgiinId}`);
-    }
-
-    // Check if toot already has a registered user (1:1 relationship - one toot can only have one user)
-    if (req.body.toot && barilgiinId) {
-      const tootToCheck = req.body.toot.trim();
-      const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-        toot: tootToCheck,
-        barilgiinId: barilgiinId,
-      });
-
-      if (existingTootUser) {
-        throw new aldaa(
-          `(${tootToCheck}) тоот бүртгэл үүссэн байна`
-        );
-      }
-    }
+    // Multiple users can have the same toot, so no unique check needed
+    // Toot validation will be done when adding to toots array
 
     // Automatically determine davkhar from toot if toot is provided
     let determinedDavkhar = req.body.davkhar || "";
@@ -673,34 +690,152 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     let orshinSuugch;
     let isReactivating = false;
 
-    // Create new user (existing user check already handled above)
-    const userData = {
-      ...req.body,
-      baiguullagiinId: baiguullaga._id,
-      baiguullagiinNer: baiguullaga.ner,
-      barilgiinId: barilgiinId,
-      mail: req.body.mail,
-      erkh: "OrshinSuugch",
-      duureg: req.body.duureg,
-      horoo: req.body.horoo,
-      soh: req.body.soh,
-      nevtrekhNer: req.body.utas,
-      toot: req.body.toot || "",
-      davkhar: determinedDavkhar, // Automatically determined from toot
-      orts: req.body.orts || "", // Automatically determined from toot if found
-      ekhniiUldegdel: req.body.ekhniiUldegdel
-        ? parseFloat(req.body.ekhniiUldegdel) || 0
-        : 0, // Optional: from frontend
-    };
+    // Get initial electricity reading from request (default to 0 if not provided)
+    const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined 
+      ? parseFloat(req.body.tsahilgaaniiZaalt) || 0 
+      : 0; // Default to 0 кВт if not provided
+    
+    console.log("⚡ [REGISTER] Request body tsahilgaaniiZaalt:", req.body.tsahilgaaniiZaalt);
+    console.log("⚡ [REGISTER] Parsed tsahilgaaniiZaalt:", tsahilgaaniiZaalt, "кВт");
 
-    orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    // If user exists, use existing user and add new toot to their toots array
+    // If user doesn't exist, create new user
+    if (existingUser) {
+      // User already exists - use existing user and add new toot
+      orshinSuugch = existingUser;
+      
+      // Update user info if provided (name, email, etc.) but DON'T update toot-related fields
+      // We'll add the new toot to toots array instead
+      if (req.body.ner) orshinSuugch.ner = req.body.ner;
+      if (req.body.ovog) orshinSuugch.ovog = req.body.ovog;
+      if (req.body.mail || walletUserInfo?.email) {
+        orshinSuugch.mail = walletUserInfo?.email || req.body.mail || email || orshinSuugch.mail;
+      }
+      if (walletUserId) orshinSuugch.walletUserId = walletUserId;
+      if (req.body.ekhniiUldegdel !== undefined) {
+        orshinSuugch.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
+      }
+      if (tsahilgaaniiZaalt !== undefined) {
+        orshinSuugch.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
+      }
+      // DON'T update toot, davkhar, barilgiinId - these are for the new toot being added
+      // The new toot will be added to toots array, keeping existing toots intact
+    } else {
+      // Create new user
+      // IMPORTANT: Set tsahilgaaniiZaalt explicitly to ensure it's saved
+      const userData = {
+        ...req.body,
+        baiguullagiinId: baiguullaga._id,
+        baiguullagiinNer: baiguullaga.ner,
+        barilgiinId: barilgiinId,
+        mail: walletUserInfo?.email || req.body.mail || email, // Use email from Wallet API if available
+        erkh: "OrshinSuugch",
+        duureg: req.body.duureg,
+        horoo: req.body.horoo,
+        soh: req.body.soh,
+        nevtrekhNer: req.body.utas,
+        toot: req.body.toot || "",
+        davkhar: determinedDavkhar, // Automatically determined from toot
+        orts: req.body.orts || "", // Automatically determined from toot if found
+        ekhniiUldegdel: req.body.ekhniiUldegdel
+          ? parseFloat(req.body.ekhniiUldegdel) || 0
+          : 0, // Optional: from frontend
+        // Link to Wallet API (unifies website and mobile users)
+        ...(walletUserId ? { walletUserId: walletUserId } : {}),
+      };
+      
+      userData.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
+      
+      console.log("⚡ [REGISTER] userData.tsahilgaaniiZaalt:", userData.tsahilgaaniiZaalt);
+      console.log("⚡ [REGISTER] Full userData keys:", Object.keys(userData));
+
+      orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    }
+    
+    console.log("⚡ [REGISTER] orshinSuugch.tsahilgaaniiZaalt after creation:", orshinSuugch.tsahilgaaniiZaalt);
+    
+    if (!orshinSuugch.toots) {
+      orshinSuugch.toots = [];
+    }
+    
+    if (orshinSuugch.toot && barilgiinId) {
+      const targetBarilga = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+      
+      if (targetBarilga) {
+        const duuregNer = targetBarilga.tokhirgoo?.duuregNer || req.body.duureg || "";
+        // Normalize horoo to always be an object format
+        let horooData = targetBarilga.tokhirgoo?.horoo || req.body.horoo || {};
+        if (typeof horooData === 'string') {
+          horooData = { ner: horooData, kod: horooData };
+        } else if (!horooData || typeof horooData !== 'object') {
+          horooData = {};
+        }
+        const sohNer = targetBarilga.tokhirgoo?.sohNer || req.body.soh || "";
+        
+        // Use toot from request body, not from orshinSuugch (which might be old toot for existing users)
+        const newToot = req.body.toot || "";
+        const newDavkhar = determinedDavkhar || req.body.davkhar || "";
+        const newOrts = req.body.orts || "1";
+        
+        const tootEntry = {
+          toot: newToot,
+          source: "OWN_ORG",
+          baiguullagiinId: baiguullaga._id.toString(),
+          barilgiinId: barilgiinId,
+          davkhar: newDavkhar,
+          orts: newOrts,
+          duureg: duuregNer,
+          horoo: horooData,
+          soh: sohNer,
+          bairniiNer: targetBarilga.ner || "",
+          createdAt: new Date()
+        };
+        
+        const existingTootIndex = orshinSuugch.toots.findIndex(
+          t => t.toot === tootEntry.toot && 
+               t.barilgiinId === tootEntry.barilgiinId
+        );
+        
+        if (existingTootIndex >= 0) {
+          // Update existing toot entry if same toot and barilgiinId
+          orshinSuugch.toots[existingTootIndex] = tootEntry;
+          console.log(`orshinSuugch service`);
+        } else {
+          // Add new toot to array - don't update primary toot fields for existing users
+          orshinSuugch.toots.push(tootEntry);
+          console.log(`orshinSuugch service`);
+        }
+        
+        // Only update primary toot fields (toot, davkhar, barilgiinId) if this is a NEW user
+        // For existing users, keep their primary toot and just add new toot to toots array
+        if (!existingUser && newToot) {
+          orshinSuugch.toot = newToot;
+          orshinSuugch.davkhar = newDavkhar;
+          orshinSuugch.orts = newOrts;
+          orshinSuugch.barilgiinId = barilgiinId;
+          orshinSuugch.baiguullagiinId = baiguullaga._id;
+          orshinSuugch.baiguullagiinNer = baiguullaga.ner;
+        }
+      }
+    }
+    
     await orshinSuugch.save();
+    console.log("✅ [REGISTER] orshinSuugch saved successfully:", orshinSuugch._id);
+    
+    // Verify tsahilgaaniiZaalt was saved
+    const savedOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("tsahilgaaniiZaalt");
+    console.log("✅ [REGISTER] Verified tsahilgaaniiZaalt saved to orshinSuugch:", savedOrshinSuugch?.tsahilgaaniiZaalt);
 
     try {
       // Reuse tukhainBaaziinKholbolt from above (already declared)
       if (!tukhainBaaziinKholbolt) {
+        console.error("❌ [REGISTER] tukhainBaaziinKholbolt not found for baiguullaga:", baiguullaga._id);
         throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
       }
+      
+      console.log("✅ [REGISTER] tukhainBaaziinKholbolt found, proceeding with contract creation");
 
       // Get ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo
       const targetBarilgaForZardluud = baiguullaga.barilguud?.find(
@@ -734,6 +869,12 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         ognoonuud: zardal.ognoonuud || [],
       }));
 
+      // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+      const tailbarFromZardluud = ashiglaltiinZardluudData
+        .map((zardal) => zardal.tailbar)
+        .filter((tailbar) => tailbar && tailbar.trim())
+        .join("; ") || "";
+
       const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
         const tariff = zardal.tariff || 0;
 
@@ -751,11 +892,32 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         return total + tariff;
       }, 0);
 
+      // Validate: One toot cannot have different owners
+      // Check if this toot already has an active contract with a different orshinSuugchId
+      const GereeModel = Geree(tukhainBaaziinKholbolt);
+      if (orshinSuugch.toot && barilgiinId) {
+        const conflictingGeree = await GereeModel.findOne({
+          barilgiinId: barilgiinId,
+          toot: orshinSuugch.toot,
+          tuluv: "Идэвхтэй",
+          orshinSuugchId: { $ne: orshinSuugch._id.toString() }
+        });
+
+        if (conflictingGeree) {
+          throw new aldaa(`Тоот ${orshinSuugch.toot} аль хэдийн өөр хэрэглэгчид хамаарсан байна!`);
+        }
+      }
+
       // If there's a cancelled geree, reactivate it and link it to the new user
       // Do this AFTER fetching charges so we can update zardluud with current charges
+      const existingCancelledGeree = await GereeModel.findOne({
+        toot: orshinSuugch.toot || "",
+        barilgiinId: barilgiinId || "",
+        tuluv: "Цуцалсан",
+      });
+
       if (existingCancelledGeree && tukhainBaaziinKholbolt) {
         isReactivating = true;
-        const GereeModel = Geree(tukhainBaaziinKholbolt);
 
         // Reactivate the cancelled geree and link it to the new user
         // Update with current charges (zardluud) and niitTulbur
@@ -774,14 +936,23 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           mail: req.body.mail || existingCancelledGeree.mail,
           toot: orshinSuugch.toot || existingCancelledGeree.toot,
           davkhar: orshinSuugch.davkhar || existingCancelledGeree.davkhar,
+          bairNer: targetBarilgaForZardluud?.ner || existingCancelledGeree.bairNer || "", // Update building name
           duureg: req.body.duureg || existingCancelledGeree.duureg,
           horoo: req.body.horoo || existingCancelledGeree.horoo,
           sohNer: req.body.soh || existingCancelledGeree.sohNer,
+          // Update electricity readings if provided
+          umnukhZaalt: tsahilgaaniiZaalt, // Previous reading (initial reading at reactivation)
+          suuliinZaalt: tsahilgaaniiZaalt, // Current reading (same as initial at reactivation)
+          zaaltTog: 0, // Day reading (will be updated later)
+          zaaltUs: 0, // Night reading (will be updated later)
         };
+
+        console.log("orshinSuugch service");
 
         // Add optional fields from frontend if provided
         if (req.body.tailbar) {
           updateData.temdeglel = req.body.tailbar;
+          updateData.tailbar = req.body.tailbar;
         }
         if (req.body.ekhniiUldegdel !== undefined) {
           updateData.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
@@ -801,67 +972,122 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       const duuregNer =
         targetBarilga?.tokhirgoo?.duuregNer || req.body.duureg || "";
-      const horooData = targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
+      // Normalize horoo to always be an object format
+      let horooData = targetBarilga?.tokhirgoo?.horoo || req.body.horoo || {};
+      if (typeof horooData === 'string') {
+        horooData = { ner: horooData, kod: horooData };
+      } else if (!horooData || typeof horooData !== 'object') {
+        horooData = {};
+      }
       const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
 
       // Only create new geree if not reactivating (no cancelled geree found)
       if (!isReactivating) {
-        const contractData = {
-          gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
-          gereeniiOgnoo: new Date(),
-          turul: "Үндсэн",
-          tuluv: "Идэвхтэй",
-          ovog: req.body.ovog || "",
-          ner: req.body.ner,
-          register: req.body.register || "",
-          utas: [req.body.utas],
-          mail: req.body.mail || "",
-          baiguullagiinId: baiguullaga._id,
-          baiguullagiinNer: baiguullaga.ner,
-          barilgiinId: barilgiinId || "",
-          tulukhOgnoo: new Date(),
-          ashiglaltiinZardal: 0,
-          niitTulbur: niitTulbur,
-          toot: orshinSuugch.toot || "",
-          davkhar: orshinSuugch.davkhar || "",
-          bairNer: req.body.bairniiNer || "",
-          sukhBairshil: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
-          duureg: duuregNer, // Save separately
-          horoo: horooData, // Save horoo object separately
-          sohNer: sohNer, // Save sohNer separately
-          burtgesenAjiltan: orshinSuugch._id,
-          orshinSuugchId: orshinSuugch._id.toString(),
-          temdeglel: req.body.tailbar || "Автоматаар үүссэн гэрээ", // Optional: tailbar from frontend
-          actOgnoo: new Date(),
-          baritsaaniiUldegdel: 0,
-          ekhniiUldegdel: req.body.ekhniiUldegdel
-            ? parseFloat(req.body.ekhniiUldegdel) || 0
-            : 0, // Optional: from frontend
-          zardluud: zardluudArray,
-          segmentuud: [],
-          khungulultuud: [],
-        };
+        // Create geree for each toot in toots array
+        // If toots array exists and has entries, create geree for each toot
+        // Otherwise, create geree for primary toot (backward compatibility)
+        const tootsToProcess = orshinSuugch.toots && orshinSuugch.toots.length > 0 
+          ? orshinSuugch.toots 
+          : (orshinSuugch.toot ? [{ 
+              toot: orshinSuugch.toot, 
+              barilgiinId: barilgiinId,
+              davkhar: orshinSuugch.davkhar || "",
+              orts: orshinSuugch.orts || "1",
+              duureg: duuregNer,
+              horoo: horooData,
+              soh: sohNer,
+              bairniiNer: req.body.bairniiNer || "",
+            }] : []);
 
-        const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
-        await geree.save();
+        for (const tootEntry of tootsToProcess) {
+          // Check if geree already exists for this toot
+          const existingGereeForToot = await GereeModel.findOne({
+            toot: tootEntry.toot,
+            barilgiinId: tootEntry.barilgiinId || barilgiinId,
+            tuluv: "Идэвхтэй",
+            orshinSuugchId: orshinSuugch._id.toString()
+          });
 
-        // Update davkhar with toot if provided from frontend
-        // Frontend should send: { toot: "102", davkhar: "1", barilgiinId: "..." }
-        if (orshinSuugch.toot && orshinSuugch.davkhar) {
-          console.log(
-            `Updating davkhar with toot: Floor ${orshinSuugch.davkhar}, Toot ${orshinSuugch.toot}, Building ${barilgiinId}`
+          if (existingGereeForToot) {
+            console.log(`orshinSuugch service`);
+            continue; // Skip if geree already exists for this toot
+          }
+
+          // Get target barilga for this toot
+          const targetBarilgaForToot = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === String(tootEntry.barilgiinId || barilgiinId)
           );
-          await exports.updateDavkharWithToot(
-            baiguullaga,
-            barilgiinId,
-            orshinSuugch.davkhar,
-            orshinSuugch.toot,
-            tukhainBaaziinKholbolt
-          );
-        } else {
-          console.log(
-            `Skipping davkhar update - toot: ${orshinSuugch.toot}, davkhar: ${orshinSuugch.davkhar}`
-          );
+
+          if (!targetBarilgaForToot) {
+            console.log(`orshinSuugch service`);
+            continue; // Skip if barilga not found
+          }
+
+          const duuregNerForToot = targetBarilgaForToot.tokhirgoo?.duuregNer || tootEntry.duureg || duuregNer || "";
+          // Normalize horoo to always be an object format
+          let horooDataForToot = targetBarilgaForToot.tokhirgoo?.horoo || tootEntry.horoo || horooData || {};
+          if (typeof horooDataForToot === 'string') {
+            horooDataForToot = { ner: horooDataForToot, kod: horooDataForToot };
+          } else if (!horooDataForToot || typeof horooDataForToot !== 'object') {
+            horooDataForToot = {};
+          }
+          const sohNerForToot = targetBarilgaForToot.tokhirgoo?.sohNer || tootEntry.soh || sohNer || "";
+
+          const contractData = {
+            gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+            gereeniiOgnoo: new Date(),
+            turul: "Үндсэн",
+            tuluv: "Идэвхтэй",
+            ovog: req.body.ovog || "",
+            ner: req.body.ner,
+            register: req.body.register || "",
+            utas: [req.body.utas],
+            mail: req.body.mail || "",
+            baiguullagiinId: baiguullaga._id,
+            baiguullagiinNer: baiguullaga.ner,
+            barilgiinId: tootEntry.barilgiinId || barilgiinId || "",
+            tulukhOgnoo: new Date(),
+            ashiglaltiinZardal: 0,
+            niitTulbur: niitTulbur,
+            toot: tootEntry.toot,
+            davkhar: tootEntry.davkhar || "",
+            bairNer: tootEntry.bairniiNer || targetBarilgaForToot.ner || "",
+            sukhBairshil: `${duuregNerForToot}, ${horooDataForToot.ner || ""}, ${sohNerForToot}`,
+            duureg: duuregNerForToot,
+            horoo: horooDataForToot,
+            sohNer: sohNerForToot,
+            burtgesenAjiltan: orshinSuugch._id,
+            orshinSuugchId: orshinSuugch._id.toString(),
+            temdeglel: req.body.tailbar || `Автоматаар үүссэн гэрээ (Тоот: ${tootEntry.toot})`,
+            tailbar: req.body.tailbar || tailbarFromZardluud || "",
+            actOgnoo: new Date(),
+            baritsaaniiUldegdel: 0,
+            ekhniiUldegdel: req.body.ekhniiUldegdel
+              ? parseFloat(req.body.ekhniiUldegdel) || 0
+              : 0,
+            umnukhZaalt: tsahilgaaniiZaalt,
+            suuliinZaalt: tsahilgaaniiZaalt,
+            zaaltTog: 0,
+            zaaltUs: 0,
+            zardluud: zardluudArray,
+            segmentuud: [],
+            khungulultuud: [],
+          };
+
+          const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+          await geree.save();
+          console.log(`orshinSuugch service`);
+
+          // Update davkhar with toot if provided
+          if (tootEntry.toot && tootEntry.davkhar) {
+            await exports.updateDavkharWithToot(
+              baiguullaga,
+              tootEntry.barilgiinId || barilgiinId,
+              tootEntry.davkhar,
+              tootEntry.toot,
+              tukhainBaaziinKholbolt
+            );
+          }
         }
 
         // Invoice will be created by cron job on scheduled date
@@ -912,38 +1138,27 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
               );
 
               if (!invoiceResult.success) {
-                console.error("Invoice creation failed:", invoiceResult.error);
+                console.log("orshinSuugch service");
               } else if (invoiceResult.alreadyExists) {
-                console.log(
-                  "Existing unpaid invoice found and preserved for reactivated geree:",
-                  invoiceResult.nekhemjlekh._id
-                );
+                console.log("orshinSuugch service");
               } else {
-                console.log(
-                  "New invoice created for reactivated geree on scheduled date:",
-                  invoiceResult.nekhemjlekh._id
-                );
+                console.log("orshinSuugch service");
               }
             } else {
               // Not the scheduled date, skip invoice creation
               // The cron job will create invoices on the scheduled date
               // Geree already has current month's ashiglaltiinZardluud updated
-              console.log(
-                `Skipping invoice creation - today (${todayDate}) is not the scheduled date (${
-                  cronSchedule?.nekhemjlekhUusgekhOgnoo || "not set"
-                }). Cron job will handle it.`
-              );
+              console.log("orshinSuugch service");
             }
           } catch (invoiceError) {
-            console.error(
-              "Error checking/creating invoice:",
-              invoiceError.message
-            );
+            console.log("orshinSuugch service");
           }
         }
       }
     } catch (contractError) {
-      console.error("Error creating contract:", contractError.message);
+      console.error("❌ [REGISTER] Error creating contract:", contractError);
+      console.error("❌ [REGISTER] Contract error stack:", contractError?.stack);
+      // Don't fail registration if contract creation fails - user is already saved
     }
 
     const response = {
@@ -962,7 +1177,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     res.status(201).json(response);
   } catch (error) {
-    console.error("Error in orshinSuugchBurtgey:", error.message);
+    console.error("❌ [REGISTER] Error in orshinSuugchBurtgey:", error);
+    console.error("❌ [REGISTER] Error stack:", error?.stack);
     next(error);
   }
 });
@@ -973,27 +1189,8 @@ exports.davhardsanOrshinSuugchShalgayy = asyncHandler(
       const { db } = require("zevbackv2");
       const { utas, baiguullagiinId } = req.body;
 
-      const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-        baiguullagiinId: baiguullagiinId,
-        $or: [{ utas: utas }],
-      });
-
-      if (existingUser) {
-        let message = "";
-        if (utas && existingUser.utas === utas) {
-          message = "Утасны дугаар давхардаж байна!";
-        }
-
-        if (utas && existingUser.utas === utas) {
-          message = "Утасны дугаар болон регистр давхардаж байна!";
-        }
-
-        return res.json({
-          success: false,
-          message: message,
-        });
-      }
-
+      // Allow same phone number to register multiple toots - no duplicate check
+      // User can have multiple toots, so always return success
       res.json({
         success: true,
         message: "Ашиглах боломжтой",
@@ -1120,20 +1317,8 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Check if toot is already registered to another user
-    const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      toot: tootToValidate,
-      barilgiinId: barilgiinId
-    });
-
-    if (existingTootUser) {
-      return res.status(400).json({
-        success: false,
-        message: `(${tootToValidate}) тоот аль хэдийн бүртгэгдсэн байна`,
-        valid: false,
-        registered: true
-      });
-    }
+    // Multiple users can have the same toot, so no unique check needed
+    // Validation only checks if toot exists in building's available toots
 
     // Toot is valid
     return res.json({
@@ -1207,9 +1392,9 @@ exports.tootShalgaya = asyncHandler(async (req, res, next) => {
 
 exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   try {
-    console.log("🔐 [WALLET LOGIN] Login request received");
-    console.log("🔐 [WALLET LOGIN] Phone:", req.body.utas);
-    console.log("🔐 [WALLET LOGIN] Firebase token provided:", !!req.body.firebaseToken);
+    console.log("🔐 [LOGIN] Login request received");
+    console.log("🔐 [LOGIN] Phone:", req.body.utas);
+    console.log("🔐 [LOGIN] Firebase token provided:", !!req.body.firebaseToken);
 
     const { db } = require("zevbackv2");
 
@@ -1219,29 +1404,144 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     const phoneNumber = String(req.body.utas).trim();
 
-    console.log("📞 [WALLET LOGIN] Fetching user from Wallet API...");
-    const walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
-
-    if (!walletUserInfo || !walletUserInfo.userId) {
-      throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд хэтэвчний системд бүртгүүлнэ үү.");
+    // Password validation - support both local and Wallet API passwords
+    if (!req.body.nuutsUg) {
+      throw new aldaa("Нууц үг заавал бөглөх шаардлагатай!");
     }
 
-    console.log("✅ [WALLET LOGIN] User found in Wallet API:", walletUserInfo.userId);
+    const providedPassword = String(req.body.nuutsUg).trim();
 
-    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      $or: [
-        { utas: phoneNumber },
-        { walletUserId: walletUserInfo.userId }
-      ]
-    });
+    // Find user in local database first (password is stored locally, NOT in Wallet API)
+    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+      .findOne({
+        utas: phoneNumber
+      })
+      .select("+nuutsUg"); // Include password field (normally excluded by select: false)
+
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    // Get Wallet API user info for other operations (billing, etc.) but NOT for password validation
+    let walletUserInfo = null;
+    let walletUserId = null;
+    
+    try {
+      console.log("📞 [LOGIN] Fetching user from Wallet API for billing info...");
+      walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+      
+      if (walletUserInfo && walletUserInfo.userId) {
+        walletUserId = walletUserInfo.userId;
+        console.log("✅ [LOGIN] User found in Wallet API:", walletUserId);
+      } else {
+        console.warn("⚠️ [LOGIN] User not found in Wallet API (will continue with local login)");
+      }
+    } catch (walletError) {
+      console.warn("⚠️ [LOGIN] Wallet API error (will continue with local login):", walletError.message);
+      // Continue without Wallet API - password validation is local only
+    }
+
+    // Validate password - only use local password (stored in our own DB)
+    // Password is NOT sent to Wallet API, only stored in our database
+    let passwordValid = false;
+
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    if (!orshinSuugch.nuutsUg) {
+      throw new aldaa("Нууц үг тохируулаагүй байна. Эхлээд бүртгүүлнэ үү.");
+    }
+
+    // Validate against local password (stored in our database)
+    console.log("🔐 [LOGIN] Validating password from local database...");
+    try {
+      passwordValid = await orshinSuugch.passwordShalgaya(providedPassword);
+      if (passwordValid) {
+        console.log("✅ [LOGIN] Password validated successfully");
+      } else {
+        console.log("❌ [LOGIN] Password validation failed");
+      }
+    } catch (passwordError) {
+      console.error("❌ [LOGIN] Error validating password:", passwordError.message);
+      passwordValid = false;
+    }
+
+    if (!passwordValid) {
+      throw new aldaa("Нууц үг буруу байна!");
+    }
+
+    // Send SMS verification code on login
+    // Frontend will handle verification status in local storage
+    try {
+      console.log("📱 [LOGIN] Sending SMS verification code");
+      
+      // Get baiguullaga for SMS sending
+      let baiguullagiinId = orshinSuugch.baiguullagiinId;
+      if (!baiguullagiinId && req.body.baiguullagiinId) {
+        baiguullagiinId = req.body.baiguullagiinId;
+      }
+      
+      if (baiguullagiinId) {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+        if (baiguullaga) {
+          const tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+          
+          if (tukhainBaaziinKholbolt) {
+            // Generate and send verification code
+            const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
+            const verificationCodeDoc = await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
+              phoneNumber,
+              "login", // Purpose: login verification
+              10 // Expires in 10 minutes
+            );
+
+            // Send SMS
+            var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
+            var msgIlgeekhDugaar = "72002002";
+            var smsText = `AmarSukh: Tany nevtrekh batalgaajuulax code: ${verificationCodeDoc.code}.`;
+            
+            var ilgeexList = [
+              {
+                to: phoneNumber,
+                text: smsText,
+                gereeniiId: "login_verification",
+              },
+            ];
+
+            var khariu = [];
+            msgIlgeeye(
+              ilgeexList,
+              msgIlgeekhKey,
+              msgIlgeekhDugaar,
+              khariu,
+              0,
+              tukhainBaaziinKholbolt,
+              baiguullagiinId
+            );
+
+            console.log("✅ [LOGIN] SMS verification code sent to:", phoneNumber);
+          }
+        }
+      }
+    } catch (smsError) {
+      console.error("⚠️ [LOGIN] Error sending SMS (continuing with login):", smsError.message);
+      // Don't fail login if SMS fails
+    }
 
     const userData = {
       utas: phoneNumber,
-      mail: walletUserInfo.email || (orshinSuugch?.mail || ""),
-      walletUserId: walletUserInfo.userId,
+      mail: walletUserInfo?.email || orshinSuugch.mail || "",
       erkh: "OrshinSuugch",
       nevtrekhNer: phoneNumber,
     };
+
+    // Update walletUserId if available (for billing, etc.) but password stays local
+    if (walletUserId) {
+      userData.walletUserId = walletUserId;
+    }
 
     // Preserve existing baiguullagiinId if user already has one
     if (orshinSuugch && orshinSuugch.baiguullagiinId) {
@@ -1262,7 +1562,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     }
 
     // Validate OWN_ORG bair toot/doorNo if provided
-    if (req.body.baiguullagiinId && req.body.barilgiinId && req.body.doorNo) {
+    // Check for OWN_ORG: baiguullagiinId is required, and either barilgiinId OR bairId (frontend might send bairId)
+    const isOwnOrgAddressLogin = req.body.baiguullagiinId && req.body.doorNo && (req.body.barilgiinId || req.body.bairId);
+    const ownOrgBarilgiinIdLogin = req.body.barilgiinId || req.body.bairId; // Use barilgiinId if provided, otherwise bairId
+    
+    if (isOwnOrgAddressLogin) {
       try {
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
         if (!baiguullaga) {
@@ -1270,7 +1574,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         }
 
         const targetBarilga = baiguullaga.barilguud?.find(
-          (b) => String(b._id) === String(req.body.barilgiinId)
+          (b) => String(b._id) === String(ownOrgBarilgiinIdLogin)
         );
 
         if (!targetBarilga) {
@@ -1282,8 +1586,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         const ortsToValidate = (req.body.orts || "1").trim();
         
         // Check if toot exists in davkhariinToonuud (available toots)
+        // Automatically determine orts and davkhar from toot
         const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
         let tootFound = false;
+        let foundDavkhar = null;
+        let foundOrts = null;
 
         if (davkharToValidate) {
           // If davkhar is provided, check specific floor
@@ -1300,11 +1607,18 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             
             if (tootList.includes(tootToValidate)) {
               tootFound = true;
+              foundDavkhar = davkharToValidate;
+              foundOrts = ortsToValidate;
             }
           }
         } else {
           // If davkhar not provided, search all floors
           for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+            // Skip invalid entries that don't have :: separator
+            if (!floorKey.includes("::")) {
+              continue;
+            }
+            
             if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
               let tootList = [];
               if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
@@ -1315,6 +1629,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
               
               if (tootList.includes(tootToValidate)) {
                 tootFound = true;
+                // Extract orts and davkhar from floorKey (format: "orts::davkhar")
+                const parts = floorKey.split("::");
+                if (parts.length === 2) {
+                  foundOrts = parts[0].trim(); // orts (entrance)
+                  foundDavkhar = parts[1].trim(); // davkhar (floor)
+                }
                 break;
               }
             }
@@ -1325,20 +1645,27 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           throw new aldaa(`(${tootToValidate}) тоот энэ барилгад бүртгэлгүй байна`);
         }
 
-        // Check if toot is already registered to another user
-        const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+        // Use found values, fallback to request values if not found
+        const finalDavkhar = foundDavkhar || davkharToValidate || "";
+        const finalOrts = foundOrts || ortsToValidate || "1";
+
+        // Validation passes - toot will be added to toots array
+        // Multiple users can have the same toot, so no unique check needed
+        console.log(`✅ [WALLET LOGIN] OWN_ORG toot validated: ${tootToValidate}, auto-determined davkhar=${finalDavkhar}, orts=${finalOrts}`);
+        
+        // Prepare toot entry for toots array
+        userData.newTootEntry = {
           toot: tootToValidate,
-          barilgiinId: req.body.barilgiinId,
-          _id: { $ne: orshinSuugch?._id } // Exclude current user if updating
-        });
-
-        if (existingTootUser) {
-          throw new aldaa(`(${tootToValidate}) тоот аль хэдийн бүртгэгдсэн байна`);
-        }
-
-        // If validation passes, also set toot field
-        userData.toot = tootToValidate;
-        console.log(`✅ [WALLET LOGIN] OWN_ORG toot validated: ${tootToValidate}`);
+          source: "OWN_ORG",
+          baiguullagiinId: req.body.baiguullagiinId,
+          barilgiinId: ownOrgBarilgiinIdLogin, // Use the resolved barilgiinId (from barilgiinId or bairId)
+          davkhar: finalDavkhar, // Auto-determined from toot
+          orts: finalOrts, // Auto-determined from toot
+          duureg: targetBarilga.tokhirgoo?.duuregNer || "",
+          horoo: targetBarilga.tokhirgoo?.horoo || {},
+          soh: targetBarilga.tokhirgoo?.sohNer || "",
+          bairniiNer: targetBarilga.ner || ""
+        };
       } catch (error) {
         console.error("❌ [WALLET LOGIN] OWN_ORG toot validation error:", error.message);
         throw error;
@@ -1374,9 +1701,70 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     if (orshinSuugch) {
       console.log("🔄 [WALLET LOGIN] Updating existing user:", orshinSuugch._id);
       Object.assign(orshinSuugch, userData);
+      // Initialize toots array if it doesn't exist
+      if (!orshinSuugch.toots) {
+        orshinSuugch.toots = [];
+      }
     } else {
       console.log("➕ [WALLET LOGIN] Creating new user");
       orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+      // Initialize toots array if it doesn't exist
+      if (!orshinSuugch.toots) {
+        orshinSuugch.toots = [];
+      }
+    }
+
+    // Handle multiple toots - add new toot to array if provided
+    if (userData.newTootEntry) {
+      // Check if this toot already exists in user's toots array
+      const existingTootIndex = orshinSuugch.toots?.findIndex(
+        t => t.toot === userData.newTootEntry.toot && 
+             t.barilgiinId === userData.newTootEntry.barilgiinId
+      );
+      
+      if (existingTootIndex >= 0) {
+        // Update existing toot entry
+        orshinSuugch.toots[existingTootIndex] = userData.newTootEntry;
+        console.log(`🔄 [WALLET LOGIN] Updated existing toot in array: ${userData.newTootEntry.toot}`);
+      } else {
+        // Add new toot to array
+        orshinSuugch.toots.push(userData.newTootEntry);
+        console.log(`➕ [WALLET LOGIN] Added new toot to array: ${userData.newTootEntry.toot}`);
+      }
+      
+      // Also set as primary toot for backward compatibility
+      orshinSuugch.toot = userData.newTootEntry.toot;
+      orshinSuugch.baiguullagiinId = userData.newTootEntry.baiguullagiinId;
+      orshinSuugch.barilgiinId = userData.newTootEntry.barilgiinId;
+      orshinSuugch.davkhar = userData.newTootEntry.davkhar; // Auto-determined from toot
+      orshinSuugch.orts = userData.newTootEntry.orts; // Auto-determined from toot
+      orshinSuugch.duureg = userData.newTootEntry.duureg;
+      orshinSuugch.horoo = userData.newTootEntry.horoo;
+      orshinSuugch.soh = userData.newTootEntry.soh;
+    } else if (bairIdToUse && doorNoToUse && !req.body.baiguullagiinId) {
+      // Handle Wallet API address - add to toots array
+      // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
+      const walletTootEntry = {
+        toot: doorNoToUse,
+        source: "WALLET_API",
+        walletBairId: bairIdToUse,
+        walletDoorNo: doorNoToUse,
+        createdAt: new Date()
+      };
+      
+      const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
+        t => t.source === "WALLET_API" && 
+             t.walletBairId === bairIdToUse &&
+             t.walletDoorNo === doorNoToUse
+      );
+      
+      if (existingWalletTootIndex >= 0) {
+        orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+        console.log(`🔄 [WALLET LOGIN] Updated existing Wallet API toot in array`);
+      } else {
+        orshinSuugch.toots.push(walletTootEntry);
+        console.log(`➕ [WALLET LOGIN] Added new Wallet API toot to array`);
+      }
     }
 
     if (req.body.firebaseToken) {
@@ -1598,33 +1986,997 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       console.log("ℹ️ [WALLET LOGIN] No address available for auto-billing fetch");
     }
 
-    // If user has baiguullagiinId and barilgiinId, check/create geree (old method)
-    if (orshinSuugch.baiguullagiinId && orshinSuugch.barilgiinId) {
+    // Create gerees for all OWN_ORG toots that don't have gerees yet
+    if (orshinSuugch.toots && Array.isArray(orshinSuugch.toots) && orshinSuugch.toots.length > 0) {
+      const ownOrgToots = orshinSuugch.toots.filter(t => t.source === "OWN_ORG" && t.baiguullagiinId && t.barilgiinId);
+      
+      for (const tootEntry of ownOrgToots) {
+        try {
+          const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(tootEntry.baiguullagiinId);
+          
+          if (!baiguullaga) {
+            console.log(`orshinSuugch service`);
+            continue;
+          }
+          
+          const tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+
+          if (!tukhainBaaziinKholbolt) {
+            console.log(`orshinSuugch service`);
+            continue;
+          }
+          
+          // Check if geree already exists for this specific toot (user + barilgiinId + toot combination)
+          const GereeModel = Geree(tukhainBaaziinKholbolt);
+          const existingGeree = await GereeModel.findOne({
+            orshinSuugchId: orshinSuugch._id.toString(),
+            barilgiinId: tootEntry.barilgiinId,
+            toot: tootEntry.toot,
+            tuluv: { $ne: "Цуцалсан" } // Only check active gerees
+          });
+
+          if (existingGeree) {
+            console.log(`orshinSuugch service`);
+            continue;
+          }
+
+          // Check if there's a cancelled geree for this toot that we can reactivate
+          const existingCancelledGeree = await GereeModel.findOne({
+            barilgiinId: tootEntry.barilgiinId,
+            toot: tootEntry.toot,
+            tuluv: "Цуцалсан",
+            orshinSuugchId: orshinSuugch._id.toString()
+          });
+
+          if (existingCancelledGeree) {
+            // Reactivate the cancelled geree instead of creating a new one
+            const targetBarilga = baiguullaga.barilguud?.find(
+              (b) => String(b._id) === String(tootEntry.barilgiinId)
+            );
+
+            if (targetBarilga) {
+              const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+              const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+              const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+              const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                ner: zardal.ner,
+                turul: zardal.turul,
+                zardliinTurul: zardal.zardliinTurul,
+                tariff: zardal.tariff,
+                tariffUsgeer: zardal.tariffUsgeer || "",
+                tulukhDun: 0,
+                dun: zardal.dun || 0,
+                bodokhArga: zardal.bodokhArga || "",
+                tseverUsDun: zardal.tseverUsDun || 0,
+                bokhirUsDun: zardal.bokhirUsDun || 0,
+                usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                ognoonuud: zardal.ognoonuud || [],
+              }));
+
+              // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+              const tailbarFromZardluud = ashiglaltiinZardluudData
+                .map((zardal) => zardal.tailbar)
+                .filter((tailbar) => tailbar && tailbar.trim())
+                .join("; ") || "";
+
+              const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+                const tariff = zardal.tariff || 0;
+                const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                if (isLiftItem && tootEntry.davkhar && choloolugdokhDavkhar.includes(tootEntry.davkhar)) {
+                  return total;
+                }
+                return total + tariff;
+              }, 0);
+
+              const duuregNer = targetBarilga.tokhirgoo?.duuregNer || tootEntry.duureg || "";
+              // Normalize horoo to always be an object format
+              let horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+              if (typeof horooData === 'string') {
+                horooData = { ner: horooData, kod: horooData };
+              } else if (!horooData || typeof horooData !== 'object') {
+                horooData = {};
+              }
+              const sohNer = targetBarilga.tokhirgoo?.sohNer || tootEntry.soh || "";
+
+              const updateData = {
+                tuluv: "Идэвхтэй",
+                gereeniiOgnoo: new Date(),
+                orshinSuugchId: orshinSuugch._id.toString(),
+                barilgiinId: tootEntry.barilgiinId, // Update to new barilgiinId if changed
+                bairNer: targetBarilga.ner || existingCancelledGeree.bairNer || "", // Update building name
+                sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
+                duureg: duuregNer,
+                horoo: horooData,
+                sohNer: sohNer,
+                zardluud: zardluudArray,
+                niitTulbur: niitTulbur,
+                ashiglaltiinZardal: 0,
+                ovog: orshinSuugch.ovog || existingCancelledGeree.ovog,
+                ner: orshinSuugch.ner || existingCancelledGeree.ner,
+                register: orshinSuugch.register || existingCancelledGeree.register,
+                utas: [orshinSuugch.utas],
+                mail: orshinSuugch.mail || existingCancelledGeree.mail,
+                tailbar: existingCancelledGeree.tailbar || "", // Preserve tailbar if exists
+              };
+
+              await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
+                $set: updateData,
+              });
+              console.log(`orshinSuugch service`);
+              continue; // Skip creating new contract, we reactivated the old one
+            }
+          }
+
+          // Validate: One toot cannot have different owners
+          // Check if this toot already has an active contract with a different orshinSuugchId
+          const conflictingGeree = await GereeModel.findOne({
+            barilgiinId: tootEntry.barilgiinId,
+            toot: tootEntry.toot,
+            tuluv: "Идэвхтэй",
+            orshinSuugchId: { $ne: orshinSuugch._id.toString() }
+          });
+
+          if (conflictingGeree) {
+            console.log(`orshinSuugch service`);
+            continue; // Skip creating contract - toot already owned by someone else
+          }
+          
+          // Creating new geree for toot
+          const targetBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === String(tootEntry.barilgiinId)
+          );
+
+          if (targetBarilga) {
+            // Get ashiglaltiinZardluud from barilga
+            const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+            const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+            const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+            const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+              ner: zardal.ner,
+              turul: zardal.turul,
+              zardliinTurul: zardal.zardliinTurul,
+              tariff: zardal.tariff,
+              tariffUsgeer: zardal.tariffUsgeer || "",
+              tulukhDun: 0,
+              dun: zardal.dun || 0,
+              bodokhArga: zardal.bodokhArga || "",
+              tseverUsDun: zardal.tseverUsDun || 0,
+              bokhirUsDun: zardal.bokhirUsDun || 0,
+              usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+              tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+              tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+              tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+              suuriKhuraamj: zardal.suuriKhuraamj || 0,
+              nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+              ognoonuud: zardal.ognoonuud || [],
+            }));
+
+            const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+              const tariff = zardal.tariff || 0;
+              const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+              if (isLiftItem && tootEntry.davkhar && choloolugdokhDavkhar.includes(tootEntry.davkhar)) {
+                return total;
+              }
+              return total + tariff;
+            }, 0);
+
+            const duuregNer = targetBarilga.tokhirgoo?.duuregNer || tootEntry.duureg || "";
+            // Normalize horoo to always be an object format
+            let horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+            if (typeof horooData === 'string') {
+              horooData = { ner: horooData, kod: horooData };
+            } else if (!horooData || typeof horooData !== 'object') {
+              horooData = {};
+            }
+            const sohNer = targetBarilga.tokhirgoo?.sohNer || tootEntry.soh || "";
+
+            // Create geree (contract) for this specific toot
+            const contractData = {
+              gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+              gereeniiOgnoo: new Date(),
+              turul: "Үндсэн",
+              tuluv: "Идэвхтэй",
+              ovog: orshinSuugch.ovog || "",
+              ner: orshinSuugch.ner || "",
+              register: orshinSuugch.register || "",
+              utas: [orshinSuugch.utas],
+              mail: orshinSuugch.mail || "",
+              baiguullagiinId: baiguullaga._id,
+              baiguullagiinNer: baiguullaga.ner,
+              barilgiinId: tootEntry.barilgiinId,
+              tulukhOgnoo: new Date(),
+              ashiglaltiinZardal: 0,
+              niitTulbur: niitTulbur,
+              toot: tootEntry.toot,
+              davkhar: tootEntry.davkhar || "",
+              bairNer: targetBarilga.ner || "",
+              sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
+              duureg: duuregNer,
+              horoo: horooData,
+              sohNer: sohNer,
+              burtgesenAjiltan: orshinSuugch._id,
+              orshinSuugchId: orshinSuugch._id.toString(),
+              temdeglel: `Wallet API-аас автоматаар үүссэн гэрээ (Тоот: ${tootEntry.toot})`,
+              tailbar: "",
+              actOgnoo: new Date(),
+              baritsaaniiUldegdel: 0,
+              ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,
+              zardluud: zardluudArray,
+              segmentuud: [],
+              khungulultuud: [],
+            };
+
+            const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+            await geree.save();
+            console.log(`orshinSuugch service`);
+
+            // Update davkhar with toot if provided
+            if (tootEntry.toot && tootEntry.davkhar) {
+              await exports.updateDavkharWithToot(
+                baiguullaga,
+                tootEntry.barilgiinId,
+                tootEntry.davkhar,
+                tootEntry.toot,
+                tukhainBaaziinKholbolt
+              );
+            }
+          } else {
+            console.log(`orshinSuugch service`);
+          }
+        } catch (tootGereeError) {
+          console.log(`orshinSuugch service`);
+          // Continue with next toot if this one fails
+        }
+      }
+    } else if (orshinSuugch.baiguullagiinId && orshinSuugch.barilgiinId) {
+      // Backward compatibility: if toots array is empty but old fields exist, create geree for primary toot
       try {
-        console.log("📋 [WALLET LOGIN] OWN_ORG bair detected - checking for geree...");
+        console.log("📋 [WALLET LOGIN] OWN_ORG bair detected (backward compatibility) - checking for geree...");
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(orshinSuugch.baiguullagiinId);
         
         if (!baiguullaga) {
-          console.error("❌ [WALLET LOGIN] Baiguullaga not found for geree creation");
+          console.log("orshinSuugch service");
         } else {
           const tukhainBaaziinKholbolt = db.kholboltuud.find(
             (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
           );
 
           if (!tukhainBaaziinKholbolt) {
-            console.error("❌ [WALLET LOGIN] Kholbolt not found for geree creation");
+            console.log("orshinSuugch service");
           } else {
-            // Check if geree already exists for this user
+            // Check if geree already exists for this user and toot combination
             const GereeModel = Geree(tukhainBaaziinKholbolt);
             const existingGeree = await GereeModel.findOne({
               orshinSuugchId: orshinSuugch._id.toString(),
+              barilgiinId: orshinSuugch.barilgiinId,
+              toot: orshinSuugch.toot || "",
               tuluv: { $ne: "Цуцалсан" } // Only check active gerees
             });
 
             if (existingGeree) {
-              console.log("ℹ️ [WALLET LOGIN] Geree already exists for this user:", existingGeree._id);
+              console.log("orshinSuugch service");
             } else {
-              console.log("📋 [WALLET LOGIN] No active geree found - creating new geree...");
+              // Validate: One toot cannot have different owners
+              if (orshinSuugch.toot && orshinSuugch.barilgiinId) {
+                const conflictingGeree = await GereeModel.findOne({
+                  barilgiinId: orshinSuugch.barilgiinId,
+                  toot: orshinSuugch.toot,
+                  tuluv: "Идэвхтэй",
+                  orshinSuugchId: { $ne: orshinSuugch._id.toString() }
+                });
+
+                if (conflictingGeree) {
+                  console.log("orshinSuugch service");
+                  // Skip creating contract - toot already owned by someone else
+                } else {
+                  const targetBarilga = baiguullaga.barilguud?.find(
+                    (b) => String(b._id) === String(orshinSuugch.barilgiinId)
+                  );
+
+                  if (targetBarilga) {
+                // Get ashiglaltiinZardluud from barilga
+                const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+                const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+                const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+                const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                  ner: zardal.ner,
+                  turul: zardal.turul,
+                  zardliinTurul: zardal.zardliinTurul,
+                  tariff: zardal.tariff,
+                  tariffUsgeer: zardal.tariffUsgeer || "",
+                  tulukhDun: 0,
+                  dun: zardal.dun || 0,
+                  bodokhArga: zardal.bodokhArga || "",
+                  tseverUsDun: zardal.tseverUsDun || 0,
+                  bokhirUsDun: zardal.bokhirUsDun || 0,
+                  usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                  tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                  tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                  tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                  suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                  nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                  ognoonuud: zardal.ognoonuud || [],
+                }));
+
+                const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+                  const tariff = zardal.tariff || 0;
+                  const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                  if (isLiftItem && orshinSuugch.davkhar && choloolugdokhDavkhar.includes(orshinSuugch.davkhar)) {
+                    return total;
+                  }
+                  return total + tariff;
+                }, 0);
+
+                const duuregNer = targetBarilga.tokhirgoo?.duuregNer || orshinSuugch.duureg || "";
+                // Normalize horoo to always be an object format
+                let horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
+                if (typeof horooData === 'string') {
+                  horooData = { ner: horooData, kod: horooData };
+                } else if (!horooData || typeof horooData !== 'object') {
+                  horooData = {};
+                }
+                const sohNer = targetBarilga.tokhirgoo?.sohNer || orshinSuugch.soh || "";
+
+                // Create geree (contract)
+                const contractData = {
+                  gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+                  gereeniiOgnoo: new Date(),
+                  turul: "Үндсэн",
+                  tuluv: "Идэвхтэй",
+                  ovog: orshinSuugch.ovog || "",
+                  ner: orshinSuugch.ner || "",
+                  register: orshinSuugch.register || "",
+                  utas: [orshinSuugch.utas],
+                  mail: orshinSuugch.mail || "",
+                  baiguullagiinId: baiguullaga._id,
+                  baiguullagiinNer: baiguullaga.ner,
+                  barilgiinId: orshinSuugch.barilgiinId,
+                  tulukhOgnoo: new Date(),
+                  ashiglaltiinZardal: 0,
+                  niitTulbur: niitTulbur,
+                  toot: orshinSuugch.toot || "",
+                  davkhar: orshinSuugch.davkhar || "",
+                  bairNer: targetBarilga.ner || "",
+                  sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
+                  duureg: duuregNer,
+                  horoo: horooData,
+                  sohNer: sohNer,
+                  burtgesenAjiltan: orshinSuugch._id,
+                  orshinSuugchId: orshinSuugch._id.toString(),
+                  temdeglel: "Wallet API-аас автоматаар үүссэн гэрээ",
+                  tailbar: tailbarFromZardluud || "",
+                  actOgnoo: new Date(),
+                  baritsaaniiUldegdel: 0,
+                  ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,
+                      zardluud: zardluudArray,
+                      segmentuud: [],
+                      khungulultuud: [],
+                    };
+
+                    const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+                    await geree.save();
+                    console.log("orshinSuugch service");
+
+                    // Update davkhar with toot if provided
+                    if (orshinSuugch.toot && orshinSuugch.davkhar) {
+                      await exports.updateDavkharWithToot(
+                        baiguullaga,
+                        orshinSuugch.barilgiinId,
+                        orshinSuugch.davkhar,
+                        orshinSuugch.toot,
+                        tukhainBaaziinKholbolt
+                      );
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (gereeError) {
+        console.log("orshinSuugch service");
+        // Don't fail login if geree creation fails
+      }
+    }
+
+    const token = await orshinSuugch.tokenUusgeye();
+
+    const butsaakhObject = {
+      result: orshinSuugch,
+      success: true,
+      token: token,
+      walletUserInfo: walletUserInfo,
+    };
+
+    if (billingInfo) {
+      butsaakhObject.billingInfo = billingInfo;
+    }
+
+    console.log("✅ [WALLET LOGIN] Login successful for user:", orshinSuugch._id);
+    res.status(200).json(butsaakhObject);
+  } catch (err) {
+    console.error("❌ [WALLET LOGIN] Error:", err.message);
+    next(err);
+  }
+});
+
+exports.walletBurtgey = asyncHandler(async (req, res, next) => {
+  try {
+    console.log("📝 [WALLET REGISTER] Registration request received");
+    console.log("📝 [WALLET REGISTER] Phone:", req.body.utas);
+    console.log("📝 [WALLET REGISTER] Email:", req.body.mail);
+
+    if (!req.body.utas) {
+      throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
+    }
+
+    // Email is optional - only register with Wallet API if email is provided
+    const email = req.body.mail ? String(req.body.mail).trim() : null;
+
+    const { db } = require("zevbackv2");
+    const phoneNumber = String(req.body.utas).trim();
+
+    let walletUserInfo = null;
+
+    if (email) {
+      console.log("📞 [WALLET REGISTER] Registering user in Wallet API...");
+      walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+
+      if (!walletUserInfo || !walletUserInfo.userId) {
+        throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
+      }
+
+      console.log("✅ [WALLET REGISTER] User registered in Wallet API:", walletUserInfo.userId);
+    } else {
+      console.log("ℹ️ [WALLET REGISTER] Email not provided, skipping Wallet API registration");
+    }
+
+    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      $or: [
+        { utas: phoneNumber },
+        ...(walletUserInfo?.userId ? [{ walletUserId: walletUserInfo.userId }] : [])
+      ]
+    });
+
+    const userData = {
+      utas: phoneNumber,
+      mail: walletUserInfo?.email || email || "",
+      ...(walletUserInfo?.userId ? { walletUserId: walletUserInfo.userId } : {}),
+      erkh: "OrshinSuugch",
+      nevtrekhNer: phoneNumber,
+    };
+
+    // Save password locally if provided (password is NOT sent to Wallet API, only stored in our DB)
+    if (req.body.nuutsUg) {
+      userData.nuutsUg = req.body.nuutsUg;
+      console.log("🔐 [WALLET REGISTER] Password will be saved locally (not sent to Wallet API)");
+    }
+
+    // Preserve existing baiguullagiinId if user already has one
+    if (orshinSuugch && orshinSuugch.baiguullagiinId) {
+      userData.baiguullagiinId = orshinSuugch.baiguullagiinId;
+      userData.baiguullagiinNer = orshinSuugch.baiguullagiinNer;
+    }
+
+    // Save baiguullagiinId if provided (from OWN_ORG bair selection or WALLET_API)
+    if (req.body.baiguullagiinId) {
+      userData.baiguullagiinId = req.body.baiguullagiinId;
+      // Try to get baiguullagiinNer if baiguullagiinId is provided
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (baiguullaga) {
+          userData.baiguullagiinNer = baiguullaga.ner;
+        }
+      } catch (error) {
+        console.warn("⚠️ [WALLET REGISTER] Could not fetch baiguullagiinNer:", error.message);
+      }
+    }
+
+    if (req.body.barilgiinId) {
+      userData.barilgiinId = req.body.barilgiinId;
+    }
+
+    if (req.body.duureg) userData.duureg = req.body.duureg;
+    if (req.body.horoo) userData.horoo = req.body.horoo;
+    if (req.body.soh) userData.soh = req.body.soh;
+    if (req.body.toot) userData.toot = req.body.toot;
+    if (req.body.davkhar) userData.davkhar = req.body.davkhar;
+    if (req.body.orts) userData.orts = req.body.orts;
+
+    // Save address if provided
+    if (req.body.bairId) {
+      userData.walletBairId = req.body.bairId;
+    }
+    if (req.body.doorNo) {
+      userData.walletDoorNo = req.body.doorNo;
+    }
+
+    // Validate OWN_ORG bair toot/doorNo if provided
+    // Check for OWN_ORG: baiguullagiinId is required, and either barilgiinId OR bairId (frontend might send bairId)
+    const isOwnOrgAddress = req.body.baiguullagiinId && req.body.doorNo && (req.body.barilgiinId || req.body.bairId);
+    const ownOrgBarilgiinId = req.body.barilgiinId || req.body.bairId; // Use barilgiinId if provided, otherwise bairId
+    
+    if (isOwnOrgAddress) {
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (!baiguullaga) {
+          throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+        }
+
+        const targetBarilga = baiguullaga.barilguud?.find(
+          (b) => String(b._id) === String(ownOrgBarilgiinId)
+        );
+
+        if (!targetBarilga) {
+          throw new aldaa("Барилгын мэдээлэл олдсонгүй!");
+        }
+
+        const tootToValidate = req.body.doorNo.trim();
+        const davkharFromRequest = (req.body.davkhar || "").trim();
+        const ortsFromRequest = (req.body.orts || "1").trim();
+        
+        // Check if toot exists in davkhariinToonuud (available toots)
+        // Automatically determine orts and davkhar from toot (same as website registration)
+        const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+        let tootFound = false;
+        let foundDavkhar = null;
+        let foundOrts = null;
+        let matchedFloorKey = null;
+
+        if (davkharFromRequest) {
+          // If davkhar is provided, check specific floor first
+          const floorKey = `${ortsFromRequest}::${davkharFromRequest}`;
+          const tootArray = davkhariinToonuud[floorKey];
+          
+          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+            let tootList = [];
+            if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+              tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+            } else {
+              tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+            }
+            
+            if (tootList.includes(tootToValidate)) {
+              tootFound = true;
+              matchedFloorKey = floorKey;
+              foundDavkhar = davkharFromRequest;
+              foundOrts = ortsFromRequest;
+            }
+          }
+        }
+        
+        // If not found with provided davkhar/orts, or davkhar not provided, search all floors
+        if (!tootFound) {
+          for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+            // Skip invalid entries that don't have :: separator
+            if (!floorKey.includes("::")) {
+              continue;
+            }
+            
+            if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
+              let tootList = [];
+              if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+                tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+              } else {
+                tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+              }
+              
+              if (tootList.includes(tootToValidate)) {
+                tootFound = true;
+                matchedFloorKey = floorKey;
+                
+                // Extract orts and davkhar from floorKey (format: "orts::davkhar")
+                const parts = floorKey.split("::");
+                if (parts.length === 2) {
+                  foundOrts = parts[0].trim(); // orts (entrance)
+                  foundDavkhar = parts[1].trim(); // davkhar (floor)
+                }
+                break;
+              }
+            }
+          }
+        }
+
+        if (!tootFound) {
+          throw new aldaa(`(${tootToValidate}) тоот энэ барилгад бүртгэлгүй байна`);
+        }
+
+        // Use found values, fallback to request values if not found
+        const finalDavkhar = foundDavkhar || davkharFromRequest || "";
+        const finalOrts = foundOrts || ortsFromRequest || "1";
+
+        // Validation passes - toot will be added to toots array
+        // Multiple users can have the same toot, so no unique check needed
+        console.log(`✅ [WALLET REGISTER] OWN_ORG toot validated: ${tootToValidate}, auto-determined davkhar=${finalDavkhar}, orts=${finalOrts}`);
+        
+        // Set auto-determined values in userData for backward compatibility
+        // This ensures davkhar and orts are available even if not provided in request
+        if (finalDavkhar) {
+          userData.davkhar = finalDavkhar;
+        }
+        if (finalOrts) {
+          userData.orts = finalOrts;
+        }
+        // Also set toot in userData for backward compatibility
+        userData.toot = tootToValidate;
+        
+        // Prepare toot entry for toots array
+        userData.newTootEntry = {
+          toot: tootToValidate,
+          source: "OWN_ORG",
+          baiguullagiinId: req.body.baiguullagiinId,
+          barilgiinId: ownOrgBarilgiinId, // Use the resolved barilgiinId (from barilgiinId or bairId)
+          davkhar: finalDavkhar, // Auto-determined from toot
+          orts: finalOrts, // Auto-determined from toot
+          duureg: targetBarilga.tokhirgoo?.duuregNer || "",
+          horoo: targetBarilga.tokhirgoo?.horoo || {},
+          soh: targetBarilga.tokhirgoo?.sohNer || "",
+          bairniiNer: targetBarilga.ner || ""
+        };
+      } catch (error) {
+        console.error("❌ [WALLET REGISTER] OWN_ORG toot validation error:", error.message);
+        throw error;
+      }
+    }
+
+    if (orshinSuugch) {
+      console.log("🔄 [WALLET REGISTER] Updating existing user:", orshinSuugch._id);
+      Object.assign(orshinSuugch, userData);
+    } else {
+      console.log("➕ [WALLET REGISTER] Creating new user");
+      orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+      // Initialize toots array if it doesn't exist
+      if (!orshinSuugch.toots) {
+        orshinSuugch.toots = [];
+      }
+    }
+
+    // Handle multiple toots - add new toot to array if provided
+    if (userData.newTootEntry) {
+      // Check if this toot already exists in user's toots array
+      const existingTootIndex = orshinSuugch.toots?.findIndex(
+        t => t.toot === userData.newTootEntry.toot && 
+             t.barilgiinId === userData.newTootEntry.barilgiinId
+      );
+      
+      if (existingTootIndex >= 0) {
+        // Update existing toot entry
+        orshinSuugch.toots[existingTootIndex] = userData.newTootEntry;
+        console.log(`🔄 [WALLET REGISTER] Updated existing toot in array: ${userData.newTootEntry.toot}`);
+      } else {
+        // Add new toot to array
+        if (!orshinSuugch.toots) {
+          orshinSuugch.toots = [];
+        }
+        orshinSuugch.toots.push(userData.newTootEntry);
+        console.log(`➕ [WALLET REGISTER] Added new toot to array: ${userData.newTootEntry.toot}`);
+      }
+      
+      // Also set as primary toot for backward compatibility
+      orshinSuugch.toot = userData.newTootEntry.toot;
+      orshinSuugch.baiguullagiinId = userData.newTootEntry.baiguullagiinId;
+      orshinSuugch.barilgiinId = userData.newTootEntry.barilgiinId;
+      orshinSuugch.davkhar = userData.newTootEntry.davkhar; // Auto-determined from toot
+      orshinSuugch.orts = userData.newTootEntry.orts; // Auto-determined from toot
+      orshinSuugch.duureg = userData.newTootEntry.duureg;
+      orshinSuugch.horoo = userData.newTootEntry.horoo;
+      orshinSuugch.soh = userData.newTootEntry.soh;
+    } else if (req.body.bairId && req.body.doorNo && !req.body.baiguullagiinId) {
+      // Handle Wallet API address - add to toots array
+      // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
+      const walletTootEntry = {
+        toot: req.body.doorNo,
+        source: "WALLET_API",
+        walletBairId: req.body.bairId,
+        walletDoorNo: req.body.doorNo,
+        createdAt: new Date()
+      };
+      
+      const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
+        t => t.source === "WALLET_API" && 
+             t.walletBairId === req.body.bairId &&
+             t.walletDoorNo === req.body.doorNo
+      );
+      
+      if (existingWalletTootIndex >= 0) {
+        orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+        console.log(`🔄 [WALLET REGISTER] Updated existing Wallet API toot in array`);
+      } else {
+        if (!orshinSuugch.toots) {
+          orshinSuugch.toots = [];
+        }
+        orshinSuugch.toots.push(walletTootEntry);
+        console.log(`➕ [WALLET REGISTER] Added new Wallet API toot to array`);
+      }
+    }
+
+    if (req.body.firebaseToken) {
+      orshinSuugch.firebaseToken = req.body.firebaseToken;
+      console.log("📱 [WALLET REGISTER] Updating Firebase token");
+    }
+
+    await orshinSuugch.save();
+    console.log("✅ [WALLET REGISTER] User saved to database:", orshinSuugch._id);
+
+    // Create gerees for all OWN_ORG toots that don't have gerees yet
+    if (orshinSuugch.toots && Array.isArray(orshinSuugch.toots) && orshinSuugch.toots.length > 0) {
+      const ownOrgToots = orshinSuugch.toots.filter(t => t.source === "OWN_ORG" && t.baiguullagiinId && t.barilgiinId);
+      
+      for (const tootEntry of ownOrgToots) {
+        try {
+          console.log(`📋 [WALLET REGISTER] Processing OWN_ORG toot: ${tootEntry.toot} for geree creation...`);
+          const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(tootEntry.baiguullagiinId);
+          
+          if (!baiguullaga) {
+            console.error(`❌ [WALLET REGISTER] Baiguullaga not found for toot ${tootEntry.toot}`);
+            continue;
+          }
+          
+          const tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+
+          if (!tukhainBaaziinKholbolt) {
+            console.error(`❌ [WALLET REGISTER] Kholbolt not found for toot ${tootEntry.toot}`);
+            continue;
+          }
+          
+          // Check if geree already exists for this specific toot (user + barilgiinId + toot combination)
+          const GereeModel = Geree(tukhainBaaziinKholbolt);
+          const existingGeree = await GereeModel.findOne({
+            orshinSuugchId: orshinSuugch._id.toString(),
+            barilgiinId: tootEntry.barilgiinId,
+            toot: tootEntry.toot,
+            tuluv: { $ne: "Цуцалсан" } // Only check active gerees
+          });
+
+          if (existingGeree) {
+            console.log(`orshinSuugch service`);
+            continue;
+          }
+
+          // Check if there's a cancelled geree for this toot that we can reactivate
+          const existingCancelledGeree = await GereeModel.findOne({
+            barilgiinId: tootEntry.barilgiinId,
+            toot: tootEntry.toot,
+            tuluv: "Цуцалсан",
+            orshinSuugchId: orshinSuugch._id.toString()
+          });
+
+          if (existingCancelledGeree) {
+            // Reactivate the cancelled geree instead of creating a new one
+            const targetBarilga = baiguullaga.barilguud?.find(
+              (b) => String(b._id) === String(tootEntry.barilgiinId)
+            );
+
+            if (targetBarilga) {
+              const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+              const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+              const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+              const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                ner: zardal.ner,
+                turul: zardal.turul,
+                zardliinTurul: zardal.zardliinTurul,
+                tariff: zardal.tariff,
+                tariffUsgeer: zardal.tariffUsgeer || "",
+                tulukhDun: 0,
+                dun: zardal.dun || 0,
+                bodokhArga: zardal.bodokhArga || "",
+                tseverUsDun: zardal.tseverUsDun || 0,
+                bokhirUsDun: zardal.bokhirUsDun || 0,
+                usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                ognoonuud: zardal.ognoonuud || [],
+              }));
+
+              // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+              const tailbarFromZardluud = ashiglaltiinZardluudData
+                .map((zardal) => zardal.tailbar)
+                .filter((tailbar) => tailbar && tailbar.trim())
+                .join("; ") || "";
+
+              const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+                const tariff = zardal.tariff || 0;
+                const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                if (isLiftItem && tootEntry.davkhar && choloolugdokhDavkhar.includes(tootEntry.davkhar)) {
+                  return total;
+                }
+                return total + tariff;
+              }, 0);
+
+              const duuregNer = targetBarilga.tokhirgoo?.duuregNer || tootEntry.duureg || "";
+              // Normalize horoo to always be an object format
+              let horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+              if (typeof horooData === 'string') {
+                horooData = { ner: horooData, kod: horooData };
+              } else if (!horooData || typeof horooData !== 'object') {
+                horooData = {};
+              }
+              const sohNer = targetBarilga.tokhirgoo?.sohNer || tootEntry.soh || "";
+
+              const updateData = {
+                tuluv: "Идэвхтэй",
+                gereeniiOgnoo: new Date(),
+                orshinSuugchId: orshinSuugch._id.toString(),
+                barilgiinId: tootEntry.barilgiinId, // Update to new barilgiinId if changed
+                bairNer: targetBarilga.ner || existingCancelledGeree.bairNer || "", // Update building name
+                sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
+                duureg: duuregNer,
+                horoo: horooData,
+                sohNer: sohNer,
+                zardluud: zardluudArray,
+                niitTulbur: niitTulbur,
+                ashiglaltiinZardal: 0,
+                ovog: orshinSuugch.ovog || existingCancelledGeree.ovog,
+                ner: orshinSuugch.ner || existingCancelledGeree.ner,
+                register: orshinSuugch.register || existingCancelledGeree.register,
+                utas: [orshinSuugch.utas],
+                mail: orshinSuugch.mail || existingCancelledGeree.mail,
+                tailbar: existingCancelledGeree.tailbar || "", // Preserve tailbar if exists
+              };
+
+              await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
+                $set: updateData,
+              });
+              console.log(`orshinSuugch service`);
+              continue; // Skip creating new contract, we reactivated the old one
+            }
+          }
+          const targetBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === String(tootEntry.barilgiinId)
+          );
+
+          if (targetBarilga) {
+            // Get ashiglaltiinZardluud from barilga
+            const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+            const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+            const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+            const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+              ner: zardal.ner,
+              turul: zardal.turul,
+              zardliinTurul: zardal.zardliinTurul,
+              tariff: zardal.tariff,
+              tariffUsgeer: zardal.tariffUsgeer || "",
+              tulukhDun: 0,
+              dun: zardal.dun || 0,
+              bodokhArga: zardal.bodokhArga || "",
+              tseverUsDun: zardal.tseverUsDun || 0,
+              bokhirUsDun: zardal.bokhirUsDun || 0,
+              usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+              tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+              tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+              tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+              suuriKhuraamj: zardal.suuriKhuraamj || 0,
+              nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+              ognoonuud: zardal.ognoonuud || [],
+            }));
+
+            const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+              const tariff = zardal.tariff || 0;
+              const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+              if (isLiftItem && tootEntry.davkhar && choloolugdokhDavkhar.includes(tootEntry.davkhar)) {
+                return total;
+              }
+              return total + tariff;
+            }, 0);
+
+            const duuregNer = targetBarilga.tokhirgoo?.duuregNer || tootEntry.duureg || "";
+            // Normalize horoo to always be an object format
+            let horooData = targetBarilga.tokhirgoo?.horoo || tootEntry.horoo || {};
+            if (typeof horooData === 'string') {
+              horooData = { ner: horooData, kod: horooData };
+            } else if (!horooData || typeof horooData !== 'object') {
+              horooData = {};
+            }
+            const sohNer = targetBarilga.tokhirgoo?.sohNer || tootEntry.soh || "";
+
+            // Create geree (contract) for this specific toot
+            const contractData = {
+              gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+              gereeniiOgnoo: new Date(),
+              turul: "Үндсэн",
+              tuluv: "Идэвхтэй",
+              ovog: orshinSuugch.ovog || "",
+              ner: orshinSuugch.ner || "",
+              register: orshinSuugch.register || "",
+              utas: [orshinSuugch.utas],
+              mail: orshinSuugch.mail || "",
+              baiguullagiinId: baiguullaga._id,
+              baiguullagiinNer: baiguullaga.ner,
+              barilgiinId: tootEntry.barilgiinId,
+              tulukhOgnoo: new Date(),
+              ashiglaltiinZardal: 0,
+              niitTulbur: niitTulbur,
+              toot: tootEntry.toot,
+              davkhar: tootEntry.davkhar || "",
+              bairNer: targetBarilga.ner || "",
+              sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
+              duureg: duuregNer,
+              horoo: horooData,
+              sohNer: sohNer,
+              burtgesenAjiltan: orshinSuugch._id,
+              orshinSuugchId: orshinSuugch._id.toString(),
+              temdeglel: `Wallet API-аас автоматаар үүссэн гэрээ (Тоот: ${tootEntry.toot})`,
+              tailbar: "",
+              actOgnoo: new Date(),
+              baritsaaniiUldegdel: 0,
+              ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,
+              zardluud: zardluudArray,
+              segmentuud: [],
+              khungulultuud: [],
+            };
+
+            const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+            await geree.save();
+            console.log(`✅ [WALLET REGISTER] Geree created for toot ${tootEntry.toot}:`, geree._id);
+
+            // Update davkhar with toot if provided
+            if (tootEntry.toot && tootEntry.davkhar) {
+              await exports.updateDavkharWithToot(
+                baiguullaga,
+                tootEntry.barilgiinId,
+                tootEntry.davkhar,
+                tootEntry.toot,
+                tukhainBaaziinKholbolt
+              );
+              console.log(`✅ [WALLET REGISTER] Davkhar updated with toot ${tootEntry.toot}`);
+            }
+
+            // Invoice will be created by cron job on scheduled date
+            console.log(`ℹ️ [WALLET REGISTER] Invoice will be created by cron job for toot ${tootEntry.toot}`);
+          } else {
+            console.error(`❌ [WALLET REGISTER] Target barilga not found for toot ${tootEntry.toot}`);
+          }
+        } catch (tootGereeError) {
+          console.error(`❌ [WALLET REGISTER] Error creating geree for toot ${tootEntry.toot}:`, tootGereeError.message);
+          // Continue with next toot if this one fails
+        }
+      }
+    } else if (orshinSuugch.baiguullagiinId && orshinSuugch.barilgiinId) {
+      // Backward compatibility: if toots array is empty but old fields exist, create geree for primary toot
+      try {
+        console.log("📋 [WALLET REGISTER] OWN_ORG bair detected (backward compatibility) - checking for geree...");
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(orshinSuugch.baiguullagiinId);
+        
+        if (!baiguullaga) {
+          console.error("❌ [WALLET REGISTER] Baiguullaga not found for geree creation");
+        } else {
+          const tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+
+          if (!tukhainBaaziinKholbolt) {
+            console.error("❌ [WALLET REGISTER] Kholbolt not found for geree creation");
+          } else {
+            // Check if geree already exists for this user and toot combination
+            const GereeModel = Geree(tukhainBaaziinKholbolt);
+            const existingGeree = await GereeModel.findOne({
+              orshinSuugchId: orshinSuugch._id.toString(),
+              barilgiinId: orshinSuugch.barilgiinId,
+              toot: orshinSuugch.toot || "",
+              tuluv: { $ne: "Цуцалсан" } // Only check active gerees
+            });
+
+            if (existingGeree) {
+              console.log("ℹ️ [WALLET REGISTER] Geree already exists for this user and toot:", existingGeree._id);
+            } else {
+              console.log("📋 [WALLET REGISTER] No active geree found - creating new geree...");
               const targetBarilga = baiguullaga.barilguud?.find(
                 (b) => String(b._id) === String(orshinSuugch.barilgiinId)
               );
@@ -1665,7 +3017,13 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 }, 0);
 
                 const duuregNer = targetBarilga.tokhirgoo?.duuregNer || orshinSuugch.duureg || "";
-                const horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
+                // Normalize horoo to always be an object format
+                let horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
+                if (typeof horooData === 'string') {
+                  horooData = { ner: horooData, kod: horooData };
+                } else if (!horooData || typeof horooData !== 'object') {
+                  horooData = {};
+                }
                 const sohNer = targetBarilga.tokhirgoo?.sohNer || orshinSuugch.soh || "";
 
                 // Create geree (contract)
@@ -1702,328 +3060,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                   segmentuud: [],
                   khungulultuud: [],
                 };
-
-                const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
-                await geree.save();
-                console.log("✅ [WALLET LOGIN] Geree created:", geree._id);
-
-                // Update davkhar with toot if provided
-                if (orshinSuugch.toot && orshinSuugch.davkhar) {
-                  await exports.updateDavkharWithToot(
-                    baiguullaga,
-                    orshinSuugch.barilgiinId,
-                    orshinSuugch.davkhar,
-                    orshinSuugch.toot,
-                    tukhainBaaziinKholbolt
-                  );
-                  console.log("✅ [WALLET LOGIN] Davkhar updated with toot");
-                }
-
-                // Invoice will be created by cron job on scheduled date
-                console.log("ℹ️ [WALLET LOGIN] Invoice will be created by cron job on scheduled date");
-              }
-            }
-          }
-        }
-      } catch (gereeError) {
-        console.error("❌ [WALLET LOGIN] Error creating geree:", gereeError.message);
-        // Don't fail login if geree creation fails
-      }
-    }
-
-    const token = await orshinSuugch.tokenUusgeye();
-
-    const butsaakhObject = {
-      result: orshinSuugch,
-      success: true,
-      token: token,
-      walletUserInfo: walletUserInfo,
-    };
-
-    if (billingInfo) {
-      butsaakhObject.billingInfo = billingInfo;
-    }
-
-    console.log("✅ [WALLET LOGIN] Login successful for user:", orshinSuugch._id);
-    res.status(200).json(butsaakhObject);
-  } catch (err) {
-    console.error("❌ [WALLET LOGIN] Error:", err.message);
-    next(err);
-  }
-});
-
-exports.walletBurtgey = asyncHandler(async (req, res, next) => {
-  try {
-    console.log("📝 [WALLET REGISTER] Registration request received");
-    console.log("📝 [WALLET REGISTER] Phone:", req.body.utas);
-    console.log("📝 [WALLET REGISTER] Email:", req.body.mail);
-
-    if (!req.body.utas) {
-      throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
-    }
-
-    if (!req.body.mail) {
-      throw new aldaa("И-мэйл заавал бөглөх шаардлагатай!");
-    }
-
-    const { db } = require("zevbackv2");
-    const phoneNumber = String(req.body.utas).trim();
-    const email = String(req.body.mail).trim();
-
-    console.log("📞 [WALLET REGISTER] Registering user in Wallet API...");
-    const walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
-
-    if (!walletUserInfo || !walletUserInfo.userId) {
-      throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
-    }
-
-    console.log("✅ [WALLET REGISTER] User registered in Wallet API:", walletUserInfo.userId);
-
-    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      $or: [
-        { utas: phoneNumber },
-        { walletUserId: walletUserInfo.userId }
-      ]
-    });
-
-    const userData = {
-      utas: phoneNumber,
-      mail: walletUserInfo.email || email,
-      walletUserId: walletUserInfo.userId,
-      erkh: "OrshinSuugch",
-      nevtrekhNer: phoneNumber,
-    };
-
-    if (req.body.barilgiinId) {
-      userData.barilgiinId = req.body.barilgiinId;
-    }
-
-    if (req.body.duureg) userData.duureg = req.body.duureg;
-    if (req.body.horoo) userData.horoo = req.body.horoo;
-    if (req.body.soh) userData.soh = req.body.soh;
-    if (req.body.toot) userData.toot = req.body.toot;
-    if (req.body.davkhar) userData.davkhar = req.body.davkhar;
-    if (req.body.orts) userData.orts = req.body.orts;
-
-    // Save address if provided
-    if (req.body.bairId) {
-      userData.walletBairId = req.body.bairId;
-    }
-    if (req.body.doorNo) {
-      userData.walletDoorNo = req.body.doorNo;
-    }
-    
-    // Save baiguullagiinId and barilgiinId if provided (from OWN_ORG bair selection)
-    if (req.body.baiguullagiinId) {
-      userData.baiguullagiinId = req.body.baiguullagiinId;
-    }
-    if (req.body.barilgiinId) {
-      userData.barilgiinId = req.body.barilgiinId;
-    }
-
-    // Validate OWN_ORG bair toot/doorNo if provided
-    if (req.body.baiguullagiinId && req.body.barilgiinId && req.body.doorNo) {
-      try {
-        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
-        if (!baiguullaga) {
-          throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
-        }
-
-        const targetBarilga = baiguullaga.barilguud?.find(
-          (b) => String(b._id) === String(req.body.barilgiinId)
-        );
-
-        if (!targetBarilga) {
-          throw new aldaa("Барилгын мэдээлэл олдсонгүй!");
-        }
-
-        const tootToValidate = req.body.doorNo.trim();
-        const davkharToValidate = (req.body.davkhar || "").trim();
-        const ortsToValidate = (req.body.orts || "1").trim();
-        
-        // Check if toot exists in davkhariinToonuud (available toots)
-        const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
-        let tootFound = false;
-
-        if (davkharToValidate) {
-          // If davkhar is provided, check specific floor
-          const floorKey = `${ortsToValidate}::${davkharToValidate}`;
-          const tootArray = davkhariinToonuud[floorKey];
-          
-          if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
-            let tootList = [];
-            if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
-              tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
-            } else {
-              tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
-            }
-            
-            if (tootList.includes(tootToValidate)) {
-              tootFound = true;
-            }
-          }
-        } else {
-          // If davkhar not provided, search all floors
-          for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
-            if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
-              let tootList = [];
-              if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
-                tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
-              } else {
-                tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
-              }
-              
-              if (tootList.includes(tootToValidate)) {
-                tootFound = true;
-                break;
-              }
-            }
-          }
-        }
-
-        if (!tootFound) {
-          throw new aldaa(`(${tootToValidate}) тоот энэ барилгад бүртгэлгүй байна`);
-        }
-
-        // Check if toot is already registered to another user
-        const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-          toot: tootToValidate,
-          barilgiinId: req.body.barilgiinId
-        });
-
-        if (existingTootUser) {
-          throw new aldaa(`(${tootToValidate}) тоот аль хэдийн бүртгэгдсэн байна`);
-        }
-
-        // If validation passes, also set toot field
-        userData.toot = tootToValidate;
-        console.log(`✅ [WALLET REGISTER] OWN_ORG toot validated: ${tootToValidate}`);
-      } catch (error) {
-        console.error("❌ [WALLET REGISTER] OWN_ORG toot validation error:", error.message);
-        throw error;
-      }
-    }
-
-    if (orshinSuugch) {
-      console.log("🔄 [WALLET REGISTER] Updating existing user:", orshinSuugch._id);
-      Object.assign(orshinSuugch, userData);
-    } else {
-      console.log("➕ [WALLET REGISTER] Creating new user");
-      orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
-    }
-
-    if (req.body.firebaseToken) {
-      orshinSuugch.firebaseToken = req.body.firebaseToken;
-      console.log("📱 [WALLET REGISTER] Updating Firebase token");
-    }
-
-    await orshinSuugch.save();
-    console.log("✅ [WALLET REGISTER] User saved to database:", orshinSuugch._id);
-
-    // If user has baiguullagiinId and barilgiinId, create geree and invoice (old method)
-    if (orshinSuugch.baiguullagiinId && orshinSuugch.barilgiinId) {
-      try {
-        console.log("📋 [WALLET REGISTER] OWN_ORG bair detected - creating geree and invoice...");
-        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(orshinSuugch.baiguullagiinId);
-        
-        if (!baiguullaga) {
-          console.error("❌ [WALLET REGISTER] Baiguullaga not found for geree creation");
-        } else {
-          const tukhainBaaziinKholbolt = db.kholboltuud.find(
-            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
-          );
-
-          if (!tukhainBaaziinKholbolt) {
-            console.error("❌ [WALLET REGISTER] Kholbolt not found for geree creation");
-          } else {
-            // Check if geree already exists for this user
-            const GereeModel = Geree(tukhainBaaziinKholbolt);
-            const existingGeree = await GereeModel.findOne({
-              orshinSuugchId: orshinSuugch._id.toString(),
-              tuluv: { $ne: "Цуцалсан" } // Only check active gerees
-            });
-
-            if (existingGeree) {
-              console.log("ℹ️ [WALLET REGISTER] Geree already exists for this user:", existingGeree._id);
-            } else {
-              console.log("📋 [WALLET REGISTER] No active geree found - creating new geree...");
-              const targetBarilga = baiguullaga.barilguud?.find(
-                (b) => String(b._id) === String(orshinSuugch.barilgiinId)
-              );
-
-              if (targetBarilga) {
-              // Get ashiglaltiinZardluud from barilga
-              const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
-              const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
-              const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
-
-              const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
-                ner: zardal.ner,
-                turul: zardal.turul,
-                zardliinTurul: zardal.zardliinTurul,
-                tariff: zardal.tariff,
-                tariffUsgeer: zardal.tariffUsgeer || "",
-                tulukhDun: 0,
-                dun: zardal.dun || 0,
-                bodokhArga: zardal.bodokhArga || "",
-                tseverUsDun: zardal.tseverUsDun || 0,
-                bokhirUsDun: zardal.bokhirUsDun || 0,
-                usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
-                tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
-                tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
-                tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
-                suuriKhuraamj: zardal.suuriKhuraamj || 0,
-                nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
-                ognoonuud: zardal.ognoonuud || [],
-              }));
-
-              const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
-                const tariff = zardal.tariff || 0;
-                const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
-                if (isLiftItem && orshinSuugch.davkhar && choloolugdokhDavkhar.includes(orshinSuugch.davkhar)) {
-                  return total;
-                }
-                return total + tariff;
-              }, 0);
-
-              const duuregNer = targetBarilga.tokhirgoo?.duuregNer || orshinSuugch.duureg || "";
-              const horooData = targetBarilga.tokhirgoo?.horoo || orshinSuugch.horoo || {};
-              const sohNer = targetBarilga.tokhirgoo?.sohNer || orshinSuugch.soh || "";
-
-              // Create geree (contract)
-              const contractData = {
-                gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
-                gereeniiOgnoo: new Date(),
-                turul: "Үндсэн",
-                tuluv: "Идэвхтэй",
-                ovog: orshinSuugch.ovog || "",
-                ner: orshinSuugch.ner || "",
-                register: orshinSuugch.register || "",
-                utas: [orshinSuugch.utas],
-                mail: orshinSuugch.mail || "",
-                baiguullagiinId: baiguullaga._id,
-                baiguullagiinNer: baiguullaga.ner,
-                barilgiinId: orshinSuugch.barilgiinId,
-                tulukhOgnoo: new Date(),
-                ashiglaltiinZardal: 0,
-                niitTulbur: niitTulbur,
-                toot: orshinSuugch.toot || "",
-                davkhar: orshinSuugch.davkhar || "",
-                bairNer: targetBarilga.ner || "",
-                sukhBairshil: `${duuregNer}, ${horooData.ner || ""}, ${sohNer}`,
-                duureg: duuregNer,
-                horoo: horooData,
-                sohNer: sohNer,
-                burtgesenAjiltan: orshinSuugch._id,
-                orshinSuugchId: orshinSuugch._id.toString(),
-                temdeglel: "Wallet API-аас автоматаар үүссэн гэрээ",
-                actOgnoo: new Date(),
-                baritsaaniiUldegdel: 0,
-                ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,
-                zardluud: zardluudArray,
-                segmentuud: [],
-                khungulultuud: [],
-              };
 
                 const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
                 await geree.save();
@@ -2941,6 +3977,74 @@ function msgIlgeeye(
   }
 }
 
+// Verify login code for first-time login
+exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
+  try {
+    const { baiguullagiinId, utas, code } = req.body;
+
+    if (!baiguullagiinId || !utas || !code) {
+      return res.status(400).json({
+        success: false,
+        message: "Байгууллагын ID, утас, код заавал бөглөх шаардлагатай!",
+      });
+    }
+
+    const { db } = require("zevbackv2");
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+    if (!baiguullaga) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын мэдээлэл олдсонгүй!",
+      });
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+    );
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболт олдсонгүй!",
+      });
+    }
+
+    // Verify code
+    const verificationResult = await validateCodeOnly(
+      baiguullagiinId,
+      utas,
+      code,
+      "login" // Purpose: login verification
+    );
+
+    if (!verificationResult.success) {
+      return res.status(400).json({
+        success: false,
+        message: verificationResult.message,
+      });
+    }
+
+    // Verify code - frontend handles local storage
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
+    if (!orshinSuugch) {
+      return res.status(404).json({
+        success: false,
+        message: "Хэрэглэгч олдсонгүй!",
+      });
+    }
+
+    console.log("✅ [LOGIN VERIFY] Code verified for user:", orshinSuugch._id);
+
+    res.json({
+      success: true,
+      message: "Код амжилттай баталгаажлаа",
+      // Frontend should save verification status to local storage
+    });
+  } catch (error) {
+    console.error("❌ [LOGIN VERIFY] Error:", error.message);
+    next(error);
+  }
+});
+
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
@@ -3228,7 +4332,8 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
       });
 
       if (gereesToCancel.length > 0) {
-        // Mark all gerees as "Цуцалсан" (Cancelled) - update tuluv field, keep turul unchanged
+        // Mark all gerees as "Цуцалсан" (Cancelled) - update ONLY tuluv field
+        // IMPORTANT: Do NOT update barilgiinId or any other fields - preserve all original data
         await GereeModel.updateMany(
           { orshinSuugchId: userIdString },
           { $set: { tuluv: "Цуцалсан" } }
@@ -3297,7 +4402,8 @@ exports.orshinSuugchUstgakh = asyncHandler(async (req, res, next) => {
       });
 
       if (gereesToCancel.length > 0) {
-        // Mark all gerees as "Цуцалсан" (Cancelled) - update tuluv field, keep turul unchanged
+        // Mark all gerees as "Цуцалсан" (Cancelled) - update ONLY tuluv field
+        // IMPORTANT: Do NOT update barilgiinId or any other fields - preserve all original data
         await GereeModel.updateMany(
           { orshinSuugchId: userIdString },
           { $set: { tuluv: "Цуцалсан" } }

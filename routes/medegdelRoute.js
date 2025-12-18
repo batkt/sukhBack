@@ -62,12 +62,49 @@ router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
       sonorduulga.message = medeelel.body;
       sonorduulga.kharsanEsekh = false;
       if (turul) sonorduulga.turul = String(turul);
+      // Set ognoo to current time (will be stored in UTC by MongoDB)
+      sonorduulga.ognoo = new Date();
 
       await sonorduulga.save();
-      sonorduulgaList.push(sonorduulga);
+      
+      // Convert UTC dates to Mongolian time (UTC+8) for response
+      const sonorduulgaObj = sonorduulga.toObject();
+      const mongolianOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+      
+      if (sonorduulgaObj.createdAt) {
+        const createdAtMongolian = new Date(sonorduulgaObj.createdAt.getTime() + mongolianOffset);
+        sonorduulgaObj.createdAt = createdAtMongolian.toISOString();
+      }
+      if (sonorduulgaObj.updatedAt) {
+        const updatedAtMongolian = new Date(sonorduulgaObj.updatedAt.getTime() + mongolianOffset);
+        sonorduulgaObj.updatedAt = updatedAtMongolian.toISOString();
+      }
+      if (sonorduulgaObj.ognoo) {
+        const ognooMongolian = new Date(sonorduulgaObj.ognoo.getTime() + mongolianOffset);
+        sonorduulgaObj.ognoo = ognooMongolian.toISOString();
+      }
+      
+      sonorduulgaList.push(sonorduulgaObj);
 
       if (io) {
-        io.emit("orshinSuugch" + id, sonorduulga);
+        const eventName = "orshinSuugch" + id;
+        console.log("📡 [SOCKET] Emitting notification via medegdelIlgeeye route...", {
+          eventName: eventName,
+          orshinSuugchId: id,
+          medegdelId: sonorduulgaObj._id,
+          title: sonorduulgaObj.title,
+          message: sonorduulgaObj.message,
+          timestamp: new Date().toISOString(),
+        });
+        
+        io.emit(eventName, sonorduulgaObj);
+        
+        console.log("✅ [SOCKET] Notification emitted successfully", {
+          eventName: eventName,
+          timestamp: new Date().toISOString(),
+        });
+      } else {
+        console.warn("⚠️ [SOCKET] Socket.io instance not available in req.app");
       }
     }
 

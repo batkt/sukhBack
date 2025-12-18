@@ -33,11 +33,26 @@ const gereeNeesNekhemjlekhUusgekh = async (
     const NekhemjlekhCron = require("../models/cronSchedule");
 
     try {
-      const cronSchedule = await NekhemjlekhCron(
-        tukhainBaaziinKholbolt
-      ).findOne({
-        baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
-      });
+      // First try to find building-level schedule, then fall back to organization-level
+      let cronSchedule = null;
+      if (tempData.barilgiinId) {
+        cronSchedule = await NekhemjlekhCron(
+          tukhainBaaziinKholbolt
+        ).findOne({
+          baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+          barilgiinId: tempData.barilgiinId,
+        });
+      }
+      
+      // If no building-level schedule found, try organization-level
+      if (!cronSchedule) {
+        cronSchedule = await NekhemjlekhCron(
+          tukhainBaaziinKholbolt
+        ).findOne({
+          baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+          barilgiinId: null, // Organization-level schedule
+        });
+      }
 
       if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
         const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
@@ -65,11 +80,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
         // Only use ekhniiUldegdel if:
         // 1. Geree was created before cron date
-        // 2. Geree has ekhniiUldegdel
+        // 2. Geree has ekhniiUldegdel > 0 (must be greater than 0)
         // 3. NO existing invoices with ekhniiUldegdel (first invoice only)
         if (
           gereeCreatedDate < currentMonthCronDate &&
-          (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0) &&
+          tempData.ekhniiUldegdel &&
+          tempData.ekhniiUldegdel > 0 &&
           existingEkhniiUldegdelInvoices === 0
         ) {
           shouldUseEkhniiUldegdel = true;
@@ -377,14 +393,29 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     // Set payment due date based on nekhemjlekhCron schedule
-    // Get the cron schedule for this baiguullaga
+    // Get the cron schedule: first try building-level, then fall back to organization-level
     let tulukhOgnoo = null;
     try {
-      const cronSchedule = await NekhemjlekhCron(
-        tukhainBaaziinKholbolt
-      ).findOne({
-        baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
-      });
+      // First try to find building-level schedule, then fall back to organization-level
+      let cronSchedule = null;
+      if (tempData.barilgiinId) {
+        cronSchedule = await NekhemjlekhCron(
+          tukhainBaaziinKholbolt
+        ).findOne({
+          baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+          barilgiinId: tempData.barilgiinId,
+        });
+      }
+      
+      // If no building-level schedule found, try organization-level
+      if (!cronSchedule) {
+        cronSchedule = await NekhemjlekhCron(
+          tukhainBaaziinKholbolt
+        ).findOne({
+          baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+          barilgiinId: null, // Organization-level schedule
+        });
+      }
 
       if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
         // Calculate next month's scheduled date
@@ -447,6 +478,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       skipDuplicateCheck && guilgeenuudForNekhemjlekh.length > 0;
 
     // Use ekhniiUldegdel for first invoice if conditions are met, otherwise use normal charges
+    // When using ekhniiUldegdel or avlaga-only invoice, do NOT include zardluud charges in medeelel
+    // Only include zardluud when cron is activated (after first invoice) and not avlaga-only
+    // Use let instead of const so we can modify it when adding electricity charges
+    let finalZardluud =
+      shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice ? [] : [...filteredZardluud];
+
     // But exclude zardluud if this is an avlaga-only invoice
     const zardluudTotal =
       shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
@@ -464,15 +501,41 @@ const gereeNeesNekhemjlekhUusgekh = async (
       ? tempData.ekhniiUldegdel || 0
       : 0;
 
-    const finalNiitTulbur = shouldUseEkhniiUldegdel
+    // Recalculate zardluudTotal after adding electricity charge (if electricity was added)
+    // This will be updated after electricity processing
+    let updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+      ? 0
+      : finalZardluud.reduce((sum, zardal) => {
+          return sum + (zardal.tariff || 0);
+        }, 0);
+
+    let finalNiitTulbur = shouldUseEkhniiUldegdel
       ? ekhniiUldegdelAmount + guilgeenuudTotal
-      : zardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
+      : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
+
+    // Debug logging
+    console.log("💰 [INVOICE] Total calculation:", {
+      shouldUseEkhniiUldegdel,
+      ekhniiUldegdelAmount,
+      updatedZardluudTotal,
+      guilgeenuudTotal,
+      finalNiitTulbur,
+      zardluudCount: finalZardluud.length,
+      isAvlagaOnlyInvoice,
+    });
 
     // Don't create invoice if total amount is 0 (for new users with no charges)
     // BUT create invoice if ekhniiUldegdel exists (even if other charges are 0)
     if (finalNiitTulbur === 0 && guilgeenuudTotal === 0 && !hasEkhniiUldegdel) {
       console.log(
-        "⚠️ [INVOICE] Skipping invoice creation - total amount is 0 MNT"
+        "⚠️ [INVOICE] Skipping invoice creation - total amount is 0 MNT",
+        {
+          shouldUseEkhniiUldegdel,
+          updatedZardluudTotal,
+          guilgeenuudTotal,
+          hasEkhniiUldegdel,
+          zardluudCount: finalZardluud.length,
+        }
       );
       return {
         success: false,
@@ -483,10 +546,170 @@ const gereeNeesNekhemjlekhUusgekh = async (
       };
     }
 
-    // When using ekhniiUldegdel or avlaga-only invoice, do NOT include zardluud charges in medeelel
-    // Only include zardluud when cron is activated (after first invoice) and not avlaga-only
-    const finalZardluud =
-      shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice ? [] : filteredZardluud;
+    // Check if electricity zardal exists and geree has electricity readings
+    let zaaltMedeelel = null;
+    let tsahilgaanNekhemjlekh = 0;
+    let electricityZardalEntry = null;
+    
+    if (tempData.barilgiinId && tempData.baiguullagiinId && tempData.orshinSuugchId) {
+      try {
+        const { db } = require("zevbackv2");
+        const Baiguullaga = require("../models/baiguullaga");
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+          tempData.baiguullagiinId
+        );
+        const targetBarilga = baiguullaga?.barilguud?.find(
+          (b) => String(b._id) === String(tempData.barilgiinId)
+        );
+        const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
+        const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
+        
+        // Prioritize exact "Цахилгаан" match (no trailing space)
+        let zaaltZardal = zaaltZardluud.find(
+          (z) => z.ner && z.ner.trim() === "Цахилгаан"
+        );
+        
+        // If no exact match, use first one
+        if (!zaaltZardal && zaaltZardluud.length > 0) {
+          zaaltZardal = zaaltZardluud[0];
+        }
+
+        // Check if geree has electricity readings
+        if (zaaltZardal && (
+          tempData.umnukhZaalt !== undefined ||
+          tempData.suuliinZaalt !== undefined ||
+          tempData.zaaltTog !== undefined ||
+          tempData.zaaltUs !== undefined
+        )) {
+          // Get tariff from orshinSuugch.tsahilgaaniiZaalt (ignore geree.zardluud)
+          const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+            tempData.orshinSuugchId
+          ).select("tsahilgaaniiZaalt").lean();
+          
+          // Use tariff from orshinSuugch.tsahilgaaniiZaalt
+          const zaaltTariff = orshinSuugch?.tsahilgaaniiZaalt || 0;
+          // ALWAYS use building level defaultDun (shared for all contracts)
+          const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 0;
+          
+          // Calculate usage (difference between current and previous reading)
+          const zoruu = (tempData.suuliinZaalt || 0) - (tempData.umnukhZaalt || 0);
+          
+          // Calculate electricity amount: (usage * tariff) + base fee
+          tsahilgaanNekhemjlekh = (zoruu * zaaltTariff) + zaaltDefaultDun;
+          
+          console.log("⚡ [INVOICE] Electricity calculation:", {
+            orshinSuugchId: tempData.orshinSuugchId,
+            tariffFromOrshinSuugch: zaaltTariff,
+            zoruu: zoruu,
+            defaultDun: zaaltDefaultDun,
+            calculatedAmount: tsahilgaanNekhemjlekh
+          });
+          
+          // Find existing electricity zardal in geree.zardluud to preserve tariff if no readings
+          const existingZaaltZardal = tempData.zardluud?.find(
+            (z) => z.zaalt === true || (z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul)
+          );
+          
+          // If no readings or calculated amount is 0, use tariff from geree (if exists)
+          // This preserves the original tariff from contract when readings are not available
+          const finalZaaltTariff = (zoruu === 0 || tsahilgaanNekhemjlekh === 0) && existingZaaltZardal?.tariff
+            ? existingZaaltZardal.tariff
+            : tsahilgaanNekhemjlekh;
+          
+          // Create electricity zardal entry to add to medeelel.zardluud (like other charges)
+          electricityZardalEntry = {
+            ner: zaaltZardal.ner || "Цахилгаан",
+            turul: zaaltZardal.turul || "Тогтмол",
+            tariff: finalZaaltTariff, // Use preserved tariff if no readings, otherwise calculated amount
+            tariffUsgeer: zoruu === 0 || tsahilgaanNekhemjlekh === 0 
+              ? (existingZaaltZardal?.tariffUsgeer || zaaltZardal.tariffUsgeer || "₮")
+              : "₮", // Total amount, not per кВт
+            zardliinTurul: zaaltZardal.zardliinTurul || "Энгийн",
+            barilgiinId: tempData.barilgiinId,
+            dun: finalZaaltTariff, // Total amount
+            bodokhArga: zaaltZardal.bodokhArga || "тогтмол",
+            tseverUsDun: 0,
+            bokhirUsDun: 0,
+            usKhalaasniiDun: 0,
+            tsakhilgaanUrjver: 1,
+            tsakhilgaanChadal: 0,
+            tsakhilgaanDemjikh: 0,
+            suuriKhuraamj: "0",
+            nuatNemekhEsekh: false,
+            ognoonuud: [],
+            // Store electricity-specific details
+            zaalt: true,
+            zaaltTariff: zaaltTariff, // кВт tariff rate used
+            zaaltDefaultDun: zaaltDefaultDun, // Base fee
+            umnukhZaalt: tempData.umnukhZaalt || 0,
+            suuliinZaalt: tempData.suuliinZaalt || 0,
+            zaaltTog: tempData.zaaltTog || 0,
+            zaaltUs: tempData.zaaltUs || 0,
+            zoruu: zoruu, // Usage amount
+          };
+          
+          // Add electricity charge to finalZardluud array (like other charges)
+          // Remove existing electricity entries from finalZardluud first
+          // Match by zaalt flag OR by name and zardliinTurul to handle cases where
+          // geree has "Дулаан, агаар сэлгэлт" but building config has "Цахилгаан"
+          const filteredZardluudWithoutZaalt = finalZardluud.filter(
+            (z) => {
+              // Remove if it matches the zaaltZardal by name and zardliinTurul
+              if (z.ner === zaaltZardal.ner && z.zardliinTurul === zaaltZardal.zardliinTurul) {
+                return false;
+              }
+              // Also remove if it has zaalt flag (electricity charge from geree)
+              // This handles cases where geree has "Дулаан, агаар сэлгэлт" with zaalt: true
+              if (z.zaalt === true) {
+                return false;
+              }
+              return true;
+            }
+          );
+          
+          // Add the calculated electricity charge
+          filteredZardluudWithoutZaalt.push(electricityZardalEntry);
+          
+          // Update finalZardluud to include electricity charge
+          finalZardluud.length = 0;
+          finalZardluud.push(...filteredZardluudWithoutZaalt);
+          
+          // Recalculate totals after adding electricity charge
+          updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+            ? 0
+            : finalZardluud.reduce((sum, zardal) => {
+                return sum + (zardal.tariff || 0);
+              }, 0);
+          
+          finalNiitTulbur = shouldUseEkhniiUldegdel
+            ? ekhniiUldegdelAmount + guilgeenuudTotal
+            : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
+          
+          // Also store detailed electricity info in zaaltMedeelel for backward compatibility
+          zaaltMedeelel = {
+            umnukhZaalt: tempData.umnukhZaalt || 0,
+            suuliinZaalt: tempData.suuliinZaalt || 0,
+            zaaltTog: tempData.zaaltTog || 0,
+            zaaltUs: tempData.zaaltUs || 0,
+            zoruu: zoruu,
+            tariff: zaaltTariff,
+            tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
+            tariffType: zaaltZardal.zardliinTurul,
+            tariffName: zaaltZardal.ner,
+            defaultDun: zaaltDefaultDun,
+            zaaltDun: tsahilgaanNekhemjlekh,
+          };
+          
+          console.log("⚡ [INVOICE] Added electricity charge to zardluud array:", {
+            ner: electricityZardalEntry.ner,
+            tariff: electricityZardalEntry.tariff,
+            dun: electricityZardalEntry.dun
+          });
+        }
+      } catch (error) {
+        console.error("Error processing electricity for invoice:", error.message);
+      }
+    }
 
     tuukh.medeelel = {
       zardluud: finalZardluud,
@@ -498,6 +721,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tailbar: tempData.temdeglel || "", // Save tailbar from geree temdeglel
       uusgegsenEsekh: uusgegsenEsekh,
       uusgegsenOgnoo: new Date(),
+      ...(zaaltMedeelel ? { zaalt: zaaltMedeelel } : {}), // Add electricity readings if available
     };
     tuukh.nekhemjlekh =
       tempData.nekhemjlekh ||
@@ -512,7 +736,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.temdeglel !== "Excel файлаас автоматаар үүссэн гэрээ"
         ? `\nТайлбар: ${tempData.temdeglel}`
         : "";
-    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${finalNiitTulbur}₮${tailbarText}`;
+    
+    // Include electricity readings in content if available
+    const zaaltText = zaaltMedeelel
+      ? `\nЦахилгаан: Өмнө: ${zaaltMedeelel.umnukhZaalt}, Өдөр: ${zaaltMedeelel.zaaltTog}, Шөнө: ${zaaltMedeelel.zaaltUs}, Нийт: ${zaaltMedeelel.suuliinZaalt}`
+      : "";
+    
+    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${finalNiitTulbur}₮${tailbarText}${zaaltText}`;
     tuukh.nekhemjlekhiinDans =
       tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
     tuukh.nekhemjlekhiinDansniiNer =
@@ -524,6 +754,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = finalNiitTulbur;
+    
+    // Save electricity invoice amount if calculated
+    if (tsahilgaanNekhemjlekh > 0) {
+      tuukh.tsahilgaanNekhemjlekh = tsahilgaanNekhemjlekh;
+      console.log("⚡ [INVOICE] Saved tsahilgaanNekhemjlekh:", tuukh.tsahilgaanNekhemjlekh);
+    }
 
     // Initialize payment status
     tuukh.tuluv = "Төлөөгүй";
@@ -588,14 +824,28 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // }
 
     // Send notification (medegdel) to orshinSuugch when invoice is created
+    let savedMedegdel = null;
     try {
+      console.log("🔔 [NOTIFICATION] Creating notification for invoice...", {
+        orshinSuugchId: tempData.orshinSuugchId,
+        gereeniiDugaar: tempData.gereeniiDugaar,
+        finalNiitTulbur: finalNiitTulbur,
+        timestamp: new Date().toISOString(),
+      });
+
       if (tempData.orshinSuugchId) {
         const baiguullagiinId = org._id ? org._id.toString() : (org.id ? org.id.toString() : String(org));
+        console.log("🔍 [NOTIFICATION] Looking for kholbolt...", { baiguullagiinId });
+        
         const kholbolt = db.kholboltuud.find(
           (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
         );
 
-        if (kholbolt) {
+        if (!kholbolt) {
+          console.error("❌ [NOTIFICATION] Kholbolt not found for baiguullagiinId:", baiguullagiinId);
+        } else {
+          console.log("✅ [NOTIFICATION] Kholbolt found, creating medegdel...");
+          
           const medegdel = new Medegdel(kholbolt)();
           medegdel.orshinSuugchId = tempData.orshinSuugchId;
           medegdel.baiguullagiinId = baiguullagiinId;
@@ -606,15 +856,67 @@ const gereeNeesNekhemjlekhUusgekh = async (
           medegdel.turul = "мэдэгдэл";
           medegdel.ognoo = new Date();
 
-          await medegdel.save();
+          console.log("💾 [NOTIFICATION] Saving medegdel to database...", {
+            orshinSuugchId: medegdel.orshinSuugchId,
+            title: medegdel.title,
+            message: medegdel.message,
+          });
 
-          // Try to emit socket event if socket.io is available via global
-          // Socket events will be emitted by route handlers that have access to req.app.get("socketio")
-          // For now, notification is saved in database and can be retrieved by clients
+          await medegdel.save();
+          
+          console.log("✅ [NOTIFICATION] Medegdel saved successfully:", {
+            medegdelId: medegdel._id,
+            orshinSuugchId: medegdel.orshinSuugchId,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Convert dates to Mongolian time (UTC+8) for response
+          const medegdelObj = medegdel.toObject();
+          const mongolianOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+          
+          console.log("🕐 [NOTIFICATION] Converting dates to Mongolian time...");
+          
+          if (medegdelObj.createdAt) {
+            const createdAtMongolian = new Date(medegdelObj.createdAt.getTime() + mongolianOffset);
+            medegdelObj.createdAt = createdAtMongolian.toISOString();
+          }
+          if (medegdelObj.updatedAt) {
+            const updatedAtMongolian = new Date(medegdelObj.updatedAt.getTime() + mongolianOffset);
+            medegdelObj.updatedAt = updatedAtMongolian.toISOString();
+          }
+          if (medegdelObj.ognoo) {
+            const ognooMongolian = new Date(medegdelObj.ognoo.getTime() + mongolianOffset);
+            medegdelObj.ognoo = ognooMongolian.toISOString();
+          }
+
+          savedMedegdel = medegdelObj;
+          
+          console.log("✅ [NOTIFICATION] Medegdel prepared for socket emission:", {
+            medegdelId: medegdelObj._id,
+            orshinSuugchId: medegdelObj.orshinSuugchId,
+            eventName: `orshinSuugch${medegdelObj.orshinSuugchId}`,
+            timestamp: new Date().toISOString(),
+          });
+
+          // Try to emit socket event if available (for cases where invoice is created outside of avlaga flow)
+          // Note: This requires req to be passed or socket.io to be available globally
+          // For now, we'll rely on the caller (gereeController.js) to emit the socket event
+          // But we'll log that the medegdel is ready for emission
+          console.log("📡 [NOTIFICATION] Medegdel ready for socket emission - caller should emit:", {
+            eventName: `orshinSuugch${medegdelObj.orshinSuugchId}`,
+            note: "Socket emission will be handled by caller (gereeController.js) if invoice created from avlaga",
+          });
         }
+      } else {
+        console.warn("⚠️ [NOTIFICATION] No orshinSuugchId in tempData, skipping notification");
       }
     } catch (notificationError) {
-      console.error("Error sending notification for invoice:", notificationError);
+      console.error("❌ [NOTIFICATION] Error sending notification for invoice:", {
+        error: notificationError.message,
+        stack: notificationError.stack,
+        orshinSuugchId: tempData.orshinSuugchId,
+        timestamp: new Date().toISOString(),
+      });
       // Don't fail the invoice creation if notification fails
     }
 
@@ -624,6 +926,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       gereeniiId: tempData._id,
       gereeniiDugaar: tempData.gereeniiDugaar,
       tulbur: tempData.niitTulbur,
+      medegdel: savedMedegdel, // Include notification for socket emission
     };
   } catch (error) {
     return {

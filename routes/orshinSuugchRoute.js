@@ -14,6 +14,7 @@ const {
 } = require("zevbackv2");
 const {
   orshinSuugchNevtrey,
+  orshinSuugchBurtgey,
   walletBurtgey,
   walletBillingHavakh,
   walletAddressCities,
@@ -33,6 +34,7 @@ const {
   orshinSuugchUstgakh,
   tootShalgaya,
   validateOwnOrgToot,
+  utasBatalgaajuulakhLogin,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
@@ -162,6 +164,7 @@ crud(router, "backTuukh", BackTuukh, UstsanBarimt);
 crud(router, "session", session, UstsanBarimt);
 
 router.route("/orshinSuugchNevtrey").post(orshinSuugchNevtrey);
+router.route("/orshinSuugchBurtgey").post(orshinSuugchBurtgey);
 router.route("/walletBurtgey").post(walletBurtgey);
 router.route("/walletBillingHavakh").post(tokenShalgakh, walletBillingHavakh);
 router.route("/walletAddress/city").get(walletAddressCities);
@@ -175,6 +178,7 @@ router
   .get(khayagaarBaiguullagaAvya);
 
 router.post("/orshinSuugchBatalgaajuulya", orshinSuugchBatalgaajuulya);
+router.post("/utasBatalgaajuulakhLogin", utasBatalgaajuulakhLogin);
 router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
 router.post("/orshinSuugchNuutsUgSoliyo", tokenShalgakh, orshinSuugchiinNuutsUgSoliyo);
 router.post("/davhardsanOrshinSuugchShalgayy", davhardsanOrshinSuugchShalgayy);

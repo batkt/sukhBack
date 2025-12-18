@@ -16,6 +16,86 @@ const {
   qpayShalgay,
 } = require("quickqpaypackvSukh");
 
+// BANK ACCOUNT ENDPOINT - MUST BE FIRST TO AVOID ROUTE CONFLICTS
+router.get("/qpayBankAccountsView", async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, salbariinId } = req.query;
+
+    if (!baiguullagiinId) {
+      return res.status(400).send({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    var kholbolt = db.kholboltuud.find(
+      (a) => String(a.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.status(404).send({
+        success: false,
+        message: "Organization connection not found",
+      });
+    }
+
+    var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
+    const qpayConfig = await qpayKhariltsagch
+      .findOne({
+        baiguullagiinId: baiguullagiinId,
+      })
+      .lean();
+
+    if (!qpayConfig || !qpayConfig.salbaruud || !Array.isArray(qpayConfig.salbaruud)) {
+      return res.send({
+        success: true,
+        bank_accounts: [],
+        message: "No salbaruud found",
+      });
+    }
+
+    // If salbariinId is provided, get bank_accounts for that specific salbar
+    if (salbariinId) {
+      const targetSalbar = qpayConfig.salbaruud.find(
+        (salbar) => String(salbar.salbariinId) === String(salbariinId)
+      );
+
+      if (targetSalbar && targetSalbar.bank_accounts) {
+        return res.send({
+          success: true,
+          salbariinNer: targetSalbar.salbariinNer,
+          salbariinId: targetSalbar.salbariinId,
+          bank_accounts: targetSalbar.bank_accounts,
+        });
+      } else {
+        return res.send({
+          success: true,
+          bank_accounts: [],
+          message: `No bank accounts found for salbar ${salbariinId}`,
+        });
+      }
+    }
+
+    // If no salbariinId, return all bank_accounts from all salbaruud with salbar info
+    const result = qpayConfig.salbaruud
+      .filter((salbar) => salbar.bank_accounts && salbar.bank_accounts.length > 0)
+      .map((salbar) => ({
+        salbariinId: salbar.salbariinId,
+        salbariinNer: salbar.salbariinNer,
+        bank_accounts: salbar.bank_accounts,
+      }));
+
+    res.send({
+      success: true,
+      baiguullagiinId: baiguullagiinId,
+      salbaruud: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get(
   "/qpaycallback/:baiguullagiinId/:zakhialgiinDugaar",
   async (req, res, next) => {
@@ -116,10 +196,125 @@ router.get("/qpayObjectAvya", tokenShalgakh, async (req, res, next) => {
   }
 });
 
+router.get("/accountNumbers", async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const AccountNumber = require("../models/accountNumber");
+    const { baiguullagiinId } = req.query;
+
+    if (!baiguullagiinId) {
+      return res.status(400).send({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).send({
+        success: false,
+        message: "Organization connection not found",
+      });
+    }
+
+    const accountNumbers = await AccountNumber(tukhainBaaziinKholbolt).find({
+      baiguullagiinId: baiguullagiinId,
+    });
+
+    res.send({
+      success: true,
+      data: accountNumbers,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
+    const OrshinSuugch = require("../models/orshinSuugch");
+    const walletApiService = require("../services/walletApiService");
 
+    // Auto-detect address source and route to appropriate QPay service
+    let useWalletQPay = false;
+    let userPhoneNumber = null;
+    let detectedSource = "CUSTOM"; // CUSTOM or WALLET_API
+
+    // Priority 1: Check if baiguullagiinId is provided in request body (definitely OWN_ORG)
+    if (req.body.baiguullagiinId) {
+      detectedSource = "CUSTOM";
+      console.log("🔍 [QPAY] baiguullagiinId provided in request - using custom QPay");
+    } else {
+      // Priority 2: Try to get user from token to check address source
+      try {
+        const jwt = require("jsonwebtoken");
+        if (req.headers.authorization) {
+          const token = req.headers.authorization.split(" ")[1];
+          if (token) {
+            const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+            if (tokenObject?.id && tokenObject.id !== "zochin") {
+              const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id).lean();
+              if (orshinSuugch) {
+                userPhoneNumber = orshinSuugch.utas;
+                // If user has baiguullagiinId, it's OWN_ORG address - use custom QPay
+                // If user doesn't have baiguullagiinId, it's Wallet API address - use Wallet QPay
+                if (orshinSuugch.baiguullagiinId) {
+                  detectedSource = "CUSTOM";
+                  console.log("🔍 [QPAY] User has baiguullagiinId - using custom QPay");
+                } else if (orshinSuugch.walletUserId || orshinSuugch.walletBairId) {
+                  detectedSource = "WALLET_API";
+                  useWalletQPay = true;
+                  console.log("🔍 [QPAY] User has Wallet API address (no baiguullagiinId) - will use Wallet QPay");
+                }
+              }
+            }
+          }
+        }
+      } catch (tokenError) {
+        console.log("⚠️ [QPAY] Could not detect address source from token:", tokenError.message);
+        // Default to custom QPay if detection fails
+        detectedSource = "CUSTOM";
+      }
+    }
+
+    // If useWalletQPay is true, route to Wallet API QPay
+    if (useWalletQPay && userPhoneNumber) {
+      try {
+        console.log("💳 [QPAY] Routing to Wallet API QPay payment");
+        
+        // Check if invoiceId is provided (required for Wallet API payment)
+        if (!req.body.invoiceId && !req.body.walletInvoiceId) {
+          throw new Error("Invoice ID is required for Wallet API QPay payment");
+        }
+        
+        const paymentData = {
+          invoiceId: req.body.invoiceId || req.body.walletInvoiceId,
+          paymentMethod: req.body.paymentMethod || "QPAY",
+        };
+        
+        const result = await walletApiService.createPayment(userPhoneNumber, paymentData);
+        
+        console.log("✅ [QPAY] Wallet API QPay payment created successfully");
+        return res.status(200).json({
+          success: true,
+          data: result,
+          message: "QPay төлбөр амжилттай үүсгэлээ",
+          source: "WALLET_API",
+        });
+      } catch (walletQPayError) {
+        console.error("❌ [QPAY] Wallet API QPay error:", walletQPayError.message);
+        // Fall back to custom QPay if Wallet QPay fails
+        console.log("⚠️ [QPAY] Falling back to custom QPay");
+        useWalletQPay = false;
+        detectedSource = "CUSTOM";
+      }
+    }
+
+    // Continue with custom QPay (OWN_ORG or fallback)
     if (!req.body.tukhainBaaziinKholbolt && req.body.baiguullagiinId) {
       req.body.tukhainBaaziinKholbolt = db.kholboltuud.find(
         (k) => String(k.baiguullagiinId) === String(req.body.baiguullagiinId)
@@ -428,13 +623,15 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         try {
           // Try to extract response body in different ways
           if (qpayError?.response?.body !== undefined) {
-            errorBody = typeof qpayError.response.body === 'string' 
-              ? qpayError.response.body 
-              : JSON.stringify(qpayError.response.body);
+            errorBody =
+              typeof qpayError.response.body === "string"
+                ? qpayError.response.body
+                : JSON.stringify(qpayError.response.body);
           } else if (qpayError?.body !== undefined) {
-            errorBody = typeof qpayError.body === 'string' 
-              ? qpayError.body 
-              : JSON.stringify(qpayError.body);
+            errorBody =
+              typeof qpayError.body === "string"
+                ? qpayError.body
+                : JSON.stringify(qpayError.body);
           } else if (qpayError?.response) {
             // Response exists but body is undefined
             errorBody = "Response exists but body is undefined";
@@ -447,22 +644,27 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
 
         console.error("❌ QPay Gargaya Error Details:", {
           message: qpayError?.message || qpayError?.toString(),
-          response: qpayError?.response ? {
-            statusCode: qpayError.response.statusCode,
-            statusMessage: qpayError.response.statusMessage,
-            body: errorBody,
-            headers: qpayError.response.headers
-          } : null,
+          response: qpayError?.response
+            ? {
+                statusCode: qpayError.response.statusCode,
+                statusMessage: qpayError.response.statusMessage,
+                body: errorBody,
+                headers: qpayError.response.headers,
+              }
+            : null,
           code: qpayError?.code,
           name: qpayError?.name,
           stack: qpayError?.stack,
-          fullError: JSON.stringify(qpayError, Object.getOwnPropertyNames(qpayError)),
+          fullError: JSON.stringify(
+            qpayError,
+            Object.getOwnPropertyNames(qpayError)
+          ),
           requestBody: {
             baiguullagiinId: req.body.baiguullagiinId,
             barilgiinId: req.body.barilgiinId,
             dun: req.body.dun,
-            dansniiDugaar: req.body.dansniiDugaar
-          }
+            dansniiDugaar: req.body.dansniiDugaar,
+          },
         });
         throw qpayError;
       }
@@ -715,13 +917,13 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
     try {
       // Try to extract response body in different ways
       if (err?.response?.body !== undefined) {
-        errorBody = typeof err.response.body === 'string' 
-          ? err.response.body 
-          : JSON.stringify(err.response.body);
+        errorBody =
+          typeof err.response.body === "string"
+            ? err.response.body
+            : JSON.stringify(err.response.body);
       } else if (err?.body !== undefined) {
-        errorBody = typeof err.body === 'string' 
-          ? err.body 
-          : JSON.stringify(err.body);
+        errorBody =
+          typeof err.body === "string" ? err.body : JSON.stringify(err.body);
       } else if (err?.response) {
         // Response exists but body is undefined
         errorBody = "Response exists but body is undefined";
@@ -734,12 +936,14 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
 
     console.error("❌ QPay Shalgay Error Details:", {
       message: err?.message || err?.toString(),
-      response: err?.response ? {
-        statusCode: err.response.statusCode,
-        statusMessage: err.response.statusMessage,
-        body: errorBody,
-        headers: err.response.headers
-      } : null,
+      response: err?.response
+        ? {
+            statusCode: err.response.statusCode,
+            statusMessage: err.response.statusMessage,
+            body: errorBody,
+            headers: err.response.headers,
+          }
+        : null,
       code: err?.code,
       name: err?.name,
       stack: err?.stack,
@@ -747,8 +951,8 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
       requestBody: {
         baiguullagiinId: req.body.baiguullagiinId,
         barilgiinId: req.body.barilgiinId,
-        invoice_id: req.body.invoice_id || req.body.id
-      }
+        invoice_id: req.body.invoice_id || req.body.id,
+      },
     });
     next(err);
   }
@@ -850,6 +1054,76 @@ router.post("/qpayKhariltsagchAvay", tokenShalgakh, async (req, res, next) => {
   }
 });
 
+router.get("/qpayBankAccounts", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, salbariinId } = req.query;
+
+    if (!baiguullagiinId) {
+      return res.status(400).send({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    var kholbolt = db.kholboltuud.find(
+      (a) => String(a.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.status(404).send({
+        success: false,
+        message: "Organization connection not found",
+      });
+    }
+
+    var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
+    const qpayConfig = await qpayKhariltsagch
+      .findOne({
+        baiguullagiinId: baiguullagiinId,
+      })
+      .lean();
+
+    if (!qpayConfig || !qpayConfig.salbaruud || !Array.isArray(qpayConfig.salbaruud)) {
+      return res.send({
+        success: true,
+        bank_accounts: [],
+      });
+    }
+
+    // If salbariinId is provided, get bank_accounts for that specific salbar
+    if (salbariinId) {
+      const targetSalbar = qpayConfig.salbaruud.find(
+        (salbar) => String(salbar.salbariinId) === String(salbariinId)
+      );
+
+      if (targetSalbar && targetSalbar.bank_accounts) {
+        return res.send({
+          success: true,
+          bank_accounts: targetSalbar.bank_accounts,
+        });
+      } else {
+        return res.send({
+          success: true,
+          bank_accounts: [],
+        });
+      }
+    }
+
+    // If no salbariinId, return all bank_accounts from all salbaruud
+    const allBankAccounts = qpayConfig.salbaruud
+      .filter((salbar) => salbar.bank_accounts && salbar.bank_accounts.length > 0)
+      .flatMap((salbar) => salbar.bank_accounts);
+
+    res.send({
+      success: true,
+      bank_accounts: allBankAccounts,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get(
   "/qpayNekhemjlekhCallback/:baiguullagiinId/:nekhemjlekhiinId",
   async (req, res, next) => {
@@ -930,14 +1204,46 @@ router.get(
       // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel
       if (nekhemjlekh.ekhniiUldegdel && nekhemjlekh.ekhniiUldegdel > 0) {
         try {
-          const gereeForUpdate = await Geree(kholbolt).findById(nekhemjlekh.gereeniiId);
+          const gereeForUpdate = await Geree(kholbolt).findById(
+            nekhemjlekh.gereeniiId
+          );
           if (gereeForUpdate) {
             gereeForUpdate.ekhniiUldegdel = 0;
             await gereeForUpdate.save();
-            console.log(`✅ Updated geree.ekhniiUldegdel to 0 for geree ${gereeForUpdate._id}`);
+            console.log(
+              `✅ Updated geree.ekhniiUldegdel to 0 for geree ${gereeForUpdate._id}`
+            );
           }
         } catch (ekhniiUldegdelError) {
-          console.error("❌ Error updating geree.ekhniiUldegdel:", ekhniiUldegdelError.message);
+          console.error(
+            "❌ Error updating geree.ekhniiUldegdel:",
+            ekhniiUldegdelError.message
+          );
+        }
+      }
+
+      // Reset electricity readings to 0 if electricity invoice is paid
+      // User will upload new readings for next month
+      if (nekhemjlekh.tsahilgaanNekhemjlekh && nekhemjlekh.tsahilgaanNekhemjlekh > 0) {
+        try {
+          const gereeForUpdate = await Geree(kholbolt).findById(
+            nekhemjlekh.gereeniiId
+          );
+          if (gereeForUpdate) {
+            gereeForUpdate.umnukhZaalt = 0;
+            gereeForUpdate.suuliinZaalt = 0;
+            gereeForUpdate.zaaltTog = 0;
+            gereeForUpdate.zaaltUs = 0;
+            await gereeForUpdate.save();
+            console.log(
+              `✅ Reset electricity readings to 0 for geree ${gereeForUpdate._id} (invoice paid)`
+            );
+          }
+        } catch (zaaltError) {
+          console.error(
+            "❌ Error resetting electricity readings:",
+            zaaltError.message
+          );
         }
       }
 
@@ -1263,14 +1569,46 @@ router.get(
           // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel
           if (nekhemjlekh.ekhniiUldegdel && nekhemjlekh.ekhniiUldegdel > 0) {
             try {
-              const gereeForUpdate = await Geree(kholbolt).findById(nekhemjlekh.gereeniiId);
+              const gereeForUpdate = await Geree(kholbolt).findById(
+                nekhemjlekh.gereeniiId
+              );
               if (gereeForUpdate) {
                 gereeForUpdate.ekhniiUldegdel = 0;
                 await gereeForUpdate.save();
-                console.log(`✅ Updated geree.ekhniiUldegdel to 0 for geree ${gereeForUpdate._id}`);
+                console.log(
+                  `✅ Updated geree.ekhniiUldegdel to 0 for geree ${gereeForUpdate._id}`
+                );
               }
             } catch (ekhniiUldegdelError) {
-              console.error("❌ Error updating geree.ekhniiUldegdel:", ekhniiUldegdelError.message);
+              console.error(
+                "❌ Error updating geree.ekhniiUldegdel:",
+                ekhniiUldegdelError.message
+              );
+            }
+          }
+
+          // Reset electricity readings to 0 if electricity invoice is paid
+          // User will upload new readings for next month
+          if (nekhemjlekh.tsahilgaanNekhemjlekh && nekhemjlekh.tsahilgaanNekhemjlekh > 0) {
+            try {
+              const gereeForUpdate = await Geree(kholbolt).findById(
+                nekhemjlekh.gereeniiId
+              );
+              if (gereeForUpdate) {
+                gereeForUpdate.umnukhZaalt = 0;
+                gereeForUpdate.suuliinZaalt = 0;
+                gereeForUpdate.zaaltTog = 0;
+                gereeForUpdate.zaaltUs = 0;
+                await gereeForUpdate.save();
+                console.log(
+                  `✅ Reset electricity readings to 0 for geree ${gereeForUpdate._id} (invoice paid)`
+                );
+              }
+            } catch (zaaltError) {
+              console.error(
+                "❌ Error resetting electricity readings:",
+                zaaltError.message
+              );
             }
           }
 

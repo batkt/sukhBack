@@ -5,6 +5,7 @@ const Baiguullaga = require("../models/baiguullaga");
 const Geree = require("../models/geree");
 const aldaa = require("../components/aldaa");
 const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
+const walletApiService = require("../services/walletApiService");
 
 /**
  *
@@ -614,7 +615,7 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
 exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
   try {
     // Building detection is automatic based on davkhar + orts + toot combination
-    const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Орц", "Давхар", "Тоот", "Эхний үлдэгдэл", "Тайлбар"];
+    const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Орц", "Давхар", "Тоот", "Эхний үлдэгдэл", "Цахилгаан кВт", "Тайлбар"];
 
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([headers]);
@@ -628,6 +629,7 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       { wch: 10 }, // Давхар
       { wch: 10 }, // Тоот
       { wch: 15 }, // Эхний үлдэгдэл
+      { wch: 15 }, // Цахилгаан кВт
       { wch: 30 }, // Тайлбар
     ];
     ws["!cols"] = colWidths;
@@ -712,6 +714,11 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
       const rowNumber = i + 2;
 
       try {
+        // Get initial electricity reading from Excel (optional, defaults to 0)
+        const tsahilgaaniiZaalt = row["Цахилгаан кВт"] !== undefined && row["Цахилгаан кВт"] !== null && row["Цахилгаан кВт"] !== ""
+          ? parseFloat(row["Цахилгаан кВт"]) || 0
+          : 0; // Default to 0 кВт if not provided
+
         const userData = {
           ovog: row["Овог"]?.toString().trim() || "",
           ner: row["Нэр"]?.toString().trim() || "",
@@ -721,6 +728,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           toot: row["Тоот"]?.toString().trim() || "",
           orts: row["Орц"]?.toString().trim() || "",
           ekhniiUldegdel: row["Эхний үлдэгдэл"] ? parseFloat(row["Эхний үлдэгдэл"]) || 0 : 0,
+          tsahilgaaniiZaalt: tsahilgaaniiZaalt, // Initial electricity reading
           tailbar: row["Тайлбар"]?.toString().trim() || "",
         };
 
@@ -810,12 +818,19 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         ) {
           // Match based on davkhar + orts + toot combination
           // This ensures we find the exact building even if multiple buildings have the same toot
-          const tootToFind = userData.toot.trim();
+          // Support comma-separated toots like "101,69,1,2"
+          const tootRaw = userData.toot.trim();
+          const tootListToFind = tootRaw
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t && t.length > 0);
+          
           const davkharToFind = userData.davkhar.trim();
           const ortsToFind = (userData.orts || "1").trim(); // Default to "1" if not provided
           const floorKey = `${ortsToFind}::${davkharToFind}`;
 
           let foundBuilding = null;
+          let matchedToot = null;
 
           // Search through all buildings to find which one contains this exact combination
           for (const barilga of baiguullaga.barilguud) {
@@ -848,10 +863,13 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                     .filter((t) => t);
                 }
 
-                // If toot is found in this exact floorKey, we found the building
-                if (tootList.includes(tootToFind)) {
-                  foundBuilding = barilga;
-                  break;
+                // Check if ANY of the toots in tootListToFind is found in this building's tootList
+                for (const tootToFind of tootListToFind) {
+                  if (tootList.includes(tootToFind)) {
+                    foundBuilding = barilga;
+                    matchedToot = tootToFind;
+                    break;
+                  }
                 }
               }
             }
@@ -864,38 +882,65 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           if (foundBuilding) {
             finalBarilgiinId = String(foundBuilding._id);
             console.log(
-              `✅ Found building ${foundBuilding.ner} (${finalBarilgiinId}) for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}`
+              `✅ Found building ${foundBuilding.ner} (${finalBarilgiinId}) for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${matchedToot} (from list: ${tootListToFind.join(", ")})`
             );
           } else {
             console.log(
-              `⚠️  Could not find building for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}, using default: ${finalBarilgiinId}`
+              `⚠️  Could not find building for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootRaw}, using default: ${finalBarilgiinId}`
             );
           }
         }
 
+        // Integrate with Wallet API (same as website and mobile registration)
+        // This ensures Excel-imported users are unified with website/mobile users
+        const phoneNumber = userData.utas;
+        let walletUserInfo = null;
+        let walletUserId = null;
+
+        // Try to integrate with Wallet API if email is provided
+        if (userData.mail && userData.mail.trim()) {
+          try {
+            const email = userData.mail.trim();
+            
+            // First, try to get existing user from Wallet API
+            console.log(`📞 [EXCEL IMPORT] Row ${rowNumber}: Checking Wallet API for user ${phoneNumber}...`);
+            walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+
+            if (walletUserInfo && walletUserInfo.userId) {
+              // User exists in Wallet API
+              walletUserId = walletUserInfo.userId;
+              console.log(`✅ [EXCEL IMPORT] Row ${rowNumber}: User found in Wallet API: ${walletUserId}`);
+            } else {
+              // User doesn't exist in Wallet API, register them
+              console.log(`📞 [EXCEL IMPORT] Row ${rowNumber}: Registering user in Wallet API...`);
+              walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+
+              if (walletUserInfo && walletUserInfo.userId) {
+                walletUserId = walletUserInfo.userId;
+                console.log(`✅ [EXCEL IMPORT] Row ${rowNumber}: User registered in Wallet API: ${walletUserId}`);
+              } else {
+                console.warn(`⚠️ [EXCEL IMPORT] Row ${rowNumber}: Wallet API registration failed, continuing without walletUserId`);
+              }
+            }
+          } catch (walletError) {
+            console.error(`❌ [EXCEL IMPORT] Row ${rowNumber}: Wallet API error:`, walletError.message);
+            // Continue without Wallet API integration if it fails
+            console.warn(`⚠️ [EXCEL IMPORT] Row ${rowNumber}: Continuing without Wallet API integration`);
+          }
+        } else {
+          console.log(`ℹ️ [EXCEL IMPORT] Row ${rowNumber}: No email provided, skipping Wallet API integration`);
+        }
+
+        // Check if user already exists (by phone number OR walletUserId - unified check)
         const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-          utas: userData.utas,
-          barilgiinId: finalBarilgiinId,
+          $or: [
+            { utas: phoneNumber },
+            ...(walletUserId ? [{ walletUserId: walletUserId }] : [])
+          ]
         });
 
-        if (existingUser) {
-          throw new Error("Утас давхардаж байна");
-        }
-
-        // Check if toot already has a registered user (1:1 relationship - one toot can only have one user)
-        if (userData.toot && finalBarilgiinId) {
-          const tootToCheck = userData.toot.trim();
-          const existingTootUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-            toot: tootToCheck,
-            barilgiinId: finalBarilgiinId,
-          });
-
-          if (existingTootUser) {
-            throw new Error(
-              `Энэ тоот (${tootToCheck}) аль хэдийн бүртгэгдсэн байна! Нэг тоотод зөвхөн нэг хэрэглэгч бүртгэх боломжтой.`
-            );
-          }
-        }
+        // Multiple users can have the same toot, so no unique toot check needed
+        // Toot validation will be done when adding to toots array
 
         const targetBarilga = baiguullaga.barilguud?.find(
           (b) => String(b._id) === String(finalBarilgiinId)
@@ -906,14 +951,20 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         }
 
         if (userData.toot && userData.davkhar) {
-          const tootToValidate = userData.toot.trim();
+          // Support comma-separated toots like "101,69,1,2"
+          const tootRaw = userData.toot.trim();
+          const tootListToValidate = tootRaw
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t && t.length > 0);
+          
           const davkharToValidate = userData.davkhar.trim();
           const ortsToValidate = (userData.orts || "1").trim();
           const floorKey = `${ortsToValidate}::${davkharToValidate}`;
 
           const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
           let tootArray = davkhariinToonuud[floorKey];
-          let foundToot = false;
+          let foundToonuud = [];
 
           // First, try exact floorKey match
           if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
@@ -930,13 +981,21 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 .filter((t) => t);
             }
 
-            if (registeredToonuud.includes(tootToValidate)) {
-              foundToot = true;
+            // Validate each toot in the comma-separated list
+            for (const tootToValidate of tootListToValidate) {
+              if (registeredToonuud.includes(tootToValidate)) {
+                foundToonuud.push(tootToValidate);
+              }
             }
           }
 
-          if (!foundToot) {
-            throw new Error("Бүртгэлгүй тоот байна");
+          // If no toots were found, log warning but allow import to proceed
+          if (foundToonuud.length === 0) {
+            console.log(`⚠️  [EXCEL IMPORT] Row ${rowNumber}: Бүртгэлгүй тоот байна: ${tootListToValidate.join(", ")}. Import will proceed with provided toot values.`);
+          } else if (foundToonuud.length < tootListToValidate.length) {
+            // Log which toots were found and which were not
+            const notFound = tootListToValidate.filter(t => !foundToonuud.includes(t));
+            console.log(`⚠️  [EXCEL IMPORT] Row ${rowNumber}: Some toots not found: ${notFound.join(", ")}. Found: ${foundToonuud.join(", ")}. Import will proceed with all provided toot values.`);
           }
         }
 
@@ -960,7 +1019,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           ovog: userData.ovog || "",
           ner: userData.ner,
           utas: userData.utas,
-          mail: userData.mail || "",
+          mail: walletUserInfo?.email || userData.mail || "", // Use email from Wallet API if available
           nuutsUg: "1234",
           baiguullagiinId: baiguullaga._id,
           baiguullagiinNer: baiguullaga.ner,
@@ -972,123 +1031,402 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           soh: sohNer,
           davkhar: userData.davkhar,
           bairniiNer: targetBarilga.ner || "",
-          toot: userData.toot || "",
+          toot: userData.toot || "", // Keep for backward compatibility
           orts: userData.orts || "",
           ekhniiUldegdel: userData.ekhniiUldegdel || 0,
+          tsahilgaaniiZaalt: userData.tsahilgaaniiZaalt || 0, // Save electricity reading from Excel
           tailbar: userData.tailbar || "", // Save tailbar to orshinSuugch
+          toots: [], // Initialize toots array
+          // Link to Wallet API (unifies Excel-imported users with website/mobile users)
+          ...(walletUserId ? { walletUserId: walletUserId } : {})
         };
+        
+        console.log(`⚡ [EXCEL IMPORT] Setting tsahilgaaniiZaalt in userObject:`, userObject.tsahilgaaniiZaalt);
 
-        const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
-        await orshinSuugch.save();
-
-        // Include all charges for the baiguullaga (same as regular registration)
-        // Don't filter by barilgiinId - all charges should be included
-        // The barilgiinId in zardal is just for tracking which building it came from
-        const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
-          ner: zardal.ner,
-          turul: zardal.turul,
-          zardliinTurul: zardal.zardliinTurul,
-          tariff: zardal.tariff,
-          tariffUsgeer: zardal.tariffUsgeer || "",
-          tulukhDun: 0,
-          dun: zardal.dun || 0,
-          bodokhArga: zardal.bodokhArga || "",
-          tseverUsDun: zardal.tseverUsDun || 0,
-          bokhirUsDun: zardal.bokhirUsDun || 0,
-          usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
-          tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
-          tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
-          tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
-          suuriKhuraamj: zardal.suuriKhuraamj || 0,
-          nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
-          ognoonuud: zardal.ognoonuud || [],
-          barilgiinId: zardal.barilgiinId || finalBarilgiinId || "",
-        }));
-
-        const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
-          const tariff = zardal.tariff || 0;
-
-          const isLiftItem =
-            zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
-
-          if (
-            isLiftItem &&
-            userData.davkhar &&
-            choloolugdokhDavkhar.includes(userData.davkhar)
-          ) {
-            return total;
+        // If user already exists, update it; otherwise create new
+        let orshinSuugch;
+        if (existingUser) {
+          orshinSuugch = existingUser;
+          // Update basic info
+          Object.assign(orshinSuugch, {
+            ovog: userObject.ovog,
+            ner: userObject.ner,
+            mail: userObject.mail,
+            baiguullagiinId: userObject.baiguullagiinId,
+            baiguullagiinNer: userObject.baiguullagiinNer,
+            barilgiinId: userObject.barilgiinId,
+            duureg: userObject.duureg,
+            horoo: userObject.horoo,
+            soh: userObject.soh,
+            davkhar: userObject.davkhar,
+            bairniiNer: userObject.bairniiNer,
+            toot: userObject.toot,
+            orts: userObject.orts,
+            ekhniiUldegdel: userObject.ekhniiUldegdel,
+            tsahilgaaniiZaalt: userObject.tsahilgaaniiZaalt, // Update electricity reading
+            tailbar: userObject.tailbar,
+            // Update walletUserId if we got it from Wallet API
+            ...(walletUserId ? { walletUserId: walletUserId } : {})
+          });
+          
+          console.log(`⚡ [EXCEL IMPORT] Updated existing user with tsahilgaaniiZaalt:`, orshinSuugch.tsahilgaaniiZaalt);
+          // Initialize toots array if it doesn't exist
+          if (!orshinSuugch.toots) {
+            orshinSuugch.toots = [];
           }
-
-          return total + tariff;
-        }, 0);
-
-        const contractData = {
-          gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}-${i}`,
-          gereeniiOgnoo: new Date(),
-          turul: "Үндсэн",
-          ovog: userData.ovog || "",
-          ner: userData.ner,
-          utas: [userData.utas],
-          mail: userData.mail || "",
-          baiguullagiinId: baiguullaga._id,
-          baiguullagiinNer: baiguullaga.ner,
-          barilgiinId: finalBarilgiinId || "",
-          tulukhOgnoo: new Date(),
-          ashiglaltiinZardal: niitTulbur,
-          niitTulbur: niitTulbur,
-          toot: userObject.toot || "",
-          davkhar: userData.davkhar || "",
-          bairNer: targetBarilga.ner || "",
-          sukhBairshil: `${duuregNer}, ${horooNer}, ${sohNer}`,
-          duureg: duuregNer,
-          horoo: horooData,
-          sohNer: sohNer,
-          orts: userData.orts || "",
-          burtgesenAjiltan: orshinSuugch._id,
-          orshinSuugchId: orshinSuugch._id.toString(),
-          temdeglel: userData.tailbar || "Excel файлаас автоматаар үүссэн гэрээ",
-          actOgnoo: new Date(),
-          baritsaaniiUldegdel: 0,
-          ekhniiUldegdel: userData.ekhniiUldegdel || 0,
-          zardluud: zardluudArray,
-          segmentuud: [],
-          khungulultuud: [],
-        };
-
-        const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
-        await geree.save();
-
-        // Update davkhar with toot if provided
-        if (userObject.toot && userData.davkhar) {
-          const { updateDavkharWithToot } = require("./orshinSuugch");
-          await updateDavkharWithToot(
-            baiguullaga,
-            finalBarilgiinId,
-            userData.davkhar,
-            userObject.toot,
-            tukhainBaaziinKholbolt
-          );
+        } else {
+          orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
         }
 
-        try {
-          const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
-            geree,
-            baiguullaga,
-            tukhainBaaziinKholbolt,
-            "automataar"
-          );
+        // Add toot(s) to toots array if provided
+        // Support comma-separated toots like "101,69,1,2"
+        if (userData.toot && finalBarilgiinId) {
+          // Split comma-separated toots
+          const tootRaw = userData.toot.trim();
+          const tootList = tootRaw
+            .split(",")
+            .map((t) => t.trim())
+            .filter((t) => t && t.length > 0); // Filter out empty strings
+          
+          console.log(`🔍 [EXCEL IMPORT] Raw toot: "${tootRaw}", Split into:`, tootList);
+          
+          // Create a toot entry for each toot
+          for (const individualToot of tootList) {
+            const tootEntry = {
+              toot: individualToot,
+              source: "OWN_ORG",
+              baiguullagiinId: baiguullaga._id.toString(),
+              barilgiinId: finalBarilgiinId,
+              davkhar: userData.davkhar || "",
+              orts: userData.orts || "1",
+              duureg: duuregNer,
+              horoo: horooData,
+              soh: sohNer,
+              bairniiNer: targetBarilga.ner || "",
+              createdAt: new Date()
+            };
+            
+            // Check if this toot already exists in user's toots array
+            const existingTootIndex = orshinSuugch.toots?.findIndex(
+              t => t.toot === tootEntry.toot && 
+                   t.barilgiinId === tootEntry.barilgiinId
+            );
+            
+            if (existingTootIndex >= 0) {
+              // Update existing toot entry
+              orshinSuugch.toots[existingTootIndex] = tootEntry;
+              console.log(`🔄 [EXCEL IMPORT] Updated existing toot: ${individualToot}`);
+            } else {
+              // Add new toot to array
+              orshinSuugch.toots.push(tootEntry);
+              console.log(`➕ [EXCEL IMPORT] Added new toot: ${individualToot}`);
+            }
+          }
+        }
 
-          if (!invoiceResult.success) {
-            console.error(
-              `Invoice creation failed for user ${userData.utas}:`,
-              invoiceResult.error
+        await orshinSuugch.save();
+        
+        // Verify tsahilgaaniiZaalt was saved
+        const savedOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("tsahilgaaniiZaalt ner utas");
+        console.log(`✅ [EXCEL IMPORT] Verified tsahilgaaniiZaalt saved to orshinSuugch:`, {
+          ner: savedOrshinSuugch?.ner,
+          utas: savedOrshinSuugch?.utas,
+          tsahilgaaniiZaalt: savedOrshinSuugch?.tsahilgaaniiZaalt
+        });
+
+        // Create gerees for all OWN_ORG toots that don't have gerees yet
+        if (orshinSuugch.toots && Array.isArray(orshinSuugch.toots) && orshinSuugch.toots.length > 0) {
+          const ownOrgToots = orshinSuugch.toots.filter(t => t.source === "OWN_ORG" && t.baiguullagiinId && t.barilgiinId);
+          
+          for (const tootEntry of ownOrgToots) {
+            try {
+              console.log(`📋 [EXCEL IMPORT] Processing OWN_ORG toot: ${tootEntry.toot} for geree creation...`);
+              
+              // Check if geree already exists for this specific toot (user + barilgiinId + toot combination)
+              const GereeModel = Geree(tukhainBaaziinKholbolt);
+              const existingGeree = await GereeModel.findOne({
+                orshinSuugchId: orshinSuugch._id.toString(),
+                barilgiinId: tootEntry.barilgiinId,
+                toot: tootEntry.toot,
+                tuluv: { $ne: "Цуцалсан" } // Only check active gerees
+              });
+
+              if (existingGeree) {
+                console.log(`ℹ️ [EXCEL IMPORT] Geree already exists for toot ${tootEntry.toot}:`, existingGeree._id);
+                continue;
+              }
+              
+              console.log(`📋 [EXCEL IMPORT] No active geree found for toot ${tootEntry.toot} - creating new geree...`);
+              
+              // Get ashiglaltiinZardluud from barilga
+              const targetBarilgaForToot = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === String(tootEntry.barilgiinId)
+              );
+
+              if (!targetBarilgaForToot) {
+                console.error(`❌ [EXCEL IMPORT] Target barilga not found for toot ${tootEntry.toot}`);
+                continue;
+              }
+
+              const ashiglaltiinZardluudData = targetBarilgaForToot.tokhirgoo?.ashiglaltiinZardluud || [];
+              const liftShalgayaData = targetBarilgaForToot.tokhirgoo?.liftShalgaya;
+              const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+              const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                ner: zardal.ner,
+                turul: zardal.turul,
+                zardliinTurul: zardal.zardliinTurul,
+                tariff: zardal.tariff,
+                tariffUsgeer: zardal.tariffUsgeer || "",
+                tulukhDun: 0,
+                dun: zardal.dun || 0,
+                bodokhArga: zardal.bodokhArga || "",
+                tseverUsDun: zardal.tseverUsDun || 0,
+                bokhirUsDun: zardal.bokhirUsDun || 0,
+                usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                ognoonuud: zardal.ognoonuud || [],
+                barilgiinId: zardal.barilgiinId || tootEntry.barilgiinId || "",
+              }));
+
+              // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+              const tailbarFromZardluud = ashiglaltiinZardluudData
+                .map((zardal) => zardal.tailbar)
+                .filter((tailbar) => tailbar && tailbar.trim())
+                .join("; ") || "";
+
+              const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+                const tariff = zardal.tariff || 0;
+                const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                if (isLiftItem && tootEntry.davkhar && choloolugdokhDavkhar.includes(tootEntry.davkhar)) {
+                  return total;
+                }
+                return total + tariff;
+              }, 0);
+
+              const duuregNer = targetBarilgaForToot.tokhirgoo?.duuregNer || tootEntry.duureg || "";
+              const horooData = targetBarilgaForToot.tokhirgoo?.horoo || tootEntry.horoo || {};
+              const horooNer = horooData.ner || "";
+              const sohNer = targetBarilgaForToot.tokhirgoo?.sohNer || tootEntry.soh || "";
+
+              // Create geree (contract) for this specific toot
+              // Use timestamp + microsecond precision to ensure uniqueness
+              const uniqueSuffix = Date.now() + i;
+              const contractData = {
+                gereeniiDugaar: `ГД-${uniqueSuffix.toString().slice(-8)}`,
+                gereeniiOgnoo: new Date(),
+                turul: "Үндсэн",
+                tuluv: "Идэвхтэй",
+                ovog: userData.ovog || "",
+                ner: userData.ner,
+                utas: [userData.utas],
+                mail: userData.mail || "",
+                baiguullagiinId: baiguullaga._id,
+                baiguullagiinNer: baiguullaga.ner,
+                barilgiinId: tootEntry.barilgiinId,
+                tulukhOgnoo: new Date(),
+                ashiglaltiinZardal: niitTulbur,
+                niitTulbur: niitTulbur,
+                toot: tootEntry.toot,
+                davkhar: tootEntry.davkhar || "",
+                bairNer: targetBarilgaForToot.ner || "",
+                sukhBairshil: `${duuregNer}, ${horooNer}, ${sohNer}`,
+                duureg: duuregNer,
+                horoo: horooData,
+                sohNer: sohNer,
+                orts: tootEntry.orts || "",
+                burtgesenAjiltan: orshinSuugch._id,
+                orshinSuugchId: orshinSuugch._id.toString(),
+                temdeglel: `${userData.tailbar || "Excel файлаас автоматаар үүссэн гэрээ"} (Тоот: ${tootEntry.toot})`,
+                tailbar: userData.tailbar || tailbarFromZardluud || "",
+                actOgnoo: new Date(),
+                baritsaaniiUldegdel: 0,
+                ekhniiUldegdel: userData.ekhniiUldegdel || 0,
+                // Save initial electricity reading (will be used in invoice calculations)
+                umnukhZaalt: userData.tsahilgaaniiZaalt || 0, // Previous reading (initial reading from Excel)
+                suuliinZaalt: userData.tsahilgaaniiZaalt || 0, // Current reading (same as initial at import)
+                zaaltTog: 0, // Day reading (will be updated later)
+                zaaltUs: 0, // Night reading (will be updated later)
+                zardluud: zardluudArray,
+                segmentuud: [],
+                khungulultuud: [],
+              };
+
+              const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+              await geree.save();
+              console.log(`✅ [EXCEL IMPORT] Geree created for toot ${tootEntry.toot}:`, geree._id);
+
+              // Update davkhar with toot if provided
+              if (tootEntry.toot && tootEntry.davkhar) {
+                const { updateDavkharWithToot } = require("./orshinSuugch");
+                await updateDavkharWithToot(
+                  baiguullaga,
+                  tootEntry.barilgiinId,
+                  tootEntry.davkhar,
+                  tootEntry.toot,
+                  tukhainBaaziinKholbolt
+                );
+                console.log(`✅ [EXCEL IMPORT] Davkhar updated with toot ${tootEntry.toot}`);
+              }
+
+              // Create invoice for this geree
+              try {
+                const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+                  geree,
+                  baiguullaga,
+                  tukhainBaaziinKholbolt,
+                  "automataar"
+                );
+
+                if (!invoiceResult.success) {
+                  console.error(
+                    `❌ [EXCEL IMPORT] Invoice creation failed for toot ${tootEntry.toot}:`,
+                    invoiceResult.error
+                  );
+                } else {
+                  console.log(`✅ [EXCEL IMPORT] Invoice created for toot ${tootEntry.toot}`);
+                }
+              } catch (invoiceError) {
+                console.error(
+                  `❌ [EXCEL IMPORT] Error creating invoice for toot ${tootEntry.toot}:`,
+                  invoiceError.message
+                );
+              }
+            } catch (tootGereeError) {
+              console.error(`❌ [EXCEL IMPORT] Error creating geree for toot ${tootEntry.toot}:`, tootGereeError.message);
+              // Continue with next toot if this one fails
+            }
+          }
+        } else {
+          // Backward compatibility: if toots array is empty but old fields exist, create geree for primary toot
+          console.log("📋 [EXCEL IMPORT] No toots array found, using backward compatibility mode...");
+          
+          // Include all charges for the baiguullaga (same as regular registration)
+          const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+            ner: zardal.ner,
+            turul: zardal.turul,
+            zardliinTurul: zardal.zardliinTurul,
+            tariff: zardal.tariff,
+            tariffUsgeer: zardal.tariffUsgeer || "",
+            tulukhDun: 0,
+            dun: zardal.dun || 0,
+            bodokhArga: zardal.bodokhArga || "",
+            tseverUsDun: zardal.tseverUsDun || 0,
+            bokhirUsDun: zardal.bokhirUsDun || 0,
+            usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+            tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+            tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+            tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+            suuriKhuraamj: zardal.suuriKhuraamj || 0,
+            nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+            ognoonuud: zardal.ognoonuud || [],
+            barilgiinId: zardal.barilgiinId || finalBarilgiinId || "",
+          }));
+
+          // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
+          const tailbarFromZardluud = ashiglaltiinZardluudData
+            .map((zardal) => zardal.tailbar)
+            .filter((tailbar) => tailbar && tailbar.trim())
+            .join("; ") || "";
+
+          const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+            const tariff = zardal.tariff || 0;
+            const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+            if (isLiftItem && userData.davkhar && choloolugdokhDavkhar.includes(userData.davkhar)) {
+              return total;
+            }
+            return total + tariff;
+          }, 0);
+
+          // Use timestamp + microsecond precision to ensure uniqueness
+          const uniqueSuffix = Date.now() + i;
+          const contractData = {
+            gereeniiDugaar: `ГД-${uniqueSuffix.toString().slice(-8)}`,
+            gereeniiOgnoo: new Date(),
+            turul: "Үндсэн",
+            tuluv: "Идэвхтэй",
+            ovog: userData.ovog || "",
+            ner: userData.ner,
+            utas: [userData.utas],
+            mail: userData.mail || "",
+            baiguullagiinId: baiguullaga._id,
+            baiguullagiinNer: baiguullaga.ner,
+            barilgiinId: finalBarilgiinId || "",
+            tulukhOgnoo: new Date(),
+            ashiglaltiinZardal: niitTulbur,
+            niitTulbur: niitTulbur,
+            toot: userObject.toot || "",
+            davkhar: userData.davkhar || "",
+            bairNer: targetBarilga.ner || "",
+            sukhBairshil: `${duuregNer}, ${horooNer}, ${sohNer}`,
+            duureg: duuregNer,
+            horoo: horooData,
+            sohNer: sohNer,
+            orts: userData.orts || "",
+            burtgesenAjiltan: orshinSuugch._id,
+            orshinSuugchId: orshinSuugch._id.toString(),
+            temdeglel: userData.tailbar || "Excel файлаас автоматаар үүссэн гэрээ",
+            tailbar: userData.tailbar || tailbarFromZardluud || "",
+            actOgnoo: new Date(),
+            baritsaaniiUldegdel: 0,
+            ekhniiUldegdel: userData.ekhniiUldegdel || 0,
+            // Save initial electricity reading (will be used in invoice calculations)
+            umnukhZaalt: tsahilgaaniiZaalt, // Previous reading (initial reading at import)
+            suuliinZaalt: tsahilgaaniiZaalt, // Current reading (same as initial at import)
+            zaaltTog: 0, // Day reading (will be updated later)
+            zaaltUs: 0, // Night reading (will be updated later)
+            zardluud: zardluudArray,
+            segmentuud: [],
+            khungulultuud: [],
+          };
+          
+          console.log(`⚡ [EXCEL IMPORT] Setting electricity readings in geree:`, {
+            gereeniiDugaar: contractData.gereeniiDugaar,
+            tsahilgaaniiZaalt: tsahilgaaniiZaalt,
+            umnukhZaalt: contractData.umnukhZaalt,
+            suuliinZaalt: contractData.suuliinZaalt
+          });
+
+          const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+          await geree.save();
+          console.log(`✅ [EXCEL IMPORT] Geree created (backward compatibility):`, geree._id);
+
+          // Update davkhar with toot if provided
+          if (userObject.toot && userData.davkhar) {
+            const { updateDavkharWithToot } = require("./orshinSuugch");
+            await updateDavkharWithToot(
+              baiguullaga,
+              finalBarilgiinId,
+              userData.davkhar,
+              userObject.toot,
+              tukhainBaaziinKholbolt
             );
           }
-        } catch (invoiceError) {
-          console.error(
-            `Error creating invoice for user ${userData.utas}:`,
-            invoiceError.message
-          );
+
+          try {
+            const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+              geree,
+              baiguullaga,
+              tukhainBaaziinKholbolt,
+              "automataar"
+            );
+
+            if (!invoiceResult.success) {
+              console.error(
+                `❌ [EXCEL IMPORT] Invoice creation failed for user ${userData.utas}:`,
+                invoiceResult.error
+              );
+            }
+          } catch (invoiceError) {
+            console.error(
+              `❌ [EXCEL IMPORT] Error creating invoice for user ${userData.utas}:`,
+              invoiceError.message
+            );
+          }
         }
 
         results.success.push({

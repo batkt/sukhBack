@@ -9,6 +9,7 @@ const qpayObjectSchema = new Schema(
     baiguullagiinId: String,
     barilgiinId: String,
     salbariinId: String,
+    account_number: String,
     tulsunEsekh: { type: Boolean, default: false },
     ognoo: { type: Date, default: Date.now },
     qpay: Schema.Types.Mixed,
@@ -28,10 +29,11 @@ const qpayObjectSchema = new Schema(
       nekhemjlekhiinId: { type: String, default: "" },
       gereeniiDugaar: { type: String, default: "" },
       utas: { type: String, default: "" },
-      pay_amount: { type: String, default: "" }
+      pay_amount: { type: String, default: "" },
     },
+
     created_at: { type: Date, default: Date.now },
-    updated_at: { type: Date, default: Date.now }
+    updated_at: { type: Date, default: Date.now },
   },
   {
     timestamps: true,
