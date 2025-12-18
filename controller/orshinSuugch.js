@@ -967,63 +967,104 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       // Only create new geree if not reactivating (no cancelled geree found)
       if (!isReactivating) {
-        // tsahilgaaniiZaalt is already declared above (line ~705), reuse it here
+        // Create geree for each toot in toots array
+        // If toots array exists and has entries, create geree for each toot
+        // Otherwise, create geree for primary toot (backward compatibility)
+        const tootsToProcess = orshinSuugch.toots && orshinSuugch.toots.length > 0 
+          ? orshinSuugch.toots 
+          : (orshinSuugch.toot ? [{ 
+              toot: orshinSuugch.toot, 
+              barilgiinId: barilgiinId,
+              davkhar: orshinSuugch.davkhar || "",
+              orts: orshinSuugch.orts || "1",
+              duureg: duuregNer,
+              horoo: horooData,
+              soh: sohNer,
+              bairniiNer: req.body.bairniiNer || "",
+            }] : []);
 
-        const contractData = {
-          gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
-          gereeniiOgnoo: new Date(),
-          turul: "Үндсэн",
-          tuluv: "Идэвхтэй",
-          ovog: req.body.ovog || "",
-          ner: req.body.ner,
-          register: req.body.register || "",
-          utas: [req.body.utas],
-          mail: req.body.mail || "",
-          baiguullagiinId: baiguullaga._id,
-          baiguullagiinNer: baiguullaga.ner,
-          barilgiinId: barilgiinId || "",
-          tulukhOgnoo: new Date(),
-          ashiglaltiinZardal: 0,
-          niitTulbur: niitTulbur,
-          toot: orshinSuugch.toot || "",
-          davkhar: orshinSuugch.davkhar || "",
-          bairNer: req.body.bairniiNer || "",
-          sukhBairshil: `${req.body.duureg}, ${req.body.horoo}, ${req.body.soh}`,
-          duureg: duuregNer, // Save separately
-          horoo: horooData, // Save horoo object separately
-          sohNer: sohNer, // Save sohNer separately
-          burtgesenAjiltan: orshinSuugch._id,
-          orshinSuugchId: orshinSuugch._id.toString(),
-          temdeglel: req.body.tailbar || "Автоматаар үүссэн гэрээ", // Optional: tailbar from frontend
-          actOgnoo: new Date(),
-          baritsaaniiUldegdel: 0,
-          ekhniiUldegdel: req.body.ekhniiUldegdel
-            ? parseFloat(req.body.ekhniiUldegdel) || 0
-            : 0, // Optional: from frontend
-          // Save initial electricity reading (will be used in invoice calculations)
-          umnukhZaalt: tsahilgaaniiZaalt, // Previous reading (initial reading at registration)
-          suuliinZaalt: tsahilgaaniiZaalt, // Current reading (same as initial at registration)
-          zaaltTog: 0, // Day reading (will be updated later)
-          zaaltUs: 0, // Night reading (will be updated later)
-          zardluud: zardluudArray,
-          segmentuud: [],
-          khungulultuud: [],
-        };
+        for (const tootEntry of tootsToProcess) {
+          // Check if geree already exists for this toot
+          const existingGereeForToot = await GereeModel.findOne({
+            toot: tootEntry.toot,
+            barilgiinId: tootEntry.barilgiinId || barilgiinId,
+            tuluv: "Идэвхтэй",
+            orshinSuugchId: orshinSuugch._id.toString()
+          });
 
-        const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
-        await geree.save();
-        console.log("orshinSuugch service");
+          if (existingGereeForToot) {
+            console.log(`orshinSuugch service`);
+            continue; // Skip if geree already exists for this toot
+          }
 
-        // Update davkhar with toot if provided from frontend
-        // Frontend should send: { toot: "102", davkhar: "1", barilgiinId: "..." }
-        if (orshinSuugch.toot && orshinSuugch.davkhar) {
-          await exports.updateDavkharWithToot(
-            baiguullaga,
-            barilgiinId,
-            orshinSuugch.davkhar,
-            orshinSuugch.toot,
-            tukhainBaaziinKholbolt
+          // Get target barilga for this toot
+          const targetBarilgaForToot = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === String(tootEntry.barilgiinId || barilgiinId)
           );
+
+          if (!targetBarilgaForToot) {
+            console.log(`orshinSuugch service`);
+            continue; // Skip if barilga not found
+          }
+
+          const duuregNerForToot = targetBarilgaForToot.tokhirgoo?.duuregNer || tootEntry.duureg || duuregNer || "";
+          const horooDataForToot = targetBarilgaForToot.tokhirgoo?.horoo || tootEntry.horoo || horooData || {};
+          const sohNerForToot = targetBarilgaForToot.tokhirgoo?.sohNer || tootEntry.soh || sohNer || "";
+
+          const contractData = {
+            gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+            gereeniiOgnoo: new Date(),
+            turul: "Үндсэн",
+            tuluv: "Идэвхтэй",
+            ovog: req.body.ovog || "",
+            ner: req.body.ner,
+            register: req.body.register || "",
+            utas: [req.body.utas],
+            mail: req.body.mail || "",
+            baiguullagiinId: baiguullaga._id,
+            baiguullagiinNer: baiguullaga.ner,
+            barilgiinId: tootEntry.barilgiinId || barilgiinId || "",
+            tulukhOgnoo: new Date(),
+            ashiglaltiinZardal: 0,
+            niitTulbur: niitTulbur,
+            toot: tootEntry.toot,
+            davkhar: tootEntry.davkhar || "",
+            bairNer: tootEntry.bairniiNer || targetBarilgaForToot.ner || "",
+            sukhBairshil: `${duuregNerForToot}, ${horooDataForToot.ner || ""}, ${sohNerForToot}`,
+            duureg: duuregNerForToot,
+            horoo: horooDataForToot,
+            sohNer: sohNerForToot,
+            burtgesenAjiltan: orshinSuugch._id,
+            orshinSuugchId: orshinSuugch._id.toString(),
+            temdeglel: req.body.tailbar || `Автоматаар үүссэн гэрээ (Тоот: ${tootEntry.toot})`,
+            actOgnoo: new Date(),
+            baritsaaniiUldegdel: 0,
+            ekhniiUldegdel: req.body.ekhniiUldegdel
+              ? parseFloat(req.body.ekhniiUldegdel) || 0
+              : 0,
+            umnukhZaalt: tsahilgaaniiZaalt,
+            suuliinZaalt: tsahilgaaniiZaalt,
+            zaaltTog: 0,
+            zaaltUs: 0,
+            zardluud: zardluudArray,
+            segmentuud: [],
+            khungulultuud: [],
+          };
+
+          const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+          await geree.save();
+          console.log(`orshinSuugch service`);
+
+          // Update davkhar with toot if provided
+          if (tootEntry.toot && tootEntry.davkhar) {
+            await exports.updateDavkharWithToot(
+              baiguullaga,
+              tootEntry.barilgiinId || barilgiinId,
+              tootEntry.davkhar,
+              tootEntry.toot,
+              tukhainBaaziinKholbolt
+            );
+          }
         }
 
         // Invoice will be created by cron job on scheduled date
