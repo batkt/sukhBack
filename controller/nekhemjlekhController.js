@@ -80,11 +80,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
         // Only use ekhniiUldegdel if:
         // 1. Geree was created before cron date
-        // 2. Geree has ekhniiUldegdel
+        // 2. Geree has ekhniiUldegdel > 0 (must be greater than 0)
         // 3. NO existing invoices with ekhniiUldegdel (first invoice only)
         if (
           gereeCreatedDate < currentMonthCronDate &&
-          (tempData.ekhniiUldegdel || tempData.ekhniiUldegdel === 0) &&
+          tempData.ekhniiUldegdel &&
+          tempData.ekhniiUldegdel > 0 &&
           existingEkhniiUldegdelInvoices === 0
         ) {
           shouldUseEkhniiUldegdel = true;
@@ -512,11 +513,29 @@ const gereeNeesNekhemjlekhUusgekh = async (
       ? ekhniiUldegdelAmount + guilgeenuudTotal
       : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
 
+    // Debug logging
+    console.log("💰 [INVOICE] Total calculation:", {
+      shouldUseEkhniiUldegdel,
+      ekhniiUldegdelAmount,
+      updatedZardluudTotal,
+      guilgeenuudTotal,
+      finalNiitTulbur,
+      zardluudCount: finalZardluud.length,
+      isAvlagaOnlyInvoice,
+    });
+
     // Don't create invoice if total amount is 0 (for new users with no charges)
     // BUT create invoice if ekhniiUldegdel exists (even if other charges are 0)
     if (finalNiitTulbur === 0 && guilgeenuudTotal === 0 && !hasEkhniiUldegdel) {
       console.log(
-        "⚠️ [INVOICE] Skipping invoice creation - total amount is 0 MNT"
+        "⚠️ [INVOICE] Skipping invoice creation - total amount is 0 MNT",
+        {
+          shouldUseEkhniiUldegdel,
+          updatedZardluudTotal,
+          guilgeenuudTotal,
+          hasEkhniiUldegdel,
+          zardluudCount: finalZardluud.length,
+        }
       );
       return {
         success: false,
