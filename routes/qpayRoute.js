@@ -320,13 +320,23 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             vatCompanyReg: req.body.vatCompanyReg || "",
           };
           
-          const invoiceResult = await walletApiService.createInvoice(userPhoneNumber, invoiceData);
-          
-          if (invoiceResult && invoiceResult.invoiceId) {
-            invoiceId = invoiceResult.invoiceId;
-            console.log("✅ [QPAY] Invoice created successfully, invoiceId:", invoiceId);
-          } else {
-            throw new Error("Failed to create invoice - invoiceId not returned");
+          try {
+            const invoiceResult = await walletApiService.createInvoice(userPhoneNumber, invoiceData);
+            
+            if (invoiceResult && invoiceResult.invoiceId) {
+              invoiceId = invoiceResult.invoiceId;
+              console.log("✅ [QPAY] Invoice created successfully, invoiceId:", invoiceId);
+            } else {
+              throw new Error("Failed to create invoice - invoiceId not returned");
+            }
+          } catch (invoiceError) {
+            // If invoice creation fails, it might already exist - try to find existing invoice
+            console.log("⚠️ [QPAY] Invoice creation failed, checking if invoice already exists...");
+            console.log("⚠️ [QPAY] Error:", invoiceError.message);
+            
+            // For now, re-throw the error - the frontend should handle duplicate invoice creation
+            // by checking for existing invoices before creating payment
+            throw new Error(`Invoice creation failed: ${invoiceError.message}. If invoice already exists, please provide invoiceId.`);
           }
         } else if (!invoiceId) {
           console.log("⚠️ [QPAY] Invoice ID not provided and cannot auto-create:");
@@ -356,8 +366,18 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         
         console.log("✅ [QPAY] Wallet API QPay payment created successfully");
         console.log("✅ [QPAY] Payment ID:", result.paymentId);
+        console.log("✅ [QPAY] Payment response keys:", Object.keys(result));
+        console.log("✅ [QPAY] Full payment response:", JSON.stringify(result, null, 2));
+        
+        // Check for QR code in response
         if (result.qrText) {
-          console.log("✅ [QPAY] QR code generated");
+          console.log("✅ [QPAY] QR code found in response");
+        } else {
+          console.log("⚠️ [QPAY] QR code not in response - Wallet API may require QR generation from payment details");
+          console.log("⚠️ [QPAY] Payment details available for QR generation:");
+          console.log("⚠️ [QPAY] - receiverBankCode:", result.receiverBankCode);
+          console.log("⚠️ [QPAY] - receiverAccountNo:", result.receiverAccountNo);
+          console.log("⚠️ [QPAY] - paymentAmount:", result.paymentAmount);
         }
         
         return res.status(200).json({

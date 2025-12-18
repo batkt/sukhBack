@@ -809,14 +809,22 @@ async function createPayment(userId, paymentData) {
 
     console.log("💳 [WALLET API] Payment creation response status:", response.status);
     console.log("💳 [WALLET API] Payment creation responseCode:", response.data?.responseCode);
+    console.log("💳 [WALLET API] Payment creation response data:", JSON.stringify(response.data, null, 2));
 
     if (response.data && response.data.responseCode && response.data.data) {
       console.log("✅ [WALLET API] Payment created successfully");
       console.log("✅ [WALLET API] Payment ID:", response.data.data.paymentId);
-      console.log("✅ [WALLET API] Payment status:", response.data.data.paymentStatus);
+      console.log("✅ [WALLET API] Payment amount:", response.data.data.paymentAmount);
+      console.log("✅ [WALLET API] Receiver bank code:", response.data.data.receiverBankCode);
+      console.log("✅ [WALLET API] Receiver account:", response.data.data.receiverAccountNo);
+      console.log("✅ [WALLET API] Receiver name:", response.data.data.receiverAccountName);
+      
       if (response.data.data.qrText) {
-        console.log("✅ [WALLET API] QR code generated");
+        console.log("✅ [WALLET API] QR code found in response");
+      } else {
+        console.log("⚠️ [WALLET API] QR code not in response - Wallet API may require QR generation from payment details");
       }
+      
       return response.data.data;
     }
 
