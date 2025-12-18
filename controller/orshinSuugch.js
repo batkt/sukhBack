@@ -845,11 +845,32 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         return total + tariff;
       }, 0);
 
+      // Validate: One toot cannot have different owners
+      // Check if this toot already has an active contract with a different orshinSuugchId
+      const GereeModel = Geree(tukhainBaaziinKholbolt);
+      if (orshinSuugch.toot && barilgiinId) {
+        const conflictingGeree = await GereeModel.findOne({
+          barilgiinId: barilgiinId,
+          toot: orshinSuugch.toot,
+          tuluv: "Идэвхтэй",
+          orshinSuugchId: { $ne: orshinSuugch._id.toString() }
+        });
+
+        if (conflictingGeree) {
+          throw new aldaa(`Тоот ${orshinSuugch.toot} аль хэдийн өөр хэрэглэгчид хамаарсан байна!`);
+        }
+      }
+
       // If there's a cancelled geree, reactivate it and link it to the new user
       // Do this AFTER fetching charges so we can update zardluud with current charges
+      const existingCancelledGeree = await GereeModel.findOne({
+        toot: orshinSuugch.toot || "",
+        barilgiinId: barilgiinId || "",
+        tuluv: "Цуцалсан",
+      });
+
       if (existingCancelledGeree && tukhainBaaziinKholbolt) {
         isReactivating = true;
-        const GereeModel = Geree(tukhainBaaziinKholbolt);
 
         // Reactivate the cancelled geree and link it to the new user
         // Update with current charges (zardluud) and niitTulbur
@@ -878,10 +899,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           zaaltUs: 0, // Night reading (will be updated later)
         };
 
-        console.log("⚡ [REACTIVATE] Setting electricity readings in geree:", {
-          umnukhZaalt: tsahilgaaniiZaalt,
-          suuliinZaalt: tsahilgaaniiZaalt
-        });
+        console.log("orshinSuugch service");
 
         // Add optional fields from frontend if provided
         if (req.body.tailbar) {
@@ -911,7 +929,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       // Only create new geree if not reactivating (no cancelled geree found)
       if (!isReactivating) {
         // tsahilgaaniiZaalt is already declared above (line ~705), reuse it here
-        console.log("⚡ [REGISTER] Using tsahilgaaniiZaalt for geree:", tsahilgaaniiZaalt, "кВт");
 
         const contractData = {
           gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
@@ -954,37 +971,19 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           khungulultuud: [],
         };
 
-        console.log("⚡ [NEW GEREE] Setting electricity readings in contractData:", {
-          umnukhZaalt: contractData.umnukhZaalt,
-          suuliinZaalt: contractData.suuliinZaalt,
-          tsahilgaaniiZaalt: tsahilgaaniiZaalt
-        });
-
         const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
         await geree.save();
-        
-        console.log("✅ [NEW GEREE] Geree saved with electricity readings:", {
-          gereeniiDugaar: geree.gereeniiDugaar,
-          umnukhZaalt: geree.umnukhZaalt,
-          suuliinZaalt: geree.suuliinZaalt
-        });
+        console.log("orshinSuugch service");
 
         // Update davkhar with toot if provided from frontend
         // Frontend should send: { toot: "102", davkhar: "1", barilgiinId: "..." }
         if (orshinSuugch.toot && orshinSuugch.davkhar) {
-          console.log(
-            `Updating davkhar with toot: Floor ${orshinSuugch.davkhar}, Toot ${orshinSuugch.toot}, Building ${barilgiinId}`
-          );
           await exports.updateDavkharWithToot(
             baiguullaga,
             barilgiinId,
             orshinSuugch.davkhar,
             orshinSuugch.toot,
             tukhainBaaziinKholbolt
-          );
-        } else {
-          console.log(
-            `Skipping davkhar update - toot: ${orshinSuugch.toot}, davkhar: ${orshinSuugch.davkhar}`
           );
         }
 
@@ -1036,38 +1035,25 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
               );
 
               if (!invoiceResult.success) {
-                console.error("Invoice creation failed:", invoiceResult.error);
+                console.log("orshinSuugch service");
               } else if (invoiceResult.alreadyExists) {
-                console.log(
-                  "Existing unpaid invoice found and preserved for reactivated geree:",
-                  invoiceResult.nekhemjlekh._id
-                );
+                console.log("orshinSuugch service");
               } else {
-                console.log(
-                  "New invoice created for reactivated geree on scheduled date:",
-                  invoiceResult.nekhemjlekh._id
-                );
+                console.log("orshinSuugch service");
               }
             } else {
               // Not the scheduled date, skip invoice creation
               // The cron job will create invoices on the scheduled date
               // Geree already has current month's ashiglaltiinZardluud updated
-              console.log(
-                `Skipping invoice creation - today (${todayDate}) is not the scheduled date (${
-                  cronSchedule?.nekhemjlekhUusgekhOgnoo || "not set"
-                }). Cron job will handle it.`
-              );
+              console.log("orshinSuugch service");
             }
           } catch (invoiceError) {
-            console.error(
-              "Error checking/creating invoice:",
-              invoiceError.message
-            );
+            console.log("orshinSuugch service");
           }
         }
       }
     } catch (contractError) {
-      console.error("Error creating contract:", contractError.message);
+      console.log("orshinSuugch service");
     }
 
     const response = {
@@ -1086,7 +1072,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     res.status(201).json(response);
   } catch (error) {
-    console.error("Error in orshinSuugchBurtgey:", error.message);
+    console.log("orshinSuugch service");
     next(error);
   }
 });
@@ -1919,11 +1905,10 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       
       for (const tootEntry of ownOrgToots) {
         try {
-          console.log(`📋 [WALLET LOGIN] Processing OWN_ORG toot: ${tootEntry.toot} for geree creation...`);
           const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(tootEntry.baiguullagiinId);
           
           if (!baiguullaga) {
-            console.error(`❌ [WALLET LOGIN] Baiguullaga not found for toot ${tootEntry.toot}`);
+            console.log(`orshinSuugch service`);
             continue;
           }
           
@@ -1932,7 +1917,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           );
 
           if (!tukhainBaaziinKholbolt) {
-            console.error(`❌ [WALLET LOGIN] Kholbolt not found for toot ${tootEntry.toot}`);
+            console.log(`orshinSuugch service`);
             continue;
           }
           
@@ -1946,11 +1931,25 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           });
 
           if (existingGeree) {
-            console.log(`ℹ️ [WALLET LOGIN] Geree already exists for toot ${tootEntry.toot}:`, existingGeree._id);
+            console.log(`orshinSuugch service`);
             continue;
           }
+
+          // Validate: One toot cannot have different owners
+          // Check if this toot already has an active contract with a different orshinSuugchId
+          const conflictingGeree = await GereeModel.findOne({
+            barilgiinId: tootEntry.barilgiinId,
+            toot: tootEntry.toot,
+            tuluv: "Идэвхтэй",
+            orshinSuugchId: { $ne: orshinSuugch._id.toString() }
+          });
+
+          if (conflictingGeree) {
+            console.log(`orshinSuugch service`);
+            continue; // Skip creating contract - toot already owned by someone else
+          }
           
-          console.log(`📋 [WALLET LOGIN] No active geree found for toot ${tootEntry.toot} - creating new geree...`);
+          // Creating new geree for toot
           const targetBarilga = baiguullaga.barilguud?.find(
             (b) => String(b._id) === String(tootEntry.barilgiinId)
           );
@@ -2031,7 +2030,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
             const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
             await geree.save();
-            console.log(`✅ [WALLET LOGIN] Geree created for toot ${tootEntry.toot}:`, geree._id);
+            console.log(`orshinSuugch service`);
 
             // Update davkhar with toot if provided
             if (tootEntry.toot && tootEntry.davkhar) {
@@ -2042,16 +2041,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 tootEntry.toot,
                 tukhainBaaziinKholbolt
               );
-              console.log(`✅ [WALLET LOGIN] Davkhar updated with toot ${tootEntry.toot}`);
             }
-
-            // Invoice will be created by cron job on scheduled date
-            console.log(`ℹ️ [WALLET LOGIN] Invoice will be created by cron job for toot ${tootEntry.toot}`);
           } else {
-            console.error(`❌ [WALLET LOGIN] Target barilga not found for toot ${tootEntry.toot}`);
+            console.log(`orshinSuugch service`);
           }
         } catch (tootGereeError) {
-          console.error(`❌ [WALLET LOGIN] Error creating geree for toot ${tootEntry.toot}:`, tootGereeError.message);
+          console.log(`orshinSuugch service`);
           // Continue with next toot if this one fails
         }
       }
@@ -2062,14 +2057,14 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(orshinSuugch.baiguullagiinId);
         
         if (!baiguullaga) {
-          console.error("❌ [WALLET LOGIN] Baiguullaga not found for geree creation");
+          console.log("orshinSuugch service");
         } else {
           const tukhainBaaziinKholbolt = db.kholboltuud.find(
             (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
           );
 
           if (!tukhainBaaziinKholbolt) {
-            console.error("❌ [WALLET LOGIN] Kholbolt not found for geree creation");
+            console.log("orshinSuugch service");
           } else {
             // Check if geree already exists for this user and toot combination
             const GereeModel = Geree(tukhainBaaziinKholbolt);
@@ -2081,14 +2076,26 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             });
 
             if (existingGeree) {
-              console.log("ℹ️ [WALLET LOGIN] Geree already exists for this user and toot:", existingGeree._id);
+              console.log("orshinSuugch service");
             } else {
-              console.log("📋 [WALLET LOGIN] No active geree found - creating new geree...");
-              const targetBarilga = baiguullaga.barilguud?.find(
-                (b) => String(b._id) === String(orshinSuugch.barilgiinId)
-              );
+              // Validate: One toot cannot have different owners
+              if (orshinSuugch.toot && orshinSuugch.barilgiinId) {
+                const conflictingGeree = await GereeModel.findOne({
+                  barilgiinId: orshinSuugch.barilgiinId,
+                  toot: orshinSuugch.toot,
+                  tuluv: "Идэвхтэй",
+                  orshinSuugchId: { $ne: orshinSuugch._id.toString() }
+                });
 
-              if (targetBarilga) {
+                if (conflictingGeree) {
+                  console.log("orshinSuugch service");
+                  // Skip creating contract - toot already owned by someone else
+                } else {
+                  const targetBarilga = baiguullaga.barilguud?.find(
+                    (b) => String(b._id) === String(orshinSuugch.barilgiinId)
+                  );
+
+                  if (targetBarilga) {
                 // Get ashiglaltiinZardluud from barilga
                 const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
                 const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
@@ -2157,35 +2164,33 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                   actOgnoo: new Date(),
                   baritsaaniiUldegdel: 0,
                   ekhniiUldegdel: orshinSuugch.ekhniiUldegdel || 0,
-                  zardluud: zardluudArray,
-                  segmentuud: [],
-                  khungulultuud: [],
-                };
+                      zardluud: zardluudArray,
+                      segmentuud: [],
+                      khungulultuud: [],
+                    };
 
-                const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
-                await geree.save();
-                console.log("✅ [WALLET LOGIN] Geree created:", geree._id);
+                    const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
+                    await geree.save();
+                    console.log("orshinSuugch service");
 
-                // Update davkhar with toot if provided
-                if (orshinSuugch.toot && orshinSuugch.davkhar) {
-                  await exports.updateDavkharWithToot(
-                    baiguullaga,
-                    orshinSuugch.barilgiinId,
-                    orshinSuugch.davkhar,
-                    orshinSuugch.toot,
-                    tukhainBaaziinKholbolt
-                  );
-                  console.log("✅ [WALLET LOGIN] Davkhar updated with toot");
+                    // Update davkhar with toot if provided
+                    if (orshinSuugch.toot && orshinSuugch.davkhar) {
+                      await exports.updateDavkharWithToot(
+                        baiguullaga,
+                        orshinSuugch.barilgiinId,
+                        orshinSuugch.davkhar,
+                        orshinSuugch.toot,
+                        tukhainBaaziinKholbolt
+                      );
+                    }
+                  }
                 }
-
-                // Invoice will be created by cron job on scheduled date
-                console.log("ℹ️ [WALLET LOGIN] Invoice will be created by cron job on scheduled date");
               }
             }
           }
         }
       } catch (gereeError) {
-        console.error("❌ [WALLET LOGIN] Error creating geree:", gereeError.message);
+        console.log("orshinSuugch service");
         // Don't fail login if geree creation fails
       }
     }
