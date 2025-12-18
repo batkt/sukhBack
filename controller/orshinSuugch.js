@@ -1172,6 +1172,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           }
         }
       }
+      }
     } catch (contractError) {
       console.error("❌ [REGISTER] Error creating contract:", contractError);
       console.error("❌ [REGISTER] Contract error stack:", contractError?.stack);
