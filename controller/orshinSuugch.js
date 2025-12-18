@@ -603,16 +603,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       }
     }
 
-    // If still no barilgiinId, use first building as fallback
-    if (
-      !barilgiinId &&
-      baiguullaga.barilguud &&
-      baiguullaga.barilguud.length > 0
-    ) {
-      barilgiinId = String(baiguullaga.barilguud[0]._id);
-      console.log(`⚠️  Using first building as fallback: ${barilgiinId}`);
-    }
-
     // Multiple users can have the same toot, so no unique check needed
     // Toot validation will be done when adding to toots array
 
