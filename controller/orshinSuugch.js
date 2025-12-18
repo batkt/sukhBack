@@ -298,10 +298,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
 
     // Note: duureg, horoo, and soh are optional - can be retrieved from baiguullaga if not provided
-
-    if (!req.body.baiguullagiinId) {
-      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
-    }
+    // baiguullagiinId can be determined from address selection (OWN_ORG) if not provided upfront
+    // If email is provided, proceed with Wallet API registration and get baiguullagiinId from address
 
     if (!req.body.utas) {
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
@@ -315,20 +313,30 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Нэр заавал бөглөх шаардлагатай!");
     }
 
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      req.body.baiguullagiinId
-    );
+    // Email is optional - only register with Wallet API if email is provided
+    const email = req.body.mail ? String(req.body.mail).trim() : null;
+    
+    // If email is provided, we'll proceed with Wallet API registration
+    // baiguullagiinId can be determined from address selection later
+    // Only require baiguullagiinId upfront if no email (direct OWN_ORG registration)
+    let baiguullaga = null;
+    if (req.body.baiguullagiinId) {
+      baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        req.body.baiguullagiinId
+      );
 
-    if (!baiguullaga) {
-      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+      if (!baiguullaga) {
+        throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
+      }
+    } else if (!email) {
+      // No email and no baiguullagiinId - require baiguullagiinId for OWN_ORG registration
+      throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
     }
+    // If email is provided but no baiguullagiinId, we'll try to get it from address selection later
 
     const phoneNumber = String(req.body.utas).trim();
     let walletUserInfo = null;
     let walletUserId = null;
-
-    // Email is optional - only register with Wallet API if email is provided
-    const email = req.body.mail ? String(req.body.mail).trim() : null;
 
     if (email) {
       try {
@@ -374,12 +382,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     // Check for cancelled gerees by utas (user might have been deleted but gerees still exist)
     // This allows restoring data when re-registering
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
-    );
+    // Only check if baiguullaga exists
+    let tukhainBaaziinKholbolt = null;
+    if (baiguullaga) {
+      tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+      );
+    }
 
     let existingCancelledGeree = null;
-    if (tukhainBaaziinKholbolt) {
+    if (tukhainBaaziinKholbolt && baiguullaga) {
       const GereeModel = Geree(tukhainBaaziinKholbolt);
       // Find cancelled geree by utas (not by orshinSuugchId since user was deleted)
       existingCancelledGeree = await GereeModel.findOne({
@@ -829,13 +841,18 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     console.log("✅ [REGISTER] Verified tsahilgaaniiZaalt saved to orshinSuugch:", savedOrshinSuugch?.tsahilgaaniiZaalt);
 
     try {
-      // Reuse tukhainBaaziinKholbolt from above (already declared)
-      if (!tukhainBaaziinKholbolt) {
-        console.error("❌ [REGISTER] tukhainBaaziinKholbolt not found for baiguullaga:", baiguullaga._id);
-        throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
-      }
-      
-      console.log("✅ [REGISTER] tukhainBaaziinKholbolt found, proceeding with contract creation");
+      // Only create contracts if baiguullaga exists (OWN_ORG registration)
+      // If email is provided but no baiguullaga, skip contract creation (wallet-only registration)
+      if (!baiguullaga) {
+        console.log("ℹ️ [REGISTER] No baiguullaga found - skipping contract creation (wallet-only registration)");
+      } else {
+        // Reuse tukhainBaaziinKholbolt from above (already declared)
+        if (!tukhainBaaziinKholbolt) {
+          console.error("❌ [REGISTER] tukhainBaaziinKholbolt not found for baiguullaga:", baiguullaga._id);
+          throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
+        }
+        
+        console.log("✅ [REGISTER] tukhainBaaziinKholbolt found, proceeding with contract creation");
 
       // Get ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo
       const targetBarilgaForZardluud = baiguullaga.barilguud?.find(
