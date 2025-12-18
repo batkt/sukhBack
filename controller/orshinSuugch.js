@@ -712,7 +712,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       // User already exists - use existing user and add new toot
       orshinSuugch = existingUser;
       
-      // Update user info if provided
+      // Update user info if provided (name, email, etc.) but DON'T update toot-related fields
+      // We'll add the new toot to toots array instead
       if (req.body.ner) orshinSuugch.ner = req.body.ner;
       if (req.body.ovog) orshinSuugch.ovog = req.body.ovog;
       if (req.body.mail || walletUserInfo?.email) {
@@ -725,11 +726,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       if (tsahilgaaniiZaalt !== undefined) {
         orshinSuugch.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
       }
-      // Update baiguullagiinId if provided (user might be registering for different organization)
-      if (baiguullaga._id) {
-        orshinSuugch.baiguullagiinId = baiguullaga._id;
-        orshinSuugch.baiguullagiinNer = baiguullaga.ner;
-      }
+      // DON'T update toot, davkhar, barilgiinId - these are for the new toot being added
+      // The new toot will be added to toots array, keeping existing toots intact
     } else {
       // Create new user
       // IMPORTANT: Set tsahilgaaniiZaalt explicitly to ensure it's saved
@@ -778,13 +776,18 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         const horooData = targetBarilga.tokhirgoo?.horoo || req.body.horoo || {};
         const sohNer = targetBarilga.tokhirgoo?.sohNer || req.body.soh || "";
         
+        // Use toot from request body, not from orshinSuugch (which might be old toot for existing users)
+        const newToot = req.body.toot || "";
+        const newDavkhar = determinedDavkhar || req.body.davkhar || "";
+        const newOrts = req.body.orts || "1";
+        
         const tootEntry = {
-          toot: orshinSuugch.toot,
+          toot: newToot,
           source: "OWN_ORG",
           baiguullagiinId: baiguullaga._id.toString(),
           barilgiinId: barilgiinId,
-          davkhar: orshinSuugch.davkhar || "",
-          orts: orshinSuugch.orts || "1",
+          davkhar: newDavkhar,
+          orts: newOrts,
           duureg: duuregNer,
           horoo: horooData,
           soh: sohNer,
@@ -798,11 +801,24 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         );
         
         if (existingTootIndex >= 0) {
+          // Update existing toot entry if same toot and barilgiinId
           orshinSuugch.toots[existingTootIndex] = tootEntry;
-          console.log(`🔄 [WEBSITE REGISTER] Updated existing toot in array: ${tootEntry.toot}`);
+          console.log(`orshinSuugch service`);
         } else {
+          // Add new toot to array - don't update primary toot fields for existing users
           orshinSuugch.toots.push(tootEntry);
-          console.log(`➕ [WEBSITE REGISTER] Added new toot to array: ${tootEntry.toot}`);
+          console.log(`orshinSuugch service`);
+        }
+        
+        // Only update primary toot fields (toot, davkhar, barilgiinId) if this is a NEW user
+        // For existing users, keep their primary toot and just add new toot to toots array
+        if (!existingUser && newToot) {
+          orshinSuugch.toot = newToot;
+          orshinSuugch.davkhar = newDavkhar;
+          orshinSuugch.orts = newOrts;
+          orshinSuugch.barilgiinId = barilgiinId;
+          orshinSuugch.baiguullagiinId = baiguullaga._id;
+          orshinSuugch.baiguullagiinNer = baiguullaga.ner;
         }
       }
     }
