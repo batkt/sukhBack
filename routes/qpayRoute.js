@@ -483,51 +483,90 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         console.log("✅ [QPAY] Payment response keys:", Object.keys(result));
         console.log("✅ [QPAY] Full payment response:", JSON.stringify(result, null, 2));
         
-        // If bank details are empty, try to get full payment details
+        // If bank details are empty, try to get full payment details with retry
         if (!result.receiverBankCode || !result.receiverAccountNo) {
           console.log("⚠️ [QPAY] Bank details are empty, fetching full payment details...");
-          try {
-            const fullPaymentDetails = await walletApiService.getPayment(userPhoneNumber, result.paymentId);
-            if (fullPaymentDetails) {
-              // Try to extract bank details from various locations in the response
-              let bankCode = fullPaymentDetails.receiverBankCode;
-              let accountNo = fullPaymentDetails.receiverAccountNo;
-              let accountName = fullPaymentDetails.receiverAccountName;
+          
+          // Retry mechanism: Payment might be in NEW status and needs time to process
+          let bankCode = null;
+          let accountNo = null;
+          let accountName = null;
+          let paymentStatus = null;
+          let paymentStatusText = null;
+          
+          const maxRetries = 3;
+          const retryDelay = 1000; // 1 second delay between retries
+          
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              console.log(`🔄 [QPAY] Fetching payment details (attempt ${attempt}/${maxRetries})...`);
               
-              // Check in lines -> billTransactions (as seen in Postman collection)
-              if (!bankCode && fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
-                for (const line of fullPaymentDetails.lines) {
-                  if (line.billTransactions && Array.isArray(line.billTransactions) && line.billTransactions.length > 0) {
-                    const transaction = line.billTransactions[0];
-                    bankCode = bankCode || transaction.receiverBankCode;
-                    accountNo = accountNo || transaction.receiverAccountNo;
-                    accountName = accountName || transaction.receiverAccountName;
-                    if (bankCode && accountNo) break;
+              if (attempt > 1) {
+                // Wait before retrying (except first attempt)
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+              }
+              
+              const fullPaymentDetails = await walletApiService.getPayment(userPhoneNumber, result.paymentId);
+              
+              if (fullPaymentDetails) {
+                paymentStatus = fullPaymentDetails.paymentStatus;
+                paymentStatusText = fullPaymentDetails.paymentStatusText;
+                
+                // Try root level first
+                bankCode = fullPaymentDetails.receiverBankCode;
+                accountNo = fullPaymentDetails.receiverAccountNo;
+                accountName = fullPaymentDetails.receiverAccountName;
+                
+                // Check in lines -> billTransactions (as seen in Postman collection)
+                if ((!bankCode || !accountNo) && fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
+                  for (const line of fullPaymentDetails.lines) {
+                    if (line.billTransactions && Array.isArray(line.billTransactions) && line.billTransactions.length > 0) {
+                      const transaction = line.billTransactions[0];
+                      bankCode = bankCode || transaction.receiverBankCode;
+                      accountNo = accountNo || transaction.receiverAccountNo;
+                      accountName = accountName || transaction.receiverAccountName;
+                      if (bankCode && accountNo) {
+                        console.log("✅ [QPAY] Bank details found in billTransactions");
+                        break;
+                      }
+                    }
+                  }
+                }
+                
+                if (bankCode && accountNo) {
+                  console.log("✅ [QPAY] Bank details found on attempt", attempt);
+                  console.log("✅ [QPAY] - receiverBankCode:", bankCode);
+                  console.log("✅ [QPAY] - receiverAccountNo:", accountNo);
+                  console.log("✅ [QPAY] - receiverAccountName:", accountName);
+                  break; // Success, exit retry loop
+                } else {
+                  console.log(`⚠️ [QPAY] Attempt ${attempt}: Payment status is "${paymentStatus}" - bank details not ready yet`);
+                  if (attempt < maxRetries) {
+                    console.log(`⏳ [QPAY] Waiting ${retryDelay}ms before retry...`);
                   }
                 }
               }
-              
-              // Merge full payment details with initial response
-              Object.assign(result, {
-                receiverBankCode: bankCode || result.receiverBankCode,
-                receiverAccountNo: accountNo || result.receiverAccountNo,
-                receiverAccountName: accountName || result.receiverAccountName,
-                paymentStatus: fullPaymentDetails.paymentStatus,
-                paymentStatusText: fullPaymentDetails.paymentStatusText,
-              });
-              
-              if (bankCode && accountNo) {
-                console.log("✅ [QPAY] Bank details found in payment status");
-                console.log("✅ [QPAY] - receiverBankCode:", bankCode);
-                console.log("✅ [QPAY] - receiverAccountNo:", accountNo);
-                console.log("✅ [QPAY] - receiverAccountName:", accountName);
-              } else {
-                console.log("⚠️ [QPAY] Bank details still not found - payment may be in NEW status");
-                console.log("⚠️ [QPAY] Payment status:", fullPaymentDetails.paymentStatus);
+            } catch (getPaymentError) {
+              console.log(`⚠️ [QPAY] Attempt ${attempt} failed:`, getPaymentError.message);
+              if (attempt === maxRetries) {
+                console.log("❌ [QPAY] All retry attempts failed");
               }
             }
-          } catch (getPaymentError) {
-            console.log("⚠️ [QPAY] Could not fetch full payment details:", getPaymentError.message);
+          }
+          
+          // Merge payment details with initial response
+          Object.assign(result, {
+            receiverBankCode: bankCode || result.receiverBankCode || "",
+            receiverAccountNo: accountNo || result.receiverAccountNo || "",
+            receiverAccountName: accountName || result.receiverAccountName || "",
+            paymentStatus: paymentStatus || result.paymentStatus,
+            paymentStatusText: paymentStatusText || result.paymentStatusText,
+          });
+          
+          if (!bankCode || !accountNo) {
+            console.log("⚠️ [QPAY] Bank details still not available after retries");
+            console.log("⚠️ [QPAY] Payment status:", paymentStatus || "UNKNOWN");
+            console.log("ℹ️ [QPAY] Frontend should poll payment status or retry payment creation");
           }
         }
         
@@ -542,12 +581,19 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           console.log("⚠️ [QPAY] - paymentAmount:", result.paymentAmount);
         }
         
+        // Check if bank details are still missing after retries
+        const hasBankDetails = result.receiverBankCode && result.receiverAccountNo;
+        
         return res.status(200).json({
           success: true,
           data: result,
-          message: "QPay төлбөр амжилттай үүсгэлээ",
+          message: hasBankDetails 
+            ? "QPay төлбөр амжилттай үүсгэлээ" 
+            : "Төлбөр үүссэн. Банкны мэдээлэл бэлтгэж байна. Түр хүлээнэ үү.",
           source: "WALLET_API",
           invoiceId: invoiceId, // Return invoiceId in case frontend needs it
+          needsPolling: !hasBankDetails, // Flag to indicate frontend should poll for bank details
+          pollingEndpoint: hasBankDetails ? null : `/api/payment/${result.paymentId}`, // Endpoint to poll (relative path)
         });
       } catch (walletQPayError) {
         console.error("❌ [QPAY] Wallet API QPay error:", walletQPayError.message);
