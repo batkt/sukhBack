@@ -411,6 +411,27 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         console.log("✅ [QPAY] Payment response keys:", Object.keys(result));
         console.log("✅ [QPAY] Full payment response:", JSON.stringify(result, null, 2));
         
+        // If bank details are empty, try to get full payment details
+        if (!result.receiverBankCode || !result.receiverAccountNo) {
+          console.log("⚠️ [QPAY] Bank details are empty, fetching full payment details...");
+          try {
+            const fullPaymentDetails = await walletApiService.getPayment(userPhoneNumber, result.paymentId);
+            if (fullPaymentDetails) {
+              // Merge full payment details with initial response
+              Object.assign(result, {
+                receiverBankCode: fullPaymentDetails.receiverBankCode || result.receiverBankCode,
+                receiverAccountNo: fullPaymentDetails.receiverAccountNo || result.receiverAccountNo,
+                receiverAccountName: fullPaymentDetails.receiverAccountName || result.receiverAccountName,
+                paymentStatus: fullPaymentDetails.paymentStatus,
+                paymentStatusText: fullPaymentDetails.paymentStatusText,
+              });
+              console.log("✅ [QPAY] Full payment details retrieved");
+            }
+          } catch (getPaymentError) {
+            console.log("⚠️ [QPAY] Could not fetch full payment details:", getPaymentError.message);
+          }
+        }
+        
         // Check for QR code in response
         if (result.qrText) {
           console.log("✅ [QPAY] QR code found in response");

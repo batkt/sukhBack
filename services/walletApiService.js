@@ -848,6 +848,50 @@ async function createPayment(userId, paymentData) {
   }
 }
 
+async function getPayment(userId, paymentId) {
+  try {
+    console.log("📋 [WALLET API] Getting payment status...");
+    console.log("📋 [WALLET API] userId:", userId);
+    console.log("📋 [WALLET API] paymentId:", paymentId);
+    
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.get(
+      `${WALLET_API_BASE_URL}/api/payment/${paymentId}`,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+
+    console.log("📋 [WALLET API] Get payment response status:", response.status);
+    console.log("📋 [WALLET API] Get payment responseCode:", response.data?.responseCode);
+
+    if (response.data && response.data.responseCode && response.data.data) {
+      console.log("✅ [WALLET API] Payment found");
+      console.log("✅ [WALLET API] Payment status:", response.data.data.paymentStatus);
+      console.log("✅ [WALLET API] Payment amount:", response.data.data.amount || response.data.data.paymentAmount);
+      return response.data.data;
+    }
+
+    console.log("⚠️ [WALLET API] Payment not found or invalid response");
+    return null;
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      console.log("⚠️ [WALLET API] Payment not found (404)");
+      return null;
+    }
+    console.error("❌ [WALLET API] Error getting payment:", error.message);
+    if (error.response) {
+      console.error("❌ [WALLET API] Error response status:", error.response.status);
+      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
+    }
+    throw error;
+  }
+}
+
 async function editUser(userId, userData) {
   try {
     const token = await getWalletServiceToken();
@@ -947,6 +991,7 @@ module.exports = {
   getBillingList,
   getBillingBills,
   getBillingPayments,
+  getPayment,
   saveBilling,
   removeBilling,
   removeBill,
