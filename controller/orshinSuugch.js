@@ -361,17 +361,14 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
 
     // Check for existing user by utas OR walletUserId (unified check)
+    // Allow same phone number to register multiple toots - no duplicate check
+    // If user exists, we'll use that user and add new toot to their toots array
     const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [
         { utas: phoneNumber },
         ...(walletUserId ? [{ walletUserId: walletUserId }] : [])
       ]
     });
-
-    // If user exists and is active (not deleted), throw error
-    if (existingUser) {
-      throw new aldaa("Утасны дугаар давхардаж байна!");
-    }
 
     // Check for cancelled gerees by utas (user might have been deleted but gerees still exist)
     // This allows restoring data when re-registering
@@ -709,35 +706,61 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     console.log("⚡ [REGISTER] Request body tsahilgaaniiZaalt:", req.body.tsahilgaaniiZaalt);
     console.log("⚡ [REGISTER] Parsed tsahilgaaniiZaalt:", tsahilgaaniiZaalt, "кВт");
 
-    // Create new user (existing user check already handled above)
-    // IMPORTANT: Set tsahilgaaniiZaalt explicitly to ensure it's saved
-    const userData = {
-      ...req.body,
-      baiguullagiinId: baiguullaga._id,
-      baiguullagiinNer: baiguullaga.ner,
-      barilgiinId: barilgiinId,
-      mail: walletUserInfo?.email || req.body.mail || email, // Use email from Wallet API if available
-      erkh: "OrshinSuugch",
-      duureg: req.body.duureg,
-      horoo: req.body.horoo,
-      soh: req.body.soh,
-      nevtrekhNer: req.body.utas,
-      toot: req.body.toot || "",
-      davkhar: determinedDavkhar, // Automatically determined from toot
-      orts: req.body.orts || "", // Automatically determined from toot if found
-      ekhniiUldegdel: req.body.ekhniiUldegdel
-        ? parseFloat(req.body.ekhniiUldegdel) || 0
-        : 0, // Optional: from frontend
-      // Link to Wallet API (unifies website and mobile users)
-      ...(walletUserId ? { walletUserId: walletUserId } : {}),
-    };
-    
-    userData.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
-    
-    console.log("⚡ [REGISTER] userData.tsahilgaaniiZaalt:", userData.tsahilgaaniiZaalt);
-    console.log("⚡ [REGISTER] Full userData keys:", Object.keys(userData));
+    // If user exists, use existing user and add new toot to their toots array
+    // If user doesn't exist, create new user
+    if (existingUser) {
+      // User already exists - use existing user and add new toot
+      orshinSuugch = existingUser;
+      
+      // Update user info if provided
+      if (req.body.ner) orshinSuugch.ner = req.body.ner;
+      if (req.body.ovog) orshinSuugch.ovog = req.body.ovog;
+      if (req.body.mail || walletUserInfo?.email) {
+        orshinSuugch.mail = walletUserInfo?.email || req.body.mail || email || orshinSuugch.mail;
+      }
+      if (walletUserId) orshinSuugch.walletUserId = walletUserId;
+      if (req.body.ekhniiUldegdel !== undefined) {
+        orshinSuugch.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
+      }
+      if (tsahilgaaniiZaalt !== undefined) {
+        orshinSuugch.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
+      }
+      // Update baiguullagiinId if provided (user might be registering for different organization)
+      if (baiguullaga._id) {
+        orshinSuugch.baiguullagiinId = baiguullaga._id;
+        orshinSuugch.baiguullagiinNer = baiguullaga.ner;
+      }
+    } else {
+      // Create new user
+      // IMPORTANT: Set tsahilgaaniiZaalt explicitly to ensure it's saved
+      const userData = {
+        ...req.body,
+        baiguullagiinId: baiguullaga._id,
+        baiguullagiinNer: baiguullaga.ner,
+        barilgiinId: barilgiinId,
+        mail: walletUserInfo?.email || req.body.mail || email, // Use email from Wallet API if available
+        erkh: "OrshinSuugch",
+        duureg: req.body.duureg,
+        horoo: req.body.horoo,
+        soh: req.body.soh,
+        nevtrekhNer: req.body.utas,
+        toot: req.body.toot || "",
+        davkhar: determinedDavkhar, // Automatically determined from toot
+        orts: req.body.orts || "", // Automatically determined from toot if found
+        ekhniiUldegdel: req.body.ekhniiUldegdel
+          ? parseFloat(req.body.ekhniiUldegdel) || 0
+          : 0, // Optional: from frontend
+        // Link to Wallet API (unifies website and mobile users)
+        ...(walletUserId ? { walletUserId: walletUserId } : {}),
+      };
+      
+      userData.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
+      
+      console.log("⚡ [REGISTER] userData.tsahilgaaniiZaalt:", userData.tsahilgaaniiZaalt);
+      console.log("⚡ [REGISTER] Full userData keys:", Object.keys(userData));
 
-    orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+      orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
+    }
     
     console.log("⚡ [REGISTER] orshinSuugch.tsahilgaaniiZaalt after creation:", orshinSuugch.tsahilgaaniiZaalt);
     
@@ -1083,27 +1106,8 @@ exports.davhardsanOrshinSuugchShalgayy = asyncHandler(
       const { db } = require("zevbackv2");
       const { utas, baiguullagiinId } = req.body;
 
-      const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-        baiguullagiinId: baiguullagiinId,
-        $or: [{ utas: utas }],
-      });
-
-      if (existingUser) {
-        let message = "";
-        if (utas && existingUser.utas === utas) {
-          message = "Утасны дугаар давхардаж байна!";
-        }
-
-        if (utas && existingUser.utas === utas) {
-          message = "Утасны дугаар болон регистр давхардаж байна!";
-        }
-
-        return res.json({
-          success: false,
-          message: message,
-        });
-      }
-
+      // Allow same phone number to register multiple toots - no duplicate check
+      // User can have multiple toots, so always return success
       res.json({
         success: true,
         message: "Ашиглах боломжтой",
