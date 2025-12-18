@@ -231,6 +231,8 @@ baiguullagaSchema.post("save", async function (doc) {
       return;
     }
 
+    console.log("🔄 [BAIGULLAGA HOOK] Post-save hook triggered for baiguullaga:", doc._id);
+
     const { db } = require("zevbackv2");
     const Geree = require("./geree");
 
@@ -239,6 +241,7 @@ baiguullagaSchema.post("save", async function (doc) {
     );
 
     if (!kholbolt) {
+      console.log("⚠️ [BAIGULLAGA HOOK] No kholbolt found for baiguullaga:", doc._id);
       return;
     }
 
@@ -262,6 +265,10 @@ baiguullagaSchema.post("save", async function (doc) {
         barilgiinId: barilgiinId,
         tuluv: "Идэвхтэй", // Only update active contracts
       });
+
+      console.log(
+        `🔄 [BAIGULLAGA HOOK] Found ${gereenuud.length} active geree for barilga ${barilgiinId} with ${ashiglaltiinZardluud.length} zardluud`
+      );
 
       for (const geree of gereenuud) {
         if (!geree.zardluud) {
@@ -297,13 +304,17 @@ baiguullagaSchema.post("save", async function (doc) {
           const key = `${buildingZardal.ner || ""}_${buildingZardal.turul || ""}_${buildingZardal.zardliinTurul || ""}`;
           
           // Find existing zardal in geree
+          // Match by ner, turul, zardliinTurul
+          // For barilgiinId: if geree zardal doesn't have barilgiinId, it's from this building (backward compatibility)
+          // If geree zardal has barilgiinId, it must match this building's barilgiinId
           const existingIndex = geree.zardluud.findIndex((z) => {
             const matchesNer = z.ner === buildingZardal.ner;
             const matchesTurul = z.turul === buildingZardal.turul;
             const matchesZardliinTurul = z.zardliinTurul === buildingZardal.zardliinTurul;
-            const matchesBarilgiinId =
-              (!buildingZardal.barilgiinId && !z.barilgiinId) ||
-              (z.barilgiinId && String(z.barilgiinId) === barilgiinId);
+            
+            // For backward compatibility: if zardal doesn't have barilgiinId, assume it's from this building
+            // If zardal has barilgiinId, it must match this building's barilgiinId
+            const matchesBarilgiinId = !z.barilgiinId || String(z.barilgiinId) === barilgiinId;
             
             return matchesNer && matchesTurul && matchesZardliinTurul && matchesBarilgiinId;
           });
@@ -350,10 +361,15 @@ baiguullagaSchema.post("save", async function (doc) {
           return sum + (zardal.tariff || 0);
         }, 0);
 
+        const oldNiitTulbur = geree.niitTulbur;
         geree.niitTulbur = niitTulbur;
 
         // Save the updated geree
         await geree.save();
+
+        console.log(
+          `✅ [BAIGULLAGA HOOK] Updated geree ${geree.gereeniiDugaar}: niitTulbur ${oldNiitTulbur} → ${niitTulbur}, zardluud count: ${geree.zardluud.length}`
+        );
 
         // NOTE: Do NOT update existing nekhemjlekhiinTuukh (invoice) records
         // Once an invoice is created, it should NEVER be modified
