@@ -3413,9 +3413,7 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
 
-    // Use walletUserId if available, otherwise fall back to phone number
-    // Wallet API might need the walletUserId (UUID) instead of phone number
-    const userIdForWalletApi = orshinSuugch.walletUserId || orshinSuugch.utas;
+    // Wallet API uses phone number as userId in header, not walletUserId UUID
     const phoneNumber = orshinSuugch.utas;
     const bairId = req.body.bairId;
     const doorNo = req.body.doorNo;
@@ -3423,14 +3421,14 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
     console.log("🏠 [WALLET BILLING] Fetching billing info from Wallet API...");
     console.log("🏠 [WALLET BILLING] User (phoneNumber):", phoneNumber);
     console.log("🏠 [WALLET BILLING] User (walletUserId):", orshinSuugch.walletUserId || "N/A");
-    console.log("🏠 [WALLET BILLING] Using userIdForWalletApi:", userIdForWalletApi);
+    console.log("🏠 [WALLET BILLING] Using phoneNumber as userId for Wallet API:", phoneNumber);
     console.log("🏠 [WALLET BILLING] bairId:", bairId, "doorNo:", doorNo);
 
     let billingInfo = null;
     try {
-      // Try with walletUserId first if available, otherwise use phone number
+      // Wallet API requires phone number as userId in header, not walletUserId UUID
       const billingResponse = await walletApiService.getBillingByAddress(
-        userIdForWalletApi,
+        phoneNumber,
         bairId,
         doorNo
       );
@@ -3447,9 +3445,9 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           try {
             console.log("🔍 [WALLET BILLING] Billing ID not found, fetching by customer ID...");
             console.log("🔍 [WALLET BILLING] Customer ID:", billingInfo.customerId);
-            // Use walletUserId if available, otherwise phoneNumber
+            // Wallet API requires phone number as userId in header
             const billingByCustomer = await walletApiService.getBillingByCustomer(
-              userIdForWalletApi,
+              phoneNumber,
               billingInfo.customerId
             );
             if (billingByCustomer && billingByCustomer.billingId) {
@@ -3462,8 +3460,8 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
               // Try to find billingId from billing list
               try {
                 console.log("🔍 [WALLET BILLING] Trying to find billingId from billing list...");
-                // Use walletUserId if available, otherwise phoneNumber
-                const billingList = await walletApiService.getBillingList(userIdForWalletApi);
+                // Wallet API requires phone number as userId in header
+                const billingList = await walletApiService.getBillingList(phoneNumber);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
                     b.customerId === billingInfo.customerId || 
@@ -3492,8 +3490,8 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
             // Try billing list as fallback
             try {
               console.log("🔍 [WALLET BILLING] Trying billing list as fallback...");
-                // Use walletUserId if available, otherwise phoneNumber
-                const billingList = await walletApiService.getBillingList(userIdForWalletApi);
+                // Wallet API requires phone number as userId in header
+                const billingList = await walletApiService.getBillingList(phoneNumber);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
                     b.customerId === billingInfo.customerId
