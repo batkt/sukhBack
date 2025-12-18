@@ -3509,9 +3509,27 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
         }
       } else {
         console.log("⚠️ [WALLET BILLING] No billing info found for this address");
+        
+        // Try to get billing list to see if user has any billing registered
+        let hasAnyBilling = false;
+        try {
+          console.log("🔍 [WALLET BILLING] Checking if user has any billing registered...");
+          const billingList = await walletApiService.getBillingList(phoneNumber);
+          if (billingList && billingList.length > 0) {
+            hasAnyBilling = true;
+            console.log(`✅ [WALLET BILLING] User has ${billingList.length} billing(s) registered, but not for this address`);
+          }
+        } catch (listError) {
+          console.error("⚠️ [WALLET BILLING] Error checking billing list:", listError.message);
+        }
+        
         return res.status(404).json({
           success: false,
-          message: "Энэ хаягийн биллингийн мэдээлэл олдсонгүй",
+          message: hasAnyBilling 
+            ? "Энэ хаягийн биллингийн мэдээлэл олдсонгүй. Энэ хаягийг Wallet API-д бүртгүүлэх шаардлагатай."
+            : "Энэ хаягийн биллингийн мэдээлэл олдсонгүй. Wallet API-д биллингийн мэдээлэл бүртгэгдээгүй байна.",
+          hasAnyBilling: hasAnyBilling,
+          suggestion: "Энэ хаягийг Wallet API-д бүртгүүлэх эсвэл бусад хаягаа шалгана уу."
         });
       }
     } catch (billingError) {
