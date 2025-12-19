@@ -386,6 +386,11 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
 
 // Pre-save hook to validate that toots are unique across all davkhars
 baiguullagaSchema.pre("save", function (next) {
+  console.log(`🚨🚨🚨 [VALIDATION PRE-SAVE] ========== PRE-SAVE HOOK EXECUTING ==========`);
+  console.log(`🚨🚨🚨 [VALIDATION PRE-SAVE] this._id:`, this._id);
+  console.log(`🚨🚨🚨 [VALIDATION PRE-SAVE] this.barilguud exists:`, !!this.barilguud);
+  console.log(`🚨🚨🚨 [VALIDATION PRE-SAVE] this.barilguud is array:`, Array.isArray(this.barilguud));
+  
   try {
     console.log(`🔍 [VALIDATION PRE-SAVE] Validating baiguullaga before save...`);
     const error = validateDavkhariinToonuud(this.barilguud);
@@ -398,19 +403,24 @@ baiguullagaSchema.pre("save", function (next) {
     next();
   } catch (error) {
     console.error(`❌ [VALIDATION PRE-SAVE] Error in validation:`, error);
+    console.error(`❌ [VALIDATION PRE-SAVE] Error stack:`, error.stack);
     next(error);
   }
 });
 
 // Post-save hook - validate AFTER save as safety check
 baiguullagaSchema.post("save", async function (doc) {
+  console.log(`🚨 [VALIDATION POST-SAVE] ========== POST-SAVE HOOK EXECUTING ==========`);
+  console.log(`🚨 [VALIDATION POST-SAVE] doc._id:`, doc._id);
+  console.log(`🚨 [VALIDATION POST-SAVE] doc.barilguud exists:`, !!doc.barilguud);
+  console.log(`🚨 [VALIDATION POST-SAVE] doc.barilguud is array:`, Array.isArray(doc.barilguud));
+  
   try {
     // Validate after save as a safety check (though pre-save should catch it)
     console.log(`🔍 [VALIDATION POST-SAVE] Validating after save as safety check...`);
-    console.log(`🔍 [VALIDATION POST-SAVE] doc.barilguud exists:`, !!doc.barilguud);
-    console.log(`🔍 [VALIDATION POST-SAVE] doc.barilguud is array:`, Array.isArray(doc.barilguud));
     
     if (doc.barilguud && Array.isArray(doc.barilguud)) {
+      console.log(`🔍 [VALIDATION POST-SAVE] Calling validateDavkhariinToonuud with ${doc.barilguud.length} buildings...`);
       const error = validateDavkhariinToonuud(doc.barilguud);
       if (error) {
         console.error(`❌ [VALIDATION POST-SAVE] Duplicate toots detected after save! This should not happen.`, error.message);
@@ -424,9 +434,12 @@ baiguullagaSchema.post("save", async function (doc) {
     }
   } catch (err) {
     console.error(`❌ [VALIDATION POST-SAVE] Error during validation:`, err);
+    console.error(`❌ [VALIDATION POST-SAVE] Error stack:`, err.stack);
   }
   
+  console.log(`🚨 [VALIDATION POST-SAVE] About to call updateGereeFromBaiguullagaZardluud...`);
   await updateGereeFromBaiguullagaZardluud(doc);
+  console.log(`🚨 [VALIDATION POST-SAVE] Finished updateGereeFromBaiguullagaZardluud`);
 });
 
 // Helper function to validate davkhariinToonuud for duplicate toots

@@ -10,6 +10,103 @@ const axios = require("axios");
 const request = require("request");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 
+// Validation function for duplicate toots
+function validateDavkhariinToonuud(barilguud) {
+  if (!barilguud || !Array.isArray(barilguud)) {
+    return null; // No error
+  }
+
+  // Check each building's davkhariinToonuud for duplicate toots across davkhars
+  for (let barilgaIndex = 0; barilgaIndex < barilguud.length; barilgaIndex++) {
+    const barilga = barilguud[barilgaIndex];
+    
+    if (!barilga.tokhirgoo || !barilga.tokhirgoo.davkhariinToonuud) {
+      continue;
+    }
+
+    const davkhariinToonuud = barilga.tokhirgoo.davkhariinToonuud;
+    const tootMap = new Map(); // Map<toot, davkhar>
+
+    // Iterate through all floor keys (format: "orts::davkhar" or just "davkhar")
+    for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+      if (!tootArray || !Array.isArray(tootArray)) {
+        continue;
+      }
+
+      // Extract davkhar from floorKey
+      let davkhar = "";
+      if (floorKey.includes("::")) {
+        const parts = floorKey.split("::");
+        davkhar = parts[1] || parts[0]; // davkhar is the second part (e.g., "1::4" -> "4")
+      } else {
+        davkhar = floorKey; // If no ::, the key itself is davkhar (e.g., "1" -> "1")
+      }
+
+      // Parse toot list from array (can be comma-separated string or array)
+      let tootList = [];
+      if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+        tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+      } else {
+        tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+      }
+
+      // Check each toot for duplicates across davkhars
+      for (const toot of tootList) {
+        if (tootMap.has(toot)) {
+          const existingDavkhar = tootMap.get(toot);
+          return new Error(
+            `Тоот "${toot}" аль хэдийн ${existingDavkhar}-р давхарт байна. ${davkhar}-р давхарт давхардсан тоот байж болохгүй!`
+          );
+        }
+        tootMap.set(toot, davkhar);
+      }
+    }
+  }
+
+  return null; // No error
+}
+
+// Custom PUT route with validation - MUST be before crud() to intercept PUT requests
+router.put("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    console.log(`🔍 [ROUTE VALIDATION] PUT request to /baiguullaga/${req.params.id}`);
+    
+    // Validate barilguud if present in request body
+    if (req.body.barilguud && Array.isArray(req.body.barilguud)) {
+      console.log(`🔍 [ROUTE VALIDATION] Validating ${req.body.barilguud.length} buildings for duplicate toots...`);
+      const error = validateDavkhariinToonuud(req.body.barilguud);
+      if (error) {
+        console.error(`❌ [ROUTE VALIDATION] Validation failed:`, error.message);
+        return res.status(400).json({
+          success: false,
+          message: error.message,
+        });
+      }
+      console.log(`✅ [ROUTE VALIDATION] Validation passed, proceeding with update`);
+    }
+    
+    // If validation passes, proceed with the update using findByIdAndUpdate
+    const result = await Baiguullaga(db.erunkhiiKholbolt).findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллага олдсонгүй",
+      });
+    }
+    
+    res.json(result);
+  } catch (error) {
+    console.error(`❌ [ROUTE VALIDATION] Error:`, error);
+    next(error);
+  }
+});
+
 crud(router, "baiguullaga", Baiguullaga, UstsanBarimt);
 
 router.post("/baiguullagaBurtgekh", async (req, res, next) => {
