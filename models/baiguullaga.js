@@ -487,25 +487,32 @@ baiguullagaSchema.pre("updateOne", function (next) {
 // Validate both full array updates AND nested path updates that modify davkhariinToonuud
 baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
   try {
-    // Check if this is a full barilguud array update (from PUT request)
+    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Checking update...`);
+    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] _update keys:`, Object.keys(this._update || {}));
+    
+    // Check if this is a full barilguud array update (from PUT request with full object)
     if (this._update && this._update.barilguud && !this._update.$set) {
+      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Full barilguud array update detected`);
       const error = validateDavkhariinToonuud(this._update.barilguud);
       if (error) {
+        console.error(`❌ [VALIDATION PRE-FINDONEANDUPDATE] Validation failed:`, error.message);
         error.name = "ValidationError";
         return next(error);
       }
+      console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] Full array validation passed`);
     }
     
     // ALWAYS check if davkhariinToonuud is being updated via $set
     // This includes both PUT requests and updateDavkharWithToot calls
     if (this._update && this._update.$set) {
       const setKeys = Object.keys(this._update.$set);
+      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] $set keys:`, setKeys);
       const isDavkhariinToonuudUpdate = setKeys.some(key => 
         key.includes('tokhirgoo.davkhariinToonuud')
       );
       
       if (isDavkhariinToonuudUpdate) {
-        console.log(`🔍 [VALIDATION] Detected davkhariinToonuud update, validating for duplicates...`);
+        console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Detected davkhariinToonuud update, validating for duplicates...`);
         // Fetch current document to merge with update
         const doc = await this.model.findOne(this.getQuery()).lean();
         if (doc && doc.barilguud) {
@@ -522,31 +529,32 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
                 if (pathParts[2] === 'tokhirgoo' && pathParts[3] === 'davkhariinToonuud') {
                   mergedBarilguud[barilgaIndex].tokhirgoo = mergedBarilguud[barilgaIndex].tokhirgoo || {};
                   mergedBarilguud[barilgaIndex].tokhirgoo.davkhariinToonuud = value;
-                  console.log(`📝 [VALIDATION] Updated barilga[${barilgaIndex}].tokhirgoo.davkhariinToonuud`);
+                  console.log(`📝 [VALIDATION PRE-FINDONEANDUPDATE] Updated barilga[${barilgaIndex}].tokhirgoo.davkhariinToonuud`);
                 }
               }
             }
           }
           
           // ALWAYS validate the merged result to prevent ANY duplicates
-          console.log(`✅ [VALIDATION] Validating merged barilguud for duplicate toots...`);
+          console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] Validating merged barilguud for duplicate toots...`);
           const error = validateDavkhariinToonuud(mergedBarilguud);
           if (error) {
-            console.error(`❌ [VALIDATION] Validation failed:`, error.message);
+            console.error(`❌ [VALIDATION PRE-FINDONEANDUPDATE] Validation failed:`, error.message);
             error.name = "ValidationError";
             return next(error);
           }
-          console.log(`✅ [VALIDATION] No duplicates found, update allowed`);
+          console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] No duplicates found, update allowed`);
         } else {
-          console.warn(`⚠️ [VALIDATION] Document not found or no barilguud`);
+          console.warn(`⚠️ [VALIDATION PRE-FINDONEANDUPDATE] Document not found or no barilguud`);
         }
       } else {
-        console.log(`ℹ️ [VALIDATION] Not a davkhariinToonuud update, skipping validation`);
+        console.log(`ℹ️ [VALIDATION PRE-FINDONEANDUPDATE] Not a davkhariinToonuud update, skipping validation`);
       }
     }
     
     next();
   } catch (error) {
+    console.error(`❌ [VALIDATION PRE-FINDONEANDUPDATE] Error:`, error);
     next(error);
   }
 });
