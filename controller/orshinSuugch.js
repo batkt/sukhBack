@@ -1734,11 +1734,20 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     // Handle barilgiinId - check both barilgiinId and bairId (frontend might send either)
     const barilgiinIdToSave = req.body.barilgiinId || req.body.bairId;
     
+    // Check if this is an OWN_ORG address login (user is explicitly selecting a building)
+    const isOwnOrgAddressLoginCheck = req.body.baiguullagiinId && req.body.doorNo && (req.body.barilgiinId || req.body.bairId);
+    
     // Validate: User can only register with ONE building
-    // If user already has a barilgiinId, they cannot login/register with a different one
-    if (orshinSuugch && orshinSuugch.barilgiinId && barilgiinIdToSave) {
+    // ONLY validate if user is explicitly trying to login with OWN_ORG address AND a different building
+    // If user is just logging in normally (without providing barilgiinId), allow it
+    if (isOwnOrgAddressLoginCheck && orshinSuugch && orshinSuugch.barilgiinId && barilgiinIdToSave) {
       const existingBarilgiinId = String(orshinSuugch.barilgiinId);
       const newBarilgiinId = String(barilgiinIdToSave);
+      
+      console.log("🔍 [LOGIN] Checking building validation...");
+      console.log("🔍 [LOGIN] Existing barilgiinId:", existingBarilgiinId);
+      console.log("🔍 [LOGIN] New barilgiinId:", newBarilgiinId);
+      console.log("🔍 [LOGIN] isOwnOrgAddressLoginCheck:", isOwnOrgAddressLoginCheck);
       
       if (existingBarilgiinId !== newBarilgiinId) {
         // Get building names for better error message
@@ -1766,11 +1775,19 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           console.error("Error fetching building names:", err.message);
         }
         
+        console.error("❌ [LOGIN] User trying to login with different building!");
+        console.error("❌ [LOGIN] Existing:", existingBuildingName, "New:", newBuildingName);
+        
         return res.status(400).json({
           success: false,
           message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад нэвтрэх боломжгүй.`,
         });
       }
+    } else {
+      console.log("✅ [LOGIN] Building validation skipped (not OWN_ORG login or no barilgiinId provided)");
+      console.log("✅ [LOGIN] isOwnOrgAddressLoginCheck:", isOwnOrgAddressLoginCheck);
+      console.log("✅ [LOGIN] orshinSuugch.barilgiinId:", orshinSuugch?.barilgiinId);
+      console.log("✅ [LOGIN] barilgiinIdToSave:", barilgiinIdToSave);
     }
     
     if (barilgiinIdToSave) {
