@@ -329,6 +329,10 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
   try {
     const token = await getWalletServiceToken();
     
+    console.log("🔍 [WALLET API] Getting billing by biller...");
+    console.log("🔍 [WALLET API] billerCode:", billerCode);
+    console.log("🔍 [WALLET API] customerCode:", customerCode);
+    
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/billing/biller/${billerCode}/${customerCode}`,
       {
@@ -339,16 +343,98 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
       }
     );
 
+    console.log("🔍 [WALLET API] Billing by biller response:", JSON.stringify(response.data, null, 2));
+
     if (response.data && response.data.responseCode && response.data.data) {
-      return response.data.data;
+      let data = response.data.data;
+      
+      // If data is an array, process each item
+      if (Array.isArray(data)) {
+        // For each customer, try to get billingId if not present
+        const enrichedData = await Promise.all(data.map(async (customer) => {
+          // If billingId is already present, return as is
+          if (customer.billingId) {
+            console.log("✅ [WALLET API] Customer already has billingId:", customer.billingId);
+            return customer;
+          }
+          
+          // Try to get billingId from billing list or by customerId
+          try {
+            if (customer.customerId) {
+              console.log("🔍 [WALLET API] Fetching billingId for customerId:", customer.customerId);
+              const billing = await getBillingByCustomer(userId, customer.customerId);
+              if (billing && billing.billingId) {
+                customer.billingId = billing.billingId;
+                console.log("✅ [WALLET API] Found billingId from getBillingByCustomer:", customer.billingId);
+              } else {
+                // Try billing list
+                console.log("🔍 [WALLET API] Trying billing list to find billingId...");
+                const billingList = await getBillingList(userId);
+                const matchingBilling = billingList.find(b => 
+                  b.customerId === customer.customerId || 
+                  b.customerCode === customer.customerCode
+                );
+                if (matchingBilling && matchingBilling.billingId) {
+                  customer.billingId = matchingBilling.billingId;
+                  console.log("✅ [WALLET API] Found billingId from billing list:", customer.billingId);
+                } else {
+                  console.log("⚠️ [WALLET API] No billingId found for customer, returning null");
+                  customer.billingId = null;
+                }
+              }
+            } else {
+              customer.billingId = null;
+            }
+          } catch (err) {
+            console.error("⚠️ [WALLET API] Error fetching billingId:", err.message);
+            customer.billingId = null;
+          }
+          
+          return customer;
+        }));
+        
+        return enrichedData;
+      } else if (typeof data === 'object') {
+        // Single customer object
+        if (!data.billingId && data.customerId) {
+          try {
+            console.log("🔍 [WALLET API] Fetching billingId for customerId:", data.customerId);
+            const billing = await getBillingByCustomer(userId, data.customerId);
+            if (billing && billing.billingId) {
+              data.billingId = billing.billingId;
+              console.log("✅ [WALLET API] Found billingId:", data.billingId);
+            } else {
+              // Try billing list
+              const billingList = await getBillingList(userId);
+              const matchingBilling = billingList.find(b => 
+                b.customerId === data.customerId || 
+                b.customerCode === data.customerCode
+              );
+              if (matchingBilling && matchingBilling.billingId) {
+                data.billingId = matchingBilling.billingId;
+                console.log("✅ [WALLET API] Found billingId from billing list:", data.billingId);
+              } else {
+                data.billingId = null;
+              }
+            }
+          } catch (err) {
+            console.error("⚠️ [WALLET API] Error fetching billingId:", err.message);
+            data.billingId = null;
+          }
+        }
+        return data;
+      }
+      
+      return data;
     }
 
     return null;
   } catch (error) {
     if (error.response && error.response.status === 404) {
+      console.warn("⚠️ [WALLET API] Billing by biller not found (404)");
       return null;
     }
-    console.error("Error getting billing by biller from wallet API:", error.message);
+    console.error("❌ [WALLET API] Error getting billing by biller:", error.message);
     throw error;
   }
 }

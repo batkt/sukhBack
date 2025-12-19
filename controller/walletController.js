@@ -52,11 +52,17 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const { billerCode, customerCode } = req.params;
     
+    console.log("🔍 [WALLET BILLING BY BILLER] Request received");
+    console.log("🔍 [WALLET BILLING BY BILLER] billerCode:", billerCode);
+    console.log("🔍 [WALLET BILLING BY BILLER] customerCode:", customerCode);
+    
     if (!billerCode || !customerCode) {
       throw new aldaa("Биллер код болон хэрэглэгчийн код заавал бөглөх шаардлагатай!");
     }
 
     const billing = await walletApiService.getBillingByBiller(userId, billerCode, customerCode);
+    
+    console.log("🔍 [WALLET BILLING BY BILLER] Response from API:", JSON.stringify(billing, null, 2));
     
     if (!billing) {
       return res.status(404).json({
@@ -65,11 +71,40 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // Ensure billingId is included (should already be added by getBillingByBiller)
+    // Sanitize null values to empty strings for String fields
+    const sanitizeResponse = (data) => {
+      if (Array.isArray(data)) {
+        return data.map(item => {
+          const sanitized = { ...item };
+          for (const key in sanitized) {
+            if (sanitized[key] === null || sanitized[key] === undefined) {
+              sanitized[key] = "";
+            }
+          }
+          return sanitized;
+        });
+      } else if (typeof data === 'object') {
+        const sanitized = { ...data };
+        for (const key in sanitized) {
+          if (sanitized[key] === null || sanitized[key] === undefined) {
+            sanitized[key] = "";
+          }
+        }
+        return sanitized;
+      }
+      return data;
+    };
+
+    const sanitizedBilling = sanitizeResponse(billing);
+    console.log("✅ [WALLET BILLING BY BILLER] Returning sanitized response:", JSON.stringify(sanitizedBilling, null, 2));
+
     res.status(200).json({
       success: true,
-      data: billing,
+      data: sanitizedBilling,
     });
   } catch (err) {
+    console.error("❌ [WALLET BILLING BY BILLER] Error:", err.message);
     next(err);
   }
 });
