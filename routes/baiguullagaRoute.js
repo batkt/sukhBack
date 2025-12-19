@@ -94,6 +94,20 @@ router.put("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
     if (req.body.barilguud && Array.isArray(req.body.barilguud)) {
       console.log(`🔍 [ROUTE VALIDATION] Validating ${req.body.barilguud.length} buildings for duplicate toots...`);
       
+      // Fetch current document to understand what's being changed
+      const currentDoc = await Baiguullaga(db.erunkhiiKholbolt).findById(req.params.id).lean();
+      
+      if (!currentDoc) {
+        return res.status(404).json({
+          success: false,
+          message: "Байгууллага олдсонгүй",
+        });
+      }
+      
+      // The request body contains the NEW state, so validate it directly
+      // This allows users to remove duplicates by updating the data
+      console.log(`🔍 [ROUTE VALIDATION] Validating new state (allows removing duplicates)...`);
+      
       // Log what we're validating for debugging
       req.body.barilguud.forEach((barilga, idx) => {
         if (barilga.tokhirgoo && barilga.tokhirgoo.davkhariinToonuud) {
