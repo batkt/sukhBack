@@ -1680,7 +1680,16 @@ router.get(
           tuxainSalbar = baiguullaga.barilguud[0].tokhirgoo;
         }
 
-        if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
+        // Check both eBarimtAshiglakhEsekh and eBarimtShine for backward compatibility
+        const shouldCreateEbarimt = tuxainSalbar && (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
+        
+        if (shouldCreateEbarimt) {
+          console.log(`📧 [EBARIMT] Creating ebarimt for invoice ${nekhemjlekh._id}`);
+          console.log(`📧 [EBARIMT] eBarimtAshiglakhEsekh:`, tuxainSalbar.eBarimtAshiglakhEsekh);
+          console.log(`📧 [EBARIMT] eBarimtShine:`, tuxainSalbar.eBarimtShine);
+          console.log(`📧 [EBARIMT] merchantTin:`, tuxainSalbar.merchantTin);
+          console.log(`📧 [EBARIMT] districtCode:`, tuxainSalbar.districtCode);
+          
           if (!tuxainSalbar.merchantTin) {
             throw new Error("merchantTin is required for e-barimt creation");
           }
@@ -2010,7 +2019,16 @@ router.get(
               tuxainSalbar = baiguullaga.barilguud[0].tokhirgoo;
             }
 
-            if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
+            // Check both eBarimtAshiglakhEsekh and eBarimtShine for backward compatibility
+            const shouldCreateEbarimt = tuxainSalbar && (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
+            
+            if (shouldCreateEbarimt) {
+              console.log(`📧 [EBARIMT] Creating ebarimt for invoice ${updatedInvoice._id}`);
+              console.log(`📧 [EBARIMT] eBarimtAshiglakhEsekh:`, tuxainSalbar.eBarimtAshiglakhEsekh);
+              console.log(`📧 [EBARIMT] eBarimtShine:`, tuxainSalbar.eBarimtShine);
+              console.log(`📧 [EBARIMT] merchantTin:`, tuxainSalbar.merchantTin);
+              console.log(`📧 [EBARIMT] districtCode:`, tuxainSalbar.districtCode);
+              
               if (!tuxainSalbar.merchantTin) {
                 console.error(
                   `⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: merchantTin is required`
