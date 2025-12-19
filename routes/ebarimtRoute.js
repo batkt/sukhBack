@@ -123,14 +123,22 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
       
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         if (err) {
+          console.error("❌ [EBARIMT] Request error:", err.message);
           if (next) next(err);
           return;
         }
+        
+        console.log("📧 [EBARIMT] API Response status code:", res1?.statusCode);
+        console.log("📧 [EBARIMT] API Response body:", JSON.stringify(body, null, 2));
+        
         if (body && (body.error || body.message)) {
+          console.error("❌ [EBARIMT] API returned error:", body.message || body.error);
           if (next)
             next(new Error(body.message || body.error || "E-barimt API error"));
           return;
         }
+        
+        console.log("✅ [EBARIMT] Calling onFinish callback with response");
         onFinish(body, ugugdul);
       });
     } else if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));

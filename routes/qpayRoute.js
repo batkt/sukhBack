@@ -1720,9 +1720,13 @@ router.get(
 
           var butsaakhMethod = function (d, khariuObject) {
             try {
+              console.log("📧 [EBARIMT] API Response received:", JSON.stringify(d, null, 2));
+              console.log("📧 [EBARIMT] Response status:", d?.status);
+              console.log("📧 [EBARIMT] Response success:", d?.success);
+              
               if (d?.status != "SUCCESS" && !d.success) {
                 console.error(
-                  "❌ E-barimt API error:",
+                  "❌ [EBARIMT] E-barimt API error:",
                   d?.message || d?.error || JSON.stringify(d)
                 );
                 return;
@@ -1740,13 +1744,20 @@ router.get(
               if (d.id) shineBarimt.receiptId = d.id;
               if (d.date) shineBarimt.date = d.date;
 
-              shineBarimt.save();
-              console.log(
-                "✅ E-barimt saved successfully for invoice:",
-                khariuObject.nekhemjlekhiinId
-              );
+              shineBarimt.save()
+                .then(() => {
+                  console.log(
+                    "✅ [EBARIMT] E-barimt saved successfully for invoice:",
+                    khariuObject.nekhemjlekhiinId
+                  );
+                })
+                .catch((saveErr) => {
+                  console.error("❌ [EBARIMT] Failed to save e-barimt:", saveErr.message);
+                  console.error("❌ [EBARIMT] Save error stack:", saveErr.stack);
+                });
             } catch (err) {
-              console.error("❌ Failed to save e-barimt:", err.message);
+              console.error("❌ [EBARIMT] Failed to process e-barimt response:", err.message);
+              console.error("❌ [EBARIMT] Error stack:", err.stack);
             }
           };
 
