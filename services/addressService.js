@@ -323,6 +323,11 @@ async function getBair(khorooId) {
                         
                         if (matchingKhoroo) {
                           districtName = (district.name || district.districtName || "").trim();
+                          // Also extract khoroo name from the matching khoroo if not already extracted
+                          if (!khorooName && (matchingKhoroo.name || matchingKhoroo.khorooName)) {
+                            khorooName = (matchingKhoroo.name || matchingKhoroo.khorooName || "").trim();
+                            console.log(`🔍 [ADDRESS SERVICE] Extracted khoroo name from Wallet API: ${khorooName}`);
+                          }
                           console.log(`✅ [ADDRESS SERVICE] Found district for khoroo: "${districtName}" (from city: ${city.name || city.cityName})`);
                           break; // Found it, stop searching
                         }
@@ -619,8 +624,57 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
       khorooCode = khorooName; // Also try matching by code
       console.log(`🔍 [ADDRESS SERVICE] Using khorooName from Wallet API: ${khorooName}`);
     } else {
-      console.log("⚠️ [ADDRESS SERVICE] khorooId is not from own org and no khorooName provided, skipping");
-      return [];
+      // If khorooName is not provided, try to get it from Wallet API
+      console.log("⚠️ [ADDRESS SERVICE] khorooId is not from own org and no khorooName provided");
+      console.log("⚠️ [ADDRESS SERVICE] Attempting to fetch khoroo details from Wallet API...");
+      
+      try {
+        // Try to find khoroo by searching through districts
+        const cities = await walletApiService.getAddressCities();
+        if (cities && cities.length > 0) {
+          for (const city of cities) {
+            try {
+              const cityId = city.id || city.cityId;
+              const districts = await walletApiService.getAddressDistricts(cityId);
+              
+              for (const district of districts) {
+                try {
+                  const districtIdToCheck = district.id || district.districtId;
+                  const khoroos = await walletApiService.getAddressKhoroo(districtIdToCheck);
+                  
+                  const matchingKhoroo = khoroos.find(k => 
+                    (k.id || k.khorooId) === khorooId
+                  );
+                  
+                  if (matchingKhoroo) {
+                    khorooName = (matchingKhoroo.name || matchingKhoroo.khorooName || "").trim();
+                    if (khorooName) {
+                      khorooNer = khorooName;
+                      khorooCode = khorooName;
+                      console.log(`✅ [ADDRESS SERVICE] Found khoroo name from Wallet API: ${khorooName}`);
+                      break;
+                    }
+                  }
+                } catch (error) {
+                  continue;
+                }
+              }
+              
+              if (khorooName) break;
+            } catch (error) {
+              continue;
+            }
+          }
+        }
+        
+        if (!khorooName) {
+          console.log("⚠️ [ADDRESS SERVICE] Could not fetch khoroo name from Wallet API");
+          console.log("⚠️ [ADDRESS SERVICE] Will try to match by district only, or show all if no district filter");
+        }
+      } catch (error) {
+        console.error("❌ [ADDRESS SERVICE] Error fetching khoroo from Wallet API:", error.message);
+        console.log("⚠️ [ADDRESS SERVICE] Will try to match by district only, or show all if no district filter");
+      }
     }
 
     console.log(`🔍 [ADDRESS SERVICE] Will match OWN_ORG bair with khoroo: "${khorooNer || khorooCode}", district: "${districtName || 'any (no district filter)'}"`);
@@ -639,24 +693,56 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
                 const barilgaDuuregNer = barilga.tokhirgoo.duuregNer;
                 
                 // Match by khoroo code or name
+                // If khorooCode/khorooNer is not available, khorooMatches will be true (show all)
+                // Normalize strings for comparison (trim and handle variations)
+                const normalizeKhoroo = (str) => (str || "").trim().toLowerCase();
+                const barilgaKhorooKodNorm = normalizeKhoroo(barilgaKhorooKod);
+                const barilgaKhorooNerNorm = normalizeKhoroo(barilgaKhorooNer);
+                const khorooCodeNorm = khorooCode ? normalizeKhoroo(khorooCode) : null;
+                const khorooNerNorm = khorooNer ? normalizeKhoroo(khorooNer) : null;
+                
                 const khorooMatches = 
-                  (khorooCode && (barilgaKhorooKod === khorooCode || barilgaKhorooNer === khorooCode)) ||
-                  (khorooNer && (barilgaKhorooNer === khorooNer || barilgaKhorooKod === khorooNer));
+                  !khorooCode && !khorooNer ? true : // No khoroo filter, match all
+                  (khorooCodeNorm && (barilgaKhorooKodNorm === khorooCodeNorm || barilgaKhorooNerNorm === khorooCodeNorm)) ||
+                  (khorooNerNorm && (barilgaKhorooNerNorm === khorooNerNorm || barilgaKhorooKodNorm === khorooNerNorm));
+                
+                // Debug logging for buildings that don't match khoroo
+                if (!khorooMatches && (khorooCode || khorooNer)) {
+                  console.log(`🔍 [ADDRESS SERVICE] Bair "${barilga.ner}" doesn't match khoroo - Looking for: "${khorooNer || khorooCode}", Building has: kod="${barilgaKhorooKod}", ner="${barilgaKhorooNer}"`);
+                }
                 
                 // If districtName is provided, also match by district (duuregNer)
                 // Use case-insensitive and trimmed comparison
+                // But if district doesn't match, still show the building if khoroo matches (more flexible)
                 let districtMatches = true;
+                let districtMismatch = false;
                 if (districtName) {
                   const walletDistrict = districtName.trim();
                   const ownOrgDistrict = (barilgaDuuregNer || "").trim();
+                  
+                  // Try exact match first
                   districtMatches = walletDistrict.toLowerCase() === ownOrgDistrict.toLowerCase();
                   
-                  if (khorooMatches && !districtMatches) {
-                    console.log(`⚠️ [ADDRESS SERVICE] Khoroo matches but district doesn't - Wallet: "${walletDistrict}", OWN_ORG: "${ownOrgDistrict}", skipping bair: ${barilga.ner}`);
+                  // If exact match fails, try partial match (district name contains or is contained)
+                  if (!districtMatches) {
+                    const walletLower = walletDistrict.toLowerCase();
+                    const ownOrgLower = ownOrgDistrict.toLowerCase();
+                    districtMatches = walletLower.includes(ownOrgLower) || ownOrgLower.includes(walletLower);
+                    if (!districtMatches) {
+                      districtMismatch = true;
+                    }
+                  }
+                  
+                  if (districtMismatch && khorooMatches) {
+                    console.log(`⚠️ [ADDRESS SERVICE] Khoroo matches but district doesn't - Wallet: "${walletDistrict}", OWN_ORG: "${ownOrgDistrict}", but will still show bair: ${barilga.ner}`);
+                    // Show building even if district doesn't match if khoroo matches
+                    districtMatches = true;
                   }
                 }
                 
-                // Both khoroo must match, and district if provided
+                // Show building if:
+                // 1. Khoroo matches (or no khoroo filter), AND
+                // 2. District matches (or no district filter, or khoroo matches)
                 if (khorooMatches && districtMatches) {
                   console.log(`✅ [ADDRESS SERVICE] Matched OWN_ORG bair: ${barilga.ner} (district: ${barilgaDuuregNer}, khoroo: ${barilgaKhorooNer})`);
                   const bairKey = `${barilga.ner}_${barilga._id}`;
