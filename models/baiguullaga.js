@@ -384,9 +384,109 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
   }
 }
 
+// Pre-save hook to validate that toots are unique across all davkhars
+baiguullagaSchema.pre("save", function (next) {
+  try {
+    const error = validateDavkhariinToonuud(this.barilguud);
+    if (error) {
+      error.name = "ValidationError";
+      return next(error);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Post-save hook
 baiguullagaSchema.post("save", async function (doc) {
   await updateGereeFromBaiguullagaZardluud(doc);
+});
+
+// Helper function to validate davkhariinToonuud for duplicate toots
+function validateDavkhariinToonuud(barilguud) {
+  if (!barilguud || !Array.isArray(barilguud)) {
+    return null; // No error
+  }
+
+  // Check each building's davkhariinToonuud for duplicate toots across davkhars
+  for (const barilga of barilguud) {
+    if (!barilga.tokhirgoo || !barilga.tokhirgoo.davkhariinToonuud) {
+      continue;
+    }
+
+    const davkhariinToonuud = barilga.tokhirgoo.davkhariinToonuud;
+    const tootMap = new Map(); // Map<toot, davkhar>
+
+    // Iterate through all floor keys (format: "orts::davkhar" or just "davkhar")
+    for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
+      if (!tootArray || !Array.isArray(tootArray)) {
+        continue;
+      }
+
+      // Extract davkhar from floorKey
+      let davkhar = "";
+      if (floorKey.includes("::")) {
+        const parts = floorKey.split("::");
+        davkhar = parts[1] || parts[0]; // davkhar is the second part
+      } else {
+        davkhar = floorKey; // If no ::, the key itself is davkhar
+      }
+
+      // Parse toot list from array (can be comma-separated string or array)
+      let tootList = [];
+      if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+        tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+      } else {
+        tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
+      }
+
+      // Check each toot for duplicates across davkhars
+      for (const toot of tootList) {
+        if (tootMap.has(toot)) {
+          const existingDavkhar = tootMap.get(toot);
+          return new Error(
+            `Тоот "${toot}" аль хэдийн ${existingDavkhar}-р давхарт байна. ${davkhar}-р давхарт давхардсан тоот байж болохгүй!`
+          );
+        }
+        tootMap.set(toot, davkhar);
+      }
+    }
+  }
+
+  return null; // No error
+}
+
+// Pre-updateOne hook (for updateOne operations)
+baiguullagaSchema.pre("updateOne", function (next) {
+  try {
+    if (this._update && this._update.barilguud) {
+      const error = validateDavkhariinToonuud(this._update.barilguud);
+      if (error) {
+        error.name = "ValidationError";
+        return next(error);
+      }
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Pre-findOneAndUpdate hook (for findOneAndUpdate operations)
+baiguullagaSchema.pre("findOneAndUpdate", function (next) {
+  try {
+    if (this._update && this._update.barilguud) {
+      const error = validateDavkhariinToonuud(this._update.barilguud);
+      if (error) {
+        error.name = "ValidationError";
+        return next(error);
+      }
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
 });
 
 // Post-findOneAndUpdate hook (for findOneAndUpdate operations)
