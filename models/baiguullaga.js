@@ -402,29 +402,59 @@ baiguullagaSchema.pre("save", function (next) {
   }
 });
 
-// Post-save hook
+// Post-save hook - validate AFTER save as safety check
 baiguullagaSchema.post("save", async function (doc) {
+  try {
+    // Validate after save as a safety check (though pre-save should catch it)
+    console.log(`🔍 [VALIDATION POST-SAVE] Validating after save as safety check...`);
+    console.log(`🔍 [VALIDATION POST-SAVE] doc.barilguud exists:`, !!doc.barilguud);
+    console.log(`🔍 [VALIDATION POST-SAVE] doc.barilguud is array:`, Array.isArray(doc.barilguud));
+    
+    if (doc.barilguud && Array.isArray(doc.barilguud)) {
+      const error = validateDavkhariinToonuud(doc.barilguud);
+      if (error) {
+        console.error(`❌ [VALIDATION POST-SAVE] Duplicate toots detected after save! This should not happen.`, error.message);
+        // Note: We can't prevent the save at this point, but we log the error
+        // The pre-save hook should have caught this
+      } else {
+        console.log(`✅ [VALIDATION POST-SAVE] No duplicates found after save`);
+      }
+    } else {
+      console.log(`⚠️ [VALIDATION POST-SAVE] No barilguud to validate`);
+    }
+  } catch (err) {
+    console.error(`❌ [VALIDATION POST-SAVE] Error during validation:`, err);
+  }
+  
   await updateGereeFromBaiguullagaZardluud(doc);
 });
 
 // Helper function to validate davkhariinToonuud for duplicate toots
 function validateDavkhariinToonuud(barilguud) {
+  console.log(`🔍 [VALIDATION FUNCTION] Starting validation, barilguud length:`, barilguud?.length || 0);
   if (!barilguud || !Array.isArray(barilguud)) {
+    console.log(`⚠️ [VALIDATION FUNCTION] No barilguud or not an array, skipping validation`);
     return null; // No error
   }
 
   // Check each building's davkhariinToonuud for duplicate toots across davkhars
-  for (const barilga of barilguud) {
+  for (let barilgaIndex = 0; barilgaIndex < barilguud.length; barilgaIndex++) {
+    const barilga = barilguud[barilgaIndex];
+    console.log(`🔍 [VALIDATION FUNCTION] Checking barilga[${barilgaIndex}], ner: ${barilga?.ner || 'N/A'}`);
+    
     if (!barilga.tokhirgoo || !barilga.tokhirgoo.davkhariinToonuud) {
+      console.log(`⚠️ [VALIDATION FUNCTION] Barilga[${barilgaIndex}] has no tokhirgoo.davkhariinToonuud, skipping`);
       continue;
     }
 
     const davkhariinToonuud = barilga.tokhirgoo.davkhariinToonuud;
     const tootMap = new Map(); // Map<toot, davkhar>
+    console.log(`🔍 [VALIDATION FUNCTION] Barilga[${barilgaIndex}] has ${Object.keys(davkhariinToonuud).length} floor keys:`, Object.keys(davkhariinToonuud));
 
     // Iterate through all floor keys (format: "orts::davkhar" or just "davkhar")
     for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
       if (!tootArray || !Array.isArray(tootArray)) {
+        console.log(`⚠️ [VALIDATION FUNCTION] FloorKey "${floorKey}" has invalid tootArray, skipping`);
         continue;
       }
 
@@ -445,22 +475,26 @@ function validateDavkhariinToonuud(barilguud) {
         tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
       }
 
+      console.log(`🔍 [VALIDATION FUNCTION] Processing floorKey "${floorKey}" (davkhar: ${davkhar}), toots:`, tootList);
+
       // Check each toot for duplicates across davkhars
       for (const toot of tootList) {
         if (tootMap.has(toot)) {
           const existingDavkhar = tootMap.get(toot);
-          console.error(`❌ [VALIDATION] Duplicate toot found: "${toot}" in davkhar ${existingDavkhar} and ${davkhar}`);
-          console.error(`❌ [VALIDATION] Floor keys processed so far:`, Array.from(tootMap.entries()));
+          console.error(`❌ [VALIDATION FUNCTION] Duplicate toot found: "${toot}" in davkhar ${existingDavkhar} and ${davkhar}`);
+          console.error(`❌ [VALIDATION FUNCTION] Floor keys processed so far:`, Array.from(tootMap.entries()));
+          console.error(`❌ [VALIDATION FUNCTION] Current floorKey: ${floorKey}, davkhar: ${davkhar}, tootList:`, tootList);
           return new Error(
             `Тоот "${toot}" аль хэдийн ${existingDavkhar}-р давхарт байна. ${davkhar}-р давхарт давхардсан тоот байж болохгүй!`
           );
         }
         tootMap.set(toot, davkhar);
-        console.log(`✅ [VALIDATION] Added toot "${toot}" to davkhar ${davkhar} (floorKey: ${floorKey})`);
       }
+      console.log(`✅ [VALIDATION FUNCTION] Processed floorKey "${floorKey}" (davkhar: ${davkhar}), total unique toots so far: ${tootMap.size}`);
     }
+    console.log(`✅ [VALIDATION FUNCTION] Barilga[${barilgaIndex}] validation complete, no duplicates found`);
   }
-
+  console.log(`✅ [VALIDATION FUNCTION] All barilguud validated, no duplicates found`);
   return null; // No error
 }
 
