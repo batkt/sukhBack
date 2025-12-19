@@ -428,9 +428,9 @@ function validateDavkhariinToonuud(barilguud) {
       let davkhar = "";
       if (floorKey.includes("::")) {
         const parts = floorKey.split("::");
-        davkhar = parts[1] || parts[0]; // davkhar is the second part
+        davkhar = parts[1] || parts[0]; // davkhar is the second part (e.g., "1::4" -> "4")
       } else {
-        davkhar = floorKey; // If no ::, the key itself is davkhar
+        davkhar = floorKey; // If no ::, the key itself is davkhar (e.g., "1" -> "1")
       }
 
       // Parse toot list from array (can be comma-separated string or array)
@@ -445,6 +445,7 @@ function validateDavkhariinToonuud(barilguud) {
       for (const toot of tootList) {
         if (tootMap.has(toot)) {
           const existingDavkhar = tootMap.get(toot);
+          console.error(`❌ [VALIDATION] Duplicate toot found: "${toot}" in davkhar ${existingDavkhar} and ${davkhar}`);
           return new Error(
             `Тоот "${toot}" аль хэдийн ${existingDavkhar}-р давхарт байна. ${davkhar}-р давхарт давхардсан тоот байж болохгүй!`
           );
@@ -489,16 +490,16 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
       }
     }
     
-    // Check if this is a nested path update that modifies davkhariinToonuud
-    // This happens when editing building config via PUT with $set
+    // ALWAYS check if davkhariinToonuud is being updated via $set
+    // This includes both PUT requests and updateDavkharWithToot calls
     if (this._update && this._update.$set) {
       const setKeys = Object.keys(this._update.$set);
       const isDavkhariinToonuudUpdate = setKeys.some(key => 
-        key.includes('tokhirgoo.davkhariinToonuud') || 
-        key.includes('barilguud') && this._update.$set[key] && typeof this._update.$set[key] === 'object'
+        key.includes('tokhirgoo.davkhariinToonuud')
       );
       
       if (isDavkhariinToonuudUpdate) {
+        console.log(`🔍 [VALIDATION] Detected davkhariinToonuud update, validating for duplicates...`);
         // Fetch current document to merge with update
         const doc = await this.model.findOne(this.getQuery()).lean();
         if (doc && doc.barilguud) {
@@ -515,24 +516,26 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
                 if (pathParts[2] === 'tokhirgoo' && pathParts[3] === 'davkhariinToonuud') {
                   mergedBarilguud[barilgaIndex].tokhirgoo = mergedBarilguud[barilgaIndex].tokhirgoo || {};
                   mergedBarilguud[barilgaIndex].tokhirgoo.davkhariinToonuud = value;
-                } else if (pathParts.length === 2 && pathParts[1] && typeof value === 'object') {
-                  // Full barilga update via $set
-                  mergedBarilguud[barilgaIndex] = { ...mergedBarilguud[barilgaIndex], ...value };
+                  console.log(`📝 [VALIDATION] Updated barilga[${barilgaIndex}].tokhirgoo.davkhariinToonuud`);
                 }
               }
-            } else if (path === 'barilguud' && Array.isArray(value)) {
-              // Full barilguud array update via $set
-              return next(); // This will be handled by the first check above
             }
           }
           
-          // Validate the merged result
+          // ALWAYS validate the merged result to prevent ANY duplicates
+          console.log(`✅ [VALIDATION] Validating merged barilguud for duplicate toots...`);
           const error = validateDavkhariinToonuud(mergedBarilguud);
           if (error) {
+            console.error(`❌ [VALIDATION] Validation failed:`, error.message);
             error.name = "ValidationError";
             return next(error);
           }
+          console.log(`✅ [VALIDATION] No duplicates found, update allowed`);
+        } else {
+          console.warn(`⚠️ [VALIDATION] Document not found or no barilguud`);
         }
+      } else {
+        console.log(`ℹ️ [VALIDATION] Not a davkhariinToonuud update, skipping validation`);
       }
     }
     
