@@ -25,7 +25,8 @@ function validateDavkhariinToonuud(barilguud) {
     }
 
     const davkhariinToonuud = barilga.tokhirgoo.davkhariinToonuud;
-    const tootMap = new Map(); // Map<toot, davkhar>
+    // Map<toot, Set<davkhar>> - track which davkhars each toot appears in
+    const tootMap = new Map();
 
     // Iterate through all floor keys (format: "orts::davkhar" or just "davkhar")
     for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
@@ -50,15 +51,23 @@ function validateDavkhariinToonuud(barilguud) {
         tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
       }
 
-      // Check each toot for duplicates across davkhars
+      // Check each toot for duplicates across DIFFERENT davkhars
       for (const toot of tootList) {
         if (tootMap.has(toot)) {
-          const existingDavkhar = tootMap.get(toot);
-          return new Error(
-            `Тоот "${toot}" аль хэдийн ${existingDavkhar}-р давхарт байна. ${davkhar}-р давхарт давхардсан тоот байж болохгүй!`
-          );
+          const davkharSet = tootMap.get(toot);
+          // Only error if this toot appears in a DIFFERENT davkhar
+          if (!davkharSet.has(davkhar)) {
+            // This toot already exists in a different davkhar
+            const existingDavkhars = Array.from(davkharSet).join(", ");
+            return new Error(
+              `Тоот "${toot}" аль хэдийн ${existingDavkhars}-р давхарт байна. ${davkhar}-р давхарт давхардсан тоот байж болохгүй!`
+            );
+          }
+          // Same davkhar, same toot - this is OK (might be in different floor keys like "1" and "1::1")
+        } else {
+          // First time seeing this toot, create a Set for its davkhars
+          tootMap.set(toot, new Set([davkhar]));
         }
-        tootMap.set(toot, davkhar);
       }
     }
   }
