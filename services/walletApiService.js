@@ -24,11 +24,17 @@ function sanitizeNullValues(obj) {
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
       const value = obj[key];
-      if (value === null) {
+      if (value === null || value === undefined) {
+        // Convert null/undefined to empty string for String fields
         sanitized[key] = "";
+      } else if (Array.isArray(value)) {
+        // Recursively sanitize arrays
+        sanitized[key] = value.map(item => sanitizeNullValues(item));
       } else if (typeof value === 'object') {
+        // Recursively sanitize nested objects
         sanitized[key] = sanitizeNullValues(value);
       } else {
+        // For other types (string, number, boolean), keep as is
         sanitized[key] = value;
       }
     }

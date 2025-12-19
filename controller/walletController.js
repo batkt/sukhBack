@@ -161,11 +161,32 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
     const bills = await walletApiService.getBillingBills(userId, billingId);
     const data = Array.isArray(bills) ? bills : [];
     
-    console.log("✅ [WALLET BILLING BILLS] Returning", data.length, "bill(s) for billingId:", billingId);
+    // Ensure all bills are properly sanitized (double-check)
+    const sanitizedData = data.map(bill => {
+      const sanitized = {};
+      for (const key in bill) {
+        if (bill.hasOwnProperty(key)) {
+          const value = bill[key];
+          // Convert null/undefined to empty string for all fields
+          if (value === null || value === undefined) {
+            sanitized[key] = "";
+          } else if (Array.isArray(value)) {
+            sanitized[key] = value.map(item => 
+              (item === null || item === undefined) ? "" : item
+            );
+          } else {
+            sanitized[key] = value;
+          }
+        }
+      }
+      return sanitized;
+    });
+    
+    console.log("✅ [WALLET BILLING BILLS] Returning", sanitizedData.length, "bill(s) for billingId:", billingId);
     
     res.status(200).json({
       success: true,
-      data: data,
+      data: sanitizedData,
     });
   } catch (err) {
     console.error("❌ [WALLET BILLING BILLS] Error:", err.message);
