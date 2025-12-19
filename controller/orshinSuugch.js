@@ -227,7 +227,7 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
 };
 
 // Helper function to calculate liftShalgaya based on davkhar entries
-// Now saves to baiguullaga.barilguud[].tokhirgoo.liftShalgaya
+// Saves to both baiguullaga.barilguud[].tokhirgoo.liftShalgaya AND liftShalgaya collection
 exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
   baiguullagiinId,
   barilgiinId,
@@ -237,6 +237,7 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
   try {
     const { db } = require("zevbackv2");
     const Baiguullaga = require("../models/baiguullaga");
+    const LiftShalgaya = require("../models/liftShalgaya");
 
     // davkharArray is already an array of floor numbers like ["1", "2", "3"]
     // Extract all unique floor numbers
@@ -269,8 +270,31 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
       ].tokhirgoo.liftShalgaya.choloolugdokhDavkhar = choloolugdokhDavkhar;
       await baiguullaga.save();
 
+      // Also sync with liftShalgaya collection - update existing or create new
+      if (tukhainBaaziinKholbolt) {
+        const LiftShalgayaModel = LiftShalgaya(tukhainBaaziinKholbolt);
+        await LiftShalgayaModel.findOneAndUpdate(
+          {
+            baiguullagiinId: String(baiguullagiinId),
+            barilgiinId: String(barilgiinId)
+          },
+          {
+            baiguullagiinId: String(baiguullagiinId),
+            barilgiinId: String(barilgiinId),
+            choloolugdokhDavkhar: choloolugdokhDavkhar
+          },
+          {
+            upsert: true, // Create if doesn't exist, update if exists
+            new: true
+          }
+        );
+        console.log(
+          `✅ LiftShalgaya collection synced: ${choloolugdokhDavkhar.length} floors exempted`
+        );
+      }
+
       console.log(
-        `LiftShalgaya updated: ${choloolugdokhDavkhar.length} floors exempted`
+        `✅ LiftShalgaya updated in baiguullaga: ${choloolugdokhDavkhar.length} floors exempted`
       );
     } else {
       console.error("Барилга олдсонгүй");
