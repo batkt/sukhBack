@@ -34,7 +34,7 @@ const ajiltanSchema = new Schema(
     firebaseToken: String,
     zurgiinId: String,
     nevtrekhNer: String,
-  
+    albanTushaal: String,
 
     tokhirgoo: {
       gereeKharakhErkh: [String], //barilgiin id-nuud
