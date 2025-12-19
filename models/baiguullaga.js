@@ -521,32 +521,34 @@ baiguullagaSchema.pre("updateOne", function (next) {
 // Validate both full array updates AND nested path updates that modify davkhariinToonuud
 baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
   try {
-    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Checking update...`);
+    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] ========== HOOK TRIGGERED ==========`);
     console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] _update keys:`, Object.keys(this._update || {}));
+    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] _update has barilguud:`, !!(this._update && this._update.barilguud));
+    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] _update has $set:`, !!(this._update && this._update.$set));
+    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] _update.$set has barilguud:`, !!(this._update && this._update.$set && this._update.$set.barilguud));
     
-    // Check if this is a full barilguud array update (from PUT request with full object)
+    let barilguudToValidate = null;
+    
+    // Case 1: Direct barilguud update (PUT with full object, Mongoose sets it directly)
     if (this._update && this._update.barilguud && !this._update.$set) {
-      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Full barilguud array update detected`);
-      const error = validateDavkhariinToonuud(this._update.barilguud);
-      if (error) {
-        console.error(`❌ [VALIDATION PRE-FINDONEANDUPDATE] Validation failed:`, error.message);
-        error.name = "ValidationError";
-        return next(error);
-      }
-      console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] Full array validation passed`);
+      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Case 1: Direct barilguud array update detected`);
+      barilguudToValidate = this._update.barilguud;
     }
-    
-    // ALWAYS check if davkhariinToonuud is being updated via $set
-    // This includes both PUT requests and updateDavkharWithToot calls
-    if (this._update && this._update.$set) {
+    // Case 2: barilguud in $set (PUT with full object wrapped in $set)
+    else if (this._update && this._update.$set && this._update.$set.barilguud) {
+      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Case 2: barilguud in $set detected`);
+      barilguudToValidate = this._update.$set.barilguud;
+    }
+    // Case 3: Nested davkhariinToonuud update via $set (partial update)
+    else if (this._update && this._update.$set) {
       const setKeys = Object.keys(this._update.$set);
-      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] $set keys:`, setKeys);
+      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Case 3: Checking $set keys:`, setKeys);
       const isDavkhariinToonuudUpdate = setKeys.some(key => 
-        key.includes('tokhirgoo.davkhariinToonuud')
+        key.includes('tokhirgoo.davkhariinToonuud') || key.includes('barilguud')
       );
       
       if (isDavkhariinToonuudUpdate) {
-        console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Detected davkhariinToonuud update, validating for duplicates...`);
+        console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Detected davkhariinToonuud or barilguud update, fetching document to merge...`);
         // Fetch current document to merge with update
         const doc = await this.model.findOne(this.getQuery()).lean();
         if (doc && doc.barilguud) {
@@ -555,7 +557,11 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
           
           // Apply $set updates to merged copy
           for (const [path, value] of Object.entries(this._update.$set)) {
-            if (path.startsWith('barilguud.')) {
+            if (path === 'barilguud') {
+              // Full barilguud array replacement
+              barilguudToValidate = value;
+              break;
+            } else if (path.startsWith('barilguud.')) {
               const pathParts = path.split('.');
               const barilgaIndex = parseInt(pathParts[1]);
               
@@ -569,21 +575,29 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
             }
           }
           
-          // ALWAYS validate the merged result to prevent ANY duplicates
-          console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] Validating merged barilguud for duplicate toots...`);
-          const error = validateDavkhariinToonuud(mergedBarilguud);
-          if (error) {
-            console.error(`❌ [VALIDATION PRE-FINDONEANDUPDATE] Validation failed:`, error.message);
-            error.name = "ValidationError";
-            return next(error);
+          if (!barilguudToValidate) {
+            barilguudToValidate = mergedBarilguud;
           }
-          console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] No duplicates found, update allowed`);
         } else {
           console.warn(`⚠️ [VALIDATION PRE-FINDONEANDUPDATE] Document not found or no barilguud`);
         }
       } else {
-        console.log(`ℹ️ [VALIDATION PRE-FINDONEANDUPDATE] Not a davkhariinToonuud update, skipping validation`);
+        console.log(`ℹ️ [VALIDATION PRE-FINDONEANDUPDATE] Not a barilguud/davkhariinToonuud update, skipping validation`);
       }
+    }
+    
+    // Validate if we found barilguud to check
+    if (barilguudToValidate) {
+      console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] Validating barilguud with ${barilguudToValidate.length} buildings...`);
+      const error = validateDavkhariinToonuud(barilguudToValidate);
+      if (error) {
+        console.error(`❌ [VALIDATION PRE-FINDONEANDUPDATE] Validation failed:`, error.message);
+        error.name = "ValidationError";
+        return next(error);
+      }
+      console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] Validation passed, allowing update`);
+    } else {
+      console.log(`ℹ️ [VALIDATION PRE-FINDONEANDUPDATE] No barilguud to validate, skipping`);
     }
     
     next();
