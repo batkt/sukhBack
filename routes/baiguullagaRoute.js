@@ -60,6 +60,7 @@ function validateDavkhariinToonuud(barilguud) {
             // This toot already exists in a different davkhar
             const existingDavkhars = Array.from(tootInfo.davkhars).join(", ");
             const existingFloorKeys = tootInfo.floorKeys.join(", ");
+            console.error(`❌ [VALIDATION] Duplicate detected: toot "${toot}" in davkhar ${existingDavkhars} (floorKeys: ${existingFloorKeys}) and davkhar ${davkhar} (floorKey: ${floorKey})`);
             return new Error(
               `Тоот "${toot}" аль хэдийн ${existingDavkhars}-р давхарт байна (floor keys: ${existingFloorKeys}). ${davkhar}-р давхарт давхардсан тоот байж болохгүй!`
             );
@@ -92,6 +93,14 @@ router.put("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
     // Validate barilguud if present in request body
     if (req.body.barilguud && Array.isArray(req.body.barilguud)) {
       console.log(`🔍 [ROUTE VALIDATION] Validating ${req.body.barilguud.length} buildings for duplicate toots...`);
+      
+      // Log what we're validating for debugging
+      req.body.barilguud.forEach((barilga, idx) => {
+        if (barilga.tokhirgoo && barilga.tokhirgoo.davkhariinToonuud) {
+          console.log(`🔍 [ROUTE VALIDATION] Barilga[${idx}] (${barilga.ner || 'N/A'}) davkhariinToonuud:`, JSON.stringify(barilga.tokhirgoo.davkhariinToonuud, null, 2));
+        }
+      });
+      
       const error = validateDavkhariinToonuud(req.body.barilguud);
       if (error) {
         console.error(`❌ [ROUTE VALIDATION] Validation failed:`, error.message);
