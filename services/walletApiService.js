@@ -443,12 +443,22 @@ async function getBillingBills(userId, billingId) {
     if (response.data && response.data.responseCode) {
       if (response.data.data) {
         let data = response.data.data;
+        console.log("📄 [WALLET API] Raw billing bills data before sanitization:", JSON.stringify(data, null, 2));
         
         if (Array.isArray(data)) {
           console.log("📄 [WALLET API] Billing bills count:", data.length);
-          return data.map(item => sanitizeNullValues(item));
+          const sanitized = data.map((item, index) => {
+            console.log(`📄 [WALLET API] Sanitizing bill[${index}]...`);
+            const sanitizedItem = sanitizeNullValues(item);
+            console.log(`✅ [WALLET API] Sanitized bill[${index}]:`, JSON.stringify(sanitizedItem, null, 2));
+            return sanitizedItem;
+          });
+          return sanitized;
         } else if (typeof data === 'object') {
-          return [sanitizeNullValues(data)];
+          console.log("📄 [WALLET API] Single bill object, sanitizing...");
+          const sanitized = sanitizeNullValues(data);
+          console.log("✅ [WALLET API] Sanitized bill:", JSON.stringify(sanitized, null, 2));
+          return [sanitized];
         }
       }
     }
