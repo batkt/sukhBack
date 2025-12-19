@@ -857,36 +857,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     
     console.log("⚡ [REGISTER] orshinSuugch.tsahilgaaniiZaalt after creation:", orshinSuugch.tsahilgaaniiZaalt);
     
-    // Validate: User can only register with ONE building
-    // If user already has a barilgiinId, they cannot register with a different one
-    if (orshinSuugch.barilgiinId && barilgiinId) {
-      const existingBarilgiinId = String(orshinSuugch.barilgiinId);
-      const newBarilgiinId = String(barilgiinId);
-      
-      if (existingBarilgiinId !== newBarilgiinId) {
-        // Get building names for better error message
-        let existingBuildingName = "";
-        let newBuildingName = "";
-        
-        if (baiguullaga) {
-          const existingBarilga = baiguullaga.barilguud?.find(
-            (b) => String(b._id) === existingBarilgiinId
-          );
-          const newBarilga = baiguullaga.barilguud?.find(
-            (b) => String(b._id) === newBarilgiinId
-          );
-          
-          existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
-          newBuildingName = newBarilga?.ner || newBarilgiinId;
-        }
-        
-        return res.status(400).json({
-          success: false,
-          message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад бүртгүүлэх боломжгүй.`,
-        });
-      }
-    }
-    
     if (!orshinSuugch.toots) {
       orshinSuugch.toots = [];
     }
@@ -1030,46 +1000,27 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         return total + tariff;
       }, 0);
 
-      // Validate: One toot cannot have different owners in the same building
-      // Toots must be unique across ALL davkhars in the same building
+      // Validate: One toot cannot have different owners
+      // Check if this toot already has an active contract with a different orshinSuugchId
       const GereeModel = Geree(tukhainBaaziinKholbolt);
-      let skipGereeCreation = false;
-      
       if (orshinSuugch.toot && barilgiinId) {
-        // First, check if this user already has a geree for this toot (skip if exists)
-        const existingGereeForUser = await GereeModel.findOne({
+        const conflictingGeree = await GereeModel.findOne({
           barilgiinId: barilgiinId,
           toot: orshinSuugch.toot,
-          orshinSuugchId: orshinSuugch._id.toString(),
-          tuluv: "Идэвхтэй"
+          tuluv: "Идэвхтэй",
+          orshinSuugchId: { $ne: orshinSuugch._id.toString() }
         });
 
-        if (existingGereeForUser) {
-          console.log(`ℹ️ [REGISTER] Geree already exists for this user and toot: ${orshinSuugch.toot}, skipping creation`);
-          skipGereeCreation = true; // Skip contract creation - user already has a geree for this toot
-        } else {
-          // Check if another user has this toot
-          const conflictingGeree = await GereeModel.findOne({
-            barilgiinId: barilgiinId,
-            toot: orshinSuugch.toot,
-            // No davkhar check - toots must be unique across all davkhars
-            tuluv: "Идэвхтэй",
-            orshinSuugchId: { $ne: orshinSuugch._id.toString() }
-          });
-
-          if (conflictingGeree) {
-            throw new aldaa(`Тоот ${orshinSuugch.toot} аль хэдийн энэ барилгад өөр хэрэглэгчид хамаарсан байна!`);
-          }
+        if (conflictingGeree) {
+          throw new aldaa(`Тоот ${orshinSuugch.toot} аль хэдийн өөр хэрэглэгчид хамаарсан байна!`);
         }
       }
 
       // If there's a cancelled geree, reactivate it and link it to the new user
       // Do this AFTER fetching charges so we can update zardluud with current charges
-      // Toots are unique across all davkhars, so no davkhar check needed
       const existingCancelledGeree = await GereeModel.findOne({
         toot: orshinSuugch.toot || "",
         barilgiinId: barilgiinId || "",
-        // No davkhar check - toots are unique across all davkhars
         tuluv: "Цуцалсан",
       });
 
@@ -1138,8 +1089,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       }
       const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
 
-      // Only create new geree if not reactivating and not skipping (user doesn't already have one)
-      if (!isReactivating && !skipGereeCreation) {
+      // Only create new geree if not reactivating (no cancelled geree found)
+      if (!isReactivating) {
         // Create geree for each toot in toots array
         // If toots array exists and has entries, create geree for each toot
         // Otherwise, create geree for primary toot (backward compatibility)
@@ -1475,9 +1426,8 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Check if toot is already assigned to a user in this building
-    // Toots must be unique across ALL davkhars in the same building
-    // Davkhar 2 cannot have the same toot numbers as Davkhar 1
+    // Check if toot is already assigned to a user
+    // Check both new toots array and old toot field for backward compatibility
     const existingUserWithToot = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [
         {
@@ -1485,7 +1435,6 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
             $elemMatch: {
               toot: tootToValidate,
               barilgiinId: String(barilgiinId)
-              // No davkhar check - toots must be unique across all davkhars
             }
           }
         },
@@ -1493,20 +1442,14 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
           // Check old toot field for backward compatibility
           toot: tootToValidate,
           barilgiinId: String(barilgiinId)
-          // No davkhar check - toots must be unique across all davkhars
         }
       ]
     });
 
     if (existingUserWithToot) {
-      // Get davkhar info if available for better error message
-      const existingDavkhar = existingUserWithToot.toots?.find(
-        t => t.toot === tootToValidate && t.barilgiinId === String(barilgiinId)
-      )?.davkhar || existingUserWithToot.davkhar || '';
-      
       return res.status(400).json({
         success: false,
-        message: `(${tootToValidate}) тоот аль хэдийн ${existingDavkhar ? `${existingDavkhar}-р давхарт` : 'энэ барилгад'} хэрэглэгчид бүртгэгдсэн байна`,
+        message: `(${tootToValidate}) тоот аль хэдийн хэрэглэгчид бүртгэгдсэн байна`,
         valid: false,
         existingUser: {
           id: existingUserWithToot._id,
@@ -1760,46 +1703,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     // Handle barilgiinId - check both barilgiinId and bairId (frontend might send either)
     const barilgiinIdToSave = req.body.barilgiinId || req.body.bairId;
-    
-    // Validate: User can only register with ONE building
-    // If user already has a barilgiinId, they cannot login/register with a different one
-    if (orshinSuugch && orshinSuugch.barilgiinId && barilgiinIdToSave) {
-      const existingBarilgiinId = String(orshinSuugch.barilgiinId);
-      const newBarilgiinId = String(barilgiinIdToSave);
-      
-      if (existingBarilgiinId !== newBarilgiinId) {
-        // Get building names for better error message
-        let existingBuildingName = "";
-        let newBuildingName = "";
-        
-        try {
-          if (userData.baiguullagiinId || orshinSuugch.baiguullagiinId) {
-            const baiguullagaId = userData.baiguullagiinId || orshinSuugch.baiguullagiinId;
-            const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagaId);
-            
-            if (baiguullaga) {
-              const existingBarilga = baiguullaga.barilguud?.find(
-                (b) => String(b._id) === existingBarilgiinId
-              );
-              const newBarilga = baiguullaga.barilguud?.find(
-                (b) => String(b._id) === newBarilgiinId
-              );
-              
-              existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
-              newBuildingName = newBarilga?.ner || newBarilgiinId;
-            }
-          }
-        } catch (err) {
-          console.error("Error fetching building names:", err.message);
-        }
-        
-        return res.status(400).json({
-          success: false,
-          message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад нэвтрэх боломжгүй.`,
-        });
-      }
-    }
-    
     if (barilgiinIdToSave) {
       userData.barilgiinId = barilgiinIdToSave;
     } else if (orshinSuugch && orshinSuugch.barilgiinId) {
@@ -2285,7 +2188,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           const existingCancelledGeree = await GereeModel.findOne({
             barilgiinId: tootEntry.barilgiinId,
             toot: tootEntry.toot,
-            // No davkhar check - toots are unique across all davkhars
             tuluv: "Цуцалсан",
             orshinSuugchId: orshinSuugch._id.toString()
           });
@@ -2377,11 +2279,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
           // Validate: One toot cannot have different owners
           // Check if this toot already has an active contract with a different orshinSuugchId
-          // Toots must be unique across ALL davkhars in the same building
           const conflictingGeree = await GereeModel.findOne({
             barilgiinId: tootEntry.barilgiinId,
             toot: tootEntry.toot,
-            // No davkhar check - toots must be unique across all davkhars
             tuluv: "Идэвхтэй",
             orshinSuugchId: { $ne: orshinSuugch._id.toString() }
           });
@@ -2744,53 +2644,8 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       }
     }
 
-    // Handle barilgiinId - check both barilgiinId and bairId (frontend might send either)
-    const barilgiinIdToSave = req.body.barilgiinId || req.body.bairId;
-    
-    // Validate: User can only register with ONE building
-    // If user already has a barilgiinId, they cannot register with a different one
-    if (orshinSuugch && orshinSuugch.barilgiinId && barilgiinIdToSave) {
-      const existingBarilgiinId = String(orshinSuugch.barilgiinId);
-      const newBarilgiinId = String(barilgiinIdToSave);
-      
-      if (existingBarilgiinId !== newBarilgiinId) {
-        // Get building names for better error message
-        let existingBuildingName = "";
-        let newBuildingName = "";
-        
-        try {
-          if (userData.baiguullagiinId || orshinSuugch.baiguullagiinId) {
-            const baiguullagaId = userData.baiguullagiinId || orshinSuugch.baiguullagiinId;
-            const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagaId);
-            
-            if (baiguullaga) {
-              const existingBarilga = baiguullaga.barilguud?.find(
-                (b) => String(b._id) === existingBarilgiinId
-              );
-              const newBarilga = baiguullaga.barilguud?.find(
-                (b) => String(b._id) === newBarilgiinId
-              );
-              
-              existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
-              newBuildingName = newBarilga?.ner || newBarilgiinId;
-            }
-          }
-        } catch (err) {
-          console.error("Error fetching building names:", err.message);
-        }
-        
-        return res.status(400).json({
-          success: false,
-          message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад бүртгүүлэх боломжгүй.`,
-        });
-      }
-    }
-    
-    if (barilgiinIdToSave) {
-      userData.barilgiinId = barilgiinIdToSave;
-    } else if (orshinSuugch && orshinSuugch.barilgiinId) {
-      // Preserve existing barilgiinId if user already has one
-      userData.barilgiinId = orshinSuugch.barilgiinId;
+    if (req.body.barilgiinId) {
+      userData.barilgiinId = req.body.barilgiinId;
     }
 
     if (req.body.duureg) userData.duureg = req.body.duureg;
@@ -3056,7 +2911,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           const existingCancelledGeree = await GereeModel.findOne({
             barilgiinId: tootEntry.barilgiinId,
             toot: tootEntry.toot,
-            // No davkhar check - toots are unique across all davkhars
             tuluv: "Цуцалсан",
             orshinSuugchId: orshinSuugch._id.toString()
           });
