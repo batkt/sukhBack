@@ -499,6 +499,36 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       isTruthy: !!req.body.barilgiinId,
     });
 
+    // Validate: User can only register with ONE building
+    // If user already has a barilgiinId, they cannot register with a different one
+    if (orshinSuugch && orshinSuugch.barilgiinId && barilgiinId) {
+      const existingBarilgiinId = String(orshinSuugch.barilgiinId);
+      const newBarilgiinId = String(barilgiinId);
+      
+      if (existingBarilgiinId !== newBarilgiinId) {
+        // Get building names for better error message
+        let existingBuildingName = "";
+        let newBuildingName = "";
+        
+        if (baiguullaga) {
+          const existingBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === existingBarilgiinId
+          );
+          const newBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === newBarilgiinId
+          );
+          
+          existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
+          newBuildingName = newBarilga?.ner || newBarilgiinId;
+        }
+        
+        return res.status(400).json({
+          success: false,
+          message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад бүртгүүлэх боломжгүй.`,
+        });
+      }
+    }
+
     // If barilgiinId is provided, use it directly - don't search!
     // Only validate if baiguullaga exists
     if (barilgiinId && baiguullaga) {
@@ -1703,6 +1733,46 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     // Handle barilgiinId - check both barilgiinId and bairId (frontend might send either)
     const barilgiinIdToSave = req.body.barilgiinId || req.body.bairId;
+    
+    // Validate: User can only register with ONE building
+    // If user already has a barilgiinId, they cannot login/register with a different one
+    if (orshinSuugch && orshinSuugch.barilgiinId && barilgiinIdToSave) {
+      const existingBarilgiinId = String(orshinSuugch.barilgiinId);
+      const newBarilgiinId = String(barilgiinIdToSave);
+      
+      if (existingBarilgiinId !== newBarilgiinId) {
+        // Get building names for better error message
+        let existingBuildingName = "";
+        let newBuildingName = "";
+        
+        try {
+          if (userData.baiguullagiinId || orshinSuugch.baiguullagiinId) {
+            const baiguullagaId = userData.baiguullagiinId || orshinSuugch.baiguullagiinId;
+            const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagaId);
+            
+            if (baiguullaga) {
+              const existingBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === existingBarilgiinId
+              );
+              const newBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === newBarilgiinId
+              );
+              
+              existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
+              newBuildingName = newBarilga?.ner || newBarilgiinId;
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching building names:", err.message);
+        }
+        
+        return res.status(400).json({
+          success: false,
+          message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад нэвтрэх боломжгүй.`,
+        });
+      }
+    }
+    
     if (barilgiinIdToSave) {
       userData.barilgiinId = barilgiinIdToSave;
     } else if (orshinSuugch && orshinSuugch.barilgiinId) {
@@ -2644,8 +2714,53 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       }
     }
 
-    if (req.body.barilgiinId) {
-      userData.barilgiinId = req.body.barilgiinId;
+    // Handle barilgiinId - check both barilgiinId and bairId (frontend might send either)
+    const barilgiinIdToSave = req.body.barilgiinId || req.body.bairId;
+    
+    // Validate: User can only register with ONE building
+    // If user already has a barilgiinId, they cannot register with a different one
+    if (orshinSuugch && orshinSuugch.barilgiinId && barilgiinIdToSave) {
+      const existingBarilgiinId = String(orshinSuugch.barilgiinId);
+      const newBarilgiinId = String(barilgiinIdToSave);
+      
+      if (existingBarilgiinId !== newBarilgiinId) {
+        // Get building names for better error message
+        let existingBuildingName = "";
+        let newBuildingName = "";
+        
+        try {
+          if (userData.baiguullagiinId || orshinSuugch.baiguullagiinId) {
+            const baiguullagaId = userData.baiguullagiinId || orshinSuugch.baiguullagiinId;
+            const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagaId);
+            
+            if (baiguullaga) {
+              const existingBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === existingBarilgiinId
+              );
+              const newBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === newBarilgiinId
+              );
+              
+              existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
+              newBuildingName = newBarilga?.ner || newBarilgiinId;
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching building names:", err.message);
+        }
+        
+        return res.status(400).json({
+          success: false,
+          message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад бүртгүүлэх боломжгүй.`,
+        });
+      }
+    }
+    
+    if (barilgiinIdToSave) {
+      userData.barilgiinId = barilgiinIdToSave;
+    } else if (orshinSuugch && orshinSuugch.barilgiinId) {
+      // Preserve existing barilgiinId if user already has one
+      userData.barilgiinId = orshinSuugch.barilgiinId;
     }
 
     if (req.body.duureg) userData.duureg = req.body.duureg;
