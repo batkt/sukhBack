@@ -109,10 +109,10 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
   try {
     if (!!shine) {
       // Check if this baiguullaga should use TEST endpoint
-      // baiguullagiinId "68fadc445098626bde912f2e" uses TEST, others use IP
+      // baiguullagiinId "69159a06dd2ba5c30308b90f" uses TEST, others use IP
       // Get baiguullagiinId from parameter or from ugugdul if not provided
       const orgId = baiguullagiinId || ugugdul?.baiguullagiinId;
-      const shouldUseTest = orgId && String(orgId) === "69086ecd59da7b52fbf278f7";
+      const shouldUseTest = orgId && String(orgId) === "69159a06dd2ba5c30308b90f";
       
       const baseUrl = shouldUseTest 
         ? process.env.EBARIMTSHINE_TEST 
