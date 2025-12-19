@@ -282,7 +282,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Schedule cron job to run daily at 16:18 (4:18 PM) Mongolia time
 const cronJob = cron.schedule(
-  "45 09 * * *",
+  "48 09 * * *",
   function () {
     const now = new Date();
     console.log(
