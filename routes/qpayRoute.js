@@ -1689,15 +1689,74 @@ router.get(
           console.log(`📧 [EBARIMT] eBarimtShine:`, tuxainSalbar.eBarimtShine);
           console.log(`📧 [EBARIMT] merchantTin:`, tuxainSalbar.merchantTin);
           console.log(`📧 [EBARIMT] districtCode:`, tuxainSalbar.districtCode);
+          console.log(`📧 [EBARIMT] EbarimtDistrictCode:`, tuxainSalbar.EbarimtDistrictCode);
           
           if (!tuxainSalbar.merchantTin) {
             throw new Error("merchantTin is required for e-barimt creation");
           }
-          if (!tuxainSalbar.districtCode) {
-            console.error(
-              "⚠️  Cannot create e-barimt: districtCode is missing"
-            );
-            throw new Error("districtCode is required for e-barimt creation");
+          
+          // Ebarimt API requires a 4-digit numeric district code
+          // Look up the code from tatvariinAlba using city name and district/horoo name
+          let ebarimtDistrictCode = null;
+          
+          try {
+            const TatvariinAlba = require("../models/tatvariinAlba");
+            const cityName = tuxainSalbar.EbarimtDuuregNer || tuxainSalbar.duuregNer;
+            const districtCodeString = tuxainSalbar.EbarimtDistrictCode || tuxainSalbar.districtCode || "";
+            
+            // Extract horoo/district name from the district code string
+            // E.g., "Сонгинохайрхан20-р хороо" -> "20-р хороо"
+            // Or use horoo.ner if available
+            const horooName = tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || 
+                              districtCodeString.replace(cityName, "").trim();
+            
+            if (cityName && horooName) {
+              // Find the city in tatvariinAlba
+              const city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
+              
+              if (city && city.kod) {
+                // Find the district/horoo within the city
+                const district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
+                
+                if (district && district.kod) {
+                  // Combine city code + district code to create 4-digit code
+                  const cityCode = city.kod.padStart(2, '0');
+                  const districtCode = district.kod.padStart(2, '0');
+                  ebarimtDistrictCode = cityCode + districtCode;
+                  
+                  console.log(`📧 [EBARIMT] Found district code: ${cityName} (${cityCode}) + ${horooName} (${districtCode}) = ${ebarimtDistrictCode}`);
+                } else {
+                  console.warn(`⚠️  [EBARIMT] District/horoo "${horooName}" not found in city "${cityName}"`);
+                }
+              } else {
+                console.warn(`⚠️  [EBARIMT] City "${cityName}" not found in tatvariinAlba`);
+              }
+            }
+            
+            // Fallback: try to extract 4-digit numeric code directly
+            if (!ebarimtDistrictCode) {
+              const numericMatch = districtCodeString?.match(/\d{4}/);
+              if (numericMatch) {
+                ebarimtDistrictCode = numericMatch[0];
+                console.log(`📧 [EBARIMT] Using extracted numeric code:`, ebarimtDistrictCode);
+              } else if (/^\d{4}$/.test(districtCodeString)) {
+                ebarimtDistrictCode = districtCodeString;
+                console.log(`📧 [EBARIMT] Using direct numeric code:`, ebarimtDistrictCode);
+              }
+            }
+            
+            if (!ebarimtDistrictCode || !/^\d{4}$/.test(ebarimtDistrictCode)) {
+              console.error(
+                "⚠️  Cannot create e-barimt: districtCode must be a 4-digit numeric code. Got:",
+                ebarimtDistrictCode || districtCodeString
+              );
+              throw new Error("districtCode must be a 4-digit numeric code for e-barimt creation");
+            }
+            
+            console.log(`📧 [EBARIMT] Using districtCode for API:`, ebarimtDistrictCode);
+          } catch (lookupError) {
+            console.error("❌ [EBARIMT] Error looking up district code:", lookupError.message);
+            throw new Error("Failed to lookup district code for e-barimt creation");
           }
 
           const {
@@ -1713,7 +1772,7 @@ router.get(
             nekhemjlekh.register || "",
             "",
             tuxainSalbar.merchantTin,
-            tuxainSalbar.districtCode,
+            ebarimtDistrictCode,
             kholbolt,
             nuatTulukhEsekh
           );
@@ -2039,77 +2098,134 @@ router.get(
               console.log(`📧 [EBARIMT] eBarimtShine:`, tuxainSalbar.eBarimtShine);
               console.log(`📧 [EBARIMT] merchantTin:`, tuxainSalbar.merchantTin);
               console.log(`📧 [EBARIMT] districtCode:`, tuxainSalbar.districtCode);
+              console.log(`📧 [EBARIMT] EbarimtDistrictCode:`, tuxainSalbar.EbarimtDistrictCode);
               
               if (!tuxainSalbar.merchantTin) {
                 console.error(
                   `⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: merchantTin is required`
                 );
-              } else if (!tuxainSalbar.districtCode) {
-                console.error(
-                  `⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: districtCode is missing`
-                );
               } else {
-                const {
-                  nekhemjlekheesEbarimtShineUusgye,
-                  ebarimtDuudya,
-                } = require("./ebarimtRoute");
-                const EbarimtShine = require("../models/ebarimtShine");
-
-                const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
-
-                const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
-                  updatedInvoice,
-                  updatedInvoice.register || "",
-                  "",
-                  tuxainSalbar.merchantTin,
-                  tuxainSalbar.districtCode,
-                  kholbolt,
-                  nuatTulukhEsekh
-                );
-
-                // The ebarimt object already has invoice data set in nekhemjlekheesEbarimtShineUusgye
-                // ebarimtDuudya calls onFinish(body, ugugdul) where ugugdul is the ebarimt object
-                var butsaakhMethod = function (d, ebarimtObject) {
-                  try {
-                    if (d?.status != "SUCCESS" && !d.success) {
-                      console.error(
-                        `❌ E-barimt API error for invoice ${ebarimtObject.nekhemjlekhiinId}:`,
-                        d?.message || d?.error || JSON.stringify(d)
-                      );
-                      return;
+                // Ebarimt API requires a 4-digit numeric district code
+                // Look up the code from tatvariinAlba using city name and district/horoo name
+                let ebarimtDistrictCode = null;
+                
+                try {
+                  const TatvariinAlba = require("../models/tatvariinAlba");
+                  const cityName = tuxainSalbar.EbarimtDuuregNer || tuxainSalbar.duuregNer;
+                  const districtCodeString = tuxainSalbar.EbarimtDistrictCode || tuxainSalbar.districtCode || "";
+                  
+                  // Extract horoo/district name from the district code string
+                  const horooName = tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || 
+                                    districtCodeString.replace(cityName, "").trim();
+                  
+                  if (cityName && horooName) {
+                    // Find the city in tatvariinAlba
+                    const city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
+                    
+                    if (city && city.kod) {
+                      // Find the district/horoo within the city
+                      const district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
+                      
+                      if (district && district.kod) {
+                        // Combine city code + district code to create 4-digit code
+                        const cityCode = city.kod.padStart(2, '0');
+                        const districtCode = district.kod.padStart(2, '0');
+                        ebarimtDistrictCode = cityCode + districtCode;
+                        
+                        console.log(`📧 [EBARIMT] Found district code: ${cityName} (${cityCode}) + ${horooName} (${districtCode}) = ${ebarimtDistrictCode}`);
+                      } else {
+                        console.warn(`⚠️  [EBARIMT] District/horoo "${horooName}" not found in city "${cityName}"`);
+                      }
+                    } else {
+                      console.warn(`⚠️  [EBARIMT] City "${cityName}" not found in tatvariinAlba`);
                     }
-
-                    var shineBarimt = new EbarimtShine(kholbolt)(d);
-                    shineBarimt.nekhemjlekhiinId =
-                      ebarimtObject.nekhemjlekhiinId;
-                    shineBarimt.baiguullagiinId = ebarimtObject.baiguullagiinId;
-                    shineBarimt.barilgiinId = ebarimtObject.barilgiinId;
-                    shineBarimt.gereeniiDugaar = ebarimtObject.gereeniiDugaar;
-                    shineBarimt.utas = ebarimtObject.utas;
-
-                    if (d.qrData) shineBarimt.qrData = d.qrData;
-                    if (d.lottery) shineBarimt.lottery = d.lottery;
-                    if (d.id) shineBarimt.receiptId = d.id;
-                    if (d.date) shineBarimt.date = d.date;
-
-                    shineBarimt.save();
-                    console.log(
-                      `✅ E-barimt saved successfully for invoice:`,
-                      ebarimtObject.nekhemjlekhiinId
-                    );
-                  } catch (err) {
-                    console.error(
-                      `❌ Failed to save e-barimt for invoice ${
-                        ebarimtObject?.nekhemjlekhiinId || "unknown"
-                      }:`,
-                      err.message
-                    );
                   }
-                };
+                  
+                  // Fallback: try to extract 4-digit numeric code directly
+                  if (!ebarimtDistrictCode) {
+                    const numericMatch = districtCodeString?.match(/\d{4}/);
+                    if (numericMatch) {
+                      ebarimtDistrictCode = numericMatch[0];
+                      console.log(`📧 [EBARIMT] Using extracted numeric code:`, ebarimtDistrictCode);
+                    } else if (/^\d{4}$/.test(districtCodeString)) {
+                      ebarimtDistrictCode = districtCodeString;
+                      console.log(`📧 [EBARIMT] Using direct numeric code:`, ebarimtDistrictCode);
+                    }
+                  }
+                  
+                  if (!ebarimtDistrictCode || !/^\d{4}$/.test(ebarimtDistrictCode)) {
+                    console.error(
+                      `⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: districtCode must be a 4-digit numeric code. Got:`,
+                      ebarimtDistrictCode || districtCodeString
+                    );
+                  } else {
+                    console.log(`📧 [EBARIMT] Using districtCode for API:`, ebarimtDistrictCode);
+                  
+                    const {
+                      nekhemjlekheesEbarimtShineUusgye,
+                      ebarimtDuudya,
+                    } = require("./ebarimtRoute");
+                    const EbarimtShine = require("../models/ebarimtShine");
 
-                // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
-                // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
-                ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
+                    const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
+
+                    const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
+                      updatedInvoice,
+                      updatedInvoice.register || "",
+                      "",
+                      tuxainSalbar.merchantTin,
+                      ebarimtDistrictCode,
+                      kholbolt,
+                      nuatTulukhEsekh
+                    );
+
+                    // The ebarimt object already has invoice data set in nekhemjlekheesEbarimtShineUusgye
+                    // ebarimtDuudya calls onFinish(body, ugugdul) where ugugdul is the ebarimt object
+                    var butsaakhMethod = function (d, ebarimtObject) {
+                      try {
+                        if (d?.status != "SUCCESS" && !d.success) {
+                          console.error(
+                            `❌ E-barimt API error for invoice ${ebarimtObject.nekhemjlekhiinId}:`,
+                            d?.message || d?.error || JSON.stringify(d)
+                          );
+                          return;
+                        }
+
+                        var shineBarimt = new EbarimtShine(kholbolt)(d);
+                        shineBarimt.nekhemjlekhiinId =
+                          ebarimtObject.nekhemjlekhiinId;
+                        shineBarimt.baiguullagiinId = ebarimtObject.baiguullagiinId;
+                        shineBarimt.barilgiinId = ebarimtObject.barilgiinId;
+                        shineBarimt.gereeniiDugaar = ebarimtObject.gereeniiDugaar;
+                        shineBarimt.utas = ebarimtObject.utas;
+
+                        if (d.qrData) shineBarimt.qrData = d.qrData;
+                        if (d.lottery) shineBarimt.lottery = d.lottery;
+                        if (d.id) shineBarimt.receiptId = d.id;
+                        if (d.date) shineBarimt.date = d.date;
+
+                        shineBarimt.save();
+                        console.log(
+                          `✅ E-barimt saved successfully for invoice:`,
+                          ebarimtObject.nekhemjlekhiinId
+                        );
+                      } catch (err) {
+                        console.error(
+                          `❌ Failed to save e-barimt for invoice ${
+                            ebarimtObject?.nekhemjlekhiinId || "unknown"
+                          }:`,
+                          err.message
+                        );
+                      }
+                    };
+
+                    // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
+                    // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
+                    ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
+                  }
+                } catch (lookupError) {
+                  console.error(`❌ [EBARIMT] Error looking up district code for invoice ${updatedInvoice._id}:`, lookupError.message);
+                }
               }
             } else {
               console.log(
