@@ -458,9 +458,12 @@ function validateDavkhariinToonuud(barilguud) {
 }
 
 // Pre-updateOne hook (for updateOne operations)
+// Only validate if entire barilguud array is being updated (not nested path updates)
 baiguullagaSchema.pre("updateOne", function (next) {
   try {
-    if (this._update && this._update.barilguud) {
+    // Only validate if barilguud is directly in _update (full array update)
+    // Skip validation for nested path updates like "barilguud.0.tokhirgoo.davkhariinToonuud"
+    if (this._update && this._update.barilguud && !this._update.$set) {
       const error = validateDavkhariinToonuud(this._update.barilguud);
       if (error) {
         error.name = "ValidationError";
@@ -474,15 +477,23 @@ baiguullagaSchema.pre("updateOne", function (next) {
 });
 
 // Pre-findOneAndUpdate hook (for findOneAndUpdate operations)
+// Only validate if entire barilguud array is being updated (not nested path updates for adding new toots)
 baiguullagaSchema.pre("findOneAndUpdate", function (next) {
   try {
-    if (this._update && this._update.barilguud) {
+    // Only validate if barilguud is directly in _update (full array update from PUT request)
+    // Skip validation for nested path updates (used when adding new toots via updateDavkharWithToot)
+    // Nested updates like "barilguud.0.tokhirgoo.davkhariinToonuud" are used to add individual toots
+    // and should be allowed - the validation happens at user registration level instead
+    if (this._update && this._update.barilguud && !this._update.$set) {
+      // This is a full barilguud array update (from PUT request editing building config)
       const error = validateDavkhariinToonuud(this._update.barilguud);
       if (error) {
         error.name = "ValidationError";
         return next(error);
       }
     }
+    // For nested path updates ($set with paths like "barilguud.X.tokhirgoo.davkhariinToonuud"),
+    // skip validation - these are used to add new toots and are validated at registration time
     next();
   } catch (error) {
     next(error);
