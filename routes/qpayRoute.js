@@ -1710,13 +1710,39 @@ router.get(
             const horooName = tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || 
                               districtCodeString.replace(cityName, "").trim();
             
+            console.log(`📧 [EBARIMT] Looking up district code - cityName: "${cityName}", horooName: "${horooName}"`);
+            
             if (cityName && horooName) {
-              // Find the city in tatvariinAlba
-              const city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
+              // Find the city in tatvariinAlba - try exact match first, then case-insensitive
+              let city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
+              
+              // If not found, try case-insensitive search
+              if (!city) {
+                const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({});
+                city = allCities.find(c => c.ner && c.ner.trim().toLowerCase() === cityName.trim().toLowerCase());
+                if (city) {
+                  console.log(`📧 [EBARIMT] Found city with case-insensitive match: "${city.ner}"`);
+                }
+              }
               
               if (city && city.kod) {
-                // Find the district/horoo within the city
-                const district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
+                console.log(`📧 [EBARIMT] Found city "${city.ner}" with kod: ${city.kod}`);
+                console.log(`📧 [EBARIMT] Available districts in city:`, city.ded?.map(d => `${d.ner} (${d.kod})`).join(", ") || "none");
+                
+                // Find the district/horoo within the city - try exact match, then partial match
+                let district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
+                
+                // If not found, try case-insensitive or partial match
+                if (!district && city.ded) {
+                  district = city.ded.find(d => {
+                    const dName = d.ner?.trim().toLowerCase() || "";
+                    const hName = horooName.trim().toLowerCase();
+                    return dName === hName || dName.includes(hName) || hName.includes(dName);
+                  });
+                  if (district) {
+                    console.log(`📧 [EBARIMT] Found district with fuzzy match: "${district.ner}"`);
+                  }
+                }
                 
                 if (district && district.kod) {
                   // Combine city code + district code to create 4-digit code
@@ -1724,12 +1750,16 @@ router.get(
                   const districtCode = district.kod.padStart(2, '0');
                   ebarimtDistrictCode = cityCode + districtCode;
                   
-                  console.log(`📧 [EBARIMT] Found district code: ${cityName} (${cityCode}) + ${horooName} (${districtCode}) = ${ebarimtDistrictCode}`);
+                  console.log(`✅ [EBARIMT] Found district code: ${city.ner} (${cityCode}) + ${district.ner} (${districtCode}) = ${ebarimtDistrictCode}`);
                 } else {
-                  console.warn(`⚠️  [EBARIMT] District/horoo "${horooName}" not found in city "${cityName}"`);
+                  console.warn(`⚠️  [EBARIMT] District/horoo "${horooName}" not found in city "${city.ner}"`);
+                  console.warn(`⚠️  [EBARIMT] Available districts:`, city.ded?.map(d => d.ner).join(", ") || "none");
                 }
               } else {
                 console.warn(`⚠️  [EBARIMT] City "${cityName}" not found in tatvariinAlba`);
+                // List available cities for debugging
+                const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({}).limit(10);
+                console.warn(`⚠️  [EBARIMT] Available cities (first 10):`, allCities.map(c => c.ner).join(", "));
               }
             }
             
@@ -2118,13 +2148,39 @@ router.get(
                   const horooName = tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || 
                                     districtCodeString.replace(cityName, "").trim();
                   
+                  console.log(`📧 [EBARIMT] Looking up district code - cityName: "${cityName}", horooName: "${horooName}"`);
+                  
                   if (cityName && horooName) {
-                    // Find the city in tatvariinAlba
-                    const city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
+                    // Find the city in tatvariinAlba - try exact match first, then case-insensitive
+                    let city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
+                    
+                    // If not found, try case-insensitive search
+                    if (!city) {
+                      const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({});
+                      city = allCities.find(c => c.ner && c.ner.trim().toLowerCase() === cityName.trim().toLowerCase());
+                      if (city) {
+                        console.log(`📧 [EBARIMT] Found city with case-insensitive match: "${city.ner}"`);
+                      }
+                    }
                     
                     if (city && city.kod) {
-                      // Find the district/horoo within the city
-                      const district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
+                      console.log(`📧 [EBARIMT] Found city "${city.ner}" with kod: ${city.kod}`);
+                      console.log(`📧 [EBARIMT] Available districts in city:`, city.ded?.map(d => `${d.ner} (${d.kod})`).join(", ") || "none");
+                      
+                      // Find the district/horoo within the city - try exact match, then partial match
+                      let district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
+                      
+                      // If not found, try case-insensitive or partial match
+                      if (!district && city.ded) {
+                        district = city.ded.find(d => {
+                          const dName = d.ner?.trim().toLowerCase() || "";
+                          const hName = horooName.trim().toLowerCase();
+                          return dName === hName || dName.includes(hName) || hName.includes(dName);
+                        });
+                        if (district) {
+                          console.log(`📧 [EBARIMT] Found district with fuzzy match: "${district.ner}"`);
+                        }
+                      }
                       
                       if (district && district.kod) {
                         // Combine city code + district code to create 4-digit code
@@ -2132,12 +2188,16 @@ router.get(
                         const districtCode = district.kod.padStart(2, '0');
                         ebarimtDistrictCode = cityCode + districtCode;
                         
-                        console.log(`📧 [EBARIMT] Found district code: ${cityName} (${cityCode}) + ${horooName} (${districtCode}) = ${ebarimtDistrictCode}`);
+                        console.log(`✅ [EBARIMT] Found district code: ${city.ner} (${cityCode}) + ${district.ner} (${districtCode}) = ${ebarimtDistrictCode}`);
                       } else {
-                        console.warn(`⚠️  [EBARIMT] District/horoo "${horooName}" not found in city "${cityName}"`);
+                        console.warn(`⚠️  [EBARIMT] District/horoo "${horooName}" not found in city "${city.ner}"`);
+                        console.warn(`⚠️  [EBARIMT] Available districts:`, city.ded?.map(d => d.ner).join(", ") || "none");
                       }
                     } else {
                       console.warn(`⚠️  [EBARIMT] City "${cityName}" not found in tatvariinAlba`);
+                      // List available cities for debugging
+                      const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({}).limit(10);
+                      console.warn(`⚠️  [EBARIMT] Available cities (first 10):`, allCities.map(c => c.ner).join(", "));
                     }
                   }
                   
