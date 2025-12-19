@@ -714,7 +714,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
       const rowNumber = i + 2;
 
       try {
-<<<<<<< HEAD
         // Parse name field - extract ovog if not provided separately
         let ovog = row["Овог"]?.toString().trim() || "";
         let ner = row["Нэр"]?.toString().trim() || "";
@@ -736,13 +735,11 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           }
         }
         
-=======
         // Get initial electricity reading from Excel (optional, defaults to 0)
         const tsahilgaaniiZaalt = row["Цахилгаан кВт"] !== undefined && row["Цахилгаан кВт"] !== null && row["Цахилгаан кВт"] !== ""
           ? parseFloat(row["Цахилгаан кВт"]) || 0
           : 0; // Default to 0 кВт if not provided
 
->>>>>>> 9b51e43ddfe6b9882ee2b9a4878c13eeee84c76a
         const userData = {
           ovog: ovog,
           ner: ner,

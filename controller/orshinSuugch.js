@@ -227,7 +227,7 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
 };
 
 // Helper function to calculate liftShalgaya based on davkhar entries
-// Now saves to baiguullaga.barilguud[].tokhirgoo.liftShalgaya
+// Saves to both baiguullaga.barilguud[].tokhirgoo.liftShalgaya AND liftShalgaya collection
 exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
   baiguullagiinId,
   barilgiinId,
@@ -237,6 +237,7 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
   try {
     const { db } = require("zevbackv2");
     const Baiguullaga = require("../models/baiguullaga");
+    const LiftShalgaya = require("../models/liftShalgaya");
 
     // davkharArray is already an array of floor numbers like ["1", "2", "3"]
     // Extract all unique floor numbers
@@ -269,8 +270,31 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
       ].tokhirgoo.liftShalgaya.choloolugdokhDavkhar = choloolugdokhDavkhar;
       await baiguullaga.save();
 
+      // Also sync with liftShalgaya collection - update existing or create new
+      if (tukhainBaaziinKholbolt) {
+        const LiftShalgayaModel = LiftShalgaya(tukhainBaaziinKholbolt);
+        await LiftShalgayaModel.findOneAndUpdate(
+          {
+            baiguullagiinId: String(baiguullagiinId),
+            barilgiinId: String(barilgiinId)
+          },
+          {
+            baiguullagiinId: String(baiguullagiinId),
+            barilgiinId: String(barilgiinId),
+            choloolugdokhDavkhar: choloolugdokhDavkhar
+          },
+          {
+            upsert: true, // Create if doesn't exist, update if exists
+            new: true
+          }
+        );
+        console.log(
+          `✅ LiftShalgaya collection synced: ${choloolugdokhDavkhar.length} floors exempted`
+        );
+      }
+
       console.log(
-        `LiftShalgaya updated: ${choloolugdokhDavkhar.length} floors exempted`
+        `✅ LiftShalgaya updated in baiguullaga: ${choloolugdokhDavkhar.length} floors exempted`
       );
     } else {
       console.error("Барилга олдсонгүй");
@@ -401,6 +425,64 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // If baiguullaga is not set yet but we have address info, try to find it
+    // This can happen when email is provided but baiguullagiinId wasn't in request body
+    if (!baiguullaga && req.body.bairniiNer) {
+      // Try to find baiguullaga by searching through all organizations
+      // This is a fallback when baiguullagiinId wasn't provided upfront
+      const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
+      for (const org of allBaiguullaguud) {
+        const matchingBarilga = org.barilguud?.find(
+          (b) => String(b.ner).trim() === String(req.body.bairniiNer).trim()
+        );
+        if (matchingBarilga) {
+          baiguullaga = org;
+          console.log(`✅ Found baiguullaga from address: ${baiguullaga.ner} (${baiguullaga._id})`);
+          // Also set tukhainBaaziinKholbolt now that we have baiguullaga
+          tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+          break;
+        }
+      }
+    }
+
+    // If still no baiguullaga and we need it, try to get it from address selection
+    // This handles the case where email is provided but baiguullagiinId needs to be determined
+    if (!baiguullaga && (req.body.duureg || req.body.horoo || req.body.soh)) {
+      // Try to find baiguullaga by location matching
+      // This is a fallback when baiguullagiinId wasn't provided upfront
+      const allBaiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
+      for (const org of allBaiguullaguud) {
+        for (const barilga of org.barilguud || []) {
+          const tokhirgoo = barilga.tokhirgoo || {};
+          const matchesDuureg = !req.body.duureg || !tokhirgoo.duuregNer || 
+            String(tokhirgoo.duuregNer).trim() === String(req.body.duureg).trim();
+          const matchesHoroo = !req.body.horoo || !tokhirgoo.horoo?.ner || 
+            String(tokhirgoo.horoo.ner).trim() === String(req.body.horoo).trim();
+          const matchesSoh = !req.body.soh || !tokhirgoo.sohNer || 
+            String(tokhirgoo.sohNer).trim() === String(req.body.soh).trim();
+          
+          if (matchesDuureg && matchesHoroo && matchesSoh) {
+            baiguullaga = org;
+            console.log(`✅ Found baiguullaga from location: ${baiguullaga.ner} (${baiguullaga._id})`);
+            // Also set tukhainBaaziinKholbolt now that we have baiguullaga
+            tukhainBaaziinKholbolt = db.kholboltuud.find(
+              (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+            );
+            break;
+          }
+        }
+        if (baiguullaga) break;
+      }
+    }
+
+    // If baiguullaga is still not found and we need it for OWN_ORG registration, throw error
+    // But if email is provided, allow registration to proceed without baiguullaga (wallet-only)
+    if (!baiguullaga && !email) {
+      throw new aldaa("Байгууллагын мэдээлэл олдсонгүй! Хаягийн мэдээлэлээс байгууллагыг олж чадсангүй.");
+    }
+
     // Use barilgiinId from request if provided - RESPECT IT!
     // Check all possible fields where barilgiinId might be sent
     let barilgiinId =
@@ -418,7 +500,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     });
 
     // If barilgiinId is provided, use it directly - don't search!
-    if (barilgiinId) {
+    // Only validate if baiguullaga exists
+    if (barilgiinId && baiguullaga) {
       // Validate that this barilgiinId exists in baiguullaga
       const providedBarilga = baiguullaga.barilguud?.find(
         (b) => String(b._id) === String(barilgiinId)
@@ -737,9 +820,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       // IMPORTANT: Set tsahilgaaniiZaalt explicitly to ensure it's saved
       const userData = {
         ...req.body,
-        baiguullagiinId: baiguullaga._id,
-        baiguullagiinNer: baiguullaga.ner,
-        barilgiinId: barilgiinId,
         mail: walletUserInfo?.email || req.body.mail || email, // Use email from Wallet API if available
         erkh: "OrshinSuugch",
         duureg: req.body.duureg,
@@ -756,6 +836,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         ...(walletUserId ? { walletUserId: walletUserId } : {}),
       };
       
+      // Only set baiguullaga fields if baiguullaga exists (OWN_ORG registration)
+      if (baiguullaga) {
+        userData.baiguullagiinId = baiguullaga._id;
+        userData.baiguullagiinNer = baiguullaga.ner;
+      }
+      
+      // Only set barilgiinId if it exists (OWN_ORG registration)
+      if (barilgiinId) {
+        userData.barilgiinId = barilgiinId;
+      }
+      
       userData.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
       
       console.log("⚡ [REGISTER] userData.tsahilgaaniiZaalt:", userData.tsahilgaaniiZaalt);
@@ -765,6 +856,36 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     }
     
     console.log("⚡ [REGISTER] orshinSuugch.tsahilgaaniiZaalt after creation:", orshinSuugch.tsahilgaaniiZaalt);
+    
+    // Validate: User can only register with ONE building
+    // If user already has a barilgiinId, they cannot register with a different one
+    if (orshinSuugch.barilgiinId && barilgiinId) {
+      const existingBarilgiinId = String(orshinSuugch.barilgiinId);
+      const newBarilgiinId = String(barilgiinId);
+      
+      if (existingBarilgiinId !== newBarilgiinId) {
+        // Get building names for better error message
+        let existingBuildingName = "";
+        let newBuildingName = "";
+        
+        if (baiguullaga) {
+          const existingBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === existingBarilgiinId
+          );
+          const newBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === newBarilgiinId
+          );
+          
+          existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
+          newBuildingName = newBarilga?.ner || newBarilgiinId;
+        }
+        
+        return res.status(400).json({
+          success: false,
+          message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад бүртгүүлэх боломжгүй.`,
+        });
+      }
+    }
     
     if (!orshinSuugch.toots) {
       orshinSuugch.toots = [];
@@ -1335,10 +1456,39 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Multiple users can have the same toot, so no unique check needed
-    // Validation only checks if toot exists in building's available toots
+    // Check if toot is already assigned to a user
+    // Check both new toots array and old toot field for backward compatibility
+    const existingUserWithToot = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      $or: [
+        {
+          toots: {
+            $elemMatch: {
+              toot: tootToValidate,
+              barilgiinId: String(barilgiinId)
+            }
+          }
+        },
+        {
+          // Check old toot field for backward compatibility
+          toot: tootToValidate,
+          barilgiinId: String(barilgiinId)
+        }
+      ]
+    });
 
-    // Toot is valid
+    if (existingUserWithToot) {
+      return res.status(400).json({
+        success: false,
+        message: `(${tootToValidate}) тоот аль хэдийн хэрэглэгчид бүртгэгдсэн байна`,
+        valid: false,
+        existingUser: {
+          id: existingUserWithToot._id,
+          ner: existingUserWithToot.ner,
+          utas: existingUserWithToot.utas
+        }
+      });
+    }
+
     return res.json({
       success: true,
       message: "Тоот зөв байна",
@@ -1570,10 +1720,78 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     // Save baiguullagiinId if provided (from OWN_ORG bair selection)
     if (req.body.baiguullagiinId) {
       userData.baiguullagiinId = req.body.baiguullagiinId;
+      // Also get baiguullaga name if available
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (baiguullaga && baiguullaga.ner) {
+          userData.baiguullagiinNer = baiguullaga.ner;
+        }
+      } catch (err) {
+        console.error("Error fetching baiguullaga name:", err.message);
+      }
     }
 
-    if (req.body.barilgiinId) {
-      userData.barilgiinId = req.body.barilgiinId;
+    // Handle barilgiinId - check both barilgiinId and bairId (frontend might send either)
+    const barilgiinIdToSave = req.body.barilgiinId || req.body.bairId;
+    
+    // Check if this is an OWN_ORG address login (user is explicitly selecting a building)
+    const isOwnOrgAddressLoginCheck = req.body.baiguullagiinId && req.body.doorNo && (req.body.barilgiinId || req.body.bairId);
+    
+    // Validate: User can only register with ONE building
+    // ONLY validate if user is explicitly trying to login with OWN_ORG address AND a different building
+    // If user is just logging in normally (without providing barilgiinId), allow it
+    if (isOwnOrgAddressLoginCheck && orshinSuugch && orshinSuugch.barilgiinId && barilgiinIdToSave) {
+      const existingBarilgiinId = String(orshinSuugch.barilgiinId);
+      const newBarilgiinId = String(barilgiinIdToSave);
+      
+      console.log("🔍 [LOGIN] Checking building validation...");
+      console.log("🔍 [LOGIN] Existing barilgiinId:", existingBarilgiinId);
+      console.log("🔍 [LOGIN] New barilgiinId:", newBarilgiinId);
+      console.log("🔍 [LOGIN] isOwnOrgAddressLoginCheck:", isOwnOrgAddressLoginCheck);
+      
+      if (existingBarilgiinId !== newBarilgiinId) {
+        // Get building names for better error message
+        let existingBuildingName = "";
+        let newBuildingName = "";
+        
+        try {
+          if (userData.baiguullagiinId || orshinSuugch.baiguullagiinId) {
+            const baiguullagaId = userData.baiguullagiinId || orshinSuugch.baiguullagiinId;
+            const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagaId);
+            
+            if (baiguullaga) {
+              const existingBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === existingBarilgiinId
+              );
+              const newBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === newBarilgiinId
+              );
+              
+              existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
+              newBuildingName = newBarilga?.ner || newBarilgiinId;
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching building names:", err.message);
+        }
+        
+        console.error("❌ [LOGIN] User trying to login with different building!");
+        console.error("❌ [LOGIN] Existing:", existingBuildingName, "New:", newBuildingName);
+        
+        return res.status(400).json({
+          success: false,
+          message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад нэвтрэх боломжгүй.`,
+        });
+      }
+    } else {
+      console.log("✅ [LOGIN] Building validation skipped (not OWN_ORG login or no barilgiinId provided)");
+      console.log("✅ [LOGIN] isOwnOrgAddressLoginCheck:", isOwnOrgAddressLoginCheck);
+      console.log("✅ [LOGIN] orshinSuugch.barilgiinId:", orshinSuugch?.barilgiinId);
+      console.log("✅ [LOGIN] barilgiinIdToSave:", barilgiinIdToSave);
+    }
+    
+    if (barilgiinIdToSave) {
+      userData.barilgiinId = barilgiinIdToSave;
     } else if (orshinSuugch && orshinSuugch.barilgiinId) {
       // Preserve existing barilgiinId if user already has one
       userData.barilgiinId = orshinSuugch.barilgiinId;
@@ -1759,6 +1977,19 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       orshinSuugch.duureg = userData.newTootEntry.duureg;
       orshinSuugch.horoo = userData.newTootEntry.horoo;
       orshinSuugch.soh = userData.newTootEntry.soh;
+    } else if (req.body.baiguullagiinId && (req.body.barilgiinId || req.body.bairId)) {
+      // OWN_ORG address selected but no doorNo/toot provided - still save baiguullagiinId and barilgiinId
+      // This handles the case where user selects OWN_ORG building but hasn't entered toot yet
+      if (userData.baiguullagiinId) {
+        orshinSuugch.baiguullagiinId = userData.baiguullagiinId;
+        if (userData.baiguullagiinNer) {
+          orshinSuugch.baiguullagiinNer = userData.baiguullagiinNer;
+        }
+      }
+      if (userData.barilgiinId) {
+        orshinSuugch.barilgiinId = userData.barilgiinId;
+      }
+      console.log(`✅ [WALLET LOGIN] OWN_ORG address saved (without toot): baiguullagiinId=${userData.baiguullagiinId}, barilgiinId=${userData.barilgiinId}`);
     } else if (bairIdToUse && doorNoToUse && !req.body.baiguullagiinId) {
       // Handle Wallet API address - add to toots array
       // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
@@ -2500,8 +2731,53 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       }
     }
 
-    if (req.body.barilgiinId) {
-      userData.barilgiinId = req.body.barilgiinId;
+    // Handle barilgiinId - check both barilgiinId and bairId (frontend might send either)
+    const barilgiinIdToSave = req.body.barilgiinId || req.body.bairId;
+    
+    // Validate: User can only register with ONE building
+    // If user already has a barilgiinId, they cannot register with a different one
+    if (orshinSuugch && orshinSuugch.barilgiinId && barilgiinIdToSave) {
+      const existingBarilgiinId = String(orshinSuugch.barilgiinId);
+      const newBarilgiinId = String(barilgiinIdToSave);
+      
+      if (existingBarilgiinId !== newBarilgiinId) {
+        // Get building names for better error message
+        let existingBuildingName = "";
+        let newBuildingName = "";
+        
+        try {
+          if (userData.baiguullagiinId || orshinSuugch.baiguullagiinId) {
+            const baiguullagaId = userData.baiguullagiinId || orshinSuugch.baiguullagiinId;
+            const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagaId);
+            
+            if (baiguullaga) {
+              const existingBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === existingBarilgiinId
+              );
+              const newBarilga = baiguullaga.barilguud?.find(
+                (b) => String(b._id) === newBarilgiinId
+              );
+              
+              existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
+              newBuildingName = newBarilga?.ner || newBarilgiinId;
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching building names:", err.message);
+        }
+        
+        return res.status(400).json({
+          success: false,
+          message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад бүртгүүлэх боломжгүй.`,
+        });
+      }
+    }
+    
+    if (barilgiinIdToSave) {
+      userData.barilgiinId = barilgiinIdToSave;
+    } else if (orshinSuugch && orshinSuugch.barilgiinId) {
+      // Preserve existing barilgiinId if user already has one
+      userData.barilgiinId = orshinSuugch.barilgiinId;
     }
 
     if (req.body.duureg) userData.duureg = req.body.duureg;
@@ -3346,16 +3622,20 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
 
+    // Wallet API uses phone number as userId in header, not walletUserId UUID
     const phoneNumber = orshinSuugch.utas;
     const bairId = req.body.bairId;
     const doorNo = req.body.doorNo;
 
     console.log("🏠 [WALLET BILLING] Fetching billing info from Wallet API...");
-    console.log("🏠 [WALLET BILLING] User:", phoneNumber, "bairId:", bairId, "doorNo:", doorNo);
+    console.log("🏠 [WALLET BILLING] User (phoneNumber):", phoneNumber);
+    console.log("🏠 [WALLET BILLING] User (walletUserId):", orshinSuugch.walletUserId || "N/A");
+    console.log("🏠 [WALLET BILLING] Using phoneNumber as userId for Wallet API:", phoneNumber);
+    console.log("🏠 [WALLET BILLING] bairId:", bairId, "doorNo:", doorNo);
 
     let billingInfo = null;
     try {
-      // getBillingByAddress requires phoneNumber, not walletUserId
+      // Wallet API requires phone number as userId in header, not walletUserId UUID
       const billingResponse = await walletApiService.getBillingByAddress(
         phoneNumber,
         bairId,
@@ -3374,7 +3654,7 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           try {
             console.log("🔍 [WALLET BILLING] Billing ID not found, fetching by customer ID...");
             console.log("🔍 [WALLET BILLING] Customer ID:", billingInfo.customerId);
-            // Wallet API userId means phoneNumber
+            // Wallet API requires phone number as userId in header
             const billingByCustomer = await walletApiService.getBillingByCustomer(
               phoneNumber,
               billingInfo.customerId
@@ -3389,7 +3669,7 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
               // Try to find billingId from billing list
               try {
                 console.log("🔍 [WALLET BILLING] Trying to find billingId from billing list...");
-                // Wallet API userId means phoneNumber
+                // Wallet API requires phone number as userId in header
                 const billingList = await walletApiService.getBillingList(phoneNumber);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
@@ -3419,7 +3699,7 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
             // Try billing list as fallback
             try {
               console.log("🔍 [WALLET BILLING] Trying billing list as fallback...");
-                // Wallet API userId means phoneNumber
+                // Wallet API requires phone number as userId in header
                 const billingList = await walletApiService.getBillingList(phoneNumber);
                 if (billingList && billingList.length > 0) {
                   const matchingBilling = billingList.find(b => 
@@ -3438,9 +3718,27 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
         }
       } else {
         console.log("⚠️ [WALLET BILLING] No billing info found for this address");
+        
+        // Try to get billing list to see if user has any billing registered
+        let hasAnyBilling = false;
+        try {
+          console.log("🔍 [WALLET BILLING] Checking if user has any billing registered...");
+          const billingList = await walletApiService.getBillingList(phoneNumber);
+          if (billingList && billingList.length > 0) {
+            hasAnyBilling = true;
+            console.log(`✅ [WALLET BILLING] User has ${billingList.length} billing(s) registered, but not for this address`);
+          }
+        } catch (listError) {
+          console.error("⚠️ [WALLET BILLING] Error checking billing list:", listError.message);
+        }
+        
         return res.status(404).json({
           success: false,
-          message: "Энэ хаягийн биллингийн мэдээлэл олдсонгүй",
+          message: hasAnyBilling 
+            ? "Энэ хаягийн биллингийн мэдээлэл олдсонгүй. Энэ хаягийг Wallet API-д бүртгүүлэх шаардлагатай."
+            : "Энэ хаягийн биллингийн мэдээлэл олдсонгүй. Wallet API-д биллингийн мэдээлэл бүртгэгдээгүй байна.",
+          hasAnyBilling: hasAnyBilling,
+          suggestion: "Энэ хаягийг Wallet API-д бүртгүүлэх эсвэл бусад хаягаа шалгана уу."
         });
       }
     } catch (billingError) {
@@ -4000,10 +4298,35 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
 
-    if (!baiguullagiinId || !utas || !code) {
+    // If baiguullagiinId is not provided, skip OTP verification and proceed
+    // This allows wallet-only registrations (without organization) to proceed
+    if (!baiguullagiinId) {
+      console.log("ℹ️ [LOGIN VERIFY] No baiguullagiinId provided, skipping OTP verification");
+      
+      const { db } = require("zevbackv2");
+      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
+      
+      if (!orshinSuugch) {
+        return res.status(404).json({
+          success: false,
+          message: "Хэрэглэгч олдсонгүй!",
+        });
+      }
+
+      console.log("✅ [LOGIN VERIFY] Skipped OTP verification for wallet-only user:", orshinSuugch._id);
+
+      return res.json({
+        success: true,
+        message: "Баталгаажуулалт алгассан (байгууллагын ID байхгүй)",
+        // Frontend should save verification status to local storage
+      });
+    }
+
+    // If baiguullagiinId is provided, proceed with normal OTP verification
+    if (!utas || !code) {
       return res.status(400).json({
         success: false,
-        message: "Байгууллагын ID, утас, код заавал бөглөх шаардлагатай!",
+        message: "Утас, код заавал бөглөх шаардлагатай!",
       });
     }
 

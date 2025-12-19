@@ -109,10 +109,10 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
   try {
     if (!!shine) {
       // Check if this baiguullaga should use TEST endpoint
-      // baiguullagiinId "68fadc445098626bde912f2e" uses TEST, others use IP
+      // baiguullagiinId "69159a06dd2ba5c30308b90f" uses TEST, others use IP
       // Get baiguullagiinId from parameter or from ugugdul if not provided
       const orgId = baiguullagiinId || ugugdul?.baiguullagiinId;
-      const shouldUseTest = orgId && String(orgId) === "69086ecd59da7b52fbf278f7";
+      const shouldUseTest = orgId && String(orgId) === "69159a06dd2ba5c30308b90f";
       
       const baseUrl = shouldUseTest 
         ? process.env.EBARIMTSHINE_TEST 
@@ -123,14 +123,22 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
       
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         if (err) {
+          console.error("❌ [EBARIMT] Request error:", err.message);
           if (next) next(err);
           return;
         }
+        
+        console.log("📧 [EBARIMT] API Response status code:", res1?.statusCode);
+        console.log("📧 [EBARIMT] API Response body:", JSON.stringify(body, null, 2));
+        
         if (body && (body.error || body.message)) {
+          console.error("❌ [EBARIMT] API returned error:", body.message || body.error);
           if (next)
             next(new Error(body.message || body.error || "E-barimt API error"));
           return;
         }
+        
+        console.log("✅ [EBARIMT] Calling onFinish callback with response");
         onFinish(body, ugugdul);
       });
     } else if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));

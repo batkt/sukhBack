@@ -52,11 +52,17 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const { billerCode, customerCode } = req.params;
     
+    console.log("🔍 [WALLET BILLING BY BILLER] Request received");
+    console.log("🔍 [WALLET BILLING BY BILLER] billerCode:", billerCode);
+    console.log("🔍 [WALLET BILLING BY BILLER] customerCode:", customerCode);
+    
     if (!billerCode || !customerCode) {
       throw new aldaa("Биллер код болон хэрэглэгчийн код заавал бөглөх шаардлагатай!");
     }
 
     const billing = await walletApiService.getBillingByBiller(userId, billerCode, customerCode);
+    
+    console.log("🔍 [WALLET BILLING BY BILLER] Response from API:", JSON.stringify(billing, null, 2));
     
     if (!billing) {
       return res.status(404).json({
@@ -65,11 +71,40 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
       });
     }
 
+    // Ensure billingId is included (should already be added by getBillingByBiller)
+    // Sanitize null values to empty strings for String fields
+    const sanitizeResponse = (data) => {
+      if (Array.isArray(data)) {
+        return data.map(item => {
+          const sanitized = { ...item };
+          for (const key in sanitized) {
+            if (sanitized[key] === null || sanitized[key] === undefined) {
+              sanitized[key] = "";
+            }
+          }
+          return sanitized;
+        });
+      } else if (typeof data === 'object') {
+        const sanitized = { ...data };
+        for (const key in sanitized) {
+          if (sanitized[key] === null || sanitized[key] === undefined) {
+            sanitized[key] = "";
+          }
+        }
+        return sanitized;
+      }
+      return data;
+    };
+
+    const sanitizedBilling = sanitizeResponse(billing);
+    console.log("✅ [WALLET BILLING BY BILLER] Returning sanitized response:", JSON.stringify(sanitizedBilling, null, 2));
+
     res.status(200).json({
       success: true,
-      data: billing,
+      data: sanitizedBilling,
     });
   } catch (err) {
+    console.error("❌ [WALLET BILLING BY BILLER] Error:", err.message);
     next(err);
   }
 });
@@ -159,13 +194,53 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
     }
 
     const bills = await walletApiService.getBillingBills(userId, billingId);
-    const data = Array.isArray(bills) ? bills : [];
+    console.log("📄 [WALLET BILLING BILLS] Raw bills from API:", JSON.stringify(bills, null, 2));
     
-    console.log("✅ [WALLET BILLING BILLS] Returning", data.length, "bill(s) for billingId:", billingId);
+    const data = Array.isArray(bills) ? bills : [];
+    console.log("📄 [WALLET BILLING BILLS] Bills array length:", data.length);
+    
+    // Ensure all bills are properly sanitized (double-check)
+    const sanitizedData = data.map((bill, index) => {
+      console.log(`📄 [WALLET BILLING BILLS] Processing bill[${index}]:`, JSON.stringify(bill, null, 2));
+      
+      const sanitized = {};
+      for (const key in bill) {
+        if (bill.hasOwnProperty(key)) {
+          const value = bill[key];
+          const originalType = typeof value;
+          const isNull = value === null;
+          const isUndefined = value === undefined;
+          
+          // Convert null/undefined to empty string for all fields
+          if (isNull || isUndefined) {
+            console.log(`⚠️ [WALLET BILLING BILLS] Bill[${index}].${key} is ${isNull ? 'null' : 'undefined'}, converting to empty string`);
+            sanitized[key] = "";
+          } else if (Array.isArray(value)) {
+            console.log(`📄 [WALLET BILLING BILLS] Bill[${index}].${key} is array with ${value.length} items`);
+            sanitized[key] = value.map((item, itemIndex) => {
+              if (item === null || item === undefined) {
+                console.log(`⚠️ [WALLET BILLING BILLS] Bill[${index}].${key}[${itemIndex}] is ${item === null ? 'null' : 'undefined'}, converting to empty string`);
+                return "";
+              }
+              return item;
+            });
+          } else {
+            sanitized[key] = value;
+            console.log(`✅ [WALLET BILLING BILLS] Bill[${index}].${key} = ${value} (type: ${originalType})`);
+          }
+        }
+      }
+      
+      console.log(`✅ [WALLET BILLING BILLS] Sanitized bill[${index}]:`, JSON.stringify(sanitized, null, 2));
+      return sanitized;
+    });
+    
+    console.log("✅ [WALLET BILLING BILLS] Returning", sanitizedData.length, "bill(s) for billingId:", billingId);
+    console.log("✅ [WALLET BILLING BILLS] Final response data:", JSON.stringify(sanitizedData, null, 2));
     
     res.status(200).json({
       success: true,
-      data: data,
+      data: sanitizedData,
     });
   } catch (err) {
     console.error("❌ [WALLET BILLING BILLS] Error:", err.message);

@@ -285,28 +285,361 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
     if (useWalletQPay && userPhoneNumber) {
       try {
         console.log("💳 [QPAY] Routing to Wallet API QPay payment");
+        console.log("📋 [QPAY] Request body keys:", Object.keys(req.body));
         
-        // Check if invoiceId is provided (required for Wallet API payment)
-        if (!req.body.invoiceId && !req.body.walletInvoiceId) {
-          throw new Error("Invoice ID is required for Wallet API QPay payment");
+        // Create a safe copy of request body for logging (exclude Mongoose objects)
+        const safeBody = {};
+        for (const key in req.body) {
+          if (key !== 'tukhainBaaziinKholbolt' && key !== 'erunkhiiKholbolt' && 
+              typeof req.body[key] !== 'object' || req.body[key] === null || 
+              Array.isArray(req.body[key]) || req.body[key].constructor?.name === 'String') {
+            try {
+              JSON.stringify(req.body[key]);
+              safeBody[key] = req.body[key];
+            } catch (e) {
+              safeBody[key] = `[${typeof req.body[key]}]`;
+            }
+          } else {
+            safeBody[key] = `[${req.body[key]?.constructor?.name || typeof req.body[key]}]`;
+          }
+        }
+        console.log("📋 [QPAY] Request body (safe):", JSON.stringify(safeBody, null, 2));
+        
+        let invoiceId = req.body.invoiceId || req.body.walletInvoiceId;
+        
+        // If invoiceId is not provided, but billingId and billIds are provided, create invoice first
+        if (!invoiceId && req.body.billingId && req.body.billIds && Array.isArray(req.body.billIds) && req.body.billIds.length > 0) {
+          console.log("📝 [QPAY] Invoice ID not provided, creating invoice from billing and bills...");
+          console.log("📝 [QPAY] billingId:", req.body.billingId);
+          console.log("📝 [QPAY] billIds:", req.body.billIds);
+          
+          const invoiceData = {
+            billingId: req.body.billingId,
+            billIds: req.body.billIds,
+            vatReceiveType: req.body.vatReceiveType || "CITIZEN",
+            vatCompanyReg: req.body.vatCompanyReg || "",
+          };
+          
+          try {
+            const invoiceResult = await walletApiService.createInvoice(userPhoneNumber, invoiceData);
+            
+            if (invoiceResult && invoiceResult.invoiceId) {
+              invoiceId = invoiceResult.invoiceId;
+              console.log("✅ [QPAY] Invoice created successfully, invoiceId:", invoiceId);
+            } else {
+              throw new Error("Failed to create invoice - invoiceId not returned");
+            }
+          } catch (invoiceError) {
+            // If invoice creation fails because bill is already in another invoice
+            const errorMessage = invoiceError.message || "";
+            console.log("⚠️ [QPAY] Invoice creation failed");
+            console.log("⚠️ [QPAY] Error:", errorMessage);
+            
+            // Check if error indicates bill is already being paid
+            const isBillAlreadyInInvoice = 
+              errorMessage.includes("өөр нэхэмжлэлээр төлөлт") || 
+              errorMessage.includes("already") || 
+              errorMessage.includes("төлөлт хийгдэж") ||
+              errorMessage.includes("Билл өөр нэхэмжлэлээр");
+            
+            if (isBillAlreadyInInvoice) {
+              console.log("⚠️ [QPAY] Bill is already being paid by another invoice");
+              console.log("⚠️ [QPAY] Checking for existing payments...");
+              
+              try {
+                // Try to get existing payments for this billing
+                const existingPayments = await walletApiService.getBillingPayments(userPhoneNumber, req.body.billingId);
+                
+                if (existingPayments && existingPayments.length > 0) {
+                  console.log("✅ [QPAY] Found existing payments:", existingPayments.length);
+                  console.log("✅ [QPAY] Latest payment structure:", JSON.stringify(existingPayments[existingPayments.length - 1], null, 2));
+                  
+                  // Get the most recent payment
+                  const latestPayment = existingPayments[existingPayments.length - 1];
+                  
+                  // Extract paymentId - it might be in different fields
+                  const paymentId = latestPayment.paymentId || latestPayment.id || latestPayment._id;
+                  
+                  if (paymentId) {
+                    console.log("✅ [QPAY] Found existing payment ID:", paymentId);
+                    
+                    // Fetch full payment details to get bank information
+                    try {
+                      const fullPaymentDetails = await walletApiService.getPayment(userPhoneNumber, paymentId);
+                      
+                      if (fullPaymentDetails) {
+                        // Extract bank details from payment status
+                        let bankCode = fullPaymentDetails.receiverBankCode;
+                        let accountNo = fullPaymentDetails.receiverAccountNo;
+                        let accountName = fullPaymentDetails.receiverAccountName;
+                        
+                        // Check in lines -> billTransactions
+                        if (!bankCode && fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
+                          for (const line of fullPaymentDetails.lines) {
+                            if (line.billTransactions && Array.isArray(line.billTransactions) && line.billTransactions.length > 0) {
+                              const transaction = line.billTransactions[0];
+                              bankCode = bankCode || transaction.receiverBankCode;
+                              accountNo = accountNo || transaction.receiverAccountNo;
+                              accountName = accountName || transaction.receiverAccountName;
+                              if (bankCode && accountNo) break;
+                            }
+                          }
+                        }
+                        
+                        // Return the existing payment with full details
+                        return res.status(200).json({
+                          success: true,
+                          data: {
+                            paymentId: paymentId,
+                            paymentAmount: fullPaymentDetails.amount || fullPaymentDetails.totalAmount || fullPaymentDetails.paymentAmount || latestPayment.paymentAmount || latestPayment.amount,
+                            receiverBankCode: bankCode || "",
+                            receiverAccountNo: accountNo || "",
+                            receiverAccountName: accountName || "",
+                            transactionDescription: fullPaymentDetails.transactionDescription || latestPayment.transactionDescription || "",
+                            paymentStatus: fullPaymentDetails.paymentStatus,
+                            paymentStatusText: fullPaymentDetails.paymentStatusText,
+                            message: "Төлбөр аль хэдийн үүссэн байна",
+                            existingPayment: true,
+                          },
+                          message: "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
+                          source: "WALLET_API",
+                        });
+                      }
+                    } catch (getPaymentError) {
+                      console.log("⚠️ [QPAY] Could not fetch full payment details:", getPaymentError.message);
+                      // Fall through to return basic payment info
+                    }
+                    
+                    // If we couldn't get full details, return what we have
+                    return res.status(200).json({
+                      success: true,
+                      data: {
+                        paymentId: paymentId,
+                        paymentAmount: latestPayment.paymentAmount || latestPayment.amount || latestPayment.totalAmount,
+                        receiverBankCode: latestPayment.receiverBankCode || "",
+                        receiverAccountNo: latestPayment.receiverAccountNo || "",
+                        receiverAccountName: latestPayment.receiverAccountName || "",
+                        transactionDescription: latestPayment.transactionDescription || "",
+                        message: "Төлбөр аль хэдийн үүссэн байна",
+                        existingPayment: true,
+                      },
+                      message: "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
+                      source: "WALLET_API",
+                    });
+                  } else {
+                    console.log("⚠️ [QPAY] Payment ID not found in existing payment structure");
+                  }
+                } else {
+                  console.log("ℹ️ [QPAY] No existing payments found for this billing");
+                }
+              } catch (paymentError) {
+                console.log("⚠️ [QPAY] Could not fetch existing payments:", paymentError.message);
+                // Don't throw - continue to return error about bill already in invoice
+              }
+              
+              // If no existing payments found, return clear error
+              return res.status(400).json({
+                success: false,
+                message: errorMessage,
+                error: "BILL_ALREADY_IN_INVOICE",
+                errorCode: "BILL_ALREADY_IN_INVOICE",
+                suggestion: "Энэ биллийг өөр нэхэмжлэлээр төлөлт хийгдэж байна. Төлбөрийн түүхийг шалгана уу.",
+                billingId: req.body.billingId,
+                billIds: req.body.billIds,
+              });
+            }
+            
+            // For other errors, re-throw
+            throw invoiceError;
+          }
+        } else if (!invoiceId) {
+          console.log("⚠️ [QPAY] Invoice ID not provided and cannot auto-create:");
+          console.log("⚠️ [QPAY] - billingId:", req.body.billingId ? "✅" : "❌");
+          console.log("⚠️ [QPAY] - billIds:", req.body.billIds ? (Array.isArray(req.body.billIds) ? `✅ (${req.body.billIds.length} items)` : "❌ (not array)") : "❌");
+          console.log("⚠️ [QPAY] Available fields in request:", Object.keys(req.body).filter(k => !['tukhainBaaziinKholbolt', 'erunkhiiKholbolt'].includes(k)).join(', '));
+        }
+        
+        // Check if invoiceId is available (required for Wallet API payment)
+        if (!invoiceId) {
+          const errorMsg = "Invoice ID is required for Wallet API QPay payment. " +
+            "Please provide one of the following:\n" +
+            "1. invoiceId (if invoice already created)\n" +
+            "2. billingId + billIds[] (to auto-create invoice)\n\n" +
+            "Current request has: " + Object.keys(req.body).filter(k => 
+              !['tukhainBaaziinKholbolt', 'erunkhiiKholbolt', 'nevtersenAjiltniiToken'].includes(k)
+            ).join(', ');
+          throw new Error(errorMsg);
         }
         
         const paymentData = {
-          invoiceId: req.body.invoiceId || req.body.walletInvoiceId,
-          paymentMethod: req.body.paymentMethod || "QPAY",
+          invoiceId: invoiceId,
+          // paymentMethod is not needed - Wallet API auto-detects QPay
         };
         
         const result = await walletApiService.createPayment(userPhoneNumber, paymentData);
         
         console.log("✅ [QPAY] Wallet API QPay payment created successfully");
+        console.log("✅ [QPAY] Payment ID:", result.paymentId);
+        console.log("✅ [QPAY] Payment response keys:", Object.keys(result));
+        console.log("✅ [QPAY] Full payment response:", JSON.stringify(result, null, 2));
+        
+        // Check if bank details are in the initial createPayment response
+        const hasInitialBankDetails = result.receiverBankCode && result.receiverAccountNo;
+        console.log("📋 [QPAY] Initial bank details check:", {
+          hasBankCode: !!result.receiverBankCode,
+          hasAccountNo: !!result.receiverAccountNo,
+          bankCode: result.receiverBankCode || "(empty)",
+          accountNo: result.receiverAccountNo || "(empty)",
+        });
+        
+        // If bank details are empty, try to get full payment details
+        if (!hasInitialBankDetails) {
+          console.log("⚠️ [QPAY] Bank details are empty, fetching full payment details...");
+          
+          let bankCode = null;
+          let accountNo = null;
+          let accountName = null;
+          let paymentStatus = null;
+          let paymentStatusText = null;
+          
+          const initialDelay = 3000; // Wait 3 seconds for payment to be processed by Wallet API
+          
+          // Wait for payment to be processed by Wallet API
+          console.log(`⏳ [QPAY] Waiting ${initialDelay}ms for payment to be processed by Wallet API...`);
+          await new Promise(resolve => setTimeout(resolve, initialDelay));
+          
+          try {
+            console.log("🔄 [QPAY] Fetching payment details...");
+            
+            const fullPaymentDetails = await walletApiService.getPayment(userPhoneNumber, result.paymentId);
+            
+            if (fullPaymentDetails) {
+              paymentStatus = fullPaymentDetails.paymentStatus;
+              paymentStatusText = fullPaymentDetails.paymentStatusText;
+              
+              console.log(`📋 [QPAY] Payment status: ${paymentStatus}`);
+              console.log(`📋 [QPAY] Full payment details structure:`, JSON.stringify({
+                hasLines: !!fullPaymentDetails.lines,
+                linesCount: fullPaymentDetails.lines?.length || 0,
+                rootBankCode: fullPaymentDetails.receiverBankCode,
+                rootAccountNo: fullPaymentDetails.receiverAccountNo,
+              }, null, 2));
+              
+              // Try root level first
+              bankCode = fullPaymentDetails.receiverBankCode;
+              accountNo = fullPaymentDetails.receiverAccountNo;
+              accountName = fullPaymentDetails.receiverAccountName;
+              
+              console.log(`📋 [QPAY] Root level bank details:`, {
+                bankCode: bankCode || "(empty)",
+                accountNo: accountNo || "(empty)",
+                accountName: accountName || "(empty)",
+              });
+              
+              // Check in lines -> billTransactions (as seen in Postman collection)
+              if ((!bankCode || !accountNo) && fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
+                console.log(`📋 [QPAY] Checking ${fullPaymentDetails.lines.length} line(s) for billTransactions...`);
+                
+                for (let lineIdx = 0; lineIdx < fullPaymentDetails.lines.length; lineIdx++) {
+                  const line = fullPaymentDetails.lines[lineIdx];
+                  console.log(`📋 [QPAY] Line ${lineIdx}:`, {
+                    lineId: line.lineId,
+                    billerName: line.billerName,
+                    hasBillTransactions: !!line.billTransactions,
+                    billTransactionsCount: line.billTransactions?.length || 0,
+                  });
+                  
+                  if (line.billTransactions && Array.isArray(line.billTransactions) && line.billTransactions.length > 0) {
+                    console.log(`✅ [QPAY] Line ${lineIdx} has ${line.billTransactions.length} transaction(s)`);
+                    const transaction = line.billTransactions[0];
+                    console.log(`📋 [QPAY] First transaction:`, JSON.stringify({
+                      trxNo: transaction.trxNo,
+                      trxStatus: transaction.trxStatus,
+                      receiverBankCode: transaction.receiverBankCode,
+                      receiverAccountNo: transaction.receiverAccountNo,
+                      receiverAccountName: transaction.receiverAccountName,
+                    }, null, 2));
+                    
+                    bankCode = bankCode || transaction.receiverBankCode;
+                    accountNo = accountNo || transaction.receiverAccountNo;
+                    accountName = accountName || transaction.receiverAccountName;
+                    
+                    if (bankCode && accountNo) {
+                      console.log("✅ [QPAY] Bank details found in billTransactions");
+                      break;
+                    }
+                  } else {
+                    console.log(`⚠️ [QPAY] Line ${lineIdx} has no billTransactions or array is empty`);
+                  }
+                }
+              } else {
+                if (!fullPaymentDetails.lines) {
+                  console.log(`⚠️ [QPAY] Payment response has no 'lines' field`);
+                } else if (!Array.isArray(fullPaymentDetails.lines)) {
+                  console.log(`⚠️ [QPAY] Payment response 'lines' is not an array:`, typeof fullPaymentDetails.lines);
+                }
+              }
+              
+              if (bankCode && accountNo) {
+                console.log("✅ [QPAY] Bank details found");
+                console.log("✅ [QPAY] - receiverBankCode:", bankCode);
+                console.log("✅ [QPAY] - receiverAccountNo:", accountNo);
+                console.log("✅ [QPAY] - receiverAccountName:", accountName);
+              } else {
+                console.log(`⚠️ [QPAY] Payment status is "${paymentStatus}" - bank details not ready yet`);
+                console.log(`ℹ️ [QPAY] Payment may need more time to process. Frontend should poll payment status.`);
+              }
+            }
+          } catch (getPaymentError) {
+            console.log(`⚠️ [QPAY] Failed to fetch payment details:`, getPaymentError.message);
+          }
+          
+          // Merge payment details with initial response
+          Object.assign(result, {
+            receiverBankCode: bankCode || result.receiverBankCode || "",
+            receiverAccountNo: accountNo || result.receiverAccountNo || "",
+            receiverAccountName: accountName || result.receiverAccountName || "",
+            paymentStatus: paymentStatus || result.paymentStatus,
+            paymentStatusText: paymentStatusText || result.paymentStatusText,
+          });
+          
+          if (!bankCode || !accountNo) {
+            console.log("⚠️ [QPAY] Bank details still not available");
+            console.log("⚠️ [QPAY] Payment status:", paymentStatus || "UNKNOWN");
+            console.log("ℹ️ [QPAY] Frontend should poll payment status or retry payment creation");
+          }
+        }
+        
+        // Check for QR code in response
+        if (result.qrText) {
+          console.log("✅ [QPAY] QR code found in response");
+        } else {
+          console.log("⚠️ [QPAY] QR code not in response - Wallet API may require QR generation from payment details");
+          console.log("⚠️ [QPAY] Payment details available for QR generation:");
+          console.log("⚠️ [QPAY] - receiverBankCode:", result.receiverBankCode);
+          console.log("⚠️ [QPAY] - receiverAccountNo:", result.receiverAccountNo);
+          console.log("⚠️ [QPAY] - paymentAmount:", result.paymentAmount);
+        }
+        
+        // Check if bank details are still missing after retries
+        const hasBankDetails = result.receiverBankCode && result.receiverAccountNo;
+        
         return res.status(200).json({
           success: true,
           data: result,
-          message: "QPay төлбөр амжилттай үүсгэлээ",
+          message: hasBankDetails 
+            ? "QPay төлбөр амжилттай үүсгэлээ" 
+            : "Төлбөр үүссэн. Банкны мэдээлэл бэлтгэж байна. Түр хүлээнэ үү.",
           source: "WALLET_API",
+          invoiceId: invoiceId, // Return invoiceId in case frontend needs it
+          needsPolling: !hasBankDetails, // Flag to indicate frontend should poll for bank details
+          pollingEndpoint: hasBankDetails ? null : `/api/payment/${result.paymentId}`, // Endpoint to poll (relative path)
         });
       } catch (walletQPayError) {
         console.error("❌ [QPAY] Wallet API QPay error:", walletQPayError.message);
+        if (walletQPayError.response) {
+          console.error("❌ [QPAY] Error response:", JSON.stringify(walletQPayError.response.data));
+        }
         // Fall back to custom QPay if Wallet QPay fails
         console.log("⚠️ [QPAY] Falling back to custom QPay");
         useWalletQPay = false;
@@ -1347,15 +1680,113 @@ router.get(
           tuxainSalbar = baiguullaga.barilguud[0].tokhirgoo;
         }
 
-        if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
+        // Check both eBarimtAshiglakhEsekh and eBarimtShine for backward compatibility
+        const shouldCreateEbarimt = tuxainSalbar && (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
+        
+        if (shouldCreateEbarimt) {
+          console.log(`📧 [EBARIMT] Creating ebarimt for invoice ${nekhemjlekh._id}`);
+          console.log(`📧 [EBARIMT] eBarimtAshiglakhEsekh:`, tuxainSalbar.eBarimtAshiglakhEsekh);
+          console.log(`📧 [EBARIMT] eBarimtShine:`, tuxainSalbar.eBarimtShine);
+          console.log(`📧 [EBARIMT] merchantTin:`, tuxainSalbar.merchantTin);
+          console.log(`📧 [EBARIMT] districtCode:`, tuxainSalbar.districtCode);
+          console.log(`📧 [EBARIMT] EbarimtDistrictCode:`, tuxainSalbar.EbarimtDistrictCode);
+          
           if (!tuxainSalbar.merchantTin) {
             throw new Error("merchantTin is required for e-barimt creation");
           }
-          if (!tuxainSalbar.districtCode) {
-            console.error(
-              "⚠️  Cannot create e-barimt: districtCode is missing"
-            );
-            throw new Error("districtCode is required for e-barimt creation");
+          
+          // Ebarimt API requires a 4-digit numeric district code
+          // Look up the code from tatvariinAlba using city name and district/horoo name
+          let ebarimtDistrictCode = null;
+          
+          try {
+            const TatvariinAlba = require("../models/tatvariinAlba");
+            const cityName = tuxainSalbar.EbarimtDuuregNer || tuxainSalbar.duuregNer;
+            const districtCodeString = tuxainSalbar.EbarimtDistrictCode || tuxainSalbar.districtCode || "";
+            
+            // Extract horoo/district name from the district code string
+            // E.g., "Сонгинохайрхан20-р хороо" -> "20-р хороо"
+            // Or use horoo.ner if available
+            const horooName = tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || 
+                              districtCodeString.replace(cityName, "").trim();
+            
+            console.log(`📧 [EBARIMT] Looking up district code - cityName: "${cityName}", horooName: "${horooName}"`);
+            
+            if (cityName && horooName) {
+              // Find the city in tatvariinAlba - try exact match first, then case-insensitive
+              let city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
+              
+              // If not found, try case-insensitive search
+              if (!city) {
+                const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({});
+                city = allCities.find(c => c.ner && c.ner.trim().toLowerCase() === cityName.trim().toLowerCase());
+                if (city) {
+                  console.log(`📧 [EBARIMT] Found city with case-insensitive match: "${city.ner}"`);
+                }
+              }
+              
+              if (city && city.kod) {
+                console.log(`📧 [EBARIMT] Found city "${city.ner}" with kod: ${city.kod}`);
+                console.log(`📧 [EBARIMT] Available districts in city:`, city.ded?.map(d => `${d.ner} (${d.kod})`).join(", ") || "none");
+                
+                // Find the district/horoo within the city - try exact match, then partial match
+                let district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
+                
+                // If not found, try case-insensitive or partial match
+                if (!district && city.ded) {
+                  district = city.ded.find(d => {
+                    const dName = d.ner?.trim().toLowerCase() || "";
+                    const hName = horooName.trim().toLowerCase();
+                    return dName === hName || dName.includes(hName) || hName.includes(dName);
+                  });
+                  if (district) {
+                    console.log(`📧 [EBARIMT] Found district with fuzzy match: "${district.ner}"`);
+                  }
+                }
+                
+                if (district && district.kod) {
+                  // Combine city code + district code to create 4-digit code
+                  const cityCode = city.kod.padStart(2, '0');
+                  const districtCode = district.kod.padStart(2, '0');
+                  ebarimtDistrictCode = cityCode + districtCode;
+                  
+                  console.log(`✅ [EBARIMT] Found district code: ${city.ner} (${cityCode}) + ${district.ner} (${districtCode}) = ${ebarimtDistrictCode}`);
+                } else {
+                  console.warn(`⚠️  [EBARIMT] District/horoo "${horooName}" not found in city "${city.ner}"`);
+                  console.warn(`⚠️  [EBARIMT] Available districts:`, city.ded?.map(d => d.ner).join(", ") || "none");
+                }
+              } else {
+                console.warn(`⚠️  [EBARIMT] City "${cityName}" not found in tatvariinAlba`);
+                // List available cities for debugging
+                const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({}).limit(10);
+                console.warn(`⚠️  [EBARIMT] Available cities (first 10):`, allCities.map(c => c.ner).join(", "));
+              }
+            }
+            
+            // Fallback: try to extract 4-digit numeric code directly
+            if (!ebarimtDistrictCode) {
+              const numericMatch = districtCodeString?.match(/\d{4}/);
+              if (numericMatch) {
+                ebarimtDistrictCode = numericMatch[0];
+                console.log(`📧 [EBARIMT] Using extracted numeric code:`, ebarimtDistrictCode);
+              } else if (/^\d{4}$/.test(districtCodeString)) {
+                ebarimtDistrictCode = districtCodeString;
+                console.log(`📧 [EBARIMT] Using direct numeric code:`, ebarimtDistrictCode);
+              }
+            }
+            
+            if (!ebarimtDistrictCode || !/^\d{4}$/.test(ebarimtDistrictCode)) {
+              console.error(
+                "⚠️  Cannot create e-barimt: districtCode must be a 4-digit numeric code. Got:",
+                ebarimtDistrictCode || districtCodeString
+              );
+              throw new Error("districtCode must be a 4-digit numeric code for e-barimt creation");
+            }
+            
+            console.log(`📧 [EBARIMT] Using districtCode for API:`, ebarimtDistrictCode);
+          } catch (lookupError) {
+            console.error("❌ [EBARIMT] Error looking up district code:", lookupError.message);
+            throw new Error("Failed to lookup district code for e-barimt creation");
           }
 
           const {
@@ -1371,16 +1802,20 @@ router.get(
             nekhemjlekh.register || "",
             "",
             tuxainSalbar.merchantTin,
-            tuxainSalbar.districtCode,
+            ebarimtDistrictCode,
             kholbolt,
             nuatTulukhEsekh
           );
 
           var butsaakhMethod = function (d, khariuObject) {
             try {
+              console.log("📧 [EBARIMT] API Response received:", JSON.stringify(d, null, 2));
+              console.log("📧 [EBARIMT] Response status:", d?.status);
+              console.log("📧 [EBARIMT] Response success:", d?.success);
+              
               if (d?.status != "SUCCESS" && !d.success) {
                 console.error(
-                  "❌ E-barimt API error:",
+                  "❌ [EBARIMT] E-barimt API error:",
                   d?.message || d?.error || JSON.stringify(d)
                 );
                 return;
@@ -1398,13 +1833,20 @@ router.get(
               if (d.id) shineBarimt.receiptId = d.id;
               if (d.date) shineBarimt.date = d.date;
 
-              shineBarimt.save();
-              console.log(
-                "✅ E-barimt saved successfully for invoice:",
-                khariuObject.nekhemjlekhiinId
-              );
+              shineBarimt.save()
+                .then(() => {
+                  console.log(
+                    "✅ [EBARIMT] E-barimt saved successfully for invoice:",
+                    khariuObject.nekhemjlekhiinId
+                  );
+                })
+                .catch((saveErr) => {
+                  console.error("❌ [EBARIMT] Failed to save e-barimt:", saveErr.message);
+                  console.error("❌ [EBARIMT] Save error stack:", saveErr.stack);
+                });
             } catch (err) {
-              console.error("❌ Failed to save e-barimt:", err.message);
+              console.error("❌ [EBARIMT] Failed to process e-barimt response:", err.message);
+              console.error("❌ [EBARIMT] Error stack:", err.stack);
             }
           };
 
@@ -1677,77 +2119,173 @@ router.get(
               tuxainSalbar = baiguullaga.barilguud[0].tokhirgoo;
             }
 
-            if (tuxainSalbar && tuxainSalbar.eBarimtShine) {
+            // Check both eBarimtAshiglakhEsekh and eBarimtShine for backward compatibility
+            const shouldCreateEbarimt = tuxainSalbar && (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
+            
+            if (shouldCreateEbarimt) {
+              console.log(`📧 [EBARIMT] Creating ebarimt for invoice ${updatedInvoice._id}`);
+              console.log(`📧 [EBARIMT] eBarimtAshiglakhEsekh:`, tuxainSalbar.eBarimtAshiglakhEsekh);
+              console.log(`📧 [EBARIMT] eBarimtShine:`, tuxainSalbar.eBarimtShine);
+              console.log(`📧 [EBARIMT] merchantTin:`, tuxainSalbar.merchantTin);
+              console.log(`📧 [EBARIMT] districtCode:`, tuxainSalbar.districtCode);
+              console.log(`📧 [EBARIMT] EbarimtDistrictCode:`, tuxainSalbar.EbarimtDistrictCode);
+              
               if (!tuxainSalbar.merchantTin) {
                 console.error(
                   `⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: merchantTin is required`
                 );
-              } else if (!tuxainSalbar.districtCode) {
-                console.error(
-                  `⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: districtCode is missing`
-                );
               } else {
-                const {
-                  nekhemjlekheesEbarimtShineUusgye,
-                  ebarimtDuudya,
-                } = require("./ebarimtRoute");
-                const EbarimtShine = require("../models/ebarimtShine");
-
-                const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
-
-                const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
-                  updatedInvoice,
-                  updatedInvoice.register || "",
-                  "",
-                  tuxainSalbar.merchantTin,
-                  tuxainSalbar.districtCode,
-                  kholbolt,
-                  nuatTulukhEsekh
-                );
-
-                // The ebarimt object already has invoice data set in nekhemjlekheesEbarimtShineUusgye
-                // ebarimtDuudya calls onFinish(body, ugugdul) where ugugdul is the ebarimt object
-                var butsaakhMethod = function (d, ebarimtObject) {
-                  try {
-                    if (d?.status != "SUCCESS" && !d.success) {
-                      console.error(
-                        `❌ E-barimt API error for invoice ${ebarimtObject.nekhemjlekhiinId}:`,
-                        d?.message || d?.error || JSON.stringify(d)
-                      );
-                      return;
+                // Ebarimt API requires a 4-digit numeric district code
+                // Look up the code from tatvariinAlba using city name and district/horoo name
+                let ebarimtDistrictCode = null;
+                
+                try {
+                  const TatvariinAlba = require("../models/tatvariinAlba");
+                  const cityName = tuxainSalbar.EbarimtDuuregNer || tuxainSalbar.duuregNer;
+                  const districtCodeString = tuxainSalbar.EbarimtDistrictCode || tuxainSalbar.districtCode || "";
+                  
+                  // Extract horoo/district name from the district code string
+                  const horooName = tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || 
+                                    districtCodeString.replace(cityName, "").trim();
+                  
+                  console.log(`📧 [EBARIMT] Looking up district code - cityName: "${cityName}", horooName: "${horooName}"`);
+                  
+                  if (cityName && horooName) {
+                    // Find the city in tatvariinAlba - try exact match first, then case-insensitive
+                    let city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
+                    
+                    // If not found, try case-insensitive search
+                    if (!city) {
+                      const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({});
+                      city = allCities.find(c => c.ner && c.ner.trim().toLowerCase() === cityName.trim().toLowerCase());
+                      if (city) {
+                        console.log(`📧 [EBARIMT] Found city with case-insensitive match: "${city.ner}"`);
+                      }
                     }
-
-                    var shineBarimt = new EbarimtShine(kholbolt)(d);
-                    shineBarimt.nekhemjlekhiinId =
-                      ebarimtObject.nekhemjlekhiinId;
-                    shineBarimt.baiguullagiinId = ebarimtObject.baiguullagiinId;
-                    shineBarimt.barilgiinId = ebarimtObject.barilgiinId;
-                    shineBarimt.gereeniiDugaar = ebarimtObject.gereeniiDugaar;
-                    shineBarimt.utas = ebarimtObject.utas;
-
-                    if (d.qrData) shineBarimt.qrData = d.qrData;
-                    if (d.lottery) shineBarimt.lottery = d.lottery;
-                    if (d.id) shineBarimt.receiptId = d.id;
-                    if (d.date) shineBarimt.date = d.date;
-
-                    shineBarimt.save();
-                    console.log(
-                      `✅ E-barimt saved successfully for invoice:`,
-                      ebarimtObject.nekhemjlekhiinId
-                    );
-                  } catch (err) {
-                    console.error(
-                      `❌ Failed to save e-barimt for invoice ${
-                        ebarimtObject?.nekhemjlekhiinId || "unknown"
-                      }:`,
-                      err.message
-                    );
+                    
+                    if (city && city.kod) {
+                      console.log(`📧 [EBARIMT] Found city "${city.ner}" with kod: ${city.kod}`);
+                      console.log(`📧 [EBARIMT] Available districts in city:`, city.ded?.map(d => `${d.ner} (${d.kod})`).join(", ") || "none");
+                      
+                      // Find the district/horoo within the city - try exact match, then partial match
+                      let district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
+                      
+                      // If not found, try case-insensitive or partial match
+                      if (!district && city.ded) {
+                        district = city.ded.find(d => {
+                          const dName = d.ner?.trim().toLowerCase() || "";
+                          const hName = horooName.trim().toLowerCase();
+                          return dName === hName || dName.includes(hName) || hName.includes(dName);
+                        });
+                        if (district) {
+                          console.log(`📧 [EBARIMT] Found district with fuzzy match: "${district.ner}"`);
+                        }
+                      }
+                      
+                      if (district && district.kod) {
+                        // Combine city code + district code to create 4-digit code
+                        const cityCode = city.kod.padStart(2, '0');
+                        const districtCode = district.kod.padStart(2, '0');
+                        ebarimtDistrictCode = cityCode + districtCode;
+                        
+                        console.log(`✅ [EBARIMT] Found district code: ${city.ner} (${cityCode}) + ${district.ner} (${districtCode}) = ${ebarimtDistrictCode}`);
+                      } else {
+                        console.warn(`⚠️  [EBARIMT] District/horoo "${horooName}" not found in city "${city.ner}"`);
+                        console.warn(`⚠️  [EBARIMT] Available districts:`, city.ded?.map(d => d.ner).join(", ") || "none");
+                      }
+                    } else {
+                      console.warn(`⚠️  [EBARIMT] City "${cityName}" not found in tatvariinAlba`);
+                      // List available cities for debugging
+                      const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({}).limit(10);
+                      console.warn(`⚠️  [EBARIMT] Available cities (first 10):`, allCities.map(c => c.ner).join(", "));
+                    }
                   }
-                };
+                  
+                  // Fallback: try to extract 4-digit numeric code directly
+                  if (!ebarimtDistrictCode) {
+                    const numericMatch = districtCodeString?.match(/\d{4}/);
+                    if (numericMatch) {
+                      ebarimtDistrictCode = numericMatch[0];
+                      console.log(`📧 [EBARIMT] Using extracted numeric code:`, ebarimtDistrictCode);
+                    } else if (/^\d{4}$/.test(districtCodeString)) {
+                      ebarimtDistrictCode = districtCodeString;
+                      console.log(`📧 [EBARIMT] Using direct numeric code:`, ebarimtDistrictCode);
+                    }
+                  }
+                  
+                  if (!ebarimtDistrictCode || !/^\d{4}$/.test(ebarimtDistrictCode)) {
+                    console.error(
+                      `⚠️  Cannot create e-barimt for invoice ${updatedInvoice._id}: districtCode must be a 4-digit numeric code. Got:`,
+                      ebarimtDistrictCode || districtCodeString
+                    );
+                  } else {
+                    console.log(`📧 [EBARIMT] Using districtCode for API:`, ebarimtDistrictCode);
+                  
+                    const {
+                      nekhemjlekheesEbarimtShineUusgye,
+                      ebarimtDuudya,
+                    } = require("./ebarimtRoute");
+                    const EbarimtShine = require("../models/ebarimtShine");
 
-                // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
-                // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
-                ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
+                    const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
+
+                    const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
+                      updatedInvoice,
+                      updatedInvoice.register || "",
+                      "",
+                      tuxainSalbar.merchantTin,
+                      ebarimtDistrictCode,
+                      kholbolt,
+                      nuatTulukhEsekh
+                    );
+
+                    // The ebarimt object already has invoice data set in nekhemjlekheesEbarimtShineUusgye
+                    // ebarimtDuudya calls onFinish(body, ugugdul) where ugugdul is the ebarimt object
+                    var butsaakhMethod = function (d, ebarimtObject) {
+                      try {
+                        if (d?.status != "SUCCESS" && !d.success) {
+                          console.error(
+                            `❌ E-barimt API error for invoice ${ebarimtObject.nekhemjlekhiinId}:`,
+                            d?.message || d?.error || JSON.stringify(d)
+                          );
+                          return;
+                        }
+
+                        var shineBarimt = new EbarimtShine(kholbolt)(d);
+                        shineBarimt.nekhemjlekhiinId =
+                          ebarimtObject.nekhemjlekhiinId;
+                        shineBarimt.baiguullagiinId = ebarimtObject.baiguullagiinId;
+                        shineBarimt.barilgiinId = ebarimtObject.barilgiinId;
+                        shineBarimt.gereeniiDugaar = ebarimtObject.gereeniiDugaar;
+                        shineBarimt.utas = ebarimtObject.utas;
+
+                        if (d.qrData) shineBarimt.qrData = d.qrData;
+                        if (d.lottery) shineBarimt.lottery = d.lottery;
+                        if (d.id) shineBarimt.receiptId = d.id;
+                        if (d.date) shineBarimt.date = d.date;
+
+                        shineBarimt.save();
+                        console.log(
+                          `✅ E-barimt saved successfully for invoice:`,
+                          ebarimtObject.nekhemjlekhiinId
+                        );
+                      } catch (err) {
+                        console.error(
+                          `❌ Failed to save e-barimt for invoice ${
+                            ebarimtObject?.nekhemjlekhiinId || "unknown"
+                          }:`,
+                          err.message
+                        );
+                      }
+                    };
+
+                    // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
+                    // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
+                    ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
+                  }
+                } catch (lookupError) {
+                  console.error(`❌ [EBARIMT] Error looking up district code for invoice ${updatedInvoice._id}:`, lookupError.message);
+                }
               }
             } else {
               console.log(
