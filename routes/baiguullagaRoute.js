@@ -10,6 +10,49 @@ const axios = require("axios");
 const request = require("request");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 
+// Custom GET handler to filter barilguud by barilgiinId - must be before crud() call
+router.get("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { id } = req.params;
+    const { barilgiinId } = req.query;
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(id).lean();
+
+    if (!baiguullaga) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллага олдсонгүй",
+      });
+    }
+
+    // If barilgiinId is provided, filter barilguud to only include the matching barilga
+    if (barilgiinId) {
+      const filteredBarilga = baiguullaga.barilguud?.find(
+        (b) => String(b._id) === String(barilgiinId)
+      );
+
+      if (!filteredBarilga) {
+        return res.status(404).json({
+          success: false,
+          message: "Барилгын мэдээлэл олдсонгүй",
+        });
+      }
+
+      // Return baiguullaga with only the filtered barilga
+      return res.json({
+        ...baiguullaga,
+        barilguud: [filteredBarilga],
+      });
+    }
+
+    // If no barilgiinId provided, return full baiguullaga (default behavior)
+    res.json(baiguullaga);
+  } catch (error) {
+    next(error);
+  }
+});
+
 crud(router, "baiguullaga", Baiguullaga, UstsanBarimt);
 
 router.post("/baiguullagaBurtgekh", async (req, res, next) => {
