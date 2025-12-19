@@ -613,17 +613,63 @@ async function getBillingPayments(userId, billingId) {
   }
 }
 
+// Helper function to clean objects from Mongoose/circular references
+function cleanObjectForJSON(obj) {
+  if (obj === null || obj === undefined) {
+    return null;
+  }
+  
+  // Handle Mongoose documents
+  if (obj.toObject && typeof obj.toObject === 'function') {
+    return cleanObjectForJSON(obj.toObject());
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanObjectForJSON(item));
+  }
+  
+  if (typeof obj === 'object') {
+    const cleaned = {};
+    for (const key in obj) {
+      // Skip Mongoose internal properties
+      if (key === '_id' && obj[key] && typeof obj[key].toString === 'function') {
+        cleaned[key] = obj[key].toString();
+      } else if (key.startsWith('_') && key !== '_id') {
+        // Skip other Mongoose internal properties
+        continue;
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        // Check for circular references by checking if it's a Mongoose model/connection
+        if (obj[key].constructor && obj[key].constructor.name === 'NativeConnection') {
+          continue;
+        }
+        if (obj[key].constructor && obj[key].constructor.name === 'Mongoose') {
+          continue;
+        }
+        cleaned[key] = cleanObjectForJSON(obj[key]);
+      } else {
+        cleaned[key] = obj[key];
+      }
+    }
+    return cleaned;
+  }
+  
+  return obj;
+}
+
 async function saveBilling(userId, billingData) {
   try {
     const token = await getWalletServiceToken();
     
     console.log("💾 [WALLET API] Saving billing...");
     console.log("💾 [WALLET API] userId:", userId);
-    console.log("💾 [WALLET API] billingData:", JSON.stringify(billingData));
+    
+    // Clean the billingData to remove Mongoose objects and circular references
+    const cleanedBillingData = cleanObjectForJSON(billingData);
+    console.log("💾 [WALLET API] Cleaned billingData:", JSON.stringify(cleanedBillingData, null, 2));
     
     const response = await axios.post(
       `${WALLET_API_BASE_URL}/api/billing`,
-      billingData,
+      cleanedBillingData,
       {
         headers: {
           userId: userId,
@@ -653,6 +699,9 @@ async function saveBilling(userId, billingData) {
       throw new Error(errorMessage);
     }
     console.error("❌ [WALLET API] Error saving billing:", error.message);
+    if (error.message.includes("circular")) {
+      console.error("❌ [WALLET API] Circular structure detected in billingData");
+    }
     throw error;
   }
 }
