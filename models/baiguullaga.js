@@ -387,13 +387,17 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
 // Pre-save hook to validate that toots are unique across all davkhars
 baiguullagaSchema.pre("save", function (next) {
   try {
+    console.log(`🔍 [VALIDATION PRE-SAVE] Validating baiguullaga before save...`);
     const error = validateDavkhariinToonuud(this.barilguud);
     if (error) {
+      console.error(`❌ [VALIDATION PRE-SAVE] Validation failed:`, error.message);
       error.name = "ValidationError";
       return next(error);
     }
+    console.log(`✅ [VALIDATION PRE-SAVE] Validation passed, allowing save`);
     next();
   } catch (error) {
+    console.error(`❌ [VALIDATION PRE-SAVE] Error in validation:`, error);
     next(error);
   }
 });
@@ -446,11 +450,13 @@ function validateDavkhariinToonuud(barilguud) {
         if (tootMap.has(toot)) {
           const existingDavkhar = tootMap.get(toot);
           console.error(`❌ [VALIDATION] Duplicate toot found: "${toot}" in davkhar ${existingDavkhar} and ${davkhar}`);
+          console.error(`❌ [VALIDATION] Floor keys processed so far:`, Array.from(tootMap.entries()));
           return new Error(
             `Тоот "${toot}" аль хэдийн ${existingDavkhar}-р давхарт байна. ${davkhar}-р давхарт давхардсан тоот байж болохгүй!`
           );
         }
         tootMap.set(toot, davkhar);
+        console.log(`✅ [VALIDATION] Added toot "${toot}" to davkhar ${davkhar} (floorKey: ${floorKey})`);
       }
     }
   }
