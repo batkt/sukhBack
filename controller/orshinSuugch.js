@@ -1030,27 +1030,46 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         return total + tariff;
       }, 0);
 
-      // Validate: One toot cannot have different owners
-      // Check if this toot already has an active contract with a different orshinSuugchId
+      // Validate: One toot cannot have different owners in the same building
+      // Toots must be unique across ALL davkhars in the same building
       const GereeModel = Geree(tukhainBaaziinKholbolt);
+      let skipGereeCreation = false;
+      
       if (orshinSuugch.toot && barilgiinId) {
-        const conflictingGeree = await GereeModel.findOne({
+        // First, check if this user already has a geree for this toot (skip if exists)
+        const existingGereeForUser = await GereeModel.findOne({
           barilgiinId: barilgiinId,
           toot: orshinSuugch.toot,
-          tuluv: "Идэвхтэй",
-          orshinSuugchId: { $ne: orshinSuugch._id.toString() }
+          orshinSuugchId: orshinSuugch._id.toString(),
+          tuluv: "Идэвхтэй"
         });
 
-        if (conflictingGeree) {
-          throw new aldaa(`Тоот ${orshinSuugch.toot} аль хэдийн өөр хэрэглэгчид хамаарсан байна!`);
+        if (existingGereeForUser) {
+          console.log(`ℹ️ [REGISTER] Geree already exists for this user and toot: ${orshinSuugch.toot}, skipping creation`);
+          skipGereeCreation = true; // Skip contract creation - user already has a geree for this toot
+        } else {
+          // Check if another user has this toot
+          const conflictingGeree = await GereeModel.findOne({
+            barilgiinId: barilgiinId,
+            toot: orshinSuugch.toot,
+            // No davkhar check - toots must be unique across all davkhars
+            tuluv: "Идэвхтэй",
+            orshinSuugchId: { $ne: orshinSuugch._id.toString() }
+          });
+
+          if (conflictingGeree) {
+            throw new aldaa(`Тоот ${orshinSuugch.toot} аль хэдийн энэ барилгад өөр хэрэглэгчид хамаарсан байна!`);
+          }
         }
       }
 
       // If there's a cancelled geree, reactivate it and link it to the new user
       // Do this AFTER fetching charges so we can update zardluud with current charges
+      // Toots are unique across all davkhars, so no davkhar check needed
       const existingCancelledGeree = await GereeModel.findOne({
         toot: orshinSuugch.toot || "",
         barilgiinId: barilgiinId || "",
+        // No davkhar check - toots are unique across all davkhars
         tuluv: "Цуцалсан",
       });
 
@@ -1119,8 +1138,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       }
       const sohNer = targetBarilga?.tokhirgoo?.sohNer || req.body.soh || "";
 
-      // Only create new geree if not reactivating (no cancelled geree found)
-      if (!isReactivating) {
+      // Only create new geree if not reactivating and not skipping (user doesn't already have one)
+      if (!isReactivating && !skipGereeCreation) {
         // Create geree for each toot in toots array
         // If toots array exists and has entries, create geree for each toot
         // Otherwise, create geree for primary toot (backward compatibility)
@@ -1456,8 +1475,9 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Check if toot is already assigned to a user
-    // Check both new toots array and old toot field for backward compatibility
+    // Check if toot is already assigned to a user in this building
+    // Toots must be unique across ALL davkhars in the same building
+    // Davkhar 2 cannot have the same toot numbers as Davkhar 1
     const existingUserWithToot = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
       $or: [
         {
@@ -1465,6 +1485,7 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
             $elemMatch: {
               toot: tootToValidate,
               barilgiinId: String(barilgiinId)
+              // No davkhar check - toots must be unique across all davkhars
             }
           }
         },
@@ -1472,14 +1493,20 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
           // Check old toot field for backward compatibility
           toot: tootToValidate,
           barilgiinId: String(barilgiinId)
+          // No davkhar check - toots must be unique across all davkhars
         }
       ]
     });
 
     if (existingUserWithToot) {
+      // Get davkhar info if available for better error message
+      const existingDavkhar = existingUserWithToot.toots?.find(
+        t => t.toot === tootToValidate && t.barilgiinId === String(barilgiinId)
+      )?.davkhar || existingUserWithToot.davkhar || '';
+      
       return res.status(400).json({
         success: false,
-        message: `(${tootToValidate}) тоот аль хэдийн хэрэглэгчид бүртгэгдсэн байна`,
+        message: `(${tootToValidate}) тоот аль хэдийн ${existingDavkhar ? `${existingDavkhar}-р давхарт` : 'энэ барилгад'} хэрэглэгчид бүртгэгдсэн байна`,
         valid: false,
         existingUser: {
           id: existingUserWithToot._id,
@@ -2258,6 +2285,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           const existingCancelledGeree = await GereeModel.findOne({
             barilgiinId: tootEntry.barilgiinId,
             toot: tootEntry.toot,
+            // No davkhar check - toots are unique across all davkhars
             tuluv: "Цуцалсан",
             orshinSuugchId: orshinSuugch._id.toString()
           });
@@ -2349,9 +2377,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
           // Validate: One toot cannot have different owners
           // Check if this toot already has an active contract with a different orshinSuugchId
+          // Toots must be unique across ALL davkhars in the same building
           const conflictingGeree = await GereeModel.findOne({
             barilgiinId: tootEntry.barilgiinId,
             toot: tootEntry.toot,
+            // No davkhar check - toots must be unique across all davkhars
             tuluv: "Идэвхтэй",
             orshinSuugchId: { $ne: orshinSuugch._id.toString() }
           });
@@ -3026,6 +3056,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           const existingCancelledGeree = await GereeModel.findOne({
             barilgiinId: tootEntry.barilgiinId,
             toot: tootEntry.toot,
+            // No davkhar check - toots are unique across all davkhars
             tuluv: "Цуцалсан",
             orshinSuugchId: orshinSuugch._id.toString()
           });
