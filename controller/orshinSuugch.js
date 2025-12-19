@@ -1402,10 +1402,40 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Multiple users can have the same toot, so no unique check needed
-    // Validation only checks if toot exists in building's available toots
+    // Check if toot is already assigned to a user
+    // Check both new toots array and old toot field for backward compatibility
+    const existingUserWithToot = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      $or: [
+        {
+          toots: {
+            $elemMatch: {
+              toot: tootToValidate,
+              barilgiinId: String(barilgiinId)
+            }
+          }
+        },
+        {
+          // Check old toot field for backward compatibility
+          toot: tootToValidate,
+          barilgiinId: String(barilgiinId)
+        }
+      ]
+    });
 
-    // Toot is valid
+    if (existingUserWithToot) {
+      return res.status(400).json({
+        success: false,
+        message: `(${tootToValidate}) тоот аль хэдийн хэрэглэгчид бүртгэгдсэн байна`,
+        valid: false,
+        existingUser: {
+          id: existingUserWithToot._id,
+          ner: existingUserWithToot.ner,
+          utas: existingUserWithToot.utas
+        }
+      });
+    }
+
+    // Toot is valid and not assigned to any user
     return res.json({
       success: true,
       message: "Тоот зөв байна",
