@@ -1435,7 +1435,6 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
       });
     }
 
-    // Toot is valid and not assigned to any user
     return res.json({
       success: true,
       message: "Тоот зөв байна",
@@ -1667,10 +1666,21 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     // Save baiguullagiinId if provided (from OWN_ORG bair selection)
     if (req.body.baiguullagiinId) {
       userData.baiguullagiinId = req.body.baiguullagiinId;
+      // Also get baiguullaga name if available
+      try {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (baiguullaga && baiguullaga.ner) {
+          userData.baiguullagiinNer = baiguullaga.ner;
+        }
+      } catch (err) {
+        console.error("Error fetching baiguullaga name:", err.message);
+      }
     }
 
-    if (req.body.barilgiinId) {
-      userData.barilgiinId = req.body.barilgiinId;
+    // Handle barilgiinId - check both barilgiinId and bairId (frontend might send either)
+    const barilgiinIdToSave = req.body.barilgiinId || req.body.bairId;
+    if (barilgiinIdToSave) {
+      userData.barilgiinId = barilgiinIdToSave;
     } else if (orshinSuugch && orshinSuugch.barilgiinId) {
       // Preserve existing barilgiinId if user already has one
       userData.barilgiinId = orshinSuugch.barilgiinId;
@@ -1856,6 +1866,19 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       orshinSuugch.duureg = userData.newTootEntry.duureg;
       orshinSuugch.horoo = userData.newTootEntry.horoo;
       orshinSuugch.soh = userData.newTootEntry.soh;
+    } else if (req.body.baiguullagiinId && (req.body.barilgiinId || req.body.bairId)) {
+      // OWN_ORG address selected but no doorNo/toot provided - still save baiguullagiinId and barilgiinId
+      // This handles the case where user selects OWN_ORG building but hasn't entered toot yet
+      if (userData.baiguullagiinId) {
+        orshinSuugch.baiguullagiinId = userData.baiguullagiinId;
+        if (userData.baiguullagiinNer) {
+          orshinSuugch.baiguullagiinNer = userData.baiguullagiinNer;
+        }
+      }
+      if (userData.barilgiinId) {
+        orshinSuugch.barilgiinId = userData.barilgiinId;
+      }
+      console.log(`✅ [WALLET LOGIN] OWN_ORG address saved (without toot): baiguullagiinId=${userData.baiguullagiinId}, barilgiinId=${userData.barilgiinId}`);
     } else if (bairIdToUse && doorNoToUse && !req.body.baiguullagiinId) {
       // Handle Wallet API address - add to toots array
       // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
