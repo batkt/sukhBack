@@ -35,6 +35,12 @@ crudWithFile(
     try {
       const { db } = require("zevbackv2");
       var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
+      
+      // Log albanTushaal if present in request body
+      if (req.body?.albanTushaal !== undefined) {
+        console.log(`📝 [AJILTAN] albanTushaal received:`, req.body.albanTushaal);
+      }
+      
       if (req.params.id) {
         var ObjectId = require("mongodb").ObjectId;
         var ajiltan = await ajiltanModel.findOne({
