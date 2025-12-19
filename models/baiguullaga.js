@@ -477,23 +477,65 @@ baiguullagaSchema.pre("updateOne", function (next) {
 });
 
 // Pre-findOneAndUpdate hook (for findOneAndUpdate operations)
-// Only validate if entire barilguud array is being updated (not nested path updates for adding new toots)
-baiguullagaSchema.pre("findOneAndUpdate", function (next) {
+// Validate both full array updates AND nested path updates that modify davkhariinToonuud
+baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
   try {
-    // Only validate if barilguud is directly in _update (full array update from PUT request)
-    // Skip validation for nested path updates (used when adding new toots via updateDavkharWithToot)
-    // Nested updates like "barilguud.0.tokhirgoo.davkhariinToonuud" are used to add individual toots
-    // and should be allowed - the validation happens at user registration level instead
+    // Check if this is a full barilguud array update (from PUT request)
     if (this._update && this._update.barilguud && !this._update.$set) {
-      // This is a full barilguud array update (from PUT request editing building config)
       const error = validateDavkhariinToonuud(this._update.barilguud);
       if (error) {
         error.name = "ValidationError";
         return next(error);
       }
     }
-    // For nested path updates ($set with paths like "barilguud.X.tokhirgoo.davkhariinToonuud"),
-    // skip validation - these are used to add new toots and are validated at registration time
+    
+    // Check if this is a nested path update that modifies davkhariinToonuud
+    // This happens when editing building config via PUT with $set
+    if (this._update && this._update.$set) {
+      const setKeys = Object.keys(this._update.$set);
+      const isDavkhariinToonuudUpdate = setKeys.some(key => 
+        key.includes('tokhirgoo.davkhariinToonuud') || 
+        key.includes('barilguud') && this._update.$set[key] && typeof this._update.$set[key] === 'object'
+      );
+      
+      if (isDavkhariinToonuudUpdate) {
+        // Fetch current document to merge with update
+        const doc = await this.model.findOne(this.getQuery()).lean();
+        if (doc && doc.barilguud) {
+          // Create a merged copy of barilguud
+          const mergedBarilguud = JSON.parse(JSON.stringify(doc.barilguud));
+          
+          // Apply $set updates to merged copy
+          for (const [path, value] of Object.entries(this._update.$set)) {
+            if (path.startsWith('barilguud.')) {
+              const pathParts = path.split('.');
+              const barilgaIndex = parseInt(pathParts[1]);
+              
+              if (!isNaN(barilgaIndex) && mergedBarilguud[barilgaIndex]) {
+                if (pathParts[2] === 'tokhirgoo' && pathParts[3] === 'davkhariinToonuud') {
+                  mergedBarilguud[barilgaIndex].tokhirgoo = mergedBarilguud[barilgaIndex].tokhirgoo || {};
+                  mergedBarilguud[barilgaIndex].tokhirgoo.davkhariinToonuud = value;
+                } else if (pathParts.length === 2 && pathParts[1] && typeof value === 'object') {
+                  // Full barilga update via $set
+                  mergedBarilguud[barilgaIndex] = { ...mergedBarilguud[barilgaIndex], ...value };
+                }
+              }
+            } else if (path === 'barilguud' && Array.isArray(value)) {
+              // Full barilguud array update via $set
+              return next(); // This will be handled by the first check above
+            }
+          }
+          
+          // Validate the merged result
+          const error = validateDavkhariinToonuud(mergedBarilguud);
+          if (error) {
+            error.name = "ValidationError";
+            return next(error);
+          }
+        }
+      }
+    }
+    
     next();
   } catch (error) {
     next(error);
