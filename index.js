@@ -184,17 +184,21 @@ async function automataarNekhemjlekhUusgekh() {
           baiguullagiinId: baiguullaga._id.toString(),
           tuluv: "Идэвхтэй", // Only active contracts
         };
-        
+
         // If this is a building-level schedule, filter by barilgiinId
         if (tovchoo.barilgiinId) {
           gereeQuery.barilgiinId = tovchoo.barilgiinId;
         }
-        
+
         const gereenuud = await Geree(tukhainBaaziinKholbolt).find(gereeQuery);
 
         if (gereenuud.length === 0) {
           console.log(
-            `ℹ️  ${baiguullaga.ner}-д идэвхтэй гэрээ олдсонгүй (нийт: ${await Geree(tukhainBaaziinKholbolt).countDocuments({
+            `ℹ️  ${
+              baiguullaga.ner
+            }-д идэвхтэй гэрээ олдсонгүй (нийт: ${await Geree(
+              tukhainBaaziinKholbolt
+            ).countDocuments({
               baiguullagiinId: baiguullaga._id.toString(),
             })})`
           );
@@ -282,7 +286,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 // Schedule cron job to run daily at 16:18 (4:18 PM) Mongolia time
 const cronJob = cron.schedule(
-  "12 11 * * *",
+  "48 14 * * *",
   function () {
     const now = new Date();
     console.log(
