@@ -774,6 +774,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       suuliinDugaar && !isNaN(suuliinDugaar) ? suuliinDugaar + 1 : 1;
 
     // Generate unique nekhemjlekhiinDugaar (invoice number)
+    // This function generates a candidate number - retry logic handles race conditions
     const generateUniqueNekhemjlekhiinDugaar = async () => {
       const currentDate = new Date();
       const year = currentDate.getFullYear();
@@ -799,27 +800,51 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }
       }
       
-      // Ensure uniqueness by checking if the generated number exists
-      let nekhemjlekhiinDugaar = `НЭХ-${datePrefix}-${String(sequence).padStart(4, '0')}`;
-      let exists = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
-        .findOne({ nekhemjlekhiinDugaar: nekhemjlekhiinDugaar })
-        .lean();
-      
-      // If exists, increment until we find a unique one
-      while (exists) {
-        sequence++;
-        nekhemjlekhiinDugaar = `НЭХ-${datePrefix}-${String(sequence).padStart(4, '0')}`;
-        exists = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
-          .findOne({ nekhemjlekhiinDugaar: nekhemjlekhiinDugaar })
-          .lean();
-      }
-      
-      return nekhemjlekhiinDugaar;
+      // Generate candidate number
+      // Note: In concurrent scenarios, multiple processes might generate the same number
+      // The retry logic below will handle this by catching duplicate key errors
+      return `НЭХ-${datePrefix}-${String(sequence).padStart(4, '0')}`;
     };
     
-    tuukh.nekhemjlekhiinDugaar = await generateUniqueNekhemjlekhiinDugaar();
-
-    await tuukh.save();
+    // Retry logic to handle race conditions when saving
+    // When multiple invoices are created concurrently, they might generate the same number
+    // This retry mechanism catches duplicate key errors and regenerates the number
+    const saveInvoiceWithRetry = async (maxRetries = 10) => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          // Generate invoice number
+          tuukh.nekhemjlekhiinDugaar = await generateUniqueNekhemjlekhiinDugaar();
+          
+          // Try to save
+          await tuukh.save();
+          
+          // Success - return
+          return;
+        } catch (error) {
+          // Check if it's a duplicate key error for nekhemjlekhiinDugaar
+          if (error.code === 11000 && error.keyPattern && error.keyPattern.nekhemjlekhiinDugaar) {
+            // Duplicate key error - regenerate and retry
+            console.log(`⚠️ [INVOICE] Duplicate invoice number detected for ${tempData.gereeniiDugaar} (attempt ${attempt}/${maxRetries}), regenerating...`);
+            
+            if (attempt === maxRetries) {
+              // Last attempt failed - throw error
+              throw new Error(`Failed to generate unique invoice number after ${maxRetries} attempts for contract ${tempData.gereeniiDugaar}: ${error.message}`);
+            }
+            
+            // Wait a bit before retrying (exponential backoff with jitter)
+            // This helps spread out concurrent retries
+            const delay = 50 * attempt + Math.random() * 50;
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            // Different error - throw it
+            throw error;
+          }
+        }
+      }
+    };
+    
+    await saveInvoiceWithRetry();
 
     // Remove guilgeenuudForNekhemjlekh from geree after including them in invoice (one-time)
     // This ensures they only appear once in an invoice
