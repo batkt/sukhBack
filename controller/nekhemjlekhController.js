@@ -773,6 +773,52 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.dugaalaltDugaar =
       suuliinDugaar && !isNaN(suuliinDugaar) ? suuliinDugaar + 1 : 1;
 
+    // Generate unique nekhemjlekhiinDugaar (invoice number)
+    const generateUniqueNekhemjlekhiinDugaar = async () => {
+      const currentDate = new Date();
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const datePrefix = `${year}${month}${day}`;
+      
+      // Find the highest sequence number for today
+      const todayInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+        .find({
+          nekhemjlekhiinDugaar: { $regex: `^НЭХ-${datePrefix}-` }
+        })
+        .sort({ nekhemjlekhiinDugaar: -1 })
+        .limit(1)
+        .lean();
+      
+      let sequence = 1;
+      if (todayInvoices.length > 0 && todayInvoices[0].nekhemjlekhiinDugaar) {
+        const lastDugaar = todayInvoices[0].nekhemjlekhiinDugaar;
+        const match = lastDugaar.match(/^НЭХ-\d{8}-(\d+)$/);
+        if (match) {
+          sequence = parseInt(match[1], 10) + 1;
+        }
+      }
+      
+      // Ensure uniqueness by checking if the generated number exists
+      let nekhemjlekhiinDugaar = `НЭХ-${datePrefix}-${String(sequence).padStart(4, '0')}`;
+      let exists = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+        .findOne({ nekhemjlekhiinDugaar: nekhemjlekhiinDugaar })
+        .lean();
+      
+      // If exists, increment until we find a unique one
+      while (exists) {
+        sequence++;
+        nekhemjlekhiinDugaar = `НЭХ-${datePrefix}-${String(sequence).padStart(4, '0')}`;
+        exists = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+          .findOne({ nekhemjlekhiinDugaar: nekhemjlekhiinDugaar })
+          .lean();
+      }
+      
+      return nekhemjlekhiinDugaar;
+    };
+    
+    tuukh.nekhemjlekhiinDugaar = await generateUniqueNekhemjlekhiinDugaar();
+
     await tuukh.save();
 
     // Remove guilgeenuudForNekhemjlekh from geree after including them in invoice (one-time)
