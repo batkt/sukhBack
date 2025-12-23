@@ -773,7 +773,78 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.dugaalaltDugaar =
       suuliinDugaar && !isNaN(suuliinDugaar) ? suuliinDugaar + 1 : 1;
 
-    await tuukh.save();
+    // Generate unique nekhemjlekhiinDugaar (invoice number)
+    // This function generates a candidate number - retry logic handles race conditions
+    const generateUniqueNekhemjlekhiinDugaar = async () => {
+      const currentDate = new Date();
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const datePrefix = `${year}${month}${day}`;
+      
+      // Find the highest sequence number for today
+      const todayInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+        .find({
+          nekhemjlekhiinDugaar: { $regex: `^НЭХ-${datePrefix}-` }
+        })
+        .sort({ nekhemjlekhiinDugaar: -1 })
+        .limit(1)
+        .lean();
+      
+      let sequence = 1;
+      if (todayInvoices.length > 0 && todayInvoices[0].nekhemjlekhiinDugaar) {
+        const lastDugaar = todayInvoices[0].nekhemjlekhiinDugaar;
+        const match = lastDugaar.match(/^НЭХ-\d{8}-(\d+)$/);
+        if (match) {
+          sequence = parseInt(match[1], 10) + 1;
+        }
+      }
+      
+      // Generate candidate number
+      // Note: In concurrent scenarios, multiple processes might generate the same number
+      // The retry logic below will handle this by catching duplicate key errors
+      return `НЭХ-${datePrefix}-${String(sequence).padStart(4, '0')}`;
+    };
+    
+    // Retry logic to handle race conditions when saving
+    // When multiple invoices are created concurrently, they might generate the same number
+    // This retry mechanism catches duplicate key errors and regenerates the number
+    const saveInvoiceWithRetry = async (maxRetries = 10) => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          // Generate invoice number
+          tuukh.nekhemjlekhiinDugaar = await generateUniqueNekhemjlekhiinDugaar();
+          
+          // Try to save
+          await tuukh.save();
+          
+          // Success - return
+          return;
+        } catch (error) {
+          // Check if it's a duplicate key error for nekhemjlekhiinDugaar
+          if (error.code === 11000 && error.keyPattern && error.keyPattern.nekhemjlekhiinDugaar) {
+            // Duplicate key error - regenerate and retry
+            console.log(`⚠️ [INVOICE] Duplicate invoice number detected for ${tempData.gereeniiDugaar} (attempt ${attempt}/${maxRetries}), regenerating...`);
+            
+            if (attempt === maxRetries) {
+              // Last attempt failed - throw error
+              throw new Error(`Failed to generate unique invoice number after ${maxRetries} attempts for contract ${tempData.gereeniiDugaar}: ${error.message}`);
+            }
+            
+            // Wait a bit before retrying (exponential backoff with jitter)
+            // This helps spread out concurrent retries
+            const delay = 50 * attempt + Math.random() * 50;
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          } else {
+            // Different error - throw it
+            throw error;
+          }
+        }
+      }
+    };
+    
+    await saveInvoiceWithRetry();
 
     // Remove guilgeenuudForNekhemjlekh from geree after including them in invoice (one-time)
     // This ensures they only appear once in an invoice

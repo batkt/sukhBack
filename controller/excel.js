@@ -1840,11 +1840,27 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
 
     // Get all active gerees for this building
     const Geree = require("../models/geree");
+    const OrshinSuugch = require("../models/orshinSuugch");
     const gereenuud = await Geree(tukhainBaaziinKholbolt).find({
       baiguullagiinId: baiguullaga._id.toString(),
       barilgiinId: barilgiinId,
       tuluv: "Идэвхтэй",
-    }).select("gereeniiDugaar toot").lean();
+    }).select("gereeniiDugaar toot orshinSuugchId").lean();
+
+    // Fetch orshinSuugch data to get name and phone
+    const orshinSuugchIds = [...new Set(gereenuud.map(g => g.orshinSuugchId).filter(id => id))];
+    const orshinSuugchuud = await OrshinSuugch(db.erunkhiiKholbolt)
+      .find({
+        _id: { $in: orshinSuugchIds }
+      })
+      .select("_id ner utas")
+      .lean();
+
+    // Create map for quick lookup
+    const orshinSuugchMap = new Map();
+    orshinSuugchuud.forEach((orshinSuugch) => {
+      orshinSuugchMap.set(orshinSuugch._id.toString(), orshinSuugch);
+    });
 
     let workbook = new excel.Workbook();
     let worksheet = workbook.addWorksheet("Цахилгаан");
@@ -1852,6 +1868,8 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
     // Define columns (headers are automatically created in row 1)
     worksheet.columns = [
       { header: "Гэрээний дугаар", key: "gereeniiDugaar", width: 20 },
+      { header: "Нэр", key: "ner", width: 20 },
+      { header: "Утас", key: "utas", width: 15 },
       { header: "Өмнө", key: "umnu", width: 15 },
       { header: "Өдөр", key: "odor", width: 15 },
       { header: "Шөнө", key: "shone", width: 15 },
@@ -1869,8 +1887,14 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
 
     // Add data rows with geree numbers
     gereenuud.forEach((geree) => {
+      const orshinSuugch = geree.orshinSuugchId 
+        ? orshinSuugchMap.get(geree.orshinSuugchId.toString())
+        : null;
+      
       worksheet.addRow({
         gereeniiDugaar: geree.gereeniiDugaar || "",
+        ner: orshinSuugch?.ner || "",
+        utas: orshinSuugch?.utas || "",
         umnu: "",
         odor: "",
         shone: "",
@@ -1880,23 +1904,23 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
     });
 
     // Add formula for "Нийт (одоо)" column (Өдөр + Шөнө)
-    // Formula: =C2+D2 (assuming C=Өдөр, D=Шөнө)
+    // Formula: =E2+F2 (assuming E=Өдөр, F=Шөнө after adding Нэр and Утас columns)
     // Add formula for "Зөрүү" column (Нийт (одоо) - Өмнө)
-    // Formula: =E2-B2 (assuming E=Нийт (одоо), B=Өмнө)
+    // Formula: =G2-D2 (assuming G=Нийт (одоо), D=Өмнө)
     gereenuud.forEach((geree, index) => {
       const rowNumber = index + 2; // +2 because row 1 is header
       
-      // Нийт (одоо) = Өдөр + Шөнө (Column E = C + D)
-      const niitCell = worksheet.getCell(`E${rowNumber}`);
+      // Нийт (одоо) = Өдөр + Шөнө (Column G = E + F)
+      const niitCell = worksheet.getCell(`G${rowNumber}`);
       niitCell.value = {
-        formula: `C${rowNumber}+D${rowNumber}`,
+        formula: `E${rowNumber}+F${rowNumber}`,
       };
       niitCell.numFmt = "0.00";
       
-      // Зөрүү = Нийт (одоо) - Өмнө (Column F = E - B)
-      const zoruuCell = worksheet.getCell(`F${rowNumber}`);
+      // Зөрүү = Нийт (одоо) - Өмнө (Column H = G - D)
+      const zoruuCell = worksheet.getCell(`H${rowNumber}`);
       zoruuCell.value = {
-        formula: `E${rowNumber}-B${rowNumber}`,
+        formula: `G${rowNumber}-D${rowNumber}`,
       };
       zoruuCell.numFmt = "0.00";
     });

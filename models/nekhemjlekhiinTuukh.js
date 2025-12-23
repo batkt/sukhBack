@@ -38,6 +38,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     nekhemjlekhiinBank: String,
     nekhemjlekhiinIbanDugaar: String,
     nekhemjlekhiinOgnoo: Date,
+    nekhemjlekhiinDugaar: String, // Unique invoice number
     dugaalaltDugaar: Number,
     niitTulbur: Number,
     tuluv: {
@@ -81,6 +82,9 @@ nekhemjlekhiinTuukhSchema.methods.checkOverdue = function () {
 };
 
 nekhemjlekhiinTuukhSchema.set("toJSON", { virtuals: true });
+
+// Add unique index on nekhemjlekhiinDugaar
+nekhemjlekhiinTuukhSchema.index({ nekhemjlekhiinDugaar: 1 }, { unique: true, sparse: true });
 
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
