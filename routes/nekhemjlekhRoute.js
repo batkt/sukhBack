@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const mongoose = require("mongoose");
-const { crud, UstsanBarimt, tokenShalgakh, asyncHandler } = require("zevbackv2");
+const { crud, UstsanBarimt, tokenShalgakh } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
 const { downloadNekhemjlekhiinTuukhExcel } = require("../controller/excelImportController");
 const { gereeNeesNekhemjlekhUusgekhPreviousMonth } = require("../controller/nekhemjlekhController");
@@ -58,7 +58,7 @@ router.get("/:id", tokenShalgakh, async (req, res, next) => {
 // Create invoices for previous months
 // POST /nekhemjlekh/previousMonth
 // Body: { baiguullagiinId, barilgiinId (optional), monthsAgo (1 or 2), gereeniiDugaar (optional - for specific contract) }
-router.post("/previousMonth", tokenShalgakh, asyncHandler(async (req, res, next) => {
+router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
   try {
     const { baiguullagiinId, barilgiinId, monthsAgo, gereeniiDugaar } = req.body;
 
@@ -188,6 +188,6 @@ router.post("/previousMonth", tokenShalgakh, asyncHandler(async (req, res, next)
     console.error("Error creating previous month invoices:", error);
     next(error);
   }
-}));
+});
 
 module.exports = router;
