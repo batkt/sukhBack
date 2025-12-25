@@ -636,13 +636,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
         const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
         const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
 
-        // Check if geree has electricity readings
-        if (gereeZaaltZardluud.length > 0 && (
-          tempData.umnukhZaalt !== undefined ||
-          tempData.suuliinZaalt !== undefined ||
-          tempData.zaaltTog !== undefined ||
-          tempData.zaaltUs !== undefined
-        )) {
+        // Check if geree has electricity zardals - ALWAYS recalculate if they exist
+        // Even if readings are missing, we should still process electricity charges
+        if (gereeZaaltZardluud.length > 0) {
           // Get tariff from orshinSuugch.tsahilgaaniiZaalt (ignore geree.zardluud)
           const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
             tempData.orshinSuugchId
@@ -651,8 +647,26 @@ const gereeNeesNekhemjlekhUusgekh = async (
           // Use tariff from orshinSuugch.tsahilgaaniiZaalt
           const zaaltTariff = orshinSuugch?.tsahilgaaniiZaalt || 0;
           
+          // Get readings from tempData OR from geree.zardluud if tempData doesn't have them
+          // This handles cases where script passes geree.toObject() which might not have readings at top level
+          const umnukhZaalt = tempData.umnukhZaalt ?? gereeZaaltZardluud[0]?.umnukhZaalt ?? 0;
+          const suuliinZaalt = tempData.suuliinZaalt ?? gereeZaaltZardluud[0]?.suuliinZaalt ?? 0;
+          
           // Calculate usage (difference between current and previous reading)
-          const zoruu = (tempData.suuliinZaalt || 0) - (tempData.umnukhZaalt || 0);
+          const zoruu = suuliinZaalt - umnukhZaalt;
+          
+          // CRITICAL: Log readings to debug
+          console.log("⚡ [INVOICE] Electricity readings check:", {
+            gereeniiDugaar: tempData.gereeniiDugaar,
+            tempData_umnukhZaalt: tempData.umnukhZaalt,
+            tempData_suuliinZaalt: tempData.suuliinZaalt,
+            geree_umnukhZaalt: gereeZaaltZardluud[0]?.umnukhZaalt,
+            geree_suuliinZaalt: gereeZaaltZardluud[0]?.suuliinZaalt,
+            final_umnukhZaalt: umnukhZaalt,
+            final_suuliinZaalt: suuliinZaalt,
+            zoruu: zoruu,
+            hasReadings: !!(umnukhZaalt || suuliinZaalt)
+          });
           
           // Process ALL electricity zardals from geree.zardluud (not just one)
           // This allows multiple electricity charges with same name but different purposes
@@ -679,12 +693,28 @@ const gereeNeesNekhemjlekhUusgekh = async (
               zoruu: zoruu,
               defaultDun: zaaltDefaultDun,
               calculatedAmount: zaaltDun,
-              formula: `(${zoruu} * ${zaaltTariff}) + ${zaaltDefaultDun} = ${zaaltDun}`
+              formula: `(${zoruu} * ${zaaltTariff}) + ${zaaltDefaultDun} = ${zaaltDun}`,
+              gereeTariff: gereeZaaltZardal.tariff,
+              gereeDun: gereeZaaltZardal.dun,
+              WARNING: "NEVER using geree.tariff or geree.dun - they are ignored"
             });
             
             // ALWAYS use the calculated amount - NEVER use geree.tariff or geree.dun
             // geree.tariff might be the tariff rate (175), not the calculated amount
+            // FORCE use calculated amount - ignore any stored values
             const finalZaaltTariff = zaaltDun;
+            
+            // CRITICAL CHECK: If finalZaaltTariff is still 175, something is wrong
+            if (finalZaaltTariff === 175 || finalZaaltTariff === gereeZaaltZardal.tariff) {
+              console.error("❌ [INVOICE] ERROR: finalZaaltTariff is using tariff rate instead of calculated amount!", {
+                finalZaaltTariff,
+                gereeTariff: gereeZaaltZardal.tariff,
+                calculatedZaaltDun: zaaltDun,
+                zoruu,
+                zaaltTariff,
+                zaaltDefaultDun
+              });
+            }
             
             // Create electricity zardal entry to add to medeelel.zardluud (like other charges)
             const electricityZardalEntry = {
