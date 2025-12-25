@@ -1237,7 +1237,170 @@ async function sendInvoiceSmsToOrshinSuugch(
   }
 }
 
+// Create invoices for a specific previous month
+// monthsAgo: 1 for previous month, 2 for 2 months ago, etc.
+const gereeNeesNekhemjlekhUusgekhPreviousMonth = async (
+  tempData,
+  org,
+  tukhainBaaziinKholbolt,
+  monthsAgo = 1,
+  uusgegsenEsekh = "garan",
+  skipDuplicateCheck = false
+) => {
+  try {
+    console.log(`📅 [PREVIOUS MONTH INVOICE] Creating invoice for ${monthsAgo} month(s) ago`);
+    
+    // Calculate target month
+    const today = new Date();
+    const targetDate = new Date(today);
+    targetDate.setMonth(targetDate.getMonth() - monthsAgo);
+    const targetYear = targetDate.getFullYear();
+    const targetMonth = targetDate.getMonth(); // 0-11
+    
+    console.log(`📅 [PREVIOUS MONTH INVOICE] Target month: ${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`);
+    
+    // Get cron schedule to determine the scheduled day
+    const NekhemjlekhCron = require("../models/cronSchedule");
+    let cronSchedule = null;
+    if (tempData.barilgiinId) {
+      cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
+        baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+        barilgiinId: tempData.barilgiinId,
+      });
+    }
+    
+    if (!cronSchedule) {
+      cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
+        baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
+        barilgiinId: null,
+      });
+    }
+    
+    const scheduledDay = cronSchedule?.nekhemjlekhUusgekhOgnoo || 1;
+    
+    // Calculate invoice date (ognoo) - scheduled day of target month
+    const invoiceDate = new Date(targetYear, targetMonth, scheduledDay, 0, 0, 0, 0);
+    
+    // Calculate due date (tulukhOgnoo) - scheduled day of next month after target
+    const dueDate = new Date(targetYear, targetMonth + 1, scheduledDay, 0, 0, 0, 0);
+    // Handle edge case for months with fewer days
+    const lastDayOfMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+    if (scheduledDay > lastDayOfMonth) {
+      dueDate.setDate(lastDayOfMonth);
+    }
+    
+    // Override tempData dates for target month
+    const modifiedTempData = {
+      ...tempData,
+      ognoo: invoiceDate,
+      nekhemjlekhiinOgnoo: invoiceDate,
+    };
+    
+    // Temporarily override the function's date logic by creating a wrapper
+    // We'll modify the duplicate check to use target month
+    const originalFunction = gereeNeesNekhemjlekhUusgekh;
+    
+    // Create a modified version that uses target month for duplicate checking
+    const monthStart = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(
+      targetYear,
+      targetMonth + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    );
+    
+    // Check for existing invoice in target month
+    if (!skipDuplicateCheck) {
+      let checkBarilgiinId = tempData.barilgiinId;
+      if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
+        checkBarilgiinId = String(org.barilguud[0]._id);
+      }
+      
+      const existingInvoiceQuery = {
+        gereeniiId: tempData._id.toString(),
+        $or: [
+          {
+            ognoo: {
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          },
+          {
+            createdAt: {
+              $gte: monthStart,
+              $lte: monthEnd,
+            },
+          },
+        ],
+      };
+      
+      if (checkBarilgiinId) {
+        existingInvoiceQuery.barilgiinId = checkBarilgiinId;
+      }
+      
+      const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+        .findOne(existingInvoiceQuery)
+        .sort({ ognoo: -1, createdAt: -1 });
+      
+      if (existingInvoice) {
+        console.log(
+          `ℹ️  Invoice already exists for contract ${tempData.gereeniiDugaar} in target month ${targetYear}-${targetMonth + 1}:`,
+          existingInvoice._id
+        );
+        return {
+          success: true,
+          nekhemjlekh: existingInvoice,
+          gereeniiId: tempData._id,
+          gereeniiDugaar: tempData.gereeniiDugaar,
+          tulbur: existingInvoice.niitTulbur,
+          alreadyExists: true,
+        };
+      }
+    }
+    
+    // Call the original function but we need to modify it to use target dates
+    // Since we can't easily modify the internal logic, we'll create invoices with target dates
+    // by calling the function and then updating the dates after creation
+    
+    // For now, let's create a simplified version that sets the dates correctly
+    const result = await originalFunction(
+      modifiedTempData,
+      org,
+      tukhainBaaziinKholbolt,
+      uusgegsenEsekh,
+      true // skipDuplicateCheck = true since we already checked
+    );
+    
+    if (result.success && result.nekhemjlekh) {
+      // Update the invoice with correct dates for target month
+      const invoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).findById(
+        result.nekhemjlekh._id || result.nekhemjlekh
+      );
+      
+      if (invoice) {
+        invoice.ognoo = invoiceDate;
+        invoice.nekhemjlekhiinOgnoo = invoiceDate;
+        invoice.tulukhOgnoo = dueDate;
+        await invoice.save();
+        
+        console.log(`✅ [PREVIOUS MONTH INVOICE] Updated dates for invoice ${invoice._id}`);
+        console.log(`   Invoice date: ${invoiceDate.toISOString()}`);
+        console.log(`   Due date: ${dueDate.toISOString()}`);
+      }
+    }
+    
+    return result;
+  } catch (error) {
+    console.error(`❌ [PREVIOUS MONTH INVOICE] Error:`, error.message);
+    throw error;
+  }
+};
+
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
+  gereeNeesNekhemjlekhUusgekhPreviousMonth,
   updateGereeAndNekhemjlekhFromZardluud,
 };
