@@ -834,6 +834,46 @@ const gereeNeesNekhemjlekhUusgekh = async (
             electricityEntries.push(electricityZardalEntry);
           }
           
+          // Add the "Цахилгаан" charge from ashiglaltiinZardluud as a separate regular charge
+          // This is a normal zardal (not a base fee), separate from the calculated electricity charge
+          if (zaaltZardluud.length > 0) {
+            const ashiglaltiinZaaltZardal = zaaltZardluud[0]; // Get the electricity zardal from ashiglaltiinZardluud
+            
+            // Only add if it has a dun (amount) value
+            if (ashiglaltiinZaaltZardal.dun && ashiglaltiinZaaltZardal.dun > 0) {
+              const ashiglaltiinZaaltEntry = {
+                ner: ashiglaltiinZaaltZardal.ner || "Цахилгаан",
+                turul: normalizeTurul(ashiglaltiinZaaltZardal.turul) || "Тогтмол",
+                tariff: ashiglaltiinZaaltZardal.dun, // Use dun as tariff (amount)
+                tariffUsgeer: ashiglaltiinZaaltZardal.tariffUsgeer || "₮",
+                zardliinTurul: ashiglaltiinZaaltZardal.zardliinTurul || "Энгийн",
+                barilgiinId: tempData.barilgiinId,
+                dun: ashiglaltiinZaaltZardal.dun,
+                bodokhArga: ashiglaltiinZaaltZardal.bodokhArga || "тогтмол",
+                tseverUsDun: ashiglaltiinZaaltZardal.tseverUsDun || 0,
+                bokhirUsDun: ashiglaltiinZaaltZardal.bokhirUsDun || 0,
+                usKhalaasniiDun: ashiglaltiinZaaltZardal.usKhalaasniiDun || 0,
+                tsakhilgaanUrjver: ashiglaltiinZaaltZardal.tsakhilgaanUrjver || 1,
+                tsakhilgaanChadal: ashiglaltiinZaaltZardal.tsakhilgaanChadal || 0,
+                tsakhilgaanDemjikh: ashiglaltiinZaaltZardal.tsakhilgaanDemjikh || 0,
+                suuriKhuraamj: ashiglaltiinZaaltZardal.suuriKhuraamj || "0",
+                nuatNemekhEsekh: ashiglaltiinZaaltZardal.nuatNemekhEsekh || false,
+                ognoonuud: ashiglaltiinZaaltZardal.ognoonuud || [],
+                zaalt: false, // This is a regular charge from ashiglaltiinZardluud, not calculated electricity
+              };
+              
+              electricityEntries.push(ashiglaltiinZaaltEntry);
+              totalTsahilgaanNekhemjlekh += ashiglaltiinZaaltZardal.dun;
+              
+              console.log("💰 [INVOICE] Added Цахилгаан charge from ashiglaltiinZardluud:", {
+                gereeniiDugaar: tempData.gereeniiDugaar,
+                ner: ashiglaltiinZaaltZardal.ner,
+                dun: ashiglaltiinZaaltZardal.dun,
+                source: "ashiglaltiinZardluud"
+              });
+            }
+          }
+          
           tsahilgaanNekhemjlekh = totalTsahilgaanNekhemjlekh;
           electricityZardalEntry = electricityEntries[0]; // Keep first one for backward compatibility
           
