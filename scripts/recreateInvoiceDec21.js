@@ -1,3 +1,14 @@
+const path = require("path");
+const express = require("express");
+const dotenv = require("dotenv");
+
+// Change to project root directory
+const projectRoot = path.resolve(__dirname, "..");
+process.chdir(projectRoot);
+
+// Load environment variables
+dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
+
 const { db } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
@@ -11,12 +22,24 @@ const { gereeNeesNekhemjlekhUusgekh } = require("../controller/nekhemjlekhContro
  * WARNING: This will delete ALL invoices and recreate them!
  */
 async function recreateInvoiceDec21() {
-  // Initialize database connections (similar to index.js)
-  // The connections should already be initialized, but we ensure they're available
+  // Initialize database connections (same as index.js)
+  const app = express();
+  db.kholboltUusgey(
+    app,
+    process.env.MONGODB_URI ||
+    "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
+  );
+
+  // Wait a bit for database connections to initialize
+  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+  // Check if connections are initialized
   if (!db.kholboltuud || db.kholboltuud.length === 0) {
     console.error("❌ No database connections found. Make sure the database is initialized.");
     process.exit(1);
   }
+  
+  console.log(`✅ Database connections initialized: ${db.kholboltuud.length} connection(s) found`);
   try {
     console.log(`═══════════════════════════════════════════════════════════`);
     console.log(`⚠️  WARNING: This script will DELETE ALL INVOICES`);
