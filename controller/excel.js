@@ -2385,12 +2385,26 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
     }
 
     // Get unique contracts (latest reading for each contract)
+    // Prioritize by importOgnoo (when data was imported) or calculatedAt, then unshlaltiinOgnoo
     const latestReadings = new Map();
     zaaltUnshlaltuud.forEach((reading) => {
       const key = reading.gereeniiDugaar;
-      if (!latestReadings.has(key) || 
-          new Date(reading.unshlaltiinOgnoo) > new Date(latestReadings.get(key).unshlaltiinOgnoo)) {
+      const existing = latestReadings.get(key);
+      
+      if (!existing) {
         latestReadings.set(key, reading);
+      } else {
+        // Compare by importOgnoo first (most recent import), then calculatedAt, then unshlaltiinOgnoo
+        const readingImportDate = reading.importOgnoo 
+          ? new Date(reading.importOgnoo) 
+          : (reading.zaaltCalculation?.calculatedAt ? new Date(reading.zaaltCalculation.calculatedAt) : new Date(reading.unshlaltiinOgnoo));
+        const existingImportDate = existing.importOgnoo 
+          ? new Date(existing.importOgnoo) 
+          : (existing.zaaltCalculation?.calculatedAt ? new Date(existing.zaaltCalculation.calculatedAt) : new Date(existing.unshlaltiinOgnoo));
+        
+        if (readingImportDate > existingImportDate) {
+          latestReadings.set(key, reading);
+        }
       }
     });
 
