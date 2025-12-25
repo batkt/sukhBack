@@ -16,7 +16,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     turul: String,
     gereeniiId: String,
     gereeniiDugaar: String,
-    ekhniiUldegdel : Number,
+    ekhniiUldegdel: Number,
     ekhniiUldegdelUsgeer: String,
     davkhar: String,
     uldegdel: Number,
@@ -62,6 +62,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     ],
     orts: String, // Web only field
     tsahilgaanNekhemjlekh: Number, // Electricity invoice amount (calculated from zaalt readings)
+    tailbar: String,
   },
   {
     timestamps: true,
@@ -84,7 +85,100 @@ nekhemjlekhiinTuukhSchema.methods.checkOverdue = function () {
 nekhemjlekhiinTuukhSchema.set("toJSON", { virtuals: true });
 
 // Add unique index on nekhemjlekhiinDugaar
-nekhemjlekhiinTuukhSchema.index({ nekhemjlekhiinDugaar: 1 }, { unique: true, sparse: true });
+nekhemjlekhiinTuukhSchema.index(
+  { nekhemjlekhiinDugaar: 1 },
+  { unique: true, sparse: true }
+);
+
+// Post-query hooks to populate zardal based on tailbar
+nekhemjlekhiinTuukhSchema.post("find", async function (docs) {
+  if (!docs || docs.length === 0) return;
+
+  try {
+    const { db } = require("zevbackv2");
+    const AshiglaltiinZardluud = require("./ashiglaltiinZardluud");
+
+    // Get unique tailbar values and baiguullagiinId from docs
+    const tailbarMap = new Map();
+    docs.forEach((doc) => {
+      if (doc.tailbar && doc.baiguullagiinId) {
+        const key = `${doc.baiguullagiinId}|${doc.tailbar}`;
+        if (!tailbarMap.has(key)) {
+          tailbarMap.set(key, {
+            baiguullagiinId: doc.baiguullagiinId,
+            tailbar: doc.tailbar,
+            barilgiinId: doc.barilgiinId,
+          });
+        }
+      }
+    });
+
+    // Fetch all matching zardluud
+    for (const [key, { baiguullagiinId, tailbar, barilgiinId }] of tailbarMap) {
+      const kholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      );
+
+      if (kholbolt) {
+        const query = {
+          baiguullagiinId: String(baiguullagiinId),
+          tailbar: tailbar,
+        };
+
+        if (barilgiinId) {
+          query.barilgiinId = String(barilgiinId);
+        }
+
+        const zardluud = await AshiglaltiinZardluud(kholbolt)
+          .find(query)
+          .lean();
+
+        // Attach zardluud to matching docs
+        docs.forEach((doc) => {
+          if (
+            doc.tailbar === tailbar &&
+            String(doc.baiguullagiinId) === String(baiguullagiinId) &&
+            (!barilgiinId || String(doc.barilgiinId) === String(barilgiinId))
+          ) {
+            doc.zardal = zardluud;
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error populating zardal in nekhemjlekhiinTuukh:", error);
+  }
+});
+
+nekhemjlekhiinTuukhSchema.post("findOne", async function (doc) {
+  if (!doc || !doc.tailbar || !doc.baiguullagiinId) return;
+
+  try {
+    const { db } = require("zevbackv2");
+    const AshiglaltiinZardluud = require("./ashiglaltiinZardluud");
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(doc.baiguullagiinId)
+    );
+
+    if (kholbolt) {
+      const query = {
+        baiguullagiinId: String(doc.baiguullagiinId),
+        tailbar: doc.tailbar,
+      };
+
+      if (doc.barilgiinId) {
+        query.barilgiinId = String(doc.barilgiinId);
+      }
+
+      const zardluud = await AshiglaltiinZardluud(kholbolt).find(query).lean();
+
+      doc.zardal = zardluud;
+    }
+  } catch (error) {
+    console.error("Error populating zardal in nekhemjlekhiinTuukh:", error);
+  }
+});
 
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
