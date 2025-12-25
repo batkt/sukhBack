@@ -668,7 +668,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
             
             // Calculate electricity amount: (usage * tariff) + base fee
             const zaaltDun = (zoruu * zaaltTariff) + zaaltDefaultDun;
-            totalTsahilgaanNekhemjlekh += zaaltDun;
+            
+            // CRITICAL: Use the calculated amount from geree.zardluud.dun if it exists and is larger than tariff rate
+            // This handles cases where geree.zardluud.dun has the correct calculated amount from Excel import
+            // If geree.dun is a large number (> 1000), it's likely the calculated amount, not the tariff rate
+            const gereeDun = gereeZaaltZardal.dun || 0;
+            const gereeTariff = gereeZaaltZardal.tariff || 0;
+            const isGereeDunCalculatedAmount = gereeDun > 1000; // If > 1000, it's calculated amount, not tariff rate
+            
+            // Use geree.dun if it's a calculated amount, otherwise use our calculated zaaltDun
+            const finalZaaltDun = isGereeDunCalculatedAmount ? gereeDun : zaaltDun;
+            totalTsahilgaanNekhemjlekh += finalZaaltDun;
             
             console.log("⚡ [INVOICE] Electricity calculation:", {
               ner: gereeZaaltZardal.ner,
@@ -677,13 +687,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
               tariffFromOrshinSuugch: zaaltTariff,
               zoruu: zoruu,
               defaultDun: zaaltDefaultDun,
-              calculatedAmount: zaaltDun
+              calculatedAmount: zaaltDun,
+              gereeDun: gereeDun,
+              gereeTariff: gereeTariff,
+              isGereeDunCalculatedAmount: isGereeDunCalculatedAmount,
+              finalZaaltDun: finalZaaltDun
             });
             
-            // ALWAYS use calculated amount (zaaltDun) - never use geree.tariff which is just the tariff rate
-            // The stored geree.tariff is the tariff rate (e.g., 175), not the calculated amount
-            // We always want to show the calculated amount: (usage * tariff) + base fee
-            const finalZaaltTariff = zaaltDun;
+            // ALWAYS use calculated amount - prefer geree.dun if it's a calculated amount, otherwise use our calculation
+            const finalZaaltTariff = finalZaaltDun;
             
             // Create electricity zardal entry to add to medeelel.zardluud (like other charges)
             const electricityZardalEntry = {
