@@ -839,16 +839,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
           if (zaaltZardluud.length > 0) {
             const ashiglaltiinZaaltZardal = zaaltZardluud[0]; // Get the electricity zardal from ashiglaltiinZardluud
             
-            // Only add if it has a dun (amount) value
-            if (ashiglaltiinZaaltZardal.dun && ashiglaltiinZaaltZardal.dun > 0) {
+            // Only add if it has a dun or tariff (amount) value
+            const ashiglaltiinZaaltDun = ashiglaltiinZaaltZardal.dun || ashiglaltiinZaaltZardal.tariff || 0;
+            if (ashiglaltiinZaaltDun > 0) {
               const ashiglaltiinZaaltEntry = {
                 ner: ashiglaltiinZaaltZardal.ner || "Цахилгаан",
                 turul: normalizeTurul(ashiglaltiinZaaltZardal.turul) || "Тогтмол",
-                tariff: ashiglaltiinZaaltZardal.dun, // Use dun as tariff (amount)
+                tariff: ashiglaltiinZaaltDun, // Use dun or tariff as amount
                 tariffUsgeer: ashiglaltiinZaaltZardal.tariffUsgeer || "₮",
                 zardliinTurul: ashiglaltiinZaaltZardal.zardliinTurul || "Энгийн",
                 barilgiinId: tempData.barilgiinId,
-                dun: ashiglaltiinZaaltZardal.dun,
+                dun: ashiglaltiinZaaltDun,
                 bodokhArga: ashiglaltiinZaaltZardal.bodokhArga || "тогтмол",
                 tseverUsDun: ashiglaltiinZaaltZardal.tseverUsDun || 0,
                 bokhirUsDun: ashiglaltiinZaaltZardal.bokhirUsDun || 0,
@@ -863,12 +864,14 @@ const gereeNeesNekhemjlekhUusgekh = async (
               };
               
               electricityEntries.push(ashiglaltiinZaaltEntry);
-              totalTsahilgaanNekhemjlekh += ashiglaltiinZaaltZardal.dun;
+              totalTsahilgaanNekhemjlekh += ashiglaltiinZaaltDun;
               
               console.log("💰 [INVOICE] Added Цахилгаан charge from ashiglaltiinZardluud:", {
                 gereeniiDugaar: tempData.gereeniiDugaar,
                 ner: ashiglaltiinZaaltZardal.ner,
-                dun: ashiglaltiinZaaltZardal.dun,
+                dun: ashiglaltiinZaaltDun,
+                originalDun: ashiglaltiinZaaltZardal.dun,
+                originalTariff: ashiglaltiinZaaltZardal.tariff,
                 source: "ashiglaltiinZardluud"
               });
             }
@@ -879,19 +882,29 @@ const gereeNeesNekhemjlekhUusgekh = async (
           
           // Add electricity charges to finalZardluud array (like other charges)
           // Remove existing electricity entries from finalZardluud first
-          // Only remove entries that match by BOTH ner AND zardliinTurul
+          // Only remove entries that match by BOTH ner AND zardliinTurul AND have zaalt: true
           // This allows multiple electricity charges with same name but different purposes to coexist
+          // IMPORTANT: Don't remove the regular ashiglaltiinZardluud charge (zaalt: false)
           const filteredZardluudWithoutZaalt = finalZardluud.filter(
             (z) => {
-              // Only remove if it matches any electricity zardal by BOTH name AND zardliinTurul
+              // Only remove if it matches any electricity zardal by BOTH name AND zardliinTurul AND has zaalt: true
+              // Keep entries that have zaalt: false (regular charges from ashiglaltiinZardluud)
+              if (z.zaalt === false) {
+                return true; // Keep regular charges from ashiglaltiinZardluud
+              }
               return !zaaltZardluudToProcess.some(
                 (gz) => z.ner === gz.ner && z.zardliinTurul === gz.zardliinTurul
               );
             }
           );
           
-          // Add all calculated electricity charges
+          // Add all calculated electricity charges (including the ashiglaltiinZardluud charge we added)
           filteredZardluudWithoutZaalt.push(...electricityEntries);
+          
+          console.log("⚡ [INVOICE] Electricity entries being added:", {
+            count: electricityEntries.length,
+            entries: electricityEntries.map(e => ({ ner: e.ner, dun: e.dun, zaalt: e.zaalt }))
+          });
           
           // Update finalZardluud to include electricity charges
           finalZardluud.length = 0;
