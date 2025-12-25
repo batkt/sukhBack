@@ -2175,7 +2175,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           turul: zaaltZardal.turul,
           zaalt: true, // Mark as electricity zardal
           zaaltTariff: gereeZaaltTariff, // Save tariff from geree (or building fallback)
-          // Note: defaultDun comes from Excel input (separate from ashiglaltiinZardluud)
+          zaaltDefaultDun: gereeZaaltDefaultDun, // Save defaultDun from Excel input (separate from ashiglaltiinZardluud)
           zaaltTariffTiers: gereeZaaltTariffTiers.length > 0 ? gereeZaaltTariffTiers : undefined, // Save tiers from geree if available
           tariff: usedTariff, // кВт tariff rate used for calculation (from tier if applicable)
           tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
@@ -2243,7 +2243,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           zaaltZardliinTurul: zaaltZardal.zardliinTurul,
           tariff: usedTariff,
           tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
-          defaultDun: zaaltDefaultDun,
+          defaultDun: gereeZaaltDefaultDun, // From Excel input
           usedTier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null,
           zaaltDun: zaaltDun,
           zaaltCalculation: {
@@ -2255,7 +2255,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
             tariff: usedTariff,
             tariffType: zaaltZardal.zardliinTurul,
             tariffName: zaaltZardal.ner,
-            defaultDun: zaaltDefaultDun,
+            defaultDun: gereeZaaltDefaultDun, // From Excel input
             tier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null,
             calculatedAt: new Date(),
           },
