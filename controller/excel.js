@@ -1876,6 +1876,7 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
       { header: "Шөнө", key: "shone", width: 15 },
       { header: "Нийт (одоо)", key: "niitOdoo", width: 15 },
       { header: "Зөрүү", key: "zoruu", width: 15 },
+      { header: "Тариф (кВт)", key: "tariff", width: 15 },
       { header: "Суурь хураамж", key: "defaultDun", width: 15 },
     ];
 
@@ -1903,12 +1904,13 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
         shone: "",
         niitOdoo: "",
         zoruu: "",
+        tariff: "",
         defaultDun: "",
       });
     });
 
     // Add formula for "Нийт (одоо)" column (Өдөр + Шөнө)
-    // Columns: A=Гэрээний дугаар, B=Тоот, C=Нэр, D=Утас, E=Өмнө, F=Өдөр, G=Шөнө, H=Нийт (одоо), I=Зөрүү, J=Суурь төлбөр
+    // Columns: A=Гэрээний дугаар, B=Тоот, C=Нэр, D=Утас, E=Өмнө, F=Өдөр, G=Шөнө, H=Нийт (одоо), I=Зөрүү, J=Тариф (кВт), K=Суурь хураамж
     // Add formula for "Зөрүү" column (Нийт (одоо) - Өмнө)
     gereenuud.forEach((geree, index) => {
       const rowNumber = index + 2; // +2 because row 1 is header
@@ -2071,6 +2073,9 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         const niitOdooRaw = row["Нийт (одоо)"];
         const niitOdoo = niitOdooRaw ? (parseFloat(niitOdooRaw) || 0) : (odor + shone);
         
+        // Parse tariff from Excel (NEW - separate from ashiglaltiinZardluud)
+        const tariffFromExcel = parseFloat(row["Тариф (кВт)"] || row["tariff"] || row["Тариф"] || 0) || 0;
+        
         // Parse defaultDun from Excel (NEW - separate from ashiglaltiinZardluud)
         const defaultDunFromExcel = parseFloat(row["Суурь хураамж"] || row["defaultDun"] || 0) || 0;
 
@@ -2087,8 +2092,8 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         // Calculate: (Нийт (одоо) - Өмнө) * кВт tariff + default
         const zoruu = niitOdoo - umnu; // Usage amount (Зөрүү)
         
-        // Get tariff from geree.zardluud first, fallback to building level
-        // defaultDun now comes from Excel input (separate from ashiglaltiinZardluud)
+        // Use tariff from Excel input (NEW - separate from ashiglaltiinZardluud)
+        // If Excel tariff is 0 or not provided, fallback to geree.zardluud, then building level
         let gereeZaaltZardal = null;
         if (geree.zardluud && Array.isArray(geree.zardluud)) {
           gereeZaaltZardal = geree.zardluud.find(
@@ -2096,28 +2101,23 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           );
         }
         
-        // Prioritize tariff from geree, fallback to building level
-        const gereeZaaltTariff = gereeZaaltZardal?.zaaltTariff || gereeZaaltZardal?.tariff || zaaltTariff;
+        // Prioritize tariff from Excel, fallback to geree, then building level
+        const gereeZaaltTariff = tariffFromExcel > 0 
+          ? tariffFromExcel 
+          : (gereeZaaltZardal?.zaaltTariff || gereeZaaltZardal?.tariff || zaaltTariff);
         const gereeZaaltTariffTiers = gereeZaaltZardal?.zaaltTariffTiers || zaaltZardal.zaaltTariffTiers || [];
         // Use defaultDun from Excel input (NEW - separate from ashiglaltiinZardluud)
         const gereeZaaltDefaultDun = defaultDunFromExcel;
         
         // Log tariff and defaultDun source for debugging
-        if (gereeZaaltZardal) {
-          console.log(`⚡ [EXCEL] Using tariff from geree.zardluud, defaultDun from Excel for ${gereeniiDugaar}:`, {
-            tariff: gereeZaaltTariff,
-            defaultDun: gereeZaaltDefaultDun,
-            defaultDunSource: "Excel",
-            hasTiers: gereeZaaltTariffTiers.length > 0
-          });
-        } else {
-          console.log(`⚡ [EXCEL] Using tariff from building level, defaultDun from Excel for ${gereeniiDugaar}:`, {
-            tariff: gereeZaaltTariff,
-            defaultDun: gereeZaaltDefaultDun,
-            defaultDunSource: "Excel",
-            hasTiers: gereeZaaltTariffTiers.length > 0
-          });
-        }
+        const tariffSource = tariffFromExcel > 0 ? "Excel" : (gereeZaaltZardal ? "geree.zardluud" : "building level");
+        console.log(`⚡ [EXCEL] Using tariff from ${tariffSource}, defaultDun from Excel for ${gereeniiDugaar}:`, {
+          tariff: gereeZaaltTariff,
+          tariffSource: tariffSource,
+          defaultDun: gereeZaaltDefaultDun,
+          defaultDunSource: "Excel",
+          hasTiers: gereeZaaltTariffTiers.length > 0
+        });
         
         // Calculate tiered pricing if zaaltTariffTiers is available
         let zaaltDun = 0;
