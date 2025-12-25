@@ -2495,7 +2495,7 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       const zaaltUs = reading.zaaltUs || 0;
       const zoruu = reading.zoruu || (suuliinZaalt - umnukhZaalt);
 
-      // Get tariff from orshinSuugch.tsahilgaaniiZaalt (ignore geree.zardluud)
+      // Get tariff from orshinSuugch.tsahilgaaniiZaalt ONLY (do NOT use zaaltZardal or ashiglaltiinZardluud)
       let tariff = 0;
       let defaultDun = 0;
       
@@ -2509,21 +2509,28 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
           tariff = orshinSuugch.tsahilgaaniiZaalt || 0;
           console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - Using tariff from orshinSuugch.tsahilgaaniiZaalt:`, tariff);
         } else {
-          console.log(`⚠️ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - orshinSuugch not found or tsahilgaaniiZaalt not set`);
+          console.error(`❌ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - orshinSuugch not found or tsahilgaaniiZaalt not set. Tariff will be 0.`);
         }
       } else {
-        console.log(`⚠️ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - No orshinSuugchId found in geree`);
+        console.error(`❌ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - No orshinSuugchId found in geree. Tariff will be 0.`);
       }
       
-      // defaultDun comes from Excel input (separate from ashiglaltiinZardluud)
-      // For export, use the defaultDun from the calculation if available
+      // DO NOT fallback to zaaltZardal.zaaltTariff - tariff MUST come from orshinSuugch
+      
+      // defaultDun comes from Excel input ONLY (separate from ashiglaltiinZardluud)
+      // For export, use the defaultDun from the calculation (which was saved from Excel during import)
+      // DO NOT fallback to zaaltZardal.zaaltDefaultDun - it must come from Excel input
       if (reading.zaaltCalculation?.defaultDun) {
         defaultDun = reading.zaaltCalculation.defaultDun;
-      } else if (zaaltZardal) {
-        defaultDun = zaaltZardal.zaaltDefaultDun || 0;
+        console.log(`💰 [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - Using defaultDun from Excel (saved in zaaltCalculation):`, defaultDun);
+      } else if (reading.defaultDun) {
+        // Fallback to reading.defaultDun (which should also be from Excel)
+        defaultDun = reading.defaultDun;
+        console.log(`💰 [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - Using defaultDun from reading (saved from Excel):`, defaultDun);
       } else {
-        // Fallback to reading if no building level config
-        defaultDun = reading.defaultDun || 0;
+        // DO NOT use zaaltZardal.zaaltDefaultDun - defaultDun MUST come from Excel input
+        defaultDun = 0;
+        console.error(`❌ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - No defaultDun found from Excel. Using 0.`);
       }
 
       // Always recalculate payment: (usage * tariff) + base fee
