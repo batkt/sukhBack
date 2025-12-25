@@ -1876,6 +1876,7 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
       { header: "Шөнө", key: "shone", width: 15 },
       { header: "Нийт (одоо)", key: "niitOdoo", width: 15 },
       { header: "Зөрүү", key: "zoruu", width: 15 },
+      { header: "Суурь хураамж", key: "defaultDun", width: 15 },
     ];
 
     // Style header row (worksheet.columns already creates headers in row 1)
@@ -1902,11 +1903,12 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
         shone: "",
         niitOdoo: "",
         zoruu: "",
+        defaultDun: "",
       });
     });
 
     // Add formula for "Нийт (одоо)" column (Өдөр + Шөнө)
-    // Columns: A=Гэрээний дугаар, B=Тоот, C=Нэр, D=Утас, E=Өмнө, F=Өдөр, G=Шөнө, H=Нийт (одоо), I=Зөрүү
+    // Columns: A=Гэрээний дугаар, B=Тоот, C=Нэр, D=Утас, E=Өмнө, F=Өдөр, G=Шөнө, H=Нийт (одоо), I=Зөрүү, J=Суурь төлбөр
     // Add formula for "Зөрүү" column (Нийт (одоо) - Өмнө)
     gereenuud.forEach((geree, index) => {
       const rowNumber = index + 2; // +2 because row 1 is header
@@ -2005,7 +2007,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
     }
 
     const zaaltTariff = zaaltZardal.zaaltTariff || 0;
-    const zaaltDefaultDun = zaaltZardal.zaaltDefaultDun || 0;
+    // defaultDun will now come from Excel input, not from ashiglaltiinZardluud
 
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
       (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
@@ -2068,6 +2070,9 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         const shone = parseFloat(row["Шөнө"] || 0) || 0;
         const niitOdooRaw = row["Нийт (одоо)"];
         const niitOdoo = niitOdooRaw ? (parseFloat(niitOdooRaw) || 0) : (odor + shone);
+        
+        // Parse defaultDun from Excel (NEW - separate from ashiglaltiinZardluud)
+        const defaultDunFromExcel = parseFloat(row["Суурь хураамж"] || row["defaultDun"] || 0) || 0;
 
         // Validate readings
         if (odor < 0 || shone < 0 || umnu < 0) {
@@ -2083,7 +2088,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         const zoruu = niitOdoo - umnu; // Usage amount (Зөрүү)
         
         // Get tariff from geree.zardluud first, fallback to building level
-        // BUT always use building level defaultDun (shared for all contracts)
+        // defaultDun now comes from Excel input (separate from ashiglaltiinZardluud)
         let gereeZaaltZardal = null;
         if (geree.zardluud && Array.isArray(geree.zardluud)) {
           gereeZaaltZardal = geree.zardluud.find(
@@ -2094,20 +2099,22 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         // Prioritize tariff from geree, fallback to building level
         const gereeZaaltTariff = gereeZaaltZardal?.zaaltTariff || gereeZaaltZardal?.tariff || zaaltTariff;
         const gereeZaaltTariffTiers = gereeZaaltZardal?.zaaltTariffTiers || zaaltZardal.zaaltTariffTiers || [];
-        // ALWAYS use building level defaultDun (shared for all contracts)
-        const gereeZaaltDefaultDun = zaaltDefaultDun;
+        // Use defaultDun from Excel input (NEW - separate from ashiglaltiinZardluud)
+        const gereeZaaltDefaultDun = defaultDunFromExcel;
         
-        // Log tariff source for debugging
+        // Log tariff and defaultDun source for debugging
         if (gereeZaaltZardal) {
-          console.log(`⚡ [EXCEL] Using tariff from geree.zardluud, defaultDun from building for ${gereeniiDugaar}:`, {
+          console.log(`⚡ [EXCEL] Using tariff from geree.zardluud, defaultDun from Excel for ${gereeniiDugaar}:`, {
             tariff: gereeZaaltTariff,
             defaultDun: gereeZaaltDefaultDun,
+            defaultDunSource: "Excel",
             hasTiers: gereeZaaltTariffTiers.length > 0
           });
         } else {
-          console.log(`⚡ [EXCEL] Using tariff and defaultDun from building level for ${gereeniiDugaar}:`, {
+          console.log(`⚡ [EXCEL] Using tariff from building level, defaultDun from Excel for ${gereeniiDugaar}:`, {
             tariff: gereeZaaltTariff,
             defaultDun: gereeZaaltDefaultDun,
+            defaultDunSource: "Excel",
             hasTiers: gereeZaaltTariffTiers.length > 0
           });
         }
@@ -2168,7 +2175,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           turul: zaaltZardal.turul,
           zaalt: true, // Mark as electricity zardal
           zaaltTariff: gereeZaaltTariff, // Save tariff from geree (or building fallback)
-          // Note: defaultDun is NOT saved to geree - it's always from building level
+          // Note: defaultDun comes from Excel input (separate from ashiglaltiinZardluud)
           zaaltTariffTiers: gereeZaaltTariffTiers.length > 0 ? gereeZaaltTariffTiers : undefined, // Save tiers from geree if available
           tariff: usedTariff, // кВт tariff rate used for calculation (from tier if applicable)
           tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
@@ -2185,7 +2192,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
             tariff: usedTariff, // кВт tariff rate used (from tier if applicable)
             tariffType: zaaltZardal.zardliinTurul, // Tariff type identifier to distinguish different кВт types
             tariffName: zaaltZardal.ner, // Tariff name to distinguish different кВт types
-            defaultDun: gereeZaaltDefaultDun, // Default amount used (always from building level, shared for all contracts)
+            defaultDun: gereeZaaltDefaultDun, // Default amount used (from Excel input, separate from ashiglaltiinZardluud)
             tier: usedTier ? { threshold: usedTier.threshold, tariff: usedTier.tariff } : null, // Tier used for calculation
             calculatedAt: new Date(), // When calculation was performed
           },
@@ -2504,8 +2511,11 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
         console.log(`⚠️ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - No orshinSuugchId found in geree`);
       }
       
-      // ALWAYS use building level defaultDun (shared for all contracts)
-      if (zaaltZardal) {
+      // defaultDun comes from Excel input (separate from ashiglaltiinZardluud)
+      // For export, use the defaultDun from the calculation if available
+      if (reading.zaaltCalculation?.defaultDun) {
+        defaultDun = reading.zaaltCalculation.defaultDun;
+      } else if (zaaltZardal) {
         defaultDun = zaaltZardal.zaaltDefaultDun || 0;
       } else {
         // Fallback to reading if no building level config
