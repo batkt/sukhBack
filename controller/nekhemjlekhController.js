@@ -696,10 +696,25 @@ const gereeNeesNekhemjlekhUusgekh = async (
             // Get defaultDun from latest Excel reading (zaaltUnshlalt) - this is the source of truth
             try {
               const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
-              const latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
-                .findOne({ gereeniiId: tempData._id?.toString() || tempData.gereeniiId })
-                .sort({ importOgnoo: -1, zaaltCalculation: { calculatedAt: -1 }, unshlaltiinOgnoo: -1 })
-                .lean();
+              const gereeniiId = tempData._id?.toString() || tempData.gereeniiId || tempData._id;
+              const gereeniiDugaar = tempData.gereeniiDugaar;
+              
+              // Try both gereeniiId and gereeniiDugaar to find the reading
+              let latestReading = null;
+              if (gereeniiId) {
+                latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+                  .findOne({ gereeniiId: gereeniiId })
+                  .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1, unshlaltiinOgnoo: -1 })
+                  .lean();
+              }
+              
+              // If not found by ID, try by contract number
+              if (!latestReading && gereeniiDugaar) {
+                latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+                  .findOne({ gereeniiDugaar: gereeniiDugaar })
+                  .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1, unshlaltiinOgnoo: -1 })
+                  .lean();
+              }
               
               if (latestReading) {
                 // Priority: zaaltCalculation.defaultDun > defaultDun (both from Excel)
@@ -707,7 +722,14 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 console.log("💰 [INVOICE] Using defaultDun from Excel reading:", {
                   gereeniiDugaar: tempData.gereeniiDugaar,
                   defaultDun: zaaltDefaultDun,
+                  zaaltCalculation_defaultDun: latestReading.zaaltCalculation?.defaultDun,
+                  reading_defaultDun: latestReading.defaultDun,
                   source: latestReading.zaaltCalculation?.defaultDun ? "zaaltCalculation (Excel)" : "defaultDun (Excel)"
+                });
+              } else {
+                console.warn("⚠️ [INVOICE] No reading found for defaultDun:", {
+                  gereeniiDugaar: tempData.gereeniiDugaar,
+                  gereeniiId: gereeniiId
                 });
               }
             } catch (error) {
@@ -725,12 +747,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
               }
             }
             
+            // CRITICAL WARNING: If defaultDun is 0, the base fee is missing!
+            if (!zaaltDefaultDun || zaaltDefaultDun === 0) {
+              console.error("❌ [INVOICE] CRITICAL: defaultDun is 0! Base fee will NOT be added!", {
+                gereeniiDugaar: tempData.gereeniiDugaar,
+                gereeniiId: tempData._id?.toString() || tempData.gereeniiId,
+                zaaltDefaultDun: zaaltDefaultDun,
+                gereeZaaltZardal_zaaltDefaultDun: gereeZaaltZardal.zaaltDefaultDun
+              });
+            }
+            
             // ALWAYS calculate electricity amount from readings: (usage * tariff) + base fee
             // NEVER use geree.tariff or geree.dun - they might be the tariff rate (175), not the calculated amount
             const zaaltDun = (zoruu * zaaltTariff) + zaaltDefaultDun;
             totalTsahilgaanNekhemjlekh += zaaltDun;
             
             console.log("⚡ [INVOICE] Electricity calculation:", {
+              gereeniiDugaar: tempData.gereeniiDugaar,
               ner: gereeZaaltZardal.ner,
               zardliinTurul: gereeZaaltZardal.zardliinTurul,
               orshinSuugchId: tempData.orshinSuugchId,
@@ -739,6 +772,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
               defaultDun: zaaltDefaultDun,
               calculatedAmount: zaaltDun,
               formula: `(${zoruu} * ${zaaltTariff}) + ${zaaltDefaultDun} = ${zaaltDun}`,
+              breakdown: {
+                usageCost: zoruu * zaaltTariff,
+                baseFee: zaaltDefaultDun,
+                total: zaaltDun
+              },
               gereeTariff: gereeZaaltZardal.tariff,
               gereeDun: gereeZaaltZardal.dun,
               WARNING: "NEVER using geree.tariff or geree.dun - they are ignored"
