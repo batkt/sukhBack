@@ -636,9 +636,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
         const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
         const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
 
-        // Check if geree has electricity zardals - ALWAYS recalculate if they exist
-        // Even if readings are missing, we should still process electricity charges
-        if (gereeZaaltZardluud.length > 0) {
+        console.log("⚡ [INVOICE] Electricity zardals check:", {
+          gereeniiDugaar: tempData.gereeniiDugaar,
+          totalZardluud: (tempData.zardluud || []).length,
+          gereeZaaltZardluudCount: gereeZaaltZardluud.length,
+          buildingZaaltZardluudCount: zaaltZardluud.length,
+          gereeZaaltZardluud: gereeZaaltZardluud.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, tariff: z.tariff, dun: z.dun })),
+          hasReadings: !!(tempData.umnukhZaalt !== undefined || tempData.suuliinZaalt !== undefined)
+        });
+
+        // Check if geree has electricity zardals OR building has electricity config
+        // If geree doesn't have electricity zardals but building does, create from building config
+        // ALWAYS recalculate if electricity exists (either in geree or building)
+        if (gereeZaaltZardluud.length > 0 || (zaaltZardluud.length > 0 && (tempData.umnukhZaalt !== undefined || tempData.suuliinZaalt !== undefined))) {
+          // If no electricity zardals in geree but building has config, use building config
+          const zaaltZardluudToProcess = gereeZaaltZardluud.length > 0 
+            ? gereeZaaltZardluud 
+            : zaaltZardluud; // Fallback to building level if geree doesn't have them
           // Get tariff from orshinSuugch.tsahilgaaniiZaalt (ignore geree.zardluud)
           const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
             tempData.orshinSuugchId
@@ -668,12 +682,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
             hasReadings: !!(umnukhZaalt || suuliinZaalt)
           });
           
-          // Process ALL electricity zardals from geree.zardluud (not just one)
+          // Process ALL electricity zardals (from geree.zardluud or building level)
           // This allows multiple electricity charges with same name but different purposes
           const electricityEntries = [];
           let totalTsahilgaanNekhemjlekh = 0;
           
-          for (const gereeZaaltZardal of gereeZaaltZardluud) {
+          for (const gereeZaaltZardal of zaaltZardluudToProcess) {
             // Get defaultDun from geree.zardluud (saved from Excel) or building level fallback
             const buildingZaaltZardal = zaaltZardluud.find(
               (z) => z.ner === gereeZaaltZardal.ner && z.zardliinTurul === gereeZaaltZardal.zardliinTurul

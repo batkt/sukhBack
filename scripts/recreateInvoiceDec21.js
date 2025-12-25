@@ -173,9 +173,29 @@ async function recreateInvoiceDec21() {
           gereeData.ognoo = targetDate;
           gereeData.nekhemjlekhiinOgnoo = targetDate;
           
-          // Normalize turul in zardluud: "тогтмол" -> "Тогтмол"
-          // Also remove duplicates
+          // CRITICAL: Ensure electricity readings are at top level for invoice calculation
+          // They might be in geree.zardluud[].umnukhZaalt, so extract them
           if (gereeData.zardluud && Array.isArray(gereeData.zardluud)) {
+            // Find electricity zardal to get readings
+            const zaaltZardal = gereeData.zardluud.find(z => z.zaalt === true);
+            if (zaaltZardal) {
+              // Copy readings to top level if they exist in zardal
+              if (zaaltZardal.umnukhZaalt !== undefined) {
+                gereeData.umnukhZaalt = zaaltZardal.umnukhZaalt;
+              }
+              if (zaaltZardal.suuliinZaalt !== undefined) {
+                gereeData.suuliinZaalt = zaaltZardal.suuliinZaalt;
+              }
+              if (zaaltZardal.zaaltTog !== undefined) {
+                gereeData.zaaltTog = zaaltZardal.zaaltTog;
+              }
+              if (zaaltZardal.zaaltUs !== undefined) {
+                gereeData.zaaltUs = zaaltZardal.zaaltUs;
+              }
+            }
+            
+            // Normalize turul in zardluud: "тогтмол" -> "Тогтмол"
+            // Also remove duplicates
             gereeData.zardluud = normalizeZardluudTurul(gereeData.zardluud);
             gereeData.zardluud = deduplicateZardluud(gereeData.zardluud);
           }
