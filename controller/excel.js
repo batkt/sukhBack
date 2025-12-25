@@ -1868,6 +1868,7 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
     // Define columns (headers are automatically created in row 1)
     worksheet.columns = [
       { header: "Гэрээний дугаар", key: "gereeniiDugaar", width: 20 },
+      { header: "Тоот", key: "toot", width: 15 },
       { header: "Нэр", key: "ner", width: 20 },
       { header: "Утас", key: "utas", width: 15 },
       { header: "Өмнө", key: "umnu", width: 15 },
@@ -1893,6 +1894,7 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
       
       worksheet.addRow({
         gereeniiDugaar: geree.gereeniiDugaar || "",
+        toot: geree.toot || "",
         ner: orshinSuugch?.ner || "",
         utas: orshinSuugch?.utas || "",
         umnu: "",
@@ -1904,23 +1906,22 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
     });
 
     // Add formula for "Нийт (одоо)" column (Өдөр + Шөнө)
-    // Formula: =E2+F2 (assuming E=Өдөр, F=Шөнө after adding Нэр and Утас columns)
+    // Columns: A=Гэрээний дугаар, B=Тоот, C=Нэр, D=Утас, E=Өмнө, F=Өдөр, G=Шөнө, H=Нийт (одоо), I=Зөрүү
     // Add formula for "Зөрүү" column (Нийт (одоо) - Өмнө)
-    // Formula: =G2-D2 (assuming G=Нийт (одоо), D=Өмнө)
     gereenuud.forEach((geree, index) => {
       const rowNumber = index + 2; // +2 because row 1 is header
       
-      // Нийт (одоо) = Өдөр + Шөнө (Column G = E + F)
-      const niitCell = worksheet.getCell(`G${rowNumber}`);
+      // Нийт (одоо) = Өдөр + Шөнө (Column H = F + G)
+      const niitCell = worksheet.getCell(`H${rowNumber}`);
       niitCell.value = {
-        formula: `E${rowNumber}+F${rowNumber}`,
+        formula: `F${rowNumber}+G${rowNumber}`,
       };
       niitCell.numFmt = "0.00";
       
-      // Зөрүү = Нийт (одоо) - Өмнө (Column H = G - D)
-      const zoruuCell = worksheet.getCell(`H${rowNumber}`);
+      // Зөрүү = Нийт (одоо) - Өмнө (Column I = H - E)
+      const zoruuCell = worksheet.getCell(`I${rowNumber}`);
       zoruuCell.value = {
-        formula: `G${rowNumber}-D${rowNumber}`,
+        formula: `H${rowNumber}-E${rowNumber}`,
       };
       zoruuCell.numFmt = "0.00";
     });

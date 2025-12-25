@@ -11,6 +11,12 @@ const liftShalgayaSchema = new Schema(
   { timestamps: true }
 );
 
+// Add unique compound index to prevent duplicate liftShalgaya for same baiguullaga + barilga
+liftShalgayaSchema.index(
+  { baiguullagiinId: 1, barilgiinId: 1 },
+  { unique: true, sparse: true }
+);
+
 // Post-save hook to sync liftShalgaya back to baiguullaga.barilguud[].tokhirgoo.liftShalgaya
 liftShalgayaSchema.post("save", async function (doc) {
   try {
@@ -49,6 +55,29 @@ liftShalgayaSchema.post("save", async function (doc) {
       console.log(
         `✅ [LIFTSHALGAYA HOOK] Synced liftShalgaya to baiguullaga: ${doc.baiguullagiinId}, barilga: ${doc.barilgiinId}`
       );
+
+      // Update choloolugdsonDavkhar to true for lift zardals in ashiglaltiinZardluud
+      if (baiguullaga.barilguud[barilgaIndex].tokhirgoo?.ashiglaltiinZardluud) {
+        let updated = false;
+        baiguullaga.barilguud[barilgaIndex].tokhirgoo.ashiglaltiinZardluud = 
+          baiguullaga.barilguud[barilgaIndex].tokhirgoo.ashiglaltiinZardluud.map((zardal) => {
+            if (zardal.zardliinTurul === "Лифт") {
+              updated = true;
+              return {
+                ...zardal,
+                choloolugdsonDavkhar: true
+              };
+            }
+            return zardal;
+          });
+        
+        if (updated) {
+          await baiguullaga.save();
+          console.log(
+            `✅ [LIFTSHALGAYA HOOK] Updated choloolugdsonDavkhar to true for lift zardals`
+          );
+        }
+      }
     } else {
       console.error("⚠️ [LIFTSHALGAYA HOOK] Barilga not found:", doc.barilgiinId);
     }
@@ -94,6 +123,29 @@ liftShalgayaSchema.post("findOneAndUpdate", async function (result) {
       console.log(
         `✅ [LIFTSHALGAYA HOOK] Synced liftShalgaya to baiguullaga after findOneAndUpdate: ${result.baiguullagiinId}, barilga: ${result.barilgiinId}`
       );
+
+      // Update choloolugdsonDavkhar to true for lift zardals in ashiglaltiinZardluud
+      if (baiguullaga.barilguud[barilgaIndex].tokhirgoo?.ashiglaltiinZardluud) {
+        let updated = false;
+        baiguullaga.barilguud[barilgaIndex].tokhirgoo.ashiglaltiinZardluud = 
+          baiguullaga.barilguud[barilgaIndex].tokhirgoo.ashiglaltiinZardluud.map((zardal) => {
+            if (zardal.zardliinTurul === "Лифт") {
+              updated = true;
+              return {
+                ...zardal,
+                choloolugdsonDavkhar: true
+              };
+            }
+            return zardal;
+          });
+        
+        if (updated) {
+          await baiguullaga.save();
+          console.log(
+            `✅ [LIFTSHALGAYA HOOK] Updated choloolugdsonDavkhar to true for lift zardals after findOneAndUpdate`
+          );
+        }
+      }
     }
   } catch (error) {
     console.error("❌ [LIFTSHALGAYA HOOK] Error syncing to baiguullaga after update:", error.message);
