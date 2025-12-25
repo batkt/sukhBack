@@ -48,6 +48,36 @@ function normalizeZardluudTurul(zardluud) {
 }
 
 /**
+ * Remove duplicate zardluud entries based on ner, turul, zardliinTurul, and barilgiinId
+ * Keeps only the first occurrence of each unique combination
+ */
+function deduplicateZardluud(zardluud) {
+  if (!Array.isArray(zardluud)) {
+    return zardluud;
+  }
+  
+  const seen = new Set();
+  const deduplicated = [];
+  
+  for (const zardal of zardluud) {
+    if (!zardal || typeof zardal !== 'object') {
+      continue;
+    }
+    
+    // Create a unique key based on ner, turul, zardliinTurul, and barilgiinId
+    const normalizedTurul = normalizeTurul(zardal.turul);
+    const key = `${zardal.ner || ''}|${normalizedTurul || ''}|${zardal.zardliinTurul || ''}|${zardal.barilgiinId || ''}`;
+    
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(zardal);
+    }
+  }
+  
+  return deduplicated;
+}
+
+/**
  * Script to delete ALL invoices and recreate them with date set to December 21, 2025
  * Usage: node scripts/recreateInvoiceDec21.js
  * 
@@ -144,8 +174,10 @@ async function recreateInvoiceDec21() {
           gereeData.nekhemjlekhiinOgnoo = targetDate;
           
           // Normalize turul in zardluud: "тогтмол" -> "Тогтмол"
+          // Also remove duplicates
           if (gereeData.zardluud && Array.isArray(gereeData.zardluud)) {
             gereeData.zardluud = normalizeZardluudTurul(gereeData.zardluud);
+            gereeData.zardluud = deduplicateZardluud(gereeData.zardluud);
           }
 
           // Recreate the invoice
