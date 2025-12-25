@@ -680,8 +680,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
               calculatedAmount: zaaltDun
             });
             
-            // If no readings or calculated amount is 0, use tariff from geree (if exists)
-            const finalZaaltTariff = (zoruu === 0 || zaaltDun === 0) && gereeZaaltZardal?.tariff
+            // Always use calculated amount (zaaltDun) when we have readings
+            // Only use geree.tariff if there are NO readings (zoruu === 0) AND calculated amount is 0
+            // If we have readings, always use the calculated amount, not the stored tariff
+            const finalZaaltTariff = (zoruu === 0 && zaaltDun === 0 && gereeZaaltZardal?.tariff)
               ? gereeZaaltZardal.tariff
               : zaaltDun;
             
@@ -758,6 +760,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
             : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
           
           // Also store detailed electricity info in zaaltMedeelel for backward compatibility
+          // Use first electricity entry for zaaltMedeelel
+          const firstElectricityEntry = electricityEntries[0];
+          const firstBuildingZaaltZardal = zaaltZardluud.find(
+            (z) => firstElectricityEntry && z.ner === firstElectricityEntry.ner && z.zardliinTurul === firstElectricityEntry.zardliinTurul
+          );
           zaaltMedeelel = {
             umnukhZaalt: tempData.umnukhZaalt || 0,
             suuliinZaalt: tempData.suuliinZaalt || 0,
@@ -765,10 +772,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
             zaaltUs: tempData.zaaltUs || 0,
             zoruu: zoruu,
             tariff: zaaltTariff,
-            tariffUsgeer: zaaltZardal.tariffUsgeer || "кВт",
-            tariffType: zaaltZardal.zardliinTurul,
-            tariffName: zaaltZardal.ner,
-            defaultDun: zaaltDefaultDun,
+            tariffUsgeer: firstElectricityEntry?.tariffUsgeer || firstBuildingZaaltZardal?.tariffUsgeer || "кВт",
+            tariffType: firstElectricityEntry?.zardliinTurul || firstBuildingZaaltZardal?.zardliinTurul || "Энгийн",
+            tariffName: firstElectricityEntry?.ner || firstBuildingZaaltZardal?.ner || "Цахилгаан",
+            defaultDun: firstElectricityEntry?.zaaltDefaultDun || 0,
             zaaltDun: tsahilgaanNekhemjlekh,
           };
           
