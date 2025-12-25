@@ -8,6 +8,38 @@ const Medegdel = require("../models/medegdel");
 const request = require("request");
 const { db } = require("zevbackv2");
 
+/**
+ * Normalize turul field: "тогтмол" -> "Тогтмол"
+ */
+function normalizeTurul(turul) {
+  if (!turul || typeof turul !== 'string') {
+    return turul;
+  }
+  // Normalize "тогтмол" (lowercase) to "Тогтмол" (uppercase first letter)
+  if (turul.toLowerCase() === 'тогтмол') {
+    return 'Тогтмол';
+  }
+  return turul;
+}
+
+/**
+ * Normalize turul in zardluud array
+ */
+function normalizeZardluudTurul(zardluud) {
+  if (!Array.isArray(zardluud)) {
+    return zardluud;
+  }
+  return zardluud.map(zardal => {
+    if (zardal && typeof zardal === 'object') {
+      return {
+        ...zardal,
+        turul: normalizeTurul(zardal.turul)
+      };
+    }
+    return zardal;
+  });
+}
+
 // Гэрээнээс нэхэмжлэх үүсгэх функц
 const gereeNeesNekhemjlekhUusgekh = async (
   tempData,
@@ -370,6 +402,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     let filteredZardluud = tempData.zardluud || [];
+    // Normalize turul in zardluud: "тогтмол" -> "Тогтмол"
+    filteredZardluud = normalizeZardluudTurul(filteredZardluud);
+    
     if (tempData.davkhar) {
       // Get liftShalgaya from baiguullaga.barilguud[].tokhirgoo
       const { db } = require("zevbackv2");
@@ -619,7 +654,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           // Create electricity zardal entry to add to medeelel.zardluud (like other charges)
           electricityZardalEntry = {
             ner: zaaltZardal.ner || "Цахилгаан",
-            turul: zaaltZardal.turul || "Тогтмол",
+            turul: normalizeTurul(zaaltZardal.turul) || "Тогтмол",
             tariff: finalZaaltTariff, // Use preserved tariff if no readings, otherwise calculated amount
             tariffUsgeer: zoruu === 0 || tsahilgaanNekhemjlekh === 0 
               ? (existingZaaltZardal?.tariffUsgeer || zaaltZardal.tariffUsgeer || "₮")
@@ -674,6 +709,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
           finalZardluud.length = 0;
           finalZardluud.push(...filteredZardluudWithoutZaalt);
           
+          // Normalize turul in finalZardluud after adding electricity
+          finalZardluud = normalizeZardluudTurul(finalZardluud);
+          
           // Recalculate totals after adding electricity charge
           updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
             ? 0
@@ -711,8 +749,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     }
 
+    // Normalize turul in finalZardluud before saving to invoice
+    const normalizedZardluud = normalizeZardluudTurul(finalZardluud);
+    
     tuukh.medeelel = {
-      zardluud: finalZardluud,
+      zardluud: normalizedZardluud,
       guilgeenuud: guilgeenuudForNekhemjlekh, // Include one-time guilgeenuud
       segmentuud: tempData.segmentuud || [],
       khungulultuud: tempData.khungulultuud || [],
@@ -1036,7 +1077,7 @@ const updateGereeAndNekhemjlekhFromZardluud = async (
         geree.zardluud[zardalIndex] = {
           ...geree.zardluud[zardalIndex].toObject(),
           ner: ashiglaltiinZardal.ner,
-          turul: ashiglaltiinZardal.turul,
+          turul: normalizeTurul(ashiglaltiinZardal.turul),
           tariff: ashiglaltiinZardal.tariff,
           tariffUsgeer: ashiglaltiinZardal.tariffUsgeer,
           zardliinTurul: ashiglaltiinZardal.zardliinTurul,
@@ -1079,7 +1120,7 @@ const updateGereeAndNekhemjlekhFromZardluud = async (
             nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex] = {
               ...nekhemjlekh.medeelel.zardluud[nekhemjlekhZardalIndex],
               ner: ashiglaltiinZardal.ner,
-              turul: ashiglaltiinZardal.turul,
+              turul: normalizeTurul(ashiglaltiinZardal.turul),
               tariff: ashiglaltiinZardal.tariff,
               tariffUsgeer: ashiglaltiinZardal.tariffUsgeer,
               zardliinTurul: ashiglaltiinZardal.zardliinTurul,

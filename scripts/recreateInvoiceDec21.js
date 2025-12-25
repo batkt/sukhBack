@@ -16,6 +16,38 @@ const Baiguullaga = require("../models/baiguullaga");
 const { gereeNeesNekhemjlekhUusgekh } = require("../controller/nekhemjlekhController");
 
 /**
+ * Normalize turul field: "тогтмол" -> "Тогтмол"
+ */
+function normalizeTurul(turul) {
+  if (!turul || typeof turul !== 'string') {
+    return turul;
+  }
+  // Normalize "тогтмол" (lowercase) to "Тогтмол" (uppercase first letter)
+  if (turul.toLowerCase() === 'тогтмол') {
+    return 'Тогтмол';
+  }
+  return turul;
+}
+
+/**
+ * Normalize turul in zardluud array
+ */
+function normalizeZardluudTurul(zardluud) {
+  if (!Array.isArray(zardluud)) {
+    return zardluud;
+  }
+  return zardluud.map(zardal => {
+    if (zardal && typeof zardal === 'object') {
+      return {
+        ...zardal,
+        turul: normalizeTurul(zardal.turul)
+      };
+    }
+    return zardal;
+  });
+}
+
+/**
  * Script to delete ALL invoices and recreate them with date set to December 21, 2025
  * Usage: node scripts/recreateInvoiceDec21.js
  * 
@@ -110,6 +142,11 @@ async function recreateInvoiceDec21() {
           const gereeData = geree.toObject();
           gereeData.ognoo = targetDate;
           gereeData.nekhemjlekhiinOgnoo = targetDate;
+          
+          // Normalize turul in zardluud: "тогтмол" -> "Тогтмол"
+          if (gereeData.zardluud && Array.isArray(gereeData.zardluud)) {
+            gereeData.zardluud = normalizeZardluudTurul(gereeData.zardluud);
+          }
 
           // Recreate the invoice
           const result = await gereeNeesNekhemjlekhUusgekh(
@@ -134,6 +171,11 @@ async function recreateInvoiceDec21() {
               // Also update medeelel.uusgegsenOgnoo if it exists
               if (newInvoice.medeelel) {
                 newInvoice.medeelel.uusgegsenOgnoo = targetDate;
+                
+                // Normalize turul in medeelel.zardluud: "тогтмол" -> "Тогтмол"
+                if (newInvoice.medeelel.zardluud && Array.isArray(newInvoice.medeelel.zardluud)) {
+                  newInvoice.medeelel.zardluud = normalizeZardluudTurul(newInvoice.medeelel.zardluud);
+                }
               }
               
               await newInvoice.save();
