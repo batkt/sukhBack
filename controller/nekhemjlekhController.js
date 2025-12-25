@@ -680,12 +680,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
               calculatedAmount: zaaltDun
             });
             
-            // Always use calculated amount (zaaltDun) when we have readings
-            // Only use geree.tariff if there are NO readings (zoruu === 0) AND calculated amount is 0
-            // If we have readings, always use the calculated amount, not the stored tariff
-            const finalZaaltTariff = (zoruu === 0 && zaaltDun === 0 && gereeZaaltZardal?.tariff)
-              ? gereeZaaltZardal.tariff
-              : zaaltDun;
+            // ALWAYS use calculated amount (zaaltDun) - never use geree.tariff which is just the tariff rate
+            // The stored geree.tariff is the tariff rate (e.g., 175), not the calculated amount
+            // We always want to show the calculated amount: (usage * tariff) + base fee
+            const finalZaaltTariff = zaaltDun;
             
             // Create electricity zardal entry to add to medeelel.zardluud (like other charges)
             const electricityZardalEntry = {
