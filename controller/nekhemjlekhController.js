@@ -661,10 +661,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
           // Use tariff from orshinSuugch.tsahilgaaniiZaalt
           const zaaltTariff = orshinSuugch?.tsahilgaaniiZaalt || 0;
           
-          // Get readings from tempData OR from geree.zardluud if tempData doesn't have them
+          // Get readings from tempData OR from electricity zardal if tempData doesn't have them
           // This handles cases where script passes geree.toObject() which might not have readings at top level
-          const umnukhZaalt = tempData.umnukhZaalt ?? gereeZaaltZardluud[0]?.umnukhZaalt ?? 0;
-          const suuliinZaalt = tempData.suuliinZaalt ?? gereeZaaltZardluud[0]?.suuliinZaalt ?? 0;
+          const umnukhZaalt = tempData.umnukhZaalt ?? zaaltZardluudToProcess[0]?.umnukhZaalt ?? 0;
+          const suuliinZaalt = tempData.suuliinZaalt ?? zaaltZardluudToProcess[0]?.suuliinZaalt ?? 0;
           
           // Calculate usage (difference between current and previous reading)
           const zoruu = suuliinZaalt - umnukhZaalt;
@@ -674,8 +674,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
             gereeniiDugaar: tempData.gereeniiDugaar,
             tempData_umnukhZaalt: tempData.umnukhZaalt,
             tempData_suuliinZaalt: tempData.suuliinZaalt,
-            geree_umnukhZaalt: gereeZaaltZardluud[0]?.umnukhZaalt,
-            geree_suuliinZaalt: gereeZaaltZardluud[0]?.suuliinZaalt,
+            zardal_umnukhZaalt: zaaltZardluudToProcess[0]?.umnukhZaalt,
+            zardal_suuliinZaalt: zaaltZardluudToProcess[0]?.suuliinZaalt,
             final_umnukhZaalt: umnukhZaalt,
             final_suuliinZaalt: suuliinZaalt,
             zoruu: zoruu,
@@ -688,11 +688,42 @@ const gereeNeesNekhemjlekhUusgekh = async (
           let totalTsahilgaanNekhemjlekh = 0;
           
           for (const gereeZaaltZardal of zaaltZardluudToProcess) {
-            // Get defaultDun from geree.zardluud (saved from Excel) or building level fallback
-            const buildingZaaltZardal = zaaltZardluud.find(
-              (z) => z.ner === gereeZaaltZardal.ner && z.zardliinTurul === gereeZaaltZardal.zardliinTurul
-            );
-            const zaaltDefaultDun = gereeZaaltZardal.zaaltDefaultDun || buildingZaaltZardal?.zaaltDefaultDun || 0;
+            // CRITICAL: defaultDun (суурь хураамж) comes from Excel reading (zaaltUnshlalt)
+            // Excel is SEPARATE from ashiglaltiinZardluud - ashiglaltiinZardluud only has the zardal config
+            // Priority: latest Excel reading > geree.zardluud (which might have it from previous Excel import)
+            let zaaltDefaultDun = 0;
+            
+            // Get defaultDun from latest Excel reading (zaaltUnshlalt) - this is the source of truth
+            try {
+              const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+              const latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+                .findOne({ gereeniiId: tempData._id?.toString() || tempData.gereeniiId })
+                .sort({ importOgnoo: -1, zaaltCalculation: { calculatedAt: -1 }, unshlaltiinOgnoo: -1 })
+                .lean();
+              
+              if (latestReading) {
+                // Priority: zaaltCalculation.defaultDun > defaultDun (both from Excel)
+                zaaltDefaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
+                console.log("💰 [INVOICE] Using defaultDun from Excel reading:", {
+                  gereeniiDugaar: tempData.gereeniiDugaar,
+                  defaultDun: zaaltDefaultDun,
+                  source: latestReading.zaaltCalculation?.defaultDun ? "zaaltCalculation (Excel)" : "defaultDun (Excel)"
+                });
+              }
+            } catch (error) {
+              console.error("❌ [INVOICE] Error fetching latest reading for defaultDun:", error.message);
+            }
+            
+            // Fallback to geree.zardluud if reading not found (might have been saved from previous Excel import)
+            if (!zaaltDefaultDun) {
+              zaaltDefaultDun = gereeZaaltZardal.zaaltDefaultDun || 0;
+              if (zaaltDefaultDun) {
+                console.log("💰 [INVOICE] Using defaultDun from geree.zardluud (fallback):", {
+                  gereeniiDugaar: tempData.gereeniiDugaar,
+                  defaultDun: zaaltDefaultDun
+                });
+              }
+            }
             
             // ALWAYS calculate electricity amount from readings: (usage * tariff) + base fee
             // NEVER use geree.tariff or geree.dun - they might be the tariff rate (175), not the calculated amount
@@ -774,8 +805,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
           // This allows multiple electricity charges with same name but different purposes to coexist
           const filteredZardluudWithoutZaalt = finalZardluud.filter(
             (z) => {
-              // Only remove if it matches any geree electricity zardal by BOTH name AND zardliinTurul
-              return !gereeZaaltZardluud.some(
+              // Only remove if it matches any electricity zardal by BOTH name AND zardliinTurul
+              return !zaaltZardluudToProcess.some(
                 (gz) => z.ner === gz.ner && z.zardliinTurul === gz.zardliinTurul
               );
             }
