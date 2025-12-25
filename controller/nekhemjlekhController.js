@@ -40,6 +40,36 @@ function normalizeZardluudTurul(zardluud) {
   });
 }
 
+/**
+ * Remove duplicate zardluud entries based on ner, turul, zardliinTurul, and barilgiinId
+ * Keeps only the first occurrence of each unique combination
+ */
+function deduplicateZardluud(zardluud) {
+  if (!Array.isArray(zardluud)) {
+    return zardluud;
+  }
+  
+  const seen = new Set();
+  const deduplicated = [];
+  
+  for (const zardal of zardluud) {
+    if (!zardal || typeof zardal !== 'object') {
+      continue;
+    }
+    
+    // Create a unique key based on ner, turul, zardliinTurul, and barilgiinId
+    const normalizedTurul = normalizeTurul(zardal.turul);
+    const key = `${zardal.ner || ''}|${normalizedTurul || ''}|${zardal.zardliinTurul || ''}|${zardal.barilgiinId || ''}`;
+    
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(zardal);
+    }
+  }
+  
+  return deduplicated;
+}
+
 // Гэрээнээс нэхэмжлэх үүсгэх функц
 const gereeNeesNekhemjlekhUusgekh = async (
   tempData,
@@ -404,6 +434,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
     let filteredZardluud = tempData.zardluud || [];
     // Normalize turul in zardluud: "тогтмол" -> "Тогтмол"
     filteredZardluud = normalizeZardluudTurul(filteredZardluud);
+    // Remove duplicate zardluud entries
+    filteredZardluud = deduplicateZardluud(filteredZardluud);
     
     if (tempData.davkhar) {
       // Get liftShalgaya from baiguullaga.barilguud[].tokhirgoo
