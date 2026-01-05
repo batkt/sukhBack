@@ -63,13 +63,8 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
     const baiguullaga = new Baiguullaga(db.erunkhiiKholbolt)(req.body);
     console.log("------------->" + JSON.stringify(baiguullaga));
     baiguullaga.isNew = !baiguullaga.zasakhEsekh;
-    baiguullaga.barilguud = [
-      {
-        ner: baiguullaga.ner,
-        khayag: baiguullaga.khayag,
-        register: baiguullaga.register,
-      },
-    ];
+    // Don't create default barilga - only create when explicitly requested from frontend
+    // If barilguud is provided in req.body, it will be used, otherwise it will be empty
     baiguullaga
       .save()
       .then(async (result) => {
@@ -101,6 +96,33 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
               userName: createdConnection.userName,
               cloudMongoDBEsekh: createdConnection.cloudMongoDBEsekh,
             });
+
+            // Write initial data to ensure database is created (MongoDB only shows databases with data)
+            try {
+              // Use the connection's mongoose instance to write initial data
+              const mongooseConnection = createdConnection.kholbolt;
+              if (mongooseConnection && mongooseConnection.db) {
+                // Create a test collection with a document to initialize the database
+                await mongooseConnection.db.collection("_init").insertOne({
+                  baiguullagiinId: baiguullaga._id.toString(),
+                  baaziinNer: req.body.baaziinNer,
+                  createdAt: new Date(),
+                  initialized: true,
+                });
+                console.log(
+                  `✅ Initial data written to database: ${req.body.baaziinNer}`
+                );
+              } else {
+                console.warn(
+                  `⚠️ Connection object structure unexpected for ${req.body.baaziinNer}`
+                );
+              }
+            } catch (initErr) {
+              console.error(
+                `⚠️ Failed to write initial data to ${req.body.baaziinNer}:`,
+                initErr.message
+              );
+            }
           } else {
             console.warn(
               `⚠️ Connection not found in kholboltuud for ${req.body.baaziinNer}`
