@@ -76,19 +76,26 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
             req.body.baaziinNer,
             false, // cloudMongoDBEsekh
             "127.0.0.1:27017",
-            "Br1stelback1",
-            "admin"
+            "admin", // username first
+            "Br1stelback1" // password second
           );
           console.log(
             `✅ Database connection created for: ${req.body.baaziinNer}`
           );
 
-          // Verify connection was created
+          // Verify connection was created and log connection details
           const createdConnection = db.kholboltuud?.find(
             (k) => String(k.baiguullagiinId) === String(baiguullaga._id)
           );
           if (createdConnection) {
             console.log(`✅ Connection verified for ${req.body.baaziinNer}`);
+            console.log(`Connection details:`, {
+              baiguullagiinId: createdConnection.baiguullagiinId,
+              baaziinNer: createdConnection.baaziinNer,
+              clusterUrl: createdConnection.clusterUrl,
+              userName: createdConnection.userName,
+              cloudMongoDBEsekh: createdConnection.cloudMongoDBEsekh
+            });
           } else {
             console.warn(
               `⚠️ Connection not found in kholboltuud for ${req.body.baaziinNer}`
