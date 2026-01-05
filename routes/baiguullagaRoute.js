@@ -74,7 +74,7 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
           await db.kholboltNemye(
             baiguullaga._id,
             req.body.baaziinNer,
-            false, // cloudMongoDBEsekh
+            true, // cloudMongoDBEsekh
             "127.0.0.1:27017",
             "Br1stelback1", // password second
             "admin" // username first
