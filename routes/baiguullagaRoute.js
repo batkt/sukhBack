@@ -76,8 +76,8 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
             req.body.baaziinNer,
             false, // cloudMongoDBEsekh
             "127.0.0.1:27017",
-            "admin", // username first
-            "Br1stelback1" // password second
+            "Br1stelback1", // password second
+            "admin" // username first
           );
           console.log(
             `✅ Database connection created for: ${req.body.baaziinNer}`
