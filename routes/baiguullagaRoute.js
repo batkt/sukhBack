@@ -67,15 +67,41 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
     // If barilguud is provided in req.body, it will be used, otherwise it will be empty
     baiguullaga
       .save()
-      .then((result) => {
-        db.kholboltNemye(
-          baiguullaga._id,
-          req.body.baaziinNer,
-          false,
-          "127.0.0.1:27017",
-          "Br1stelback1",
-          "admin"
-        );
+      .then(async (result) => {
+        try {
+          // Create separate database for the organization
+          // Note: kholboltNemye should include authSource=admin in connection string
+          await db.kholboltNemye(
+            baiguullaga._id,
+            req.body.baaziinNer,
+            false, // cloudMongoDBEsekh
+            "127.0.0.1:27017",
+            "Br1stelback1",
+            "admin"
+          );
+          console.log(
+            `✅ Database connection created for: ${req.body.baaziinNer}`
+          );
+
+          // Verify connection was created
+          const createdConnection = db.kholboltuud?.find(
+            (k) => String(k.baiguullagiinId) === String(baiguullaga._id)
+          );
+          if (createdConnection) {
+            console.log(`✅ Connection verified for ${req.body.baaziinNer}`);
+          } else {
+            console.warn(
+              `⚠️ Connection not found in kholboltuud for ${req.body.baaziinNer}`
+            );
+          }
+        } catch (dbErr) {
+          console.error(
+            `❌ Failed to create database connection for ${req.body.baaziinNer}:`,
+            dbErr
+          );
+          // Continue anyway - organization is saved
+        }
+
         if (req.body.ajiltan) {
           let ajiltan = new Ajiltan(db.erunkhiiKholbolt)(req.body.ajiltan);
           ajiltan.erkh = "Admin";
