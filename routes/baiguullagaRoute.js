@@ -94,7 +94,7 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
               baaziinNer: createdConnection.baaziinNer,
               clusterUrl: createdConnection.clusterUrl,
               userName: createdConnection.userName,
-              cloudMongoDBEsekh: createdConnection.cloudMongoDBEsekh
+              cloudMongoDBEsekh: createdConnection.cloudMongoDBEsekh,
             });
           } else {
             console.warn(
