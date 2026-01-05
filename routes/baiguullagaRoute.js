@@ -17,7 +17,9 @@ router.get("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
     const { id } = req.params;
     const { barilgiinId } = req.query;
 
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(id).lean();
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt)
+      .findById(id)
+      .lean();
 
     if (!baiguullaga) {
       return res.status(404).json({
@@ -69,9 +71,10 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
         db.kholboltNemye(
           baiguullaga._id,
           req.body.baaziinNer,
+          false,
           "127.0.0.1:27017",
-          "admin",
-          "Br1stelback1"
+          "Br1stelback1",
+          "admin"
         );
         if (req.body.ajiltan) {
           let ajiltan = new Ajiltan(db.erunkhiiKholbolt)(req.body.ajiltan);
