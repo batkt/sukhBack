@@ -62,7 +62,10 @@ const upload = multer({
     ) {
       cb(null, true);
     } else {
-      cb(new Error("Зөвхөн Excel файл (.xlsx, .xls) оруулах боломжтой!"), false);
+      cb(
+        new Error("Зөвхөн Excel файл (.xlsx, .xls) оруулах боломжтой!"),
+        false
+      );
     }
   },
 });
@@ -146,7 +149,7 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
     delete req.body.nevtersenAjiltniiToken;
     delete req.body.erunkhiiKholbolt;
     delete req.body.tukhainBaaziinKholbolt;
-    
+
     const result = await OrshinSuugch(db.erunkhiiKholbolt).findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -180,17 +183,17 @@ router
 router.post("/orshinSuugchBatalgaajuulya", orshinSuugchBatalgaajuulya);
 router.post("/utasBatalgaajuulakhLogin", utasBatalgaajuulakhLogin);
 router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
-router.post("/orshinSuugchNuutsUgSoliyo", tokenShalgakh, orshinSuugchiinNuutsUgSoliyo);
+router.post(
+  "/orshinSuugchNuutsUgSoliyo",
+  tokenShalgakh,
+  orshinSuugchiinNuutsUgSoliyo
+);
 router.post("/davhardsanOrshinSuugchShalgayy", davhardsanOrshinSuugchShalgayy);
 router.post("/tootShalgaya", tootShalgaya);
 router.post("/validateOwnOrgToot", validateOwnOrgToot);
 
 // Excel template download
-router.get(
-  "/orshinSuugchExcelTemplate",
-  tokenShalgakh,
-  generateExcelTemplate
-);
+router.get("/orshinSuugchExcelTemplate", tokenShalgakh, generateExcelTemplate);
 
 // Excel import (with file upload)
 router.post(
@@ -201,11 +204,7 @@ router.post(
 );
 
 // Excel download service - generic list download
-router.post(
-  "/downloadExcelList",
-  tokenShalgakh,
-  downloadExcelList
-);
+router.post("/downloadExcelList", tokenShalgakh, downloadExcelList);
 
 router.get("/orshinSuugchiiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   const fileName = req.params.ner;
@@ -297,11 +296,7 @@ router.post("/orshinSuugchdTokenOnooyo", tokenShalgakh, (req, res, next) => {
  * - nekhemjlekhiinTuukh (invoice history related to deleted gerees)
  * - nevtreltiinTuukh (login history)
  */
-router.post(
-  "/orshinSuugch/oorooUstgakh",
-  tokenShalgakh,
-  orshinSuugchOorooUstgakh
-);
+router.post("/oorooUstgakh", tokenShalgakh, orshinSuugchOorooUstgakh);
 
 // Create invoice for specific orshinSuugch
 router.post(
@@ -312,7 +307,9 @@ router.post(
       const { db } = require("zevbackv2");
       const Geree = require("../models/geree");
       const Baiguullaga = require("../models/baiguullaga");
-      const { gereeNeesNekhemjlekhUusgekh } = require("../controller/nekhemjlekhController");
+      const {
+        gereeNeesNekhemjlekhUusgekh,
+      } = require("../controller/nekhemjlekhController");
 
       const { orshinSuugchId } = req.params;
       const { baiguullagiinId } = req.body;
@@ -337,7 +334,9 @@ router.post(
       }
 
       // Find orshinSuugch
-      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugchId);
+      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+        orshinSuugchId
+      );
       if (!orshinSuugch) {
         return res.status(404).json({
           success: false,
@@ -346,11 +345,13 @@ router.post(
       }
 
       // Find geree for this orshinSuugch
-      const geree = await Geree(kholbolt).findOne({
-        orshinSuugchId: orshinSuugchId,
-        baiguullagiinId: baiguullagiinId,
-        tuluv: "Идэвхтэй", // Only active contracts
-      }).sort({ createdAt: -1 }); // Get the most recent contract
+      const geree = await Geree(kholbolt)
+        .findOne({
+          orshinSuugchId: orshinSuugchId,
+          baiguullagiinId: baiguullagiinId,
+          tuluv: "Идэвхтэй", // Only active contracts
+        })
+        .sort({ createdAt: -1 }); // Get the most recent contract
 
       if (!geree) {
         return res.status(404).json({
@@ -360,7 +361,9 @@ router.post(
       }
 
       // Get baiguullaga
-      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        baiguullagiinId
+      );
       if (!baiguullaga) {
         return res.status(404).json({
           success: false,
