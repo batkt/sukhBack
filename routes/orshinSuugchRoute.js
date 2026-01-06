@@ -296,7 +296,11 @@ router.post("/orshinSuugchdTokenOnooyo", tokenShalgakh, (req, res, next) => {
  * - nekhemjlekhiinTuukh (invoice history related to deleted gerees)
  * - nevtreltiinTuukh (login history)
  */
-router.post("/oorooUstgakh", tokenShalgakh, orshinSuugchOorooUstgakh);
+router.post(
+  "/orshinSuugch/oorooUstgakh",
+  tokenShalgakh,
+  orshinSuugchOorooUstgakh
+);
 
 // Create invoice for specific orshinSuugch
 router.post(
