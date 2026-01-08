@@ -24,18 +24,18 @@
     "express": "^5.1.0",
     "express-async-handler": "^1.2.0",
     "express-useragent": "^1.0.15",
-    "quickqpaypackvSukh": "^1.1.0",
     "form-data": "^4.0.5",
     "got": "^11.8.6",
     "mon_num": "^1.0.3",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "quickqpaypackv2": "^1.0.65",
+    "quickqpaypackvSukh": "^1.1.0",
     "redis": "^5.5.6",
     "request": "^2.88.2",
     "sharp": "^0.30.7",
     "xlsx": "^0.18.5",
-    "zevbackv2": "^1.1.55",
+    "zevbackv2": "^1.1.56",
     "zuragpack": "^1.0.17"
   }
 }
