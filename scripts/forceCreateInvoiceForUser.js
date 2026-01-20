@@ -6,16 +6,35 @@
  * node scripts/forceCreateInvoiceForUser.js 696f2c23c5bfe23f794b5df1 6912daa3f8749d82e718dae2
  */
 
-require("dotenv").config();
-const mongoose = require("mongoose");
+// Change to project root directory
+const path = require("path");
+const dotenv = require("dotenv");
+const express = require("express");
+const projectRoot = path.resolve(__dirname, "..");
+process.chdir(projectRoot);
+
+// Load environment variables
+dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
+
 const { db } = require("zevbackv2");
-const OrshinSuugch = require("../models/orshinSuugch");
-const Geree = require("../models/geree");
-const Baiguullaga = require("../models/baiguullaga");
-const { gereeNeesNekhemjlekhUusgekh } = require("../controller/nekhemjlekhController");
+const OrshinSuugch = require(path.join(projectRoot, "models", "orshinSuugch"));
+const Geree = require(path.join(projectRoot, "models", "geree"));
+const Baiguullaga = require(path.join(projectRoot, "models", "baiguullaga"));
+const { gereeNeesNekhemjlekhUusgekh } = require(path.join(projectRoot, "controller", "nekhemjlekhController"));
+
+// Initialize database connection (same as index.js)
+const app = express();
+db.kholboltUusgey(
+  app,
+  process.env.MONGODB_URI ||
+    "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
+);
 
 async function forceCreateInvoice(orshinSuugchId, baiguullagiinId) {
   try {
+    // Wait a bit for database connection to initialize
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
     console.log(`🚀 Force creating invoice for orshinSuugch: ${orshinSuugchId}`);
     console.log(`📋 BaiguullagiinId: ${baiguullagiinId}`);
 
