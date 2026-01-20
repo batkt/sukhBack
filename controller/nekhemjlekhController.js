@@ -552,13 +552,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
       shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice ? [] : [...filteredZardluud];
 
     // But exclude zardluud if this is an avlaga-only invoice
-    // Use dun if tariff is 0 or missing (some charges store amount in dun)
     const zardluudTotal =
       shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
         ? 0
         : filteredZardluud.reduce((sum, zardal) => {
-            const amount = zardal.tariff || zardal.dun || 0;
-            return sum + amount;
+            return sum + (zardal.tariff || 0);
           }, 0);
 
     // Final total includes zardluud + guilgeenuud (or ekhniiUldegdel for first invoice)
@@ -572,12 +570,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // Recalculate zardluudTotal after adding electricity charge (if electricity was added)
     // This will be updated after electricity processing
-    // Use dun if tariff is 0 or missing (some charges store amount in dun)
     let updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
       ? 0
       : finalZardluud.reduce((sum, zardal) => {
-          const amount = zardal.tariff || zardal.dun || 0;
-          return sum + amount;
+          return sum + (zardal.tariff || 0);
         }, 0);
 
     let finalNiitTulbur = shouldUseEkhniiUldegdel
@@ -917,17 +913,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
           // Normalize turul in finalZardluud after adding electricity
           finalZardluud = normalizeZardluudTurul(finalZardluud);
           
-          // CRITICAL: Deduplicate again after adding electricity charges
-          // This prevents duplicates that might exist in geree.zardluud
-          finalZardluud = deduplicateZardluud(finalZardluud);
-          
           // Recalculate totals after adding electricity charge
-          // Use dun if tariff is 0 or missing (some charges store amount in dun)
           updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
             ? 0
             : finalZardluud.reduce((sum, zardal) => {
-                const amount = zardal.tariff || zardal.dun || 0;
-                return sum + amount;
+                return sum + (zardal.tariff || 0);
               }, 0);
           
           finalNiitTulbur = shouldUseEkhniiUldegdel
@@ -968,51 +958,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Normalize turul in finalZardluud before saving to invoice
     const normalizedZardluud = normalizeZardluudTurul(finalZardluud);
     
-    // CRITICAL: Final deduplication before saving to invoice
-    // This ensures no duplicates are saved even if they were added during electricity processing
-    const deduplicatedZardluud = deduplicateZardluud(normalizedZardluud);
-    
-    // CRITICAL: Ensure dun is set to tariff for regular charges (non-electricity)
-    // For regular charges, dun should equal tariff if dun is 0 or missing
-    // Electricity charges already have dun calculated separately
-    const zardluudWithDun = deduplicatedZardluud.map((zardal) => {
-      // For electricity charges (zaalt: true), keep dun as is (already calculated)
-      if (zardal.zaalt === true) {
-        return zardal;
-      }
-      // For regular charges, set dun = tariff if dun is 0 or missing
-      if (!zardal.dun || zardal.dun === 0) {
-        return {
-          ...zardal,
-          dun: zardal.tariff || 0
-        };
-      }
-      return zardal;
-    });
-    
-    // Recalculate total using corrected dun values for consistency
-    // Use dun if tariff is 0 or missing (some charges store amount in dun)
-    const correctedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
-      ? 0
-      : zardluudWithDun.reduce((sum, zardal) => {
-          const amount = zardal.dun || zardal.tariff || 0;
-          return sum + amount;
-        }, 0);
-    
-    // Update final total with corrected zardluud total
-    const correctedFinalNiitTulbur = shouldUseEkhniiUldegdel
-      ? ekhniiUldegdelAmount + guilgeenuudTotal
-      : correctedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
-    
-    console.log("💰 [INVOICE] Corrected total calculation:", {
-      shouldUseEkhniiUldegdel,
-      ekhniiUldegdelAmount,
-      correctedZardluudTotal,
-      guilgeenuudTotal,
-      correctedFinalNiitTulbur,
-      zardluudCount: zardluudWithDun.length,
-      isAvlagaOnlyInvoice,
-    });
+    // Set dun = tariff for all zardluud items (like electricity does)
+    const zardluudWithDun = normalizedZardluud.map((zardal) => ({
+      ...zardal,
+      dun: zardal.tariff || zardal.dun || 0
+    }));
     
     tuukh.medeelel = {
       zardluud: zardluudWithDun,
@@ -1045,7 +995,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       ? `\nЦахилгаан: Өмнө: ${zaaltMedeelel.umnukhZaalt}, Өдөр: ${zaaltMedeelel.zaaltTog}, Шөнө: ${zaaltMedeelel.zaaltUs}, Нийт: ${zaaltMedeelel.suuliinZaalt}`
       : "";
     
-    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮${tailbarText}${zaaltText}`;
+    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${finalNiitTulbur}₮${tailbarText}${zaaltText}`;
     tuukh.nekhemjlekhiinDans =
       tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
     tuukh.nekhemjlekhiinDansniiNer =
@@ -1056,7 +1006,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.nekhemjlekhiinIbanDugaar =
       tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
-    tuukh.niitTulbur = correctedFinalNiitTulbur;
+    tuukh.niitTulbur = finalNiitTulbur;
     
     // Save electricity invoice amount if calculated
     if (tsahilgaanNekhemjlekh > 0) {
@@ -1203,7 +1153,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       console.log("🔔 [NOTIFICATION] Creating notification for invoice...", {
         orshinSuugchId: tempData.orshinSuugchId,
         gereeniiDugaar: tempData.gereeniiDugaar,
-        finalNiitTulbur: correctedFinalNiitTulbur,
+        finalNiitTulbur: finalNiitTulbur,
         timestamp: new Date().toISOString(),
       });
 
@@ -1225,7 +1175,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           medegdel.baiguullagiinId = baiguullagiinId;
           medegdel.barilgiinId = tempData.barilgiinId || "";
           medegdel.title = "Шинэ нэхэмжлэх үүссэн";
-          medegdel.message = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮`;
+          medegdel.message = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${finalNiitTulbur}₮`;
           medegdel.kharsanEsekh = false;
           medegdel.turul = "мэдэгдэл";
           medegdel.ognoo = new Date();
@@ -1299,7 +1249,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       nekhemjlekh: tuukh,
       gereeniiId: tempData._id,
       gereeniiDugaar: tempData.gereeniiDugaar,
-      tulbur: correctedFinalNiitTulbur,
+      tulbur: tempData.niitTulbur,
       medegdel: savedMedegdel, // Include notification for socket emission
     };
   } catch (error) {
