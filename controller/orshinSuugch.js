@@ -891,7 +891,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       orshinSuugch.toots = [];
     }
     
-    if (orshinSuugch.toot && barilgiinId) {
+    // Check req.body.toot instead of orshinSuugch.toot (which might be empty for new users)
+    // Also need baiguullaga and barilgiinId to create toot entry
+    if (req.body.toot && barilgiinId && baiguullaga) {
       const targetBarilga = baiguullaga.barilguud?.find(
         (b) => String(b._id) === String(barilgiinId)
       );
@@ -941,7 +943,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           console.log(`orshinSuugch service`);
         }
         
-        // Only update primary toot fields (toot, davkhar, barilgiinId) if this is a NEW user
+        // Only update primary toot fields (toot, davkhar, barilgiinId, bairniiNer) if this is a NEW user
         // For existing users, keep their primary toot and just add new toot to toots array
         if (!existingUser && newToot) {
           orshinSuugch.toot = newToot;
@@ -950,6 +952,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           orshinSuugch.barilgiinId = barilgiinId;
           orshinSuugch.baiguullagiinId = baiguullaga._id;
           orshinSuugch.baiguullagiinNer = baiguullaga.ner;
+          // Set bairniiNer on main document (like Excel import does)
+          orshinSuugch.bairniiNer = targetBarilga.ner || "";
         }
       }
     }
