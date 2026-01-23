@@ -753,6 +753,46 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           tailbar: row["Тайлбар"]?.toString().trim() || "",
         };
 
+        // Check if this is an update-only row (only toot, davkhar, ekhniiUldegdel, and possibly tsahilgaaniiZaalt)
+        const isUpdateOnlyRow = 
+          (!userData.ner || userData.ner.length === 0) &&
+          (!userData.utas || userData.utas.length === 0) &&
+          (!userData.mail || userData.mail.length === 0) &&
+          (!userData.ovog || userData.ovog.length === 0) &&
+          userData.toot && userData.toot.length > 0 &&
+          userData.davkhar && userData.davkhar.length > 0 &&
+          (userData.ekhniiUldegdel !== undefined || userData.tsahilgaaniiZaalt !== undefined);
+
+        if (isUpdateOnlyRow) {
+          // Find existing user by toot and davkhar
+          const existingOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+            toot: userData.toot.trim(),
+            davkhar: userData.davkhar.trim(),
+            baiguullagiinId: baiguullaga._id
+          });
+
+          if (existingOrshinSuugch) {
+            // Update only ekhniiUldegdel and tsahilgaaniiZaalt
+            if (userData.ekhniiUldegdel !== undefined) {
+              existingOrshinSuugch.ekhniiUldegdel = userData.ekhniiUldegdel;
+            }
+            if (userData.tsahilgaaniiZaalt !== undefined) {
+              existingOrshinSuugch.tsahilgaaniiZaalt = userData.tsahilgaaniiZaalt;
+            }
+            await existingOrshinSuugch.save();
+            
+            console.log(`✅ [EXCEL IMPORT] Row ${rowNumber}: Updated existing user (toot: ${userData.toot}, davkhar: ${userData.davkhar}) - ekhniiUldegdel: ${existingOrshinSuugch.ekhniiUldegdel}, tsahilgaaniiZaalt: ${existingOrshinSuugch.tsahilgaaniiZaalt}`);
+            
+            results.success.push({
+              row: rowNumber,
+              message: `Шинэчлэгдсэн: Тоот ${userData.toot}, Давхар ${userData.davkhar}`,
+            });
+            continue; // Skip the rest of the processing for this row
+          } else {
+            throw new Error(`Оршин суугч олдсонгүй: Тоот ${userData.toot}, Давхар ${userData.davkhar}`);
+          }
+        }
+
         const validationErrors = [];
 
        
