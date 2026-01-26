@@ -501,12 +501,59 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
       });
     }
     
-    if (!req.body.barilgiinId) {
-      return res.status(400).json({
-        success: false,
-        message: "Барилгын ID оруулаагүй байна!",
-        aldaa: "Барилгын ID оруулаагүй байна!",
-      });
+    // Auto-detect barilgiinId from CAMERA_IP if not provided
+    if (!req.body.barilgiinId || req.body.barilgiinId === undefined || req.body.barilgiinId === null || req.body.barilgiinId === '') {
+      console.log("⚠️ [zogsoolSdkService] barilgiinId missing, trying to auto-detect from CAMERA_IP:", req.body.CAMERA_IP);
+      
+      // Try to find barilgiinId from CAMERA_IP
+      // First, try with the provided baiguullagiinId
+      let foundParking = null;
+      
+      // Search in all database connections
+      for (const kholbolt of db.kholboltuud) {
+        try {
+          const parkingModel = Parking(kholbolt);
+          const parkings = await parkingModel.find({
+            "khaalga.camera.cameraIP": req.body.CAMERA_IP
+          }).lean();
+          
+          if (parkings && parkings.length > 0) {
+            // If baiguullagiinId was provided, prefer matching that
+            if (req.body.baiguullagiinId) {
+              foundParking = parkings.find(p => String(p.baiguullagiinId) === String(req.body.baiguullagiinId));
+            }
+            
+            // If not found with baiguullagiinId match, use first one
+            if (!foundParking && parkings.length > 0) {
+              foundParking = parkings[0];
+            }
+            
+            if (foundParking) {
+              req.body.barilgiinId = foundParking.barilgiinId;
+              req.body.baiguullagiinId = foundParking.baiguullagiinId;
+              req.body.tukhainBaaziinKholbolt = kholbolt;
+              console.log("✅ [zogsoolSdkService] Auto-detected:", {
+                barilgiinId: req.body.barilgiinId,
+                baiguullagiinId: req.body.baiguullagiinId,
+                fromCameraIP: req.body.CAMERA_IP
+              });
+              break;
+            }
+          }
+        } catch (err) {
+          console.error("Error searching for parking:", err.message);
+        }
+      }
+      
+      // If still not found, return error
+      if (!req.body.barilgiinId) {
+        console.error("❌ [zogsoolSdkService] Could not auto-detect barilgiinId from CAMERA_IP:", req.body.CAMERA_IP);
+        return res.status(400).json({
+          success: false,
+          message: `Барилгын ID оруулаагүй байна! Камерын IP (${req.body.CAMERA_IP}) дээр суурилсан зогсоол олдсонгүй.`,
+          aldaa: `Барилгын ID оруулаагүй байна! Камерын IP (${req.body.CAMERA_IP}) дээр суурилсан зогсоол олдсонгүй.`,
+        });
+      }
     }
     
     if (!req.body.baiguullagiinId) {
@@ -534,9 +581,23 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
       req.body.tukhainBaaziinKholbolt = tukhainBaaziinKholbolt;
     }
     
-    // Clean plate number
-    if (req.body.mashiniiDugaar)
-      req.body.mashiniiDugaar = req.body.mashiniiDugaar.replace(/\0/g, "").trim();
+    // Clean plate number - remove null bytes and trim
+    if (req.body.mashiniiDugaar) {
+      const originalPlate = req.body.mashiniiDugaar;
+      req.body.mashiniiDugaar = req.body.mashiniiDugaar
+        .replace(/\0/g, "") // Remove null bytes
+        .replace(/\x00/g, "") // Remove hex null bytes
+        .replace(/\u0000/g, "") // Remove unicode null bytes
+        .trim(); // Trim whitespace
+      
+      // Log cleaned plate number
+      if (originalPlate !== req.body.mashiniiDugaar) {
+        console.log("🧹 [zogsoolSdkService] Cleaned plate number:", {
+          original: originalPlate,
+          cleaned: req.body.mashiniiDugaar,
+        });
+      }
+    }
     
     if (!!req?.body?.color) {
     }
