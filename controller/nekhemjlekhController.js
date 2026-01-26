@@ -7,6 +7,7 @@ const MsgTuukh = require("../models/msgTuukh");
 const Medegdel = require("../models/medegdel");
 const request = require("request");
 const { db } = require("zevbackv2");
+const asyncHandler = require("express-async-handler");
 
 /**
  * Normalize turul field: "тогтмол" -> "Тогтмол"
@@ -1702,8 +1703,53 @@ const gereeNeesNekhemjlekhUusgekhPreviousMonth = async (
   }
 };
 
+/**
+ * Mark invoices as paid
+ * Supports marking by user, contract, or specific invoice IDs
+ * markEkhniiUldegdel: true to include ekhniiUldegdel invoices, false to only mark regular ashiglaltiinZardluud invoices
+ */
+const markInvoicesAsPaid = asyncHandler(async (req, res, next) => {
+  try {
+    const {
+      baiguullagiinId,
+      orshinSuugchId,
+      gereeniiId,
+      nekhemjlekhiinIds,
+      markEkhniiUldegdel = false,
+      tailbar = null,
+    } = req.body;
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        error: "baiguullagiinId is required",
+      });
+    }
+
+    const { markInvoicesAsPaid: markInvoices } = require("../services/invoicePaymentService");
+    
+    const result = await markInvoices({
+      baiguullagiinId,
+      orshinSuugchId,
+      gereeniiId,
+      nekhemjlekhiinIds,
+      markEkhniiUldegdel,
+      tailbar,
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error("Error marking invoices as paid:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
   gereeNeesNekhemjlekhUusgekhPreviousMonth,
   updateGereeAndNekhemjlekhFromZardluud,
+  markInvoicesAsPaid,
 };
