@@ -55,6 +55,137 @@ router.get("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
   }
 });
 
+// Custom POST handler for updating baiguullaga (before crud to take precedence)
+router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { id } = req.params;
+    
+    // Remove _id from body if present (Mongoose will use params.id)
+    delete req.body._id;
+    
+    // Find the existing baiguullaga
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(id);
+    
+    if (!baiguullaga) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллага олдсонгүй",
+      });
+    }
+    
+    // Handle barilguud array - if provided, merge with existing or add new ones
+    if (req.body.barilguud && Array.isArray(req.body.barilguud)) {
+      // Separate existing barilguud (with _id) and new barilguud (without _id)
+      const existingBarilguud = req.body.barilguud.filter(b => b._id);
+      const newBarilguud = req.body.barilguud.filter(b => !b._id);
+      
+      // If there are new barilguud, add them to the array
+      if (newBarilguud.length > 0) {
+        // Remove baiguullagiinId from new barilguud if present (shouldn't be in subdocuments)
+        newBarilguud.forEach(barilga => {
+          delete barilga.baiguullagiinId;
+        });
+        
+        // Get first barilga as template for copying settings
+        const firstBarilga = baiguullaga.barilguud && baiguullaga.barilguud.length > 0 
+          ? baiguullaga.barilguud[0] 
+          : null;
+        
+        // Process each new barilga
+        newBarilguud.forEach(newBarilga => {
+          // Copy default values from first barilga if available
+          if (firstBarilga) {
+            if (!newBarilga.khayag) newBarilga.khayag = firstBarilga.khayag || baiguullaga.khayag || "";
+            if (!newBarilga.register) newBarilga.register = firstBarilga.register || baiguullaga.register || "";
+            if (!newBarilga.niitTalbai) newBarilga.niitTalbai = firstBarilga.niitTalbai || 0;
+            if (!newBarilga.bairshil) {
+              newBarilga.bairshil = firstBarilga.bairshil || {
+                type: "Point",
+                coordinates: [],
+              };
+            }
+            if (!newBarilga.tokhirgoo && firstBarilga.tokhirgoo) {
+              newBarilga.tokhirgoo = JSON.parse(JSON.stringify(firstBarilga.tokhirgoo));
+            }
+            if (!newBarilga.davkharuud) {
+              newBarilga.davkharuud = firstBarilga.davkharuud 
+                ? JSON.parse(JSON.stringify(firstBarilga.davkharuud))
+                : [];
+            }
+          }
+          
+          // Ensure tokhirgoo exists
+          if (!newBarilga.tokhirgoo) {
+            newBarilga.tokhirgoo = baiguullaga.tokhirgoo 
+              ? JSON.parse(JSON.stringify(baiguullaga.tokhirgoo))
+              : {};
+          }
+          
+          // Copy ashiglaltiinZardluud, liftShalgaya, and dans from first barilga if available
+          if (firstBarilga && firstBarilga.tokhirgoo) {
+            if (firstBarilga.tokhirgoo.ashiglaltiinZardluud) {
+              newBarilga.tokhirgoo.ashiglaltiinZardluud = JSON.parse(
+                JSON.stringify(firstBarilga.tokhirgoo.ashiglaltiinZardluud)
+              );
+            }
+            if (firstBarilga.tokhirgoo.liftShalgaya) {
+              newBarilga.tokhirgoo.liftShalgaya = JSON.parse(
+                JSON.stringify(firstBarilga.tokhirgoo.liftShalgaya)
+              );
+            }
+            if (firstBarilga.tokhirgoo.dans) {
+              newBarilga.tokhirgoo.dans = JSON.parse(
+                JSON.stringify(firstBarilga.tokhirgoo.dans)
+              );
+            }
+          }
+        });
+        
+        // Add new barilguud to the array
+        baiguullaga.barilguud.push(...newBarilguud);
+      }
+      
+      // Update existing barilguud if provided
+      if (existingBarilguud.length > 0) {
+        existingBarilguud.forEach(updatedBarilga => {
+          const barilgaId = updatedBarilga._id;
+          const index = baiguullaga.barilguud.findIndex(
+            b => String(b._id) === String(barilgaId)
+          );
+          
+          if (index >= 0) {
+            // Remove _id and baiguullagiinId before updating
+            delete updatedBarilga._id;
+            delete updatedBarilga.baiguullagiinId;
+            
+            // Merge the updated data
+            Object.assign(baiguullaga.barilguud[index], updatedBarilga);
+          }
+        });
+      }
+      
+      // Remove barilguud from req.body since we've handled it manually
+      delete req.body.barilguud;
+    }
+    
+    // Update other fields
+    Object.assign(baiguullaga, req.body);
+    
+    // Save the updated baiguullaga
+    await baiguullaga.save();
+    
+    res.json({
+      success: true,
+      message: "Байгууллага амжилттай шинэчлэгдлээ",
+      result: baiguullaga,
+    });
+  } catch (error) {
+    console.error("Error updating baiguullaga:", error);
+    next(error);
+  }
+});
+
 crud(router, "baiguullaga", Baiguullaga, UstsanBarimt);
 
 router.post("/baiguullagaBurtgekh", async (req, res, next) => {
