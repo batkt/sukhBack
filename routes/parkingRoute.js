@@ -474,8 +474,60 @@ router.post("/zogsoolUstgay", tokenShalgakh, async (req, res, next) => {
 
 router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
   try {
+    // Validate required fields
+    if (!req.body.mashiniiDugaar) {
+      return res.status(400).json({
+        success: false,
+        message: "Машиний дугаар оруулаагүй байна!",
+        aldaa: "Машиний дугаар оруулаагүй байна!",
+      });
+    }
+    
+    if (!req.body.CAMERA_IP) {
+      return res.status(400).json({
+        success: false,
+        message: "Камерын IP хаяг оруулаагүй байна!",
+        aldaa: "Камерын IP хаяг оруулаагүй байна!",
+      });
+    }
+    
+    if (!req.body.barilgiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "Барилгын ID оруулаагүй байна!",
+        aldaa: "Барилгын ID оруулаагүй байна!",
+      });
+    }
+    
+    if (!req.body.baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "Байгууллагын ID оруулаагүй байна!",
+        aldaa: "Байгууллагын ID оруулаагүй байна!",
+      });
+    }
+    
+    // Set tukhainBaaziinKholbolt if not provided
+    if (!req.body.tukhainBaaziinKholbolt) {
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(req.body.baiguullagiinId)
+      );
+      
+      if (!tukhainBaaziinKholbolt) {
+        return res.status(404).json({
+          success: false,
+          message: "Байгууллагын холболт олдсонгүй!",
+          aldaa: "Байгууллагын холболт олдсонгүй!",
+        });
+      }
+      
+      req.body.tukhainBaaziinKholbolt = tukhainBaaziinKholbolt;
+    }
+    
+    // Clean plate number
     if (req.body.mashiniiDugaar)
-      req.body.mashiniiDugaar = req.body.mashiniiDugaar.replace(/\0/g, "");
+      req.body.mashiniiDugaar = req.body.mashiniiDugaar.replace(/\0/g, "").trim();
+    
     if (!!req?.body?.color) {
     }
     const medegdel = async (uilchluulegch, orshinSuugchiinId) => {
@@ -580,9 +632,25 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
         );
       }
     }
-    const khariu = await sdkData(req, medegdel);
-    res.send(khariu);
+    
+    // Call sdkData with better error handling
+    try {
+      const khariu = await sdkData(req, medegdel);
+      res.send(khariu);
+    } catch (sdkError) {
+      console.error("❌ [zogsoolSdkService] sdkData error:", sdkError);
+      console.error("❌ [zogsoolSdkService] Request body:", JSON.stringify(req.body, null, 2));
+      
+      // Return more detailed error
+      return res.status(500).json({
+        success: false,
+        message: sdkError.message || "SDK алдаа гарлаа",
+        aldaa: sdkError.message || "SDK алдаа гарлаа",
+        errorDetails: process.env.NODE_ENV === 'development' ? sdkError.stack : undefined,
+      });
+    }
   } catch (err) {
+    console.error("❌ [zogsoolSdkService] General error:", err);
     next(err);
   }
 });
