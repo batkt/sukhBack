@@ -94,50 +94,87 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
         
         // Process each new barilga
         newBarilguud.forEach(newBarilga => {
+          // Ensure bairshil follows the pattern
+          if (!newBarilga.bairshil) {
+            newBarilga.bairshil = { coordinates: [] };
+          } else if (!newBarilga.bairshil.coordinates) {
+            newBarilga.bairshil.coordinates = [];
+          }
+          
           // Copy default values from first barilga if available
           if (firstBarilga) {
-            if (!newBarilga.khayag) newBarilga.khayag = firstBarilga.khayag || baiguullaga.khayag || "";
-            if (!newBarilga.register) newBarilga.register = firstBarilga.register || baiguullaga.register || "";
-            if (!newBarilga.niitTalbai) newBarilga.niitTalbai = firstBarilga.niitTalbai || 0;
-            if (!newBarilga.bairshil) {
-              newBarilga.bairshil = firstBarilga.bairshil || {
-                type: "Point",
-                coordinates: [],
-              };
+            // Copy top-level fields
+            if (newBarilga.khayag === undefined) {
+              newBarilga.khayag = firstBarilga.khayag || baiguullaga.khayag || "";
             }
-            if (!newBarilga.tokhirgoo && firstBarilga.tokhirgoo) {
-              newBarilga.tokhirgoo = JSON.parse(JSON.stringify(firstBarilga.tokhirgoo));
+            if (newBarilga.register === undefined) {
+              newBarilga.register = firstBarilga.register || baiguullaga.register || "";
             }
-            if (!newBarilga.davkharuud) {
+            if (newBarilga.niitTalbai === undefined) {
+              newBarilga.niitTalbai = firstBarilga.niitTalbai || 0;
+            }
+            if (newBarilga.davkharuud === undefined) {
               newBarilga.davkharuud = firstBarilga.davkharuud 
                 ? JSON.parse(JSON.stringify(firstBarilga.davkharuud))
                 : [];
             }
+          } else {
+            // If no first barilga, use baiguullaga defaults
+            if (newBarilga.khayag === undefined) {
+              newBarilga.khayag = baiguullaga.khayag || "";
+            }
+            if (newBarilga.register === undefined) {
+              newBarilga.register = baiguullaga.register || "";
+            }
+            if (newBarilga.niitTalbai === undefined) {
+              newBarilga.niitTalbai = 0;
+            }
+            if (newBarilga.davkharuud === undefined) {
+              newBarilga.davkharuud = [];
+            }
           }
           
-          // Ensure tokhirgoo exists
+          // Ensure tokhirgoo exists and follows the pattern
           if (!newBarilga.tokhirgoo) {
-            newBarilga.tokhirgoo = baiguullaga.tokhirgoo 
-              ? JSON.parse(JSON.stringify(baiguullaga.tokhirgoo))
-              : {};
+            newBarilga.tokhirgoo = {};
           }
           
-          // Copy ashiglaltiinZardluud, liftShalgaya, and dans from first barilga if available
+          // Copy tokhirgoo structure from first barilga if available
           if (firstBarilga && firstBarilga.tokhirgoo) {
-            if (firstBarilga.tokhirgoo.ashiglaltiinZardluud) {
-              newBarilga.tokhirgoo.ashiglaltiinZardluud = JSON.parse(
-                JSON.stringify(firstBarilga.tokhirgoo.ashiglaltiinZardluud)
-              );
+            // Deep clone the first barilga's tokhirgoo as base
+            const baseTokhirgoo = JSON.parse(JSON.stringify(firstBarilga.tokhirgoo));
+            
+            // Merge user-provided tokhirgoo with base (user values take precedence)
+            newBarilga.tokhirgoo = {
+              ...baseTokhirgoo,
+              ...newBarilga.tokhirgoo,
+            };
+            
+            // Ensure required arrays/objects exist
+            if (!newBarilga.tokhirgoo.ashiglaltiinZardluud) {
+              newBarilga.tokhirgoo.ashiglaltiinZardluud = [];
             }
-            if (firstBarilga.tokhirgoo.liftShalgaya) {
-              newBarilga.tokhirgoo.liftShalgaya = JSON.parse(
-                JSON.stringify(firstBarilga.tokhirgoo.liftShalgaya)
-              );
+            if (!newBarilga.tokhirgoo.liftShalgaya) {
+              newBarilga.tokhirgoo.liftShalgaya = { choloolugdokhDavkhar: [] };
+            } else if (!newBarilga.tokhirgoo.liftShalgaya.choloolugdokhDavkhar) {
+              newBarilga.tokhirgoo.liftShalgaya.choloolugdokhDavkhar = [];
             }
-            if (firstBarilga.tokhirgoo.dans) {
-              newBarilga.tokhirgoo.dans = JSON.parse(
-                JSON.stringify(firstBarilga.tokhirgoo.dans)
-              );
+            if (!newBarilga.tokhirgoo.davkhar) {
+              newBarilga.tokhirgoo.davkhar = [];
+            }
+            // davkhariinToonuud is optional, don't force it
+          } else {
+            // If no first barilga, ensure minimum structure
+            if (!newBarilga.tokhirgoo.ashiglaltiinZardluud) {
+              newBarilga.tokhirgoo.ashiglaltiinZardluud = [];
+            }
+            if (!newBarilga.tokhirgoo.liftShalgaya) {
+              newBarilga.tokhirgoo.liftShalgaya = { choloolugdokhDavkhar: [] };
+            } else if (!newBarilga.tokhirgoo.liftShalgaya.choloolugdokhDavkhar) {
+              newBarilga.tokhirgoo.liftShalgaya.choloolugdokhDavkhar = [];
+            }
+            if (!newBarilga.tokhirgoo.davkhar) {
+              newBarilga.tokhirgoo.davkhar = [];
             }
           }
         });
