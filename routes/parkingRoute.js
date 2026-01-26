@@ -53,6 +53,88 @@ const axios = require("axios");
 
 /*crud(router, "parking", Parking, UstsanBarimt, async (req, res, next) => {
 });*/
+
+// Custom GET handler for parking to properly handle query parameters
+router.get("/parking", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const body = req.query;
+    
+    // Parse query if it's a string
+    if (!!body?.query) {
+      try {
+        body.query = JSON.parse(body.query);
+      } catch (e) {
+        body.query = {};
+      }
+    } else {
+      body.query = body.query || {};
+    }
+    
+    // Build query from URL parameters
+    if (body.baiguullagiinId) {
+      body.query.baiguullagiinId = body.baiguullagiinId;
+    }
+    if (body.barilgiinId) {
+      body.query.barilgiinId = body.barilgiinId;
+    }
+    
+    // Parse order if it's a string
+    if (!!body?.order) {
+      try {
+        body.order = JSON.parse(body.order);
+      } catch (e) {
+        body.order = {};
+      }
+    } else {
+      body.order = body.order || {};
+    }
+    
+    // Parse pagination
+    if (!!body?.khuudasniiDugaar) {
+      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+    } else {
+      body.khuudasniiDugaar = 1;
+    }
+    
+    if (!!body?.khuudasniiKhemjee) {
+      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+    } else {
+      body.khuudasniiKhemjee = 10;
+    }
+    
+    if (!!body?.search) {
+      body.search = String(body.search);
+    }
+    
+    // Get the correct database connection
+    const tukhainBaaziinKholbolt = body.baiguullagiinId
+      ? db.kholboltuud.find(
+          (k) => String(k.baiguullagiinId) === String(body.baiguullagiinId)
+        )
+      : null;
+    
+    if (!tukhainBaaziinKholbolt && body.baiguullagiinId) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын холболт олдсонгүй",
+      });
+    }
+    
+    // Use khuudaslalt for pagination
+    const result = await khuudaslalt(
+      Parking(tukhainBaaziinKholbolt || db.erunkhiiKholbolt),
+      body
+    );
+    
+    res.send(result);
+  } catch (error) {
+    console.error("Error in GET /parking:", error);
+    next(error);
+  }
+});
+
+// Keep crud for other operations (POST, PUT, DELETE)
 crud(router, "parking", Parking, UstsanBarimt);
 crud(router, "zurchilteiMashin", ZurchilteiMashin, UstsanBarimt);
 crud(router, "mashin", Mashin, UstsanBarimt);
