@@ -1504,6 +1504,74 @@ router.get(
   }
 );
 
+// Get cameras grouped by type (Орох/Гарах) for streaming sections
+router.get(
+  "/zogsooliinCameraStream/:barilgiinId",
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      if (!req.params.barilgiinId) {
+        return res.status(400).json({
+          success: false,
+          message: "BarilgiinId шаардлагатай",
+        });
+      }
+
+      const parkingResults = await Parking(req.body.tukhainBaaziinKholbolt)
+        .find({
+          barilgiinId: req.params.barilgiinId,
+        })
+        .lean();
+
+      const cameraStreams = {
+        orokh: [], // Орох (Entrance) cameras
+        garakh: [], // Гарах (Exit) cameras
+      };
+
+      if (parkingResults.length > 0) {
+        for (const zogsool of parkingResults) {
+          if (zogsool.khaalga && Array.isArray(zogsool.khaalga)) {
+            for (const khaalga of zogsool.khaalga) {
+              if (khaalga.camera && Array.isArray(khaalga.camera)) {
+                for (const camera of khaalga.camera) {
+                  const cameraData = {
+                    _id: camera._id,
+                    cameraIP: camera.cameraIP,
+                    cameraPort: camera.cameraPort || 554,
+                    cameraUsername: camera.cameraUsername || "admin",
+                    cameraPassword: camera.cameraPassword || "",
+                    khaalgainNer: khaalga.ner || "",
+                    khaalgainTurul: khaalga.turul || "",
+                    zogsooliinId: zogsool._id,
+                    zogsooliinNer: zogsool.ner || "",
+                  };
+
+                  // Group by type: Орох (Entrance) or Гарах (Exit)
+                  if (khaalga.turul === "Орох") {
+                    cameraStreams.orokh.push(cameraData);
+                  } else if (khaalga.turul === "Гарах") {
+                    cameraStreams.garakh.push(cameraData);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        baiguullagiinId: req.body.baiguullagiinId,
+        barilgiinId: req.params.barilgiinId,
+        streams: cameraStreams,
+      });
+    } catch (err) {
+      console.error("Error in /zogsooliinCameraStream:", err);
+      next(err);
+    }
+  }
+);
+
 router.post("/tsenegleltKhiiy", tokenShalgakh, async (req, res, next) => {
   try {
     const baiguullagiinId = req.body.baiguullagiinId;
