@@ -32,6 +32,9 @@ const medegdelRoute = require("./routes/medegdelRoute");
 const msgRoute = require("./routes/msgRoute");
 const mailRoute = require("./routes/mailRoute");
 const ashiglaltiinZardluudRoute = require("./routes/ashiglaltiinZardluudRoute");
+const zogsoolRoute = require("./routes/zogsoolRoute");
+const parkingRoute = require("./routes/parkingRoute");
+const uneguiMashinRoute = require("./routes/uneguiMashinRoute");
 
 const { db } = require("zevbackv2");
 
@@ -91,6 +94,9 @@ app.use(tailanRoute);
 app.use(pdfRoute);
 app.use(mailRoute);
 app.use(ashiglaltiinZardluudRoute);
+app.use(zogsoolRoute);
+app.use(parkingRoute);
+app.use(uneguiMashinRoute);
 
 app.use(aldaaBarigch);
 
