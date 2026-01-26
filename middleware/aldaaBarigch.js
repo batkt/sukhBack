@@ -31,6 +31,21 @@ function aldaagIlgeeye(aldaa, req) {
 }
 const aldaaBarigch = (err, req, res, next) => {
   try {
+    // Log error to console
+    console.error("❌ [aldaaBarigch] Error caught:", {
+      message: err.message,
+      stack: err.stack,
+      kod: err.kod,
+      url: req.url,
+      method: req.method,
+      body: req.body ? {
+        mashiniiDugaar: req.body.mashiniiDugaar,
+        CAMERA_IP: req.body.CAMERA_IP,
+        barilgiinId: req.body.barilgiinId,
+        baiguullagiinId: req.body.baiguullagiinId,
+      } : undefined,
+    });
+    
     if (req.body && req.body.nevtersenAjiltniiToken) aldaagIlgeeye(err, req);
     if (!!err.message && err.message.includes("indexTalbar_1 dup key"))
       err.message = "Нэвтрэх нэр давхардаж байна!";
@@ -45,6 +60,7 @@ const aldaaBarigch = (err, req, res, next) => {
       aldaa: err.message,
     });
   } catch (error) {
+    console.error("❌ [aldaaBarigch] Error in error handler:", error);
     if (!!next) next(error);
   }
 };

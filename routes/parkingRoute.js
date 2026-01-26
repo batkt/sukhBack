@@ -474,6 +474,16 @@ router.post("/zogsoolUstgay", tokenShalgakh, async (req, res, next) => {
 
 router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
   try {
+    // Log incoming request
+    console.log("🔵 [zogsoolSdkService] Request received:", {
+      mashiniiDugaar: req.body.mashiniiDugaar,
+      CAMERA_IP: req.body.CAMERA_IP,
+      barilgiinId: req.body.barilgiinId,
+      baiguullagiinId: req.body.baiguullagiinId,
+      hasTukhainBaaziinKholbolt: !!req.body.tukhainBaaziinKholbolt,
+      timestamp: new Date().toISOString(),
+    });
+    
     // Validate required fields
     if (!req.body.mashiniiDugaar) {
       return res.status(400).json({
@@ -634,12 +644,30 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
     }
     
     // Call sdkData with better error handling
+    console.log("🟢 [zogsoolSdkService] Calling sdkData with:", {
+      mashiniiDugaar: req.body.mashiniiDugaar,
+      CAMERA_IP: req.body.CAMERA_IP,
+      barilgiinId: req.body.barilgiinId,
+      baiguullagiinId: req.body.baiguullagiinId,
+    });
+    
     try {
       const khariu = await sdkData(req, medegdel);
+      console.log("✅ [zogsoolSdkService] sdkData success:", {
+        success: khariu?.success,
+        message: khariu?.message,
+      });
       res.send(khariu);
     } catch (sdkError) {
       console.error("❌ [zogsoolSdkService] sdkData error:", sdkError);
-      console.error("❌ [zogsoolSdkService] Request body:", JSON.stringify(req.body, null, 2));
+      console.error("❌ [zogsoolSdkService] Error message:", sdkError.message);
+      console.error("❌ [zogsoolSdkService] Error stack:", sdkError.stack);
+      console.error("❌ [zogsoolSdkService] Request body:", JSON.stringify({
+        mashiniiDugaar: req.body.mashiniiDugaar,
+        CAMERA_IP: req.body.CAMERA_IP,
+        barilgiinId: req.body.barilgiinId,
+        baiguullagiinId: req.body.baiguullagiinId,
+      }, null, 2));
       
       // Return more detailed error
       return res.status(500).json({
