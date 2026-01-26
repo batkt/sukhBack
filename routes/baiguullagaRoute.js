@@ -31,7 +31,7 @@ router.get("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
     // If barilgiinId is provided, filter barilguud to only include the matching barilga
     if (barilgiinId) {
       const filteredBarilga = baiguullaga.barilguud?.find(
-        (b) => String(b._id) === String(barilgiinId)
+        (b) => String(b._id) === String(barilgiinId),
       );
 
       if (!filteredBarilga) {
@@ -74,18 +74,17 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
           await db.kholboltNemye(
             baiguullaga._id,
             req.body.baaziinNer,
-            true, // cloudMongoDBEsekh
             "127.0.0.1:27017",
-            "Br1stelback1", // password second
-            "admin" // username first
+            "admin",
+            "Br1stelback1",
           );
           console.log(
-            `✅ Database connection created for: ${req.body.baaziinNer}`
+            `✅ Database connection created for: ${req.body.baaziinNer}`,
           );
 
           // Verify connection was created and log connection details
           const createdConnection = db.kholboltuud?.find(
-            (k) => String(k.baiguullagiinId) === String(baiguullaga._id)
+            (k) => String(k.baiguullagiinId) === String(baiguullaga._id),
           );
           if (createdConnection) {
             console.log(`✅ Connection verified for ${req.body.baaziinNer}`);
@@ -110,28 +109,28 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
                   initialized: true,
                 });
                 console.log(
-                  `✅ Initial data written to database: ${req.body.baaziinNer}`
+                  `✅ Initial data written to database: ${req.body.baaziinNer}`,
                 );
               } else {
                 console.warn(
-                  `⚠️ Connection object structure unexpected for ${req.body.baaziinNer}`
+                  `⚠️ Connection object structure unexpected for ${req.body.baaziinNer}`,
                 );
               }
             } catch (initErr) {
               console.error(
                 `⚠️ Failed to write initial data to ${req.body.baaziinNer}:`,
-                initErr.message
+                initErr.message,
               );
             }
           } else {
             console.warn(
-              `⚠️ Connection not found in kholboltuud for ${req.body.baaziinNer}`
+              `⚠️ Connection not found in kholboltuud for ${req.body.baaziinNer}`,
             );
           }
         } catch (dbErr) {
           console.error(
             `❌ Failed to create database connection for ${req.body.baaziinNer}:`,
-            dbErr
+            dbErr,
           );
           // Continue anyway - organization is saved
         }
@@ -173,7 +172,7 @@ router.post("/salbarBurtgey", async (req, res, next) => {
               khayag: req.body.khayag,
             },
           },
-        }
+        },
       )
       .then((result) => {
         res.send("Amjilttai");
@@ -220,7 +219,7 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
         "barilguud.tokhirgoo.horoo": 1,
         "barilguud.tokhirgoo.davkhar": 1,
         "barilguud.tokhirgoo.davkhariinToonuud": 1,
-      }
+      },
     )
     .then((result) => {
       const transformedResult = result.map((item) => {
@@ -237,8 +236,8 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
             davkhar: Array.isArray(tokhirgoo?.davkhar)
               ? tokhirgoo.davkhar
               : tokhirgoo?.davkhar
-              ? [tokhirgoo.davkhar]
-              : [],
+                ? [tokhirgoo.davkhar]
+                : [],
             davkhariinToonuud: tokhirgoo?.davkhariinToonuud || {}, // Include davkhariinToonuud structure
           };
         });
@@ -307,7 +306,7 @@ router.post(
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
@@ -324,7 +323,7 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
 
     // Find the baiguullaga
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      baiguullagiinId
+      baiguullagiinId,
     );
 
     if (!baiguullaga) {
@@ -360,8 +359,8 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
       tokhirgoo: firstBarilga.tokhirgoo
         ? JSON.parse(JSON.stringify(firstBarilga.tokhirgoo))
         : baiguullaga.tokhirgoo
-        ? JSON.parse(JSON.stringify(baiguullaga.tokhirgoo))
-        : {},
+          ? JSON.parse(JSON.stringify(baiguullaga.tokhirgoo))
+          : {},
       davkharuud: firstBarilga.davkharuud
         ? JSON.parse(JSON.stringify(firstBarilga.davkharuud))
         : [],
@@ -376,8 +375,8 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         newBarilga.tokhirgoo.davkhar = Array.isArray(davkhar)
           ? davkhar
           : davkhar
-          ? [davkhar]
-          : [];
+            ? [davkhar]
+            : [];
       }
     }
 
@@ -391,7 +390,7 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
 
     // Find the company's database connection
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId,
     );
 
     if (tukhainBaaziinKholbolt) {
@@ -412,7 +411,7 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
 
         // Find the new barilga index and update its tokhirgoo
         const newBarilgaIndex = baiguullaga.barilguud.findIndex(
-          (b) => String(b._id) === String(newBarilgiinId)
+          (b) => String(b._id) === String(newBarilgiinId),
         );
 
         if (newBarilgaIndex >= 0) {
@@ -435,7 +434,7 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
           // Also copy dans (bank account info)
           if (existingDans) {
             baiguullaga.barilguud[newBarilgaIndex].tokhirgoo.dans = JSON.parse(
-              JSON.stringify(existingDans)
+              JSON.stringify(existingDans),
             );
           }
 

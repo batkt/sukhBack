@@ -3,9 +3,12 @@ const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
 
 /**
- * Mark invoices as paid
+ * Mark invoices as paid with credit/overpayment system
+ * Payment reduces from latest month first, then previous months
+ * If payment exceeds all invoices, remaining is saved as positiveBalance
  * @param {Object} options - Payment options
  * @param {String} options.baiguullagiinId - Organization ID (required)
+ * @param {Number} options.dun - Payment amount (required)
  * @param {String} [options.orshinSuugchId] - User ID (mark all invoices for this user)
  * @param {String} [options.gereeniiId] - Contract ID (mark all invoices for this contract)
  * @param {Array<String>} [options.nekhemjlekhiinIds] - Array of invoice IDs (mark specific invoices)
@@ -16,6 +19,7 @@ const Geree = require("../models/geree");
 async function markInvoicesAsPaid(options) {
   const {
     baiguullagiinId,
+    dun, // Payment amount (required)
     orshinSuugchId,
     gereeniiId,
     nekhemjlekhiinIds,
@@ -25,6 +29,10 @@ async function markInvoicesAsPaid(options) {
 
   if (!baiguullagiinId) {
     throw new Error("baiguullagiinId is required");
+  }
+
+  if (!dun || dun <= 0) {
+    throw new Error("dun (payment amount) is required and must be greater than 0");
   }
 
   // Validate that at least one identifier is provided
@@ -42,6 +50,7 @@ async function markInvoicesAsPaid(options) {
   }
 
   const NekhemjlekhiinTuukh = nekhemjlekhiinTuukh(kholbolt);
+  const GereeModel = Geree(kholbolt);
 
   // Build query to find invoices
   const query = {
@@ -50,8 +59,6 @@ async function markInvoicesAsPaid(options) {
   };
 
   // If markEkhniiUldegdel is false, exclude invoices with ekhniiUldegdel
-  // (focus on regular ashiglaltiinZardluud invoices)
-  // If markEkhniiUldegdel is true, include all invoices (both regular and ekhniiUldegdel)
   if (!markEkhniiUldegdel) {
     query.$or = [
       { ekhniiUldegdel: { $exists: false } },
@@ -65,12 +72,10 @@ async function markInvoicesAsPaid(options) {
     query._id = { $in: nekhemjlekhiinIds };
   } else if (orshinSuugchId) {
     // Mark all invoices for a user
-    // First, get all gerees for this user
-    const GereeModel = Geree(kholbolt);
     const gerees = await GereeModel.find({
       orshinSuugchId: String(orshinSuugchId),
       baiguullagiinId: String(baiguullagiinId),
-      tuluv: { $ne: "Цуцалсан" }, // Only active contracts
+      tuluv: { $ne: "Цуцалсан" },
     }).select("_id").lean();
 
     if (gerees.length === 0) {
@@ -79,6 +84,7 @@ async function markInvoicesAsPaid(options) {
         updatedCount: 0,
         message: "No active contracts found for this user",
         invoices: [],
+        remainingBalance: dun,
       };
     }
 
@@ -89,106 +95,199 @@ async function markInvoicesAsPaid(options) {
     query.gereeniiId = String(gereeniiId);
   }
 
-  // Find all unpaid invoices matching the query
-  const invoices = await NekhemjlekhiinTuukh.find(query).lean();
+  // Find all unpaid invoices matching the query, sorted by date (latest first)
+  const invoices = await NekhemjlekhiinTuukh.find(query)
+    .sort({ ognoo: -1, createdAt: -1 }) // Latest month first
+    .lean();
 
   if (invoices.length === 0) {
+    // No invoices found - save entire payment as positiveBalance
+    let gereeToUpdate = null;
+    if (gereeniiId) {
+      gereeToUpdate = await GereeModel.findById(gereeniiId);
+    } else if (orshinSuugchId) {
+      // Get the first active contract for this user
+      const firstGeree = await GereeModel.findOne({
+        orshinSuugchId: String(orshinSuugchId),
+        baiguullagiinId: String(baiguullagiinId),
+        tuluv: { $ne: "Цуцалсан" },
+      });
+      gereeToUpdate = firstGeree;
+    }
+
+    if (gereeToUpdate) {
+      gereeToUpdate.positiveBalance = (gereeToUpdate.positiveBalance || 0) + dun;
+      await gereeToUpdate.save();
+      console.log(`💰 [INVOICE PAYMENT] No invoices found, saved ${dun} as positiveBalance in geree ${gereeToUpdate._id}`);
+    }
+
     return {
       success: true,
       updatedCount: 0,
-      message: "No unpaid invoices found",
+      totalFound: 0,
+      message: `No unpaid invoices found. Saved ${dun} as positive balance.`,
       invoices: [],
+      remainingBalance: dun,
+      positiveBalanceAdded: dun,
     };
   }
 
-  console.log(`💰 [INVOICE PAYMENT] Found ${invoices.length} unpaid invoice(s) to mark as paid`);
+  console.log(`💰 [INVOICE PAYMENT] Found ${invoices.length} unpaid invoice(s), applying payment of ${dun}`);
 
-  // Update all invoices
-  const updatePromises = invoices.map(async (invoice) => {
+  let remainingPayment = dun;
+  const updatedInvoices = [];
+  const gereePositiveBalanceMap = new Map(); // Track positiveBalance per geree
+
+  // Process invoices from latest to oldest
+  for (const invoice of invoices) {
+    if (remainingPayment <= 0) {
+      break; // Payment fully applied
+    }
+
     try {
-      // Skip if already paid
-      if (invoice.tuluv === "Төлсөн") {
-        console.log(`ℹ️  [INVOICE PAYMENT] Invoice ${invoice._id} already paid, skipping`);
-        return invoice;
+      const invoiceAmount = invoice.niitTulbur || 0;
+      const unpaidAmount = invoiceAmount; // Since invoice is unpaid, full amount is unpaid
+
+      if (unpaidAmount <= 0) {
+        continue; // Skip invoices with 0 amount
       }
 
-      const paymentAmount = invoice.niitTulbur || 0;
-      // Use different description for ekhniiUldegdel invoices
-      const isEkhniiUldegdelInvoice = invoice.ekhniiUldegdel && invoice.ekhniiUldegdel > 0;
-      const paymentDescription = tailbar || (isEkhniiUldegdelInvoice ? "Эхний үлдэгдэл төлбөр хийгдлээ" : "Төлбөр хийгдлээ");
+      // Calculate how much to apply to this invoice
+      const amountToApply = Math.min(remainingPayment, unpaidAmount);
+      const isFullyPaid = amountToApply >= unpaidAmount;
 
       // Update invoice
-      const updatedInvoice = await NekhemjlekhiinTuukh.findByIdAndUpdate(
-        invoice._id,
-        {
-          $set: {
-            tuluv: "Төлсөн",
-            tulsunOgnoo: new Date(),
-          },
-          $push: {
-            paymentHistory: {
-              ognoo: new Date(),
-              dun: paymentAmount,
-              turul: "manual",
-              guilgeeniiId: isEkhniiUldegdelInvoice 
-                ? `ekhniiUldegdel_${Date.now()}_${invoice._id}`
-                : `manual_${Date.now()}_${invoice._id}`,
-              tailbar: paymentDescription,
-            },
+      const updateData = {
+        $push: {
+          paymentHistory: {
+            ognoo: new Date(),
+            dun: amountToApply,
+            turul: "manual",
+            guilgeeniiId: `payment_${Date.now()}_${invoice._id}`,
+            tailbar: tailbar || (isFullyPaid ? "Төлбөр хийгдлээ" : `Хэсэгчилсэн төлбөр: ${amountToApply}₮`),
           },
         },
+      };
+
+      if (isFullyPaid) {
+        updateData.$set = {
+          tuluv: "Төлсөн",
+          tulsunOgnoo: new Date(),
+        };
+      } else {
+        // Partial payment - update uldegdel (remaining balance)
+        updateData.$set = {
+          uldegdel: unpaidAmount - amountToApply,
+        };
+      }
+
+      const updatedInvoice = await NekhemjlekhiinTuukh.findByIdAndUpdate(
+        invoice._id,
+        updateData,
         { new: true }
       );
 
       if (!updatedInvoice) {
         console.error(`❌ [INVOICE PAYMENT] Failed to update invoice ${invoice._id}`);
-        return null;
+        continue;
       }
 
-      console.log(`✅ [INVOICE PAYMENT] Invoice ${updatedInvoice._id} marked as paid`);
+      console.log(`✅ [INVOICE PAYMENT] Applied ${amountToApply}₮ to invoice ${updatedInvoice._id} (${isFullyPaid ? 'fully paid' : 'partial'})`);
 
-      // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel
-      if (updatedInvoice.ekhniiUldegdel && updatedInvoice.ekhniiUldegdel > 0) {
+      remainingPayment -= amountToApply;
+      updatedInvoices.push({
+        invoice: updatedInvoice,
+        amountApplied: amountToApply,
+        isFullyPaid,
+      });
+
+      // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel and is fully paid
+      if (isFullyPaid && updatedInvoice.ekhniiUldegdel && updatedInvoice.ekhniiUldegdel > 0) {
         try {
-          const GereeModel = Geree(kholbolt);
           const gereeForUpdate = await GereeModel.findById(updatedInvoice.gereeniiId);
           if (gereeForUpdate) {
             gereeForUpdate.ekhniiUldegdel = 0;
             await gereeForUpdate.save();
-            console.log(
-              `✅ [INVOICE PAYMENT] Updated geree.ekhniiUldegdel to 0 for geree ${gereeForUpdate._id}`
-            );
+            console.log(`✅ [INVOICE PAYMENT] Updated geree.ekhniiUldegdel to 0 for geree ${gereeForUpdate._id}`);
           }
-        } catch (ekhniiUldegdelError) {
-          console.error(
-            `❌ [INVOICE PAYMENT] Error updating geree.ekhniiUldegdel:`,
-            ekhniiUldegdelError.message
-          );
+        } catch (error) {
+          console.error(`❌ [INVOICE PAYMENT] Error updating geree.ekhniiUldegdel:`, error.message);
         }
       }
-
-      return updatedInvoice;
     } catch (error) {
       console.error(`❌ [INVOICE PAYMENT] Error updating invoice ${invoice._id}:`, error.message);
-      return null;
     }
-  });
+  }
 
-  const updatedInvoices = await Promise.all(updatePromises);
-  const successfulUpdates = updatedInvoices.filter((inv) => inv !== null);
+  // If there's remaining payment, save as positiveBalance
+  if (remainingPayment > 0) {
+    // Determine which geree(s) to update
+    const gereesToUpdate = new Set();
+    
+    if (gereeniiId) {
+      gereesToUpdate.add(gereeniiId);
+    } else if (orshinSuugchId) {
+      const gerees = await GereeModel.find({
+        orshinSuugchId: String(orshinSuugchId),
+        baiguullagiinId: String(baiguullagiinId),
+        tuluv: { $ne: "Цуцалсан" },
+      }).select("_id").lean();
+      
+      gerees.forEach(g => gereesToUpdate.add(g._id.toString()));
+    } else if (nekhemjlekhiinIds && nekhemjlekhiinIds.length > 0) {
+      // Get gerees from invoices
+      const invoiceGerees = await NekhemjlekhiinTuukh.find({
+        _id: { $in: nekhemjlekhiinIds }
+      }).select("gereeniiId").lean();
+      
+      invoiceGerees.forEach(inv => {
+        if (inv.gereeniiId) gereesToUpdate.add(inv.gereeniiId);
+      });
+    }
+
+    // If we have multiple gerees, distribute remaining payment equally
+    // Otherwise, add to single geree
+    if (gereesToUpdate.size > 0) {
+      const balancePerGeree = remainingPayment / gereesToUpdate.size;
+      
+      for (const gereeId of gereesToUpdate) {
+        try {
+          const geree = await GereeModel.findById(gereeId);
+          if (geree) {
+            geree.positiveBalance = (geree.positiveBalance || 0) + balancePerGeree;
+            await geree.save();
+            gereePositiveBalanceMap.set(gereeId, geree.positiveBalance);
+            console.log(`💰 [INVOICE PAYMENT] Added ${balancePerGeree}₮ to positiveBalance for geree ${gereeId}`);
+          }
+        } catch (error) {
+          console.error(`❌ [INVOICE PAYMENT] Error updating positiveBalance for geree ${gereeId}:`, error.message);
+        }
+      }
+    }
+  }
 
   return {
     success: true,
-    updatedCount: successfulUpdates.length,
+    updatedCount: updatedInvoices.length,
     totalFound: invoices.length,
-    message: `Successfully marked ${successfulUpdates.length} invoice(s) as paid`,
-    invoices: successfulUpdates.map((inv) => ({
-      _id: inv._id,
-      nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar,
-      gereeniiDugaar: inv.gereeniiDugaar,
-      niitTulbur: inv.niitTulbur,
-      tuluv: inv.tuluv,
-      tulsunOgnoo: inv.tulsunOgnoo,
+    paymentAmount: dun,
+    remainingBalance: remainingPayment,
+    positiveBalanceAdded: remainingPayment > 0 ? remainingPayment : 0,
+    message: `Applied ${dun - remainingPayment}₮ to ${updatedInvoices.length} invoice(s)${remainingPayment > 0 ? `, saved ${remainingPayment}₮ as positive balance` : ''}`,
+    invoices: updatedInvoices.map(({ invoice, amountApplied, isFullyPaid }) => ({
+      _id: invoice._id,
+      nekhemjlekhiinDugaar: invoice.nekhemjlekhiinDugaar,
+      gereeniiDugaar: invoice.gereeniiDugaar,
+      niitTulbur: invoice.niitTulbur,
+      amountApplied,
+      isFullyPaid,
+      uldegdel: invoice.uldegdel || 0,
+      tuluv: invoice.tuluv,
+      tulsunOgnoo: invoice.tulsunOgnoo,
+    })),
+    positiveBalance: Array.from(gereePositiveBalanceMap.entries()).map(([gereeId, balance]) => ({
+      gereeniiId: gereeId,
+      positiveBalance: balance,
     })),
   };
 }

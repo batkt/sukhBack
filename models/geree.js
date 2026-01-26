@@ -127,6 +127,10 @@ const gereeSchema = new Schema(
       type: Number,
       default: 0,
     },
+    positiveBalance: {
+      type: Number,
+      default: 0,
+    }, // Positive balance/credit that will be deducted from future invoices
     // Electricity readings (цахилгаан заалт)
     umnukhZaalt: Number, // Previous reading (Өмнө)
     suuliinZaalt: Number, // Current total reading (Нийт одоо)

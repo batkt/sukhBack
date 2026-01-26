@@ -343,6 +343,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
       console.error("Error fetching dans info:", dansError);
     }
 
+    // Get fresh geree data to check for positiveBalance
+    let gereePositiveBalance = 0;
+    try {
+      const freshGeree = await Geree(tukhainBaaziinKholbolt).findById(tempData._id).select("positiveBalance").lean();
+      if (freshGeree && freshGeree.positiveBalance) {
+        gereePositiveBalance = freshGeree.positiveBalance;
+        console.log(`💰 [INVOICE] Found positiveBalance in geree: ${gereePositiveBalance}₮`);
+      }
+    } catch (error) {
+      console.error("Error fetching geree positiveBalance:", error);
+    }
+
     // Гэрээний мэдээллийг нэхэмжлэх рүү хуулах
     tuukh.baiguullagiinNer = tempData.baiguullagiinNer || org.ner;
     tuukh.baiguullagiinId = tempData.baiguullagiinId;
@@ -1001,9 +1013,26 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }, 0);
     
     // Update final total with corrected zardluud total
-    const correctedFinalNiitTulbur = shouldUseEkhniiUldegdel
+    let correctedFinalNiitTulbur = shouldUseEkhniiUldegdel
       ? ekhniiUldegdelAmount + guilgeenuudTotal
       : correctedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
+    
+    // Deduct positiveBalance from geree if it exists
+    let positiveBalanceUsed = 0;
+    let remainingPositiveBalance = 0;
+    if (gereePositiveBalance > 0) {
+      positiveBalanceUsed = Math.min(gereePositiveBalance, correctedFinalNiitTulbur);
+      correctedFinalNiitTulbur = Math.max(0, correctedFinalNiitTulbur - positiveBalanceUsed);
+      remainingPositiveBalance = gereePositiveBalance - positiveBalanceUsed;
+      
+      console.log("💰 [INVOICE] Deducting positiveBalance:", {
+        originalTotal: correctedFinalNiitTulbur + positiveBalanceUsed,
+        positiveBalance: gereePositiveBalance,
+        positiveBalanceUsed,
+        remainingPositiveBalance,
+        finalTotal: correctedFinalNiitTulbur,
+      });
+    }
     
     console.log("💰 [INVOICE] Corrected total calculation:", {
       shouldUseEkhniiUldegdel,
@@ -1011,6 +1040,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
       correctedZardluudTotal,
       guilgeenuudTotal,
       correctedFinalNiitTulbur,
+      positiveBalanceUsed,
+      remainingPositiveBalance,
       zardluudCount: zardluudWithDun.length,
       isAvlagaOnlyInvoice,
     });
@@ -1046,7 +1077,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       ? `\nЦахилгаан: Өмнө: ${zaaltMedeelel.umnukhZaalt}, Өдөр: ${zaaltMedeelel.zaaltTog}, Шөнө: ${zaaltMedeelel.zaaltUs}, Нийт: ${zaaltMedeelel.suuliinZaalt}`
       : "";
     
-    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮${tailbarText}${zaaltText}`;
+    // Include positiveBalance info in content if it was used
+    const positiveBalanceText = positiveBalanceUsed > 0 
+      ? `\nЭерэг үлдэгдэл ашигласан: ${positiveBalanceUsed}₮${remainingPositiveBalance > 0 ? `, Үлдсэн: ${remainingPositiveBalance}₮` : ''}`
+      : '';
+    
+    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮${tailbarText}${zaaltText}${positiveBalanceText}`;
     tuukh.nekhemjlekhiinDans =
       tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
     tuukh.nekhemjlekhiinDansniiNer =
@@ -1704,14 +1740,16 @@ const gereeNeesNekhemjlekhUusgekhPreviousMonth = async (
 };
 
 /**
- * Mark invoices as paid
- * Supports marking by user, contract, or specific invoice IDs
+ * Mark invoices as paid with credit/overpayment system
+ * Payment reduces from latest month first, then previous months
+ * If payment exceeds all invoices, remaining is saved as positiveBalance
  * markEkhniiUldegdel: true to include ekhniiUldegdel invoices, false to only mark regular ashiglaltiinZardluud invoices
  */
 const markInvoicesAsPaid = asyncHandler(async (req, res, next) => {
   try {
     const {
       baiguullagiinId,
+      dun, // Payment amount (required)
       orshinSuugchId,
       gereeniiId,
       nekhemjlekhiinIds,
@@ -1726,10 +1764,18 @@ const markInvoicesAsPaid = asyncHandler(async (req, res, next) => {
       });
     }
 
+    if (!dun || dun <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "dun (payment amount) is required and must be greater than 0",
+      });
+    }
+
     const { markInvoicesAsPaid: markInvoices } = require("../services/invoicePaymentService");
     
     const result = await markInvoices({
       baiguullagiinId,
+      dun,
       orshinSuugchId,
       gereeniiId,
       nekhemjlekhiinIds,
