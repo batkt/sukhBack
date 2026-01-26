@@ -147,6 +147,59 @@ crud(router, "zogsoolUilchluulegch", Uilchluulegch, UstsanBarimt);
 crud(router, "uilchluulegch", Uilchluulegch, UstsanBarimt);
 crud(router, "kassCameraKhaalt", KassCameraKhaalt, UstsanBarimt);
 
+// Get active Uilchluulegch list (for initial load)
+router.get("/uilchluulegch/active", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { baiguullagiinId, barilgiinId } = req.query;
+    
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "Байгууллагын ID шаардлагатай!",
+      });
+    }
+    
+    // Get database connection
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын холболт олдсонгүй!",
+      });
+    }
+    
+    // Build query - get active (not exited) records
+    const query = {
+      baiguullagiinId: baiguullagiinId,
+      "tuukh.0.tuluv": { $ne: 1 }, // Not fully paid/exited
+      "tuukh.0.garsanKhaalga": { $exists: false }, // Not exited yet
+    };
+    
+    if (barilgiinId) {
+      query.barilgiinId = barilgiinId;
+    }
+    
+    // Fetch active Uilchluulegch records
+    const activeUilchluulegchuud = await Uilchluulegch(tukhainBaaziinKholbolt, true)
+      .find(query)
+      .sort({ createdAt: -1 })
+      .limit(100) // Limit to last 100 active entries
+      .lean();
+    
+    res.json({
+      success: true,
+      data: activeUilchluulegchuud,
+      count: activeUilchluulegchuud.length,
+    });
+  } catch (error) {
+    console.error("❌ [uilchluulegch/active] Error:", error);
+    next(error);
+  }
+});
+
 router.get(
   "/zogsoolUilchluulegchJagsaalt",
   tokenShalgakh,
@@ -719,13 +772,38 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
         message: khariu?.message,
       });
       
-      // Emit socket event for new parking entry
-      if (khariu?.success && khariu?.data) {
+      // Emit socket event for new parking entry with full Uilchluulegch data
+      if (khariu?.success) {
         const io = req.app.get("socketio");
         if (io) {
+          // Fetch the created/updated Uilchluulegch record
+          let uilchluulegchRecord = null;
+          try {
+            if (khariu?.data?._id) {
+              // If sdkData returns the record ID, fetch it
+              uilchluulegchRecord = await Uilchluulegch(req.body.tukhainBaaziinKholbolt, true)
+                .findById(khariu.data._id)
+                .lean();
+            } else {
+              // Otherwise, find by plate number and camera IP
+              uilchluulegchRecord = await Uilchluulegch(req.body.tukhainBaaziinKholbolt, true)
+                .findOne({
+                  mashiniiDugaar: req.body.mashiniiDugaar,
+                  baiguullagiinId: req.body.baiguullagiinId,
+                  barilgiinId: req.body.barilgiinId,
+                  "tuukh.0.orsonKhaalga": req.body.CAMERA_IP,
+                })
+                .sort({ createdAt: -1 })
+                .lean();
+            }
+          } catch (fetchError) {
+            console.error("❌ [zogsoolSdkService] Error fetching Uilchluulegch:", fetchError);
+          }
+          
           // Emit to organization level
           io.emit(`parkingEntry/${req.body.baiguullagiinId}`, {
             type: 'new_entry',
+            uilchluulegch: uilchluulegchRecord,
             data: khariu.data,
             mashiniiDugaar: req.body.mashiniiDugaar,
             CAMERA_IP: req.body.CAMERA_IP,
@@ -738,6 +816,7 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
           if (req.body.barilgiinId) {
             io.emit(`parkingEntry/${req.body.baiguullagiinId}/${req.body.barilgiinId}`, {
               type: 'new_entry',
+              uilchluulegch: uilchluulegchRecord,
               data: khariu.data,
               mashiniiDugaar: req.body.mashiniiDugaar,
               CAMERA_IP: req.body.CAMERA_IP,
@@ -745,7 +824,10 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
             });
           }
           
-          console.log("📡 [zogsoolSdkService] Socket events emitted for new parking entry");
+          console.log("📡 [zogsoolSdkService] Socket events emitted for new parking entry", {
+            hasUilchluulegch: !!uilchluulegchRecord,
+            uilchluulegchId: uilchluulegchRecord?._id,
+          });
         }
       }
       
