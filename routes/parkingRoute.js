@@ -718,6 +718,37 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
         success: khariu?.success,
         message: khariu?.message,
       });
+      
+      // Emit socket event for new parking entry
+      if (khariu?.success && khariu?.data) {
+        const io = req.app.get("socketio");
+        if (io) {
+          // Emit to organization level
+          io.emit(`parkingEntry/${req.body.baiguullagiinId}`, {
+            type: 'new_entry',
+            data: khariu.data,
+            mashiniiDugaar: req.body.mashiniiDugaar,
+            CAMERA_IP: req.body.CAMERA_IP,
+            barilgiinId: req.body.barilgiinId,
+            baiguullagiinId: req.body.baiguullagiinId,
+            timestamp: new Date(),
+          });
+          
+          // Emit to building level
+          if (req.body.barilgiinId) {
+            io.emit(`parkingEntry/${req.body.baiguullagiinId}/${req.body.barilgiinId}`, {
+              type: 'new_entry',
+              data: khariu.data,
+              mashiniiDugaar: req.body.mashiniiDugaar,
+              CAMERA_IP: req.body.CAMERA_IP,
+              timestamp: new Date(),
+            });
+          }
+          
+          console.log("📡 [zogsoolSdkService] Socket events emitted for new parking entry");
+        }
+      }
+      
       res.send(khariu);
     } catch (sdkError) {
       console.error("❌ [zogsoolSdkService] sdkData error:", sdkError);
