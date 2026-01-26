@@ -18,7 +18,8 @@ router.post(
 
 crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
-router.get("/:id", tokenShalgakh, async (req, res, next) => {
+// Make this route more specific to avoid conflicts with other routes like /parking
+router.get("/nekhemjlekhiinTuukh/:id", tokenShalgakh, async (req, res, next) => {
   try {
     const { id } = req.params;
 

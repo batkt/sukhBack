@@ -55,8 +55,10 @@ const axios = require("axios");
 });*/
 
 // Custom GET handler for parking to properly handle query parameters
+// Must be before crud() call to take precedence
 router.get("/parking", tokenShalgakh, async (req, res, next) => {
   try {
+    console.log("🔍 [PARKING GET] Request received:", req.query);
     const { db } = require("zevbackv2");
     const body = req.query;
     
