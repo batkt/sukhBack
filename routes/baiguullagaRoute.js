@@ -192,7 +192,6 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
           );
           
           if (index >= 0) {
-            // Remove _id and baiguullagiinId before updating
             delete updatedBarilga._id;
             delete updatedBarilga.baiguullagiinId;
             

@@ -294,7 +294,7 @@ router.get("/licenseOgnooAvya", tokenShalgakh, async (req, res, next) => {
   try {
     request.get(
       "http://103.143.40.123:8282/baiguullagiinDuusakhKhugatsaaAvya",
-      { json: true, body: { register: req.body.register, system: "Turees" } },
+      { json: true, body: { register: req.body.register, system: "Sukh" } },
       (err, res1, body) => {
         if (err) next(err);
         else {
