@@ -28,7 +28,8 @@ const {
   ebarimtDuudya,
 } = require("../routes/ebarimtRoute");
 const ZogsooliinIp = require("../models/zogsooliinIp");
-const Khariltsagch = require("../models/khariltsagch");
+// orshinSuugch is actually orshinSuugch in our system
+const OrshinSuugch = require("../models/orshinSuugch");
 const Sonorduulga = require("../models/sonorduulga");
 const Ebarimt = require("../models/ebarimt");
 const EbarimtShine = require("../models/ebarimtShine");
@@ -36,13 +37,14 @@ const KassCameraKhaalt = require("../models/kassCameraKhaalt");
 const uneguiMashin = require("../models/uneguiMashin");
 
 const {
-  khariltsagchidSonorduulgaIlgeeye,
+  orshinSuugchidSonorduulgaIlgeeye,
 } = require("../controller/appNotification");
 const lodash = require("lodash");
 const moment = require("moment");
 const Baiguullaga = require("../models/baiguullaga");
 const { zogsoolNiitDungeerEbarimtShivye } = require("../routes/ebarimtRoute");
-const { msgIlgeeye } = require("../controller/khariltsagch");
+// orshinSuugch is actually orshinSuugch in our system
+const { msgIlgeeye } = require("../controller/orshinSuugch");
 const MsgTuukh = require("../models/msgTuukh");
 const client = require("../routes/redisClient");
 const crypto = require("crypto");
@@ -392,15 +394,16 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
       req.body.mashiniiDugaar = req.body.mashiniiDugaar.replace(/\0/g, "");
     if (!!req?.body?.color) {
     }
-    const medegdel = async (uilchluulegch, khariltsagchiinId) => {
+    const medegdel = async (uilchluulegch, orshinSuugchiinId) => {
       /**
-       * Web.с машин бүртгэсэн тохиолдолд khariltsagchiinId байхгүй байгаа тул
-       * зарим машин дээр khariltsagchiinId undefined ирж болно.
+       * Web.с машин бүртгэсэн тохиолдолд orshinSuugchiinId байхгүй байгаа тул
+       * зарим машин дээр orshinSuugchiinId undefined ирж болно.
        * */
       var firebaseToken = req.body.firebaseToken;
-      var kharilltsagch = await Khariltsagch(
-        req.body.tukhainBaaziinKholbolt
-      ).findOne({ _id: khariltsagchiinId });
+      // orshinSuugch is actually orshinSuugch in our system
+      var kharilltsagch = await OrshinSuugch(
+        db.erunkhiiKholbolt
+      ).findOne({ _id: orshinSuugchiinId });
       if (!!kharilltsagch) {
         const medeelel = {
           title: "Зогсоол",
@@ -439,26 +442,26 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
         };
         firebaseToken = kharilltsagch.firebaseToken;
         if (!!firebaseToken) {
-          khariltsagchidSonorduulgaIlgeeye(
+          orshinSuugchidSonorduulgaIlgeeye(
             firebaseToken,
             medeelel,
             (r) => {
               var sonorduulga = new Sonorduulga(
                 req.body.tukhainBaaziinKholbolt
               )();
-              sonorduulga.khariltsagchiinId = khariltsagchiinId;
+              sonorduulga.orshinSuugchiinId = orshinSuugchiinId;
               sonorduulga.baiguullagiinId = req.body.baiguullagiinId;
               sonorduulga.barilgiinId = req.body.barilgiinId;
               sonorduulga.zurgiinId = req.body.zurgiinId;
-              if (khariltsagchiinId)
-                sonorduulga.khuleenAvagchiinId = khariltsagchiinId;
+              if (orshinSuugchiinId)
+                sonorduulga.khuleenAvagchiinId = orshinSuugchiinId;
               if (!req.body.turul) sonorduulga.turul = "medegdel";
               sonorduulga.title = medeelel.title;
               sonorduulga.message = medeelel.body;
               sonorduulga.kharsanEsekh = false;
               sonorduulga.save();
               var io = req.app.get("socketio");
-              if (io) io.emit("khariltsagch" + khariltsagchiinId, sonorduulga);
+              if (io) io.emit("orshinSuugch" + orshinSuugchiinId, sonorduulga);
             },
             next
           );

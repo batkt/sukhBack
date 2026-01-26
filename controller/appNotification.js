@@ -44,7 +44,7 @@ async function sonorduulgaIlgeeye(token, medeelel, callback, next) {
   else if (callback) callback({ successCount: 1 });
 }
 
-async function khariltsagchidSonorduulgaIlgeeye(
+async function orshinSuugchidSonorduulgaIlgeeye(
   token,
   medeelel,
   callback,
@@ -116,5 +116,5 @@ async function khariltsagchidSonorduulgaIlgeeye(
 
 module.exports = {
   sonorduulgaIlgeeye,
-  khariltsagchidSonorduulgaIlgeeye,
+  orshinSuugchidSonorduulgaIlgeeye,
 };

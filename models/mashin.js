@@ -29,7 +29,7 @@ const mashinSchema = new Schema(
     ekhlekhOgnoo: Date,
     duusakhOgnoo: Date,
     gereeniiId: String,
-    khariltsagchiinNer: String,
+    orshinSuugchiinNer: String,
     cameraIP: String,
   },
   {

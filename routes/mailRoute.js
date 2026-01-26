@@ -159,10 +159,10 @@ router.post("/mailOlnoorIlgeeye", tokenShalgakh, async (req, res, next) => {
 
         if (tukhainBaaziinKholbolt) {
           const sonorduulga = new Sonorduulga(tukhainBaaziinKholbolt)();
-          sonorduulga.khuleenAvagchiinId = mail.khariltsagchiinId;
+          sonorduulga.khuleenAvagchiinId = mail.orshinSuugchiinId;
           sonorduulga.barilgiinId = mail.barilgiinId;
           sonorduulga.baiguullagiinId = req.body.baiguullagiinId;
-          sonorduulga.khariltsagchiinNer = mail.khariltsagchiinNer;
+          sonorduulga.orshinSuugchiinNer = mail.orshinSuugchiinNer;
           sonorduulga.title = req.body.subject;
           sonorduulga.message = mail.content;
           sonorduulga.turul = req.body.turul || "Mail";

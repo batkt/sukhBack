@@ -440,10 +440,10 @@ router.route("/gereeKhadgalya").post(
   shalguurFieldValidate(["register", "customerTin"]),
   async (req, res, next) => {
     const { db } = require("zevbackv2");
-    const khariltsagch = new Khariltsagch(db.erunkhiiKholbolt)(req.body);
-  khariltsagch.id = khariltsagch.register
-    ? khariltsagch.register
-    : khariltsagch.customerTin;
+    const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(req.body);
+  orshinSuugch.id = orshinSuugch.register
+    ? orshinSuugch.register
+    : orshinSuugch.customerTin;
   if (req.body.gereeniiDugaar === `ГД${moment(new Date()).format("YYMMDD")}`) {
     var unuudur = new Date();
     unuudur = new Date(
@@ -482,19 +482,19 @@ router.route("/gereeKhadgalya").post(
     dugaarlalt.save();
   }
 
-  var khariltsagchShalguur;
-  if (!!khariltsagch.register) {
-    khariltsagchShalguur = await Khariltsagch(db.erunkhiiKholbolt).findOne({
-      register: khariltsagch.register,
+  var orshinSuugchShalguur;
+  if (!!orshinSuugch.register) {
+    orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      register: orshinSuugch.register,
       barilgiinId: req.body.barilgiinId,
     });
-  } else if (!!khariltsagch.customerTin) {
-    khariltsagchShalguur = await Khariltsagch(db.erunkhiiKholbolt).findOne({
-      customerTin: khariltsagch.customerTin,
+  } else if (!!orshinSuugch.customerTin) {
+    orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+      customerTin: orshinSuugch.customerTin,
       barilgiinId: req.body.barilgiinId,
     });
   }
-  if (!khariltsagchShalguur) await khariltsagch.save();
+  if (!orshinSuugchShalguur) await orshinSuugch.save();
   var geree = new Geree(req.body.tukhainBaaziinKholbolt)(req.body);
   var daraagiinTulukhOgnoo = geree.duusakhOgnoo;
   try {

@@ -1,6 +1,6 @@
 const express = require("express");
 const { Mashin, Uilchluulegch, EzenUrisanMashin } = require("parking-v2");
-const Khariltsagch = require("../models/khariltsagch");
+const OrshinSuugch = require("../models/orshinSuugch");
 const Geree = require("../models/geree");
 const router = express.Router();
 const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
@@ -8,28 +8,28 @@ const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
 crud(router, "ezenUrisanMashin", EzenUrisanMashin, UstsanBarimt);
 
 // Харилцагчийн мэдээллийг шинээр хадгалах буюу засварлах функц
-async function khariltsagchKhadgalya(
-  khariltsagchMedeelel,
+async function orshinSuugchKhadgalya(
+  orshinSuugchMedeelel,
   utas,
   tukhainBaaziinKholbolt
 ) {
-  if (!khariltsagchMedeelel) return null;
+  if (!orshinSuugchMedeelel) return null;
   try {
     // ID байгаа эсэхийг шалгана
-    const khariltsagchId = khariltsagchMedeelel._id;
-    if (khariltsagchId) {
+    const orshinSuugchId = orshinSuugchMedeelel._id;
+    if (orshinSuugchId) {
       // ID байгаа бол засварлах - зөвхөн өөрчлөгдсөн талбарууд л шинэчлэгдэнэ
-      const existingKhariltsagch = await Khariltsagch(
+      const existingOrshinSuugch = await OrshinSuugch(
         tukhainBaaziinKholbolt
-      ).findById(khariltsagchId);
-      if (existingKhariltsagch) {
+      ).findById(orshinSuugchId);
+      if (existingOrshinSuugch) {
         // Өөрчлөгдсөн талбарууд л шинэчлэх
         const updateFields = {};
         // Талбарууд бүрийг шалгаж, өөрчлөгдсөн эсэхийг тодорхойлно
-        Object.keys(khariltsagchMedeelel).forEach((key) => {
+        Object.keys(orshinSuugchMedeelel).forEach((key) => {
           if (key !== "_id" && key !== "createdAt" && key !== "__v") {
-            const newValue = khariltsagchMedeelel[key];
-            const oldValue = existingKhariltsagch[key];
+            const newValue = orshinSuugchMedeelel[key];
+            const oldValue = existingOrshinSuugch[key];
             // Өөрчлөгдсөн талбаруудыг л нэмнэ
             if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
               updateFields[key] = newValue;
@@ -39,24 +39,24 @@ async function khariltsagchKhadgalya(
         // Өөрчлөлт байгаа бол л шинэчилнэ
         if (Object.keys(updateFields).length > 0) {
           updateFields.updatedAt = new Date();
-          return await Khariltsagch(tukhainBaaziinKholbolt).findByIdAndUpdate(
-            khariltsagchId,
+          return await OrshinSuugch(tukhainBaaziinKholbolt).findByIdAndUpdate(
+            orshinSuugchId,
             { $set: updateFields },
             { new: true }
           );
         }
-        return existingKhariltsagch;
+        return existingOrshinSuugch;
       } else {
-        throw new Error(`ID: ${khariltsagchId} харилцагч олдсонгүй`);
+        throw new Error(`ID: ${orshinSuugchId} харилцагч олдсонгүй`);
       }
     } else {
       // ID байхгүй бол шинээр хадгална (save ашиглана)
-      const { _id, ...khariltsagchData } = khariltsagchMedeelel;
+      const { _id, ...orshinSuugchData } = orshinSuugchMedeelel;
       // Утасны дугаараар давхцах эсэхийг шалгана
-      const existingByUtas = await Khariltsagch(tukhainBaaziinKholbolt).findOne(
+      const existingByUtas = await OrshinSuugch(tukhainBaaziinKholbolt).findOne(
         {
           utas: { $in: [utas] },
-          barilgiinId: khariltsagchMedeelel.barilgiinId,
+          barilgiinId: orshinSuugchMedeelel.barilgiinId,
         }
       );
       if (existingByUtas) {
@@ -64,13 +64,13 @@ async function khariltsagchKhadgalya(
           "Энэ утасны дугаартай харилцагч аль хэдийн бүртгэгдсэн байна"
         );
       }
-      const newKhariltsagch = new Khariltsagch(tukhainBaaziinKholbolt)({
-        ...khariltsagchData,
-        utas: khariltsagchData.utas || [utas],
+      const newOrshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
+        ...orshinSuugchData,
+        utas: orshinSuugchData.utas || [utas],
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      return await newKhariltsagch.save();
+      return await newOrshinSuugch.save();
     }
   } catch (error) {}
 }
@@ -140,7 +140,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       barilgiinId,
       ezemshigchiinUtas,
       tukhainBaaziinKholbolt,
-      khariltsagchMedeelel,
+      orshinSuugchMedeelel,
       mashinMedeelel,
     } = req.body;
 
@@ -151,14 +151,14 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    let khariltsagchResult = null;
+    let orshinSuugchResult = null;
     let mashinResult = null;
 
     // Харилцагчийн мэдээллийг хадгална/засварлана
-    if (khariltsagchMedeelel) {
+    if (orshinSuugchMedeelel) {
       try {
-        khariltsagchResult = await khariltsagchKhadgalya(
-          khariltsagchMedeelel,
+        orshinSuugchResult = await orshinSuugchKhadgalya(
+          orshinSuugchMedeelel,
           ezemshigchiinUtas,
           db.erunkhiiKholbolt
         );
@@ -230,7 +230,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       success: true,
       message: "Мэдээлэл амжилттай хадгалагдлаа",
       data: {
-        khariltsagch: khariltsagchResult,
+        orshinSuugch: orshinSuugchResult,
         mashin: mashinResult,
         jagsaalt: mashiniiJagsaalt,
       },

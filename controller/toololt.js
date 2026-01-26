@@ -891,10 +891,10 @@ exports.bankniiGuilgeeToololtAvya = asyncHandler(async (req, res, next) => {
     });
 });
 
-exports.khariltsagchiinTooAvya = asyncHandler(async (req, res, next) => {
+exports.orshinSuugchiinTooAvya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    var khariltsagchObject = Khariltsagch(db.erunkhiiKholbolt);
+    var orshinSuugchObject = OrshinSuugch(db.erunkhiiKholbolt);
     let query = [
       {
         $match: {
@@ -911,7 +911,7 @@ exports.khariltsagchiinTooAvya = asyncHandler(async (req, res, next) => {
         },
       },
     ];
-    var khariuTurul = await khariltsagchObject.aggregate(query);
+    var khariuTurul = await orshinSuugchObject.aggregate(query);
     query = [
       {
         $match: {
@@ -933,7 +933,7 @@ exports.khariltsagchiinTooAvya = asyncHandler(async (req, res, next) => {
         },
       },
     ];
-    var khariu = await khariltsagchObject.aggregate(query);
+    var khariu = await orshinSuugchObject.aggregate(query);
     if (
       khariuTurul &&
       khariuTurul.length > 0 &&
@@ -1059,7 +1059,7 @@ exports.khyanakhSambariinUgugdul = asyncHandler(async (req, res, next) => {
         },
       },
     ];
-    var khariu = await Khariltsagch(db.erunkhiiKholbolt).aggregate(query);
+    var khariu = await OrshinSuugch(db.erunkhiiKholbolt).aggregate(query);
     res.send({ dutuu, tulsunDun, khariu });
   } catch (err) {
     next(err);

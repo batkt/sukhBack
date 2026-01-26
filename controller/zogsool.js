@@ -1,6 +1,6 @@
 const Baiguullaga = require("../models/baiguullaga");
 const { zogsoolNiitDungeerEbarimtShivye } = require("../routes/ebarimtRoute");
-const { msgIlgeeye } = require("./khariltsagch");
+const { msgIlgeeye } = require("./orshinSuugch");
 const {
   Mashin: ParkingMashin,
   Parking,
