@@ -949,11 +949,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
         return zardal;
       }
       const dun = zardal.dun > 0 ? zardal.dun : (zardal.tariff || 0);
-      return {
+      const result = {
         ...zardal,
         dun: dun,
         zardliinTurul: zardal.zardliinTurul || "Энгийн"
       };
+      if (result.dun === 0 && result.tariff > 0) {
+        result.dun = result.tariff;
+      }
+      return result;
     });
     
     console.log(`🔍 [LIFT] After mapping zardluudWithDun:`, zardluudWithDun.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, dun: z.dun })));
@@ -1059,6 +1063,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
       });
       console.log(`💰 [INVOICE] Added ekhniiUldegdel to zardluud: ${ekhniiUldegdelAmount}₮`);
     }
+    
+    zardluudWithDun = zardluudWithDun.map(zardal => {
+      if (zardal.zaalt === true) {
+        return zardal;
+      }
+      if (zardal.dun === 0 && zardal.tariff > 0) {
+        return {
+          ...zardal,
+          dun: zardal.tariff
+        };
+      }
+      return zardal;
+    });
     
     tuukh.medeelel = {
       zardluud: zardluudWithDun,
