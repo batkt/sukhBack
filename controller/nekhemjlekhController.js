@@ -444,7 +444,44 @@ const gereeNeesNekhemjlekhUusgekh = async (
       );
     }
 
+    // Get zardluud from geree first
     let filteredZardluud = tempData.zardluud || [];
+    
+    // If geree.zardluud is empty or all charges have dun=0, try to get from ashiglaltiinZardluud
+    if (filteredZardluud.length === 0 || filteredZardluud.every(z => (z.dun || 0) === 0 && (z.tariff || 0) === 0)) {
+      console.log("⚠️ [INVOICE] geree.zardluud is empty or all zero, fetching from ashiglaltiinZardluud");
+      try {
+        const { db } = require("zevbackv2");
+        const Baiguullaga = require("../models/baiguullaga");
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+          tempData.baiguullagiinId
+        );
+        
+        const targetBarilga = baiguullaga?.barilguud?.find(
+          (b) => String(b._id) === String(tempData.barilgiinId || "")
+        );
+        
+        const ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
+        
+        if (ashiglaltiinZardluud.length > 0) {
+          console.log(`✅ [INVOICE] Found ${ashiglaltiinZardluud.length} charges from ashiglaltiinZardluud`);
+          // Map ashiglaltiinZardluud to zardluud format, directly store tariff in dun
+          filteredZardluud = ashiglaltiinZardluud.map(zardal => ({
+            ...zardal,
+            dun: zardal.tariff || 0, // Store tariff directly in dun
+          }));
+        }
+      } catch (error) {
+        console.error("Error fetching ashiglaltiinZardluud:", error.message);
+      }
+    } else {
+      // Ensure dun is set from tariff for existing charges
+      filteredZardluud = filteredZardluud.map(zardal => ({
+        ...zardal,
+        dun: zardal.dun || zardal.tariff || 0, // Store tariff in dun if dun is 0
+      }));
+    }
+    
     // Normalize turul in zardluud: "тогтмол" -> "Тогтмол"
     filteredZardluud = normalizeZardluudTurul(filteredZardluud);
     // Remove duplicate zardluud entries
@@ -466,7 +503,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
 
       if (choloolugdokhDavkhar.includes(tempData.davkhar)) {
-        filteredZardluud = tempData.zardluud.filter(
+        filteredZardluud = filteredZardluud.filter(
           (zardal) => !(zardal.zardliinTurul === "Лифт")
         );
       }
@@ -565,13 +602,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice ? [] : [...filteredZardluud];
 
     // But exclude zardluud if this is an avlaga-only invoice
-    // Use dun if tariff is 0 or missing (some charges store amount in dun)
+    // Now dun is always set from tariff, so just use dun directly
     const zardluudTotal =
       shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
         ? 0
         : filteredZardluud.reduce((sum, zardal) => {
-            const amount = zardal.tariff || zardal.dun || 0;
-            return sum + amount;
+            return sum + (zardal.dun || 0);
           }, 0);
 
     // Final total includes zardluud + guilgeenuud (or ekhniiUldegdel for first invoice)
@@ -584,13 +620,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
       : 0;
 
     // Recalculate zardluudTotal after adding electricity charge (if electricity was added)
-    // This will be updated after electricity processing
-    // Use dun if tariff is 0 or missing (some charges store amount in dun)
+    // Now dun is always set, so just use dun directly
     let updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
       ? 0
       : finalZardluud.reduce((sum, zardal) => {
-          const amount = zardal.tariff || zardal.dun || 0;
-          return sum + amount;
+          return sum + (zardal.dun || 0);
         }, 0);
 
     let finalNiitTulbur = shouldUseEkhniiUldegdel
@@ -935,12 +969,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
           finalZardluud = deduplicateZardluud(finalZardluud);
           
           // Recalculate totals after adding electricity charge
-          // Use dun if tariff is 0 or missing (some charges store amount in dun)
+          // Now dun is always set, so just use dun directly
           updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
             ? 0
             : finalZardluud.reduce((sum, zardal) => {
-                const amount = zardal.tariff || zardal.dun || 0;
-                return sum + amount;
+                return sum + (zardal.dun || 0);
               }, 0);
           
           finalNiitTulbur = shouldUseEkhniiUldegdel
@@ -1003,13 +1036,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
       return zardal;
     });
     
-    // Recalculate total using corrected dun values for consistency
-    // Use dun if tariff is 0 or missing (some charges store amount in dun)
+    // Recalculate total using dun values (dun is now always set)
     const correctedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
       ? 0
       : zardluudWithDun.reduce((sum, zardal) => {
-          const amount = zardal.dun || zardal.tariff || 0;
-          return sum + amount;
+          return sum + (zardal.dun || 0);
         }, 0);
     
     // Update final total with corrected zardluud total
