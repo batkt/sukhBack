@@ -362,33 +362,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.maililgeesenAjiltniiNer || tempData.ner;
     tuukh.nekhemjlekhiinZagvarId = tempData.nekhemjlekhiinZagvarId || "";
 
-    // Save ekhniiUldegdel to invoice (preserve 0 value if it exists)
-    console.log(
-      "💰 [INVOICE] ekhniiUldegdel from geree:",
-      tempData.ekhniiUldegdel
-    );
-    console.log(
-      "💰 [INVOICE] ekhniiUldegdel type:",
-      typeof tempData.ekhniiUldegdel
-    );
-    console.log(
-      "💰 [INVOICE] ekhniiUldegdel undefined?",
-      tempData.ekhniiUldegdel === undefined
-    );
-    console.log(
-      "💰 [INVOICE] ekhniiUldegdel null?",
-      tempData.ekhniiUldegdel === null
-    );
+    let ekhniiUldegdelForInvoice = 0;
+    if (tempData.orshinSuugchId) {
+      try {
+        const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+          .findById(tempData.orshinSuugchId)
+          .select("ekhniiUldegdel")
+          .lean();
+        if (orshinSuugch && orshinSuugch.ekhniiUldegdel) {
+          ekhniiUldegdelForInvoice = orshinSuugch.ekhniiUldegdel;
+        }
+      } catch (error) {
+        console.error(`❌ [INVOICE] Error fetching ekhniiUldegdel for invoice:`, error.message);
+      }
+    }
 
-    tuukh.ekhniiUldegdel =
-      tempData.ekhniiUldegdel !== undefined && tempData.ekhniiUldegdel !== null
-        ? tempData.ekhniiUldegdel
-        : 0;
-
-    console.log(
-      "💰 [INVOICE] ekhniiUldegdel saved to invoice:",
-      tuukh.ekhniiUldegdel
-    );
+    tuukh.ekhniiUldegdel = ekhniiUldegdelForInvoice;
+    console.log(`💰 [INVOICE] ekhniiUldegdel saved to invoice: ${tuukh.ekhniiUldegdel}`);
 
     if (tempData.ekhniiUldegdelUsgeer !== undefined) {
       tuukh.ekhniiUldegdelUsgeer = tempData.ekhniiUldegdelUsgeer;
@@ -595,11 +585,24 @@ const gereeNeesNekhemjlekhUusgekh = async (
             return sum + (zardal.dun || 0);
           }, 0);
 
-    const hasEkhniiUldegdel =
-      tempData.ekhniiUldegdel && tempData.ekhniiUldegdel > 0;
-    const ekhniiUldegdelAmount = hasEkhniiUldegdel
-      ? tempData.ekhniiUldegdel || 0
-      : 0;
+    let ekhniiUldegdelFromOrshinSuugch = 0;
+    if (tempData.orshinSuugchId) {
+      try {
+        const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+          .findById(tempData.orshinSuugchId)
+          .select("ekhniiUldegdel")
+          .lean();
+        if (orshinSuugch && orshinSuugch.ekhniiUldegdel) {
+          ekhniiUldegdelFromOrshinSuugch = orshinSuugch.ekhniiUldegdel;
+          console.log(`💰 [INVOICE] ekhniiUldegdel from orshinSuugch: ${ekhniiUldegdelFromOrshinSuugch}`);
+        }
+      } catch (error) {
+        console.error(`❌ [INVOICE] Error fetching ekhniiUldegdel from orshinSuugch:`, error.message);
+      }
+    }
+    
+    const hasEkhniiUldegdel = ekhniiUldegdelFromOrshinSuugch > 0;
+    const ekhniiUldegdelAmount = ekhniiUldegdelFromOrshinSuugch;
 
     let updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
       ? 0
