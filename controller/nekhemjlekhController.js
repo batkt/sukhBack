@@ -433,6 +433,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
     filteredZardluud = normalizeZardluudTurul(filteredZardluud);
     
     let choloolugdokhDavkhar = [];
+    let liftZardalFromBuilding = null;
+    let liftTariff = null;
 
     if (tempData.davkhar && tempData.barilgiinId && tempData.baiguullagiinId) {
       const { db } = require("zevbackv2");
@@ -449,6 +451,14 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
       console.log(`🔍 [LIFT] Initial check - Floor: ${tempData.davkhar}, Exempted from baiguullaga:`, choloolugdokhDavkhar);
       console.log(`🔍 [LIFT] Full targetBarilga.tokhirgoo.liftShalgaya:`, JSON.stringify(targetBarilga?.tokhirgoo?.liftShalgaya, null, 2));
+      
+      liftZardalFromBuilding = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud?.find(z => z.zardliinTurul === "Лифт" || (z.ner && z.ner.includes("Лифт")));
+      if (liftZardalFromBuilding) {
+        liftTariff = liftZardalFromBuilding.tariff || liftZardalFromBuilding.dun;
+        console.log(`🔍 [LIFT] Found lift zardal from building:`, { ner: liftZardalFromBuilding.ner, zardliinTurul: liftZardalFromBuilding.zardliinTurul, tariff: liftZardalFromBuilding.tariff, dun: liftZardalFromBuilding.dun, liftTariff: liftTariff });
+      } else {
+        console.warn(`⚠️ [LIFT] No lift zardal found in building's ashiglaltiinZardluud`);
+      }
       
       if (choloolugdokhDavkhar.length === 0 && tempData.barilgiinId) {
         try {
@@ -493,7 +503,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         console.log(`🚫 [LIFT] Floor ${davkharStr} is exempted - Removing Лифт charge`);
         filteredZardluud = filteredZardluud.filter(
-          (zardal) => !(zardal.zardliinTurul === "Лифт")
+          (zardal) => 
+            zardal.zardliinTurul !== "Лифт" && 
+            !(zardal.ner && zardal.ner.trim() === "Лифт") &&
+            !(zardal.ner && zardal.ner.includes("Лифт"))
         );
         console.log(`✅ [LIFT] Лифт charge removed. Remaining charges: ${filteredZardluud.length}`);
       } else {
@@ -938,9 +951,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       const dun = zardal.dun > 0 ? zardal.dun : (zardal.tariff || 0);
       return {
         ...zardal,
-        dun: dun
+        dun: dun,
+        zardliinTurul: zardal.zardliinTurul || "Энгийн"
       };
     });
+    
+    console.log(`🔍 [LIFT] After mapping zardluudWithDun:`, zardluudWithDun.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, dun: z.dun })));
     
     if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
       const davkharStr = String(tempData.davkhar);
@@ -949,11 +965,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
       console.log(`🔍 [LIFT] zardluudWithDun before removal:`, zardluudWithDun.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, dun: z.dun })));
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         const beforeCount = zardluudWithDun.length;
-        const liftCharges = zardluudWithDun.filter(z => z.zardliinTurul === "Лифт");
-        console.log(`🚫 [LIFT] Final check - Found ${liftCharges.length} Лифт charges to remove for floor ${davkharStr}:`, liftCharges.map(z => ({ ner: z.ner, dun: z.dun })));
-        zardluudWithDun = zardluudWithDun.filter(
-          (zardal) => zardal.zardliinTurul !== "Лифт"
+        const liftCharges = zardluudWithDun.filter(z => 
+          z.zardliinTurul === "Лифт" || 
+          (z.ner && z.ner.trim() === "Лифт") ||
+          (z.ner && z.ner.includes("Лифт")) ||
+          (z.dun === liftTariff && z.tariff === liftTariff)
         );
+        console.log(`🚫 [LIFT] Final check - Found ${liftCharges.length} Лифт charges to remove for floor ${davkharStr} (liftTariff: ${liftTariff}):`, liftCharges.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, dun: z.dun, tariff: z.tariff })));
+        zardluudWithDun = zardluudWithDun.filter((zardal) => {
+          if (zardal.zardliinTurul === "Лифт") return false;
+          if (zardal.ner && zardal.ner.trim() === "Лифт") return false;
+          if (zardal.ner && zardal.ner.includes("Лифт")) return false;
+          if (liftTariff !== null && (zardal.dun === liftTariff || zardal.tariff === liftTariff)) return false;
+          return true;
+        });
         const afterCount = zardluudWithDun.length;
         console.log(`🚫 [LIFT] Final check - Removed Лифт charge for floor ${davkharStr}. Before: ${beforeCount}, After: ${afterCount}`);
         console.log(`🔍 [LIFT] zardluudWithDun after removal:`, zardluudWithDun.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, dun: z.dun })));
@@ -992,10 +1017,21 @@ const gereeNeesNekhemjlekhUusgekh = async (
       const davkharStr = String(tempData.davkhar);
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
-        const liftCountBefore = zardluudWithDun.filter(z => z.zardliinTurul === "Лифт").length;
+        const liftCountBefore = zardluudWithDun.filter(z => {
+          if (z.zardliinTurul === "Лифт") return true;
+          if (z.ner && z.ner.includes("Лифт")) return true;
+          if (liftTariff !== null && (z.dun === liftTariff || z.tariff === liftTariff)) return true;
+          return false;
+        }).length;
         if (liftCountBefore > 0) {
-          console.log(`🚫 [LIFT] LAST CHANCE - Removing ${liftCountBefore} Лифт charges before saving invoice for floor ${davkharStr}`);
-          zardluudWithDun = zardluudWithDun.filter(z => z.zardliinTurul !== "Лифт");
+          console.log(`🚫 [LIFT] LAST CHANCE - Removing ${liftCountBefore} Лифт charges (tariff: ${liftTariff}) before saving invoice for floor ${davkharStr}`);
+          zardluudWithDun = zardluudWithDun.filter(z => {
+            if (z.zardliinTurul === "Лифт") return false;
+            if (z.ner && z.ner.trim() === "Лифт") return false;
+            if (z.ner && z.ner.includes("Лифт")) return false;
+            if (liftTariff !== null && (z.dun === liftTariff || z.tariff === liftTariff)) return false;
+            return true;
+          });
           const correctedZardluudTotalAfter = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
             ? 0
             : zardluudWithDun.reduce((sum, zardal) => sum + (zardal.dun || 0), 0);
