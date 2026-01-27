@@ -43,17 +43,40 @@ liftShalgayaSchema.post("save", async function (doc) {
 
     if (barilgaIndex >= 0) {
       const BaiguullagaModel = Baiguullaga(db.erunkhiiKholbolt);
-      await BaiguullagaModel.collection.updateOne(
-        { _id: doc.baiguullagiinId },
-        {
-          $set: {
-            [`barilguud.${barilgaIndex}.tokhirgoo.liftShalgaya.choloolugdokhDavkhar`]: doc.choloolugdokhDavkhar || []
-          }
+      const baiguullagaObjectId = mongoose.Types.ObjectId.isValid(doc.baiguullagiinId) 
+        ? new mongoose.Types.ObjectId(doc.baiguullagiinId)
+        : doc.baiguullagiinId;
+      const barilgiinObjectId = mongoose.Types.ObjectId.isValid(doc.barilgiinId) 
+        ? new mongoose.Types.ObjectId(doc.barilgiinId)
+        : doc.barilgiinId;
+      
+      const updateData = {
+        $set: {
+          [`barilguud.$[barilga].tokhirgoo.liftShalgaya.choloolugdokhDavkhar`]: doc.choloolugdokhDavkhar || []
         }
+      };
+      
+      const arrayFilters = [
+        { "barilga._id": barilgiinObjectId }
+      ];
+      
+      console.log(`🔍 [LIFTSHALGAYA HOOK] Updating baiguullaga with arrayFilters:`, JSON.stringify(arrayFilters, null, 2));
+      
+      const updateResult = await BaiguullagaModel.collection.updateOne(
+        { _id: baiguullagaObjectId },
+        updateData,
+        { arrayFilters: arrayFilters }
       );
       console.log(
-        `✅ [LIFTSHALGAYA HOOK] Synced liftShalgaya to baiguullaga: ${doc.baiguullagiinId}, barilga: ${doc.barilgiinId}`
+        `✅ [LIFTSHALGAYA HOOK] Synced liftShalgaya to baiguullaga: ${doc.baiguullagiinId}, barilga: ${doc.barilgiinId}, matched: ${updateResult.matchedCount}, modified: ${updateResult.modifiedCount}`
       );
+      
+      if (updateResult.matchedCount === 0) {
+        console.error(`❌ [LIFTSHALGAYA HOOK] No document matched for _id: ${baiguullagaObjectId}`);
+      }
+      if (updateResult.modifiedCount === 0 && updateResult.matchedCount > 0) {
+        console.warn(`⚠️ [LIFTSHALGAYA HOOK] Document matched but not modified. Path might already have the same value.`);
+      }
 
       const baiguullagaAfterUpdate = await Baiguullaga(db.erunkhiiKholbolt).findById(
         doc.baiguullagiinId
@@ -75,13 +98,21 @@ liftShalgayaSchema.post("save", async function (doc) {
           });
           
           const BaiguullagaModel = Baiguullaga(db.erunkhiiKholbolt);
+          const baiguullagaObjectId = mongoose.Types.ObjectId.isValid(doc.baiguullagiinId) 
+            ? new mongoose.Types.ObjectId(doc.baiguullagiinId)
+            : doc.baiguullagiinId;
+          const barilgiinObjectId = mongoose.Types.ObjectId.isValid(doc.barilgiinId) 
+            ? new mongoose.Types.ObjectId(doc.barilgiinId)
+            : doc.barilgiinId;
+          
           await BaiguullagaModel.collection.updateOne(
-            { _id: doc.baiguullagiinId },
+            { _id: baiguullagaObjectId },
             {
               $set: {
-                [`barilguud.${barilgaIndex}.tokhirgoo.ashiglaltiinZardluud`]: updatedZardluud
+                [`barilguud.$[barilga].tokhirgoo.ashiglaltiinZardluud`]: updatedZardluud
               }
-            }
+            },
+            { arrayFilters: [{ "barilga._id": barilgiinObjectId }] }
           );
           console.log(
             `✅ [LIFTSHALGAYA HOOK] Updated choloolugdsonDavkhar to true for lift zardals`
