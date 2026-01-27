@@ -414,7 +414,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       const ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
       
       filteredZardluud = ashiglaltiinZardluud.map(zardal => {
-        const dun = zardal.dun && zardal.dun > 0 ? zardal.dun : (zardal.tariff || 0);
+        const dun = (zardal.dun > 0) ? zardal.dun : (zardal.tariff || 0);
         return {
           ...zardal,
           dun: dun,
@@ -876,7 +876,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       if (zardal.zaalt === true) {
         return zardal;
       }
-      const dun = zardal.dun && zardal.dun > 0 ? zardal.dun : (zardal.tariff || 0);
+      const dun = zardal.dun > 0 ? zardal.dun : (zardal.tariff || 0);
       return {
         ...zardal,
         dun: dun
