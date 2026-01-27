@@ -108,7 +108,6 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
       // Call downloadExcelList function directly
       return exports.downloadExcelList(req, res, next);
     } catch (error) {
-      console.error("Error downloading nekhemjlekhiinTuukh Excel:", error);
       next(error);
     }
   }
@@ -158,7 +157,6 @@ exports.downloadEbarimtExcel = asyncHandler(async (req, res, next) => {
     // Call downloadExcelList function directly
     return exports.downloadExcelList(req, res, next);
   } catch (error) {
-    console.error("Error downloading ebarimt Excel:", error);
     next(error);
   }
 });
@@ -241,7 +239,6 @@ exports.downloadBankniiGuilgeeExcel = asyncHandler(async (req, res, next) => {
           dansMap[key] = dans.dugaar || "";
         }
       } catch (dansError) {
-        console.error(`Error fetching dans for ${key}:`, dansError);
         dansMap[key] = "";
       }
     }
@@ -276,7 +273,6 @@ exports.downloadBankniiGuilgeeExcel = asyncHandler(async (req, res, next) => {
     // Call downloadExcelList function directly
     return exports.downloadExcelList(req, res, next);
   } catch (error) {
-    console.error("Error downloading bankniiGuilgee Excel:", error);
     next(error);
   }
 });
@@ -450,7 +446,6 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
     // Call downloadExcelList function directly
     return exports.downloadExcelList(req, res, next);
   } catch (error) {
-    console.error("Error downloading guilgeeniiTuukh Excel:", error);
     next(error);
   }
 });
@@ -607,7 +602,6 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
 
     res.send(excelBuffer);
   } catch (error) {
-    console.error("Error generating Excel download:", error);
     next(error);
   }
 });
@@ -652,7 +646,6 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
 
     res.send(excelBuffer);
   } catch (error) {
-    console.error("Error generating Excel template:", error);
     next(error);
   }
 });
@@ -781,8 +774,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             }
             await existingOrshinSuugch.save();
             
-            console.log(`✅ [EXCEL IMPORT] Row ${rowNumber}: Updated existing user (toot: ${userData.toot}, davkhar: ${userData.davkhar}) - ekhniiUldegdel: ${existingOrshinSuugch.ekhniiUldegdel}, tsahilgaaniiZaalt: ${existingOrshinSuugch.tsahilgaaniiZaalt}`);
-            
             results.success.push({
               row: rowNumber,
               message: `Шинэчлэгдсэн: Тоот ${userData.toot}, Давхар ${userData.davkhar}`,
@@ -856,9 +847,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           );
           if (matchingBarilga) {
             finalBarilgiinId = String(matchingBarilga._id);
-            console.log(
-              `✅ Using building from Excel column: ${matchingBarilga.ner} (${finalBarilgiinId})`
-            );
           }
         } else if (excelBarilgaName) {
           // If building name is provided in Excel, find by name
@@ -867,9 +855,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           );
           if (matchingBarilga) {
             finalBarilgiinId = String(matchingBarilga._id);
-            console.log(
-              `✅ Found building by name from Excel: ${matchingBarilga.ner} (${finalBarilgiinId})`
-            );
           }
         } else if (
           userData.toot &&
@@ -942,13 +927,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
           if (foundBuilding) {
             finalBarilgiinId = String(foundBuilding._id);
-            console.log(
-              `✅ Found building ${foundBuilding.ner} (${finalBarilgiinId}) for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${matchedToot} (from list: ${tootListToFind.join(", ")})`
-            );
-          } else {
-            console.log(
-              `⚠️  Could not find building for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootRaw}, using default: ${finalBarilgiinId}`
-            );
           }
         }
 
@@ -963,33 +941,19 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           try {
             const email = userData.mail.trim();
             
-            // First, try to get existing user from Wallet API
-            console.log(`📞 [EXCEL IMPORT] Row ${rowNumber}: Checking Wallet API for user ${phoneNumber}...`);
             walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
 
             if (walletUserInfo && walletUserInfo.userId) {
-              // User exists in Wallet API
               walletUserId = walletUserInfo.userId;
-              console.log(`✅ [EXCEL IMPORT] Row ${rowNumber}: User found in Wallet API: ${walletUserId}`);
             } else {
-              // User doesn't exist in Wallet API, register them
-              console.log(`📞 [EXCEL IMPORT] Row ${rowNumber}: Registering user in Wallet API...`);
               walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
 
               if (walletUserInfo && walletUserInfo.userId) {
                 walletUserId = walletUserInfo.userId;
-                console.log(`✅ [EXCEL IMPORT] Row ${rowNumber}: User registered in Wallet API: ${walletUserId}`);
-              } else {
-                console.warn(`⚠️ [EXCEL IMPORT] Row ${rowNumber}: Wallet API registration failed, continuing without walletUserId`);
               }
             }
           } catch (walletError) {
-            console.error(`❌ [EXCEL IMPORT] Row ${rowNumber}: Wallet API error:`, walletError.message);
-            // Continue without Wallet API integration if it fails
-            console.warn(`⚠️ [EXCEL IMPORT] Row ${rowNumber}: Continuing without Wallet API integration`);
           }
-        } else {
-          console.log(`ℹ️ [EXCEL IMPORT] Row ${rowNumber}: No email provided, skipping Wallet API integration`);
         }
 
         // Check if user already exists (by phone number OR walletUserId - unified check)
@@ -1052,11 +1016,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
           // If no toots were found, log warning but allow import to proceed
           if (foundToonuud.length === 0) {
-            console.log(`⚠️  [EXCEL IMPORT] Row ${rowNumber}: Бүртгэлгүй тоот байна: ${tootListToValidate.join(", ")}. Import will proceed with provided toot values.`);
           } else if (foundToonuud.length < tootListToValidate.length) {
-            // Log which toots were found and which were not
             const notFound = tootListToValidate.filter(t => !foundToonuud.includes(t));
-            console.log(`⚠️  [EXCEL IMPORT] Row ${rowNumber}: Some toots not found: ${notFound.join(", ")}. Found: ${foundToonuud.join(", ")}. Import will proceed with all provided toot values.`);
           }
         }
 
@@ -1101,8 +1062,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           // Link to Wallet API (unifies Excel-imported users with website/mobile users)
           ...(walletUserId ? { walletUserId: walletUserId } : {})
         };
-        
-        console.log(`⚡ [EXCEL IMPORT] Setting tsahilgaaniiZaalt in userObject:`, userObject.tsahilgaaniiZaalt);
 
         // If user already exists, update it; otherwise create new
         let orshinSuugch;
@@ -1130,7 +1089,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             ...(walletUserId ? { walletUserId: walletUserId } : {})
           });
           
-          console.log(`⚡ [EXCEL IMPORT] Updated existing user with tsahilgaaniiZaalt:`, orshinSuugch.tsahilgaaniiZaalt);
           // Initialize toots array if it doesn't exist
           if (!orshinSuugch.toots) {
             orshinSuugch.toots = [];
@@ -1148,8 +1106,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             .split(",")
             .map((t) => t.trim())
             .filter((t) => t && t.length > 0); // Filter out empty strings
-          
-          console.log(`🔍 [EXCEL IMPORT] Raw toot: "${tootRaw}", Split into:`, tootList);
           
           // Create a toot entry for each toot
           for (const individualToot of tootList) {
@@ -1174,26 +1130,14 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             );
             
             if (existingTootIndex >= 0) {
-              // Update existing toot entry
               orshinSuugch.toots[existingTootIndex] = tootEntry;
-              console.log(`🔄 [EXCEL IMPORT] Updated existing toot: ${individualToot}`);
             } else {
-              // Add new toot to array
               orshinSuugch.toots.push(tootEntry);
-              console.log(`➕ [EXCEL IMPORT] Added new toot: ${individualToot}`);
             }
           }
         }
 
         await orshinSuugch.save();
-        
-        // Verify tsahilgaaniiZaalt was saved
-        const savedOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("tsahilgaaniiZaalt ner utas");
-        console.log(`✅ [EXCEL IMPORT] Verified tsahilgaaniiZaalt saved to orshinSuugch:`, {
-          ner: savedOrshinSuugch?.ner,
-          utas: savedOrshinSuugch?.utas,
-          tsahilgaaniiZaalt: savedOrshinSuugch?.tsahilgaaniiZaalt
-        });
 
         // Create gerees for all OWN_ORG toots that don't have gerees yet
         if (orshinSuugch.toots && Array.isArray(orshinSuugch.toots) && orshinSuugch.toots.length > 0) {
@@ -1201,8 +1145,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           
           for (const tootEntry of ownOrgToots) {
             try {
-              console.log(`📋 [EXCEL IMPORT] Processing OWN_ORG toot: ${tootEntry.toot} for geree creation...`);
-              
               // Check if geree already exists for this specific toot (user + barilgiinId + toot combination)
               const GereeModel = Geree(tukhainBaaziinKholbolt);
               const existingGeree = await GereeModel.findOne({
@@ -1213,11 +1155,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
               });
 
               if (existingGeree) {
-                console.log(`ℹ️ [EXCEL IMPORT] Geree already exists for toot ${tootEntry.toot}:`, existingGeree._id);
                 continue;
               }
-              
-              console.log(`📋 [EXCEL IMPORT] No active geree found for toot ${tootEntry.toot} - creating new geree...`);
               
               // Get ashiglaltiinZardluud from barilga
               const targetBarilgaForToot = baiguullaga.barilguud?.find(
@@ -1225,7 +1164,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
               );
 
               if (!targetBarilgaForToot) {
-                console.error(`❌ [EXCEL IMPORT] Target barilga not found for toot ${tootEntry.toot}`);
                 continue;
               }
 
@@ -1319,7 +1257,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
               const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
               await geree.save();
-              console.log(`✅ [EXCEL IMPORT] Geree created for toot ${tootEntry.toot}:`, geree._id);
 
               // Update davkhar with toot if provided
               if (tootEntry.toot && tootEntry.davkhar) {
@@ -1331,7 +1268,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                   tootEntry.toot,
                   tukhainBaaziinKholbolt
                 );
-                console.log(`✅ [EXCEL IMPORT] Davkhar updated with toot ${tootEntry.toot}`);
               }
 
               // Create invoice for this geree
@@ -1344,27 +1280,15 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 );
 
                 if (!invoiceResult.success) {
-                  console.error(
-                    `❌ [EXCEL IMPORT] Invoice creation failed for toot ${tootEntry.toot}:`,
-                    invoiceResult.error
-                  );
-                } else {
-                  console.log(`✅ [EXCEL IMPORT] Invoice created for toot ${tootEntry.toot}`);
                 }
               } catch (invoiceError) {
-                console.error(
-                  `❌ [EXCEL IMPORT] Error creating invoice for toot ${tootEntry.toot}:`,
-                  invoiceError.message
-                );
               }
             } catch (tootGereeError) {
-              console.error(`❌ [EXCEL IMPORT] Error creating geree for toot ${tootEntry.toot}:`, tootGereeError.message);
               // Continue with next toot if this one fails
             }
           }
         } else {
           // Backward compatibility: if toots array is empty but old fields exist, create geree for primary toot
-          console.log("📋 [EXCEL IMPORT] No toots array found, using backward compatibility mode...");
           
           // Include all charges for the baiguullaga (same as regular registration)
           const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
@@ -1444,17 +1368,9 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             segmentuud: [],
             khungulultuud: [],
           };
-          
-          console.log(`⚡ [EXCEL IMPORT] Setting electricity readings in geree:`, {
-            gereeniiDugaar: contractData.gereeniiDugaar,
-            tsahilgaaniiZaalt: tsahilgaaniiZaalt,
-            umnukhZaalt: contractData.umnukhZaalt,
-            suuliinZaalt: contractData.suuliinZaalt
-          });
 
           const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
           await geree.save();
-          console.log(`✅ [EXCEL IMPORT] Geree created (backward compatibility):`, geree._id);
 
           // Update davkhar with toot if provided
           if (userObject.toot && userData.davkhar) {
@@ -1477,16 +1393,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             );
 
             if (!invoiceResult.success) {
-              console.error(
-                `❌ [EXCEL IMPORT] Invoice creation failed for user ${userData.utas}:`,
-                invoiceResult.error
-              );
             }
           } catch (invoiceError) {
-            console.error(
-              `❌ [EXCEL IMPORT] Error creating invoice for user ${userData.utas}:`,
-              invoiceError.message
-            );
           }
         }
 
@@ -1512,7 +1420,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
       result: results,
     });
   } catch (error) {
-    console.error("Excel оруулахад алдаа гарлаа:", error);
     next(error);
   }
 });
@@ -1551,7 +1458,6 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
 
       res.send(excelBuffer);
     } catch (error) {
-      console.error("Error generating tootBurtgel Excel template:", error);
       next(error);
     }
   }
@@ -1686,10 +1592,6 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
           .map((t) => t.trim())
           .filter((t) => t && t.length > 0); // Filter out empty strings
 
-        console.log("🔍 [TOOT IMPORT] Raw toot:", tootRaw);
-        console.log("🔍 [TOOT IMPORT] Split tootList:", tootList);
-        console.log("🔍 [TOOT IMPORT] tootList length:", tootList.length);
-
         if (tootList.length === 0) {
           throw new Error("Тоот хоосон");
         }
@@ -1701,13 +1603,9 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
             validationErrors.push(`Тоот "${toot}" буруу форматтай байна`);
             continue;
           }
-          console.log("🔍 [TOOT IMPORT] Validating individual toot:", toot);
           const tootValidationError = shalguurValidate(toot, "Тоот");
           if (tootValidationError) {
-            console.log("❌ [TOOT IMPORT] Validation failed for toot:", toot, "Error:", tootValidationError);
             validationErrors.push(`${tootValidationError} (Тоот: "${toot}")`);
-          } else {
-            console.log("✅ [TOOT IMPORT] Validation passed for toot:", toot);
           }
         }
 
@@ -1717,7 +1615,6 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
         // Create a separate tootBurtgel record for each toot
         const createdTootBurtgelIds = [];
-        console.log("📝 [TOOT IMPORT] Creating", tootList.length, "tootBurtgel records...");
         for (const toot of tootList) {
           const tootBurtgelData = {
             kharagdakhDugaar: toot,
@@ -1736,9 +1633,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
           );
           await tootBurtgel.save();
           createdTootBurtgelIds.push(tootBurtgel._id.toString());
-          console.log("✅ [TOOT IMPORT] Created tootBurtgel for toot:", toot, "ID:", tootBurtgel._id.toString());
         }
-        console.log("📝 [TOOT IMPORT] Total records created:", createdTootBurtgelIds.length);
 
         // Update davkhar and davkhariinToonuud if davkhar and orts are provided
         if (davkhar && tootList.length > 0) {

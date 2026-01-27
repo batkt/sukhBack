@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const { crud, UstsanBarimt, tokenShalgakh } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
 const { downloadNekhemjlekhiinTuukhExcel } = require("../controller/excelImportController");
-const { gereeNeesNekhemjlekhUusgekhPreviousMonth, markInvoicesAsPaid } = require("../controller/nekhemjlekhController");
+const { gereeNeesNekhemjlekhUusgekhPreviousMonth, markInvoicesAsPaid, previewInvoice, manualSendInvoice, manualSendMassInvoices } = require("../controller/nekhemjlekhController");
 const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const { db } = require("zevbackv2");
@@ -198,5 +198,128 @@ router.post(
   tokenShalgakh,
   markInvoicesAsPaid
 );
+
+// Preview invoice before sending
+// GET /nekhemjlekh/preview?gereeId=xxx&baiguullagiinId=xxx&barilgiinId=xxx&targetMonth=1&targetYear=2026
+router.get("/preview", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { gereeId, baiguullagiinId, barilgiinId, targetMonth, targetYear } = req.query;
+
+    if (!gereeId || !baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "gereeId болон baiguullagiinId шаардлагатай",
+      });
+    }
+
+    const month = targetMonth ? parseInt(targetMonth) : null;
+    const year = targetYear ? parseInt(targetYear) : null;
+
+    const result = await previewInvoice(
+      gereeId,
+      baiguullagiinId,
+      barilgiinId || null,
+      month,
+      year
+    );
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (error) {
+    console.error("Preview invoice error:", error);
+    next(error);
+  }
+});
+
+// Manual send single invoice
+// POST /nekhemjlekh/manualSend
+// Body: { gereeId, baiguullagiinId, override: true/false, targetMonth: 1, targetYear: 2026 }
+router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { gereeId, baiguullagiinId, override = false, targetMonth, targetYear } = req.body;
+
+    if (!gereeId || !baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "gereeId болон baiguullagiinId шаардлагатай",
+      });
+    }
+
+    const month = targetMonth ? parseInt(targetMonth) : null;
+    const year = targetYear ? parseInt(targetYear) : null;
+
+    const result = await manualSendInvoice(
+      gereeId,
+      baiguullagiinId,
+      override === true || override === "true",
+      month,
+      year
+    );
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: "Нэхэмжлэх амжилттай үүсгэгдлээ",
+        data: result,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: result.error || "Нэхэмжлэх үүсгэхэд алдаа гарлаа",
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    console.error("Manual send invoice error:", error);
+    next(error);
+  }
+});
+
+// Manual send mass invoices
+// POST /nekhemjlekh/manualSendMass
+// Body: { baiguullagiinId, barilgiinId (optional), override: true/false, targetMonth: 1, targetYear: 2026 }
+router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { baiguullagiinId, barilgiinId, override = false, targetMonth, targetYear } = req.body;
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId шаардлагатай",
+      });
+    }
+
+    const month = targetMonth ? parseInt(targetMonth) : null;
+    const year = targetYear ? parseInt(targetYear) : null;
+
+    const result = await manualSendMassInvoices(
+      baiguullagiinId,
+      barilgiinId || null,
+      override === true || override === "true",
+      month,
+      year
+    );
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: `${result.created} нэхэмжлэх амжилттай үүсгэгдлээ`,
+        data: result,
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: result.error || "Нэхэмжлэхүүд үүсгэхэд алдаа гарлаа",
+        error: result.error,
+      });
+    }
+  } catch (error) {
+    console.error("Manual send mass invoices error:", error);
+    next(error);
+  }
+});
 
 module.exports = router;

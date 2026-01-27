@@ -1753,9 +1753,376 @@ const markInvoicesAsPaid = asyncHandler(async (req, res, next) => {
   }
 });
 
+const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth = null, targetYear = null) => {
+  try {
+    const { db } = require("zevbackv2");
+    const Geree = require("../models/geree");
+    const Baiguullaga = require("../models/baiguullaga");
+    const OrshinSuugch = require("../models/orshinSuugch");
+    const NekhemjlekhCron = require("../models/cronSchedule");
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return { success: false, error: "Холболтын мэдээлэл олдсонгүй!" };
+    }
+
+    const geree = await Geree(tukhainBaaziinKholbolt).findById(gereeId).lean();
+    if (!geree) {
+      return { success: false, error: "Гэрээ олдсонгүй!" };
+    }
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
+    if (!baiguullaga) {
+      return { success: false, error: "Байгууллага олдсонгүй!" };
+    }
+
+    const currentDate = targetMonth !== null && targetYear !== null
+      ? new Date(targetYear, targetMonth - 1, 1)
+      : new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    const targetBarilga = baiguullaga?.barilguud?.find(
+      (b) => String(b._id) === String(barilgiinId || geree.barilgiinId || "")
+    );
+
+    const ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
+    
+    let filteredZardluud = ashiglaltiinZardluud
+      .filter(zardal => zardal.zaalt !== true)
+      .map(zardal => {
+        const dun = (zardal.dun > 0) ? zardal.dun : (zardal.tariff || 0);
+        return { ...zardal, dun: dun };
+      });
+
+    filteredZardluud = normalizeZardluudTurul(filteredZardluud);
+
+    let choloolugdokhDavkhar = [];
+    let liftTariff = null;
+
+    if (geree.davkhar && geree.barilgiinId && geree.baiguullagiinId) {
+      choloolugdokhDavkhar = targetBarilga?.tokhirgoo?.liftShalgaya?.choloolugdokhDavkhar || [];
+      
+      const liftZardalFromBuilding = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud?.find(
+        z => z.zardliinTurul === "Лифт" || (z.ner && z.ner.includes("Лифт"))
+      );
+      if (liftZardalFromBuilding) {
+        liftTariff = liftZardalFromBuilding.tariff || liftZardalFromBuilding.dun;
+      }
+
+      if (choloolugdokhDavkhar.length === 0 && geree.barilgiinId) {
+        try {
+          const LiftShalgaya = require("../models/liftShalgaya");
+          const liftShalgayaRecord = await LiftShalgaya(tukhainBaaziinKholbolt).findOne({
+            baiguullagiinId: String(geree.baiguullagiinId),
+            barilgiinId: String(geree.barilgiinId)
+          }).lean();
+          
+          if (liftShalgayaRecord?.choloolugdokhDavkhar && liftShalgayaRecord.choloolugdokhDavkhar.length > 0) {
+            choloolugdokhDavkhar = liftShalgayaRecord.choloolugdokhDavkhar;
+          }
+        } catch (error) {
+          console.error("Error fetching liftShalgaya:", error.message);
+        }
+      }
+
+      const davkharStr = String(geree.davkhar);
+      const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
+      
+      if (choloolugdokhDavkharStr.includes(davkharStr)) {
+        filteredZardluud = filteredZardluud.filter(
+          (zardal) => 
+            zardal.zardliinTurul !== "Лифт" && 
+            !(zardal.ner && zardal.ner.trim() === "Лифт") &&
+            !(zardal.ner && zardal.ner.includes("Лифт")) &&
+            !(liftTariff !== null && (zardal.dun === liftTariff || zardal.tariff === liftTariff))
+        );
+      }
+    }
+
+    let ekhniiUldegdelAmount = 0;
+    if (geree.orshinSuugchId) {
+      try {
+        const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+          .findById(geree.orshinSuugchId)
+          .select("ekhniiUldegdel")
+          .lean();
+        if (orshinSuugch && orshinSuugch.ekhniiUldegdel) {
+          ekhniiUldegdelAmount = orshinSuugch.ekhniiUldegdel;
+        }
+      } catch (error) {
+        console.error("Error fetching ekhniiUldegdel:", error.message);
+      }
+    }
+
+    let zardluudWithDun = filteredZardluud.map((zardal) => {
+      if (zardal.zaalt === true) return zardal;
+      const dun = zardal.dun > 0 ? zardal.dun : (zardal.tariff || 0);
+      const result = { ...zardal, dun: dun, zardliinTurul: zardal.zardliinTurul || "Энгийн" };
+      if (result.dun === 0 && result.tariff > 0) {
+        result.dun = result.tariff;
+      }
+      return result;
+    });
+
+    if (ekhniiUldegdelAmount > 0) {
+      zardluudWithDun.push({
+        ner: "Эхний үлдэгдэл",
+        turul: "Тогтмол",
+        bodokhArga: "тогтмол",
+        zardliinTurul: "Энгийн",
+        tariff: ekhniiUldegdelAmount,
+        tariffUsgeer: "₮",
+        dun: ekhniiUldegdelAmount,
+        zaalt: false,
+        ognoonuud: [],
+        nuatNemekhEsekh: false,
+        nuatBodokhEsekh: false,
+        tseverUsDun: 0,
+        bokhirUsDun: 0,
+        usKhalaasniiDun: 0,
+        tsakhilgaanUrjver: 1,
+        tsakhilgaanChadal: 0,
+        tsakhilgaanDemjikh: 0,
+        suuriKhuraamj: 0,
+        togtmolUtga: 0,
+        choloolugdsonDavkhar: false,
+      });
+    }
+
+    const zardluudTotal = zardluudWithDun.reduce((sum, zardal) => sum + (zardal.dun || 0), 0);
+    const finalNiitTulbur = zardluudTotal + ekhniiUldegdelAmount;
+
+    let tulukhOgnoo = null;
+    try {
+      let cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
+        baiguullagiinId: String(baiguullagiinId),
+        barilgiinId: barilgiinId ? String(barilgiinId) : null,
+      });
+      
+      if (!cronSchedule) {
+        cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
+          baiguullagiinId: String(baiguullagiinId),
+          barilgiinId: null,
+        });
+      }
+
+      if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
+        const today = new Date();
+        const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
+        let nextMonth = currentMonth + 1;
+        let nextYear = currentYear;
+        if (nextMonth > 11) {
+          nextMonth = 0;
+          nextYear = currentYear + 1;
+        }
+        const lastDayOfNextMonth = new Date(nextYear, nextMonth + 1, 0).getDate();
+        const dayToUse = Math.min(scheduledDay, lastDayOfNextMonth);
+        tulukhOgnoo = new Date(nextYear, nextMonth, dayToUse, 0, 0, 0, 0);
+      }
+    } catch (error) {
+      console.error("Error fetching cron schedule:", error.message);
+    }
+
+    if (!tulukhOgnoo) {
+      tulukhOgnoo = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    }
+
+    const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+
+    const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+    const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).findOne({
+      gereeniiId: String(gereeId),
+      $or: [
+        { ognoo: { $gte: monthStart, $lte: monthEnd } },
+        { createdAt: { $gte: monthStart, $lte: monthEnd } }
+      ]
+    }).lean();
+
+    return {
+      success: true,
+      preview: {
+        gereeniiDugaar: geree.gereeniiDugaar,
+        gereeniiId: geree._id,
+        ner: geree.ner,
+        ovog: geree.ovog,
+        utas: geree.utas,
+        davkhar: geree.davkhar,
+        toot: geree.toot,
+        zardluud: zardluudWithDun,
+        zardluudTotal: zardluudTotal,
+        ekhniiUldegdel: ekhniiUldegdelAmount,
+        niitTulbur: finalNiitTulbur,
+        tulukhOgnoo: tulukhOgnoo,
+        ognoo: new Date(),
+        existingInvoice: existingInvoice ? {
+          _id: existingInvoice._id,
+          nekhemjlekhiinDugaar: existingInvoice.nekhemjlekhiinDugaar,
+          niitTulbur: existingInvoice.niitTulbur,
+          tuluv: existingInvoice.tuluv,
+          ognoo: existingInvoice.ognoo,
+        } : null,
+      }
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, targetMonth = null, targetYear = null) => {
+  try {
+    const { db } = require("zevbackv2");
+    const Geree = require("../models/geree");
+    const Baiguullaga = require("../models/baiguullaga");
+    const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return { success: false, error: "Холболтын мэдээлэл олдсонгүй!" };
+    }
+
+    const geree = await Geree(tukhainBaaziinKholbolt).findById(gereeId).lean();
+    if (!geree) {
+      return { success: false, error: "Гэрээ олдсонгүй!" };
+    }
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
+    if (!baiguullaga) {
+      return { success: false, error: "Байгууллага олдсонгүй!" };
+    }
+
+    const currentDate = targetMonth !== null && targetYear !== null
+      ? new Date(targetYear, targetMonth - 1, 1)
+      : new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
+
+    if (override) {
+      const existingInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).find({
+        gereeniiId: String(gereeId),
+        $or: [
+          { ognoo: { $gte: monthStart, $lte: monthEnd } },
+          { createdAt: { $gte: monthStart, $lte: monthEnd } }
+        ]
+      });
+
+      for (const invoice of existingInvoices) {
+        await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: invoice._id });
+        console.log(`🗑️ [MANUAL SEND] Deleted existing invoice: ${invoice.nekhemjlekhiinDugaar || invoice._id}`);
+      }
+    }
+
+    const gereeObj = geree.toObject ? geree.toObject() : geree;
+    const result = await gereeNeesNekhemjlekhUusgekh(
+      gereeObj,
+      baiguullaga,
+      tukhainBaaziinKholbolt,
+      "manual",
+      true
+    );
+
+    return result;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, override = false, targetMonth = null, targetYear = null) => {
+  try {
+    const { db } = require("zevbackv2");
+    const Geree = require("../models/geree");
+    const Baiguullaga = require("../models/baiguullaga");
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return { success: false, error: "Холболтын мэдээлэл олдсонгүй!" };
+    }
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
+    if (!baiguullaga) {
+      return { success: false, error: "Байгууллага олдсонгүй!" };
+    }
+
+    const gereeQuery = {
+      baiguullagiinId: String(baiguullagiinId),
+      tuluv: "Идэвхтэй",
+    };
+
+    if (barilgiinId) {
+      gereeQuery.barilgiinId = String(barilgiinId);
+    }
+
+    const gerees = await Geree(tukhainBaaziinKholbolt).find(gereeQuery).lean();
+
+    const results = {
+      success: true,
+      total: gerees.length,
+      created: 0,
+      errors: 0,
+      invoices: [],
+      errorsList: [],
+    };
+
+    for (let i = 0; i < gerees.length; i++) {
+      const geree = gerees[i];
+      try {
+        const gereeObj = geree.toObject ? geree.toObject() : geree;
+        const invoiceResult = await manualSendInvoice(
+          geree._id,
+          baiguullagiinId,
+          override,
+          targetMonth,
+          targetYear
+        );
+
+        if (invoiceResult.success) {
+          results.created++;
+          results.invoices.push({
+            gereeniiDugaar: geree.gereeniiDugaar,
+            nekhemjlekhiinId: invoiceResult.nekhemjlekh?._id || invoiceResult.nekhemjlekh,
+            tulbur: invoiceResult.tulbur,
+          });
+        } else {
+          results.errors++;
+          results.errorsList.push({
+            gereeniiDugaar: geree.gereeniiDugaar,
+            error: invoiceResult.error || "Unknown error",
+          });
+        }
+      } catch (error) {
+        results.errors++;
+        results.errorsList.push({
+          gereeniiDugaar: geree.gereeniiDugaar,
+          error: error.message || "Unknown error",
+        });
+      }
+    }
+
+    return results;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
   gereeNeesNekhemjlekhUusgekhPreviousMonth,
   updateGereeAndNekhemjlekhFromZardluud,
   markInvoicesAsPaid,
+  previewInvoice,
+  manualSendInvoice,
+  manualSendMassInvoices,
 };
