@@ -52,7 +52,7 @@ liftShalgayaSchema.post("save", async function (doc) {
         barilgaIndex
       ].tokhirgoo.liftShalgaya.choloolugdokhDavkhar = doc.choloolugdokhDavkhar || [];
       
-      await baiguullaga.save();
+      await baiguullaga.save({ validateBeforeSave: false });
       console.log(
         `✅ [LIFTSHALGAYA HOOK] Synced liftShalgaya to baiguullaga: ${doc.baiguullagiinId}, barilga: ${doc.barilgiinId}`
       );
@@ -73,7 +73,7 @@ liftShalgayaSchema.post("save", async function (doc) {
           });
         
         if (updated) {
-          await baiguullaga.save();
+          await baiguullaga.save({ validateBeforeSave: false });
           console.log(
             `✅ [LIFTSHALGAYA HOOK] Updated choloolugdsonDavkhar to true for lift zardals`
           );
