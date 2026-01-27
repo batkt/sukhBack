@@ -413,13 +413,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
       
       const ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
       
-      filteredZardluud = ashiglaltiinZardluud.map(zardal => {
-        const dun = (zardal.dun > 0) ? zardal.dun : (zardal.tariff || 0);
-        return {
-          ...zardal,
-          dun: dun,
-        };
-      });
+      filteredZardluud = ashiglaltiinZardluud
+        .filter(zardal => zardal.zaalt !== true)
+        .map(zardal => {
+          const dun = (zardal.dun > 0) ? zardal.dun : (zardal.tariff || 0);
+          return {
+            ...zardal,
+            dun: dun,
+          };
+        });
     } catch (error) {
       console.error("Error fetching ashiglaltiinZardluud:", error.message);
       filteredZardluud = (tempData.zardluud || []).map(zardal => ({
@@ -431,8 +433,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
     filteredZardluud = normalizeZardluudTurul(filteredZardluud);
     
     let choloolugdokhDavkhar = [];
-    
-    if (tempData.davkhar) {
+
+    if (tempData.davkhar && tempData.barilgiinId && tempData.baiguullagiinId) {
       const { db } = require("zevbackv2");
       const Baiguullaga = require("../models/baiguullaga");
       const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
@@ -444,7 +446,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       );
 
       choloolugdokhDavkhar = targetBarilga?.tokhirgoo?.liftShalgaya?.choloolugdokhDavkhar || [];
-      
+
       console.log(`🔍 [LIFT] Initial check - Floor: ${tempData.davkhar}, Exempted from baiguullaga:`, choloolugdokhDavkhar);
       
       if (choloolugdokhDavkhar.length === 0 && tempData.barilgiinId) {
@@ -990,6 +992,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
       remainingPositiveBalance,
       zardluudCount: zardluudWithDun.length,
       isAvlagaOnlyInvoice,
+      zardluudBreakdown: zardluudWithDun.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, dun: z.dun, tariff: z.tariff })),
+      davkhar: tempData.davkhar,
+      choloolugdokhDavkhar: choloolugdokhDavkhar,
     });
     
     tuukh.medeelel = {
