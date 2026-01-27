@@ -76,11 +76,10 @@ router.delete("/orshinSuugch/:id", tokenShalgakh, orshinSuugchUstgakh);
 // Use crud for other operations (GET, POST, PUT) but not DELETE
 router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
   try {
-    const { db } = require("zevbackv2");
     const body = req.query;
     
     // Extract baiguullagiinId and barilgiinId from query params
-    const baiguullagiinId = body.baiguullagiinId || req.body?.baiguullagiinId;
+    const baiguullagiinId = body.baiguullagiinId;
     const barilgiinId = body.barilgiinId;
     
     // baiguullagiinId is required to determine which database to use
@@ -92,9 +91,18 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       });
     }
     
+    // Validate db and kholboltuud exist
+    if (!db || !db.kholboltuud || !Array.isArray(db.kholboltuud)) {
+      return res.status(500).json({
+        success: false,
+        message: "Холболтын мэдээлэл алдаатай байна!",
+        aldaa: "Холболтын мэдээлэл алдаатай байна!",
+      });
+    }
+    
     // Get tenant-specific database connection
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
+      (kholbolt) => kholbolt && String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
     );
     
     if (!tukhainBaaziinKholbolt) {
@@ -164,14 +172,13 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
 
 router.get("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
   try {
-    const { db } = require("zevbackv2");
-    const baiguullagiinId = req.query.baiguullagiinId || req.body?.baiguullagiinId;
+    const baiguullagiinId = req.query.baiguullagiinId;
     
     // If baiguullagiinId is provided, use tenant-specific database
     let kholbolt = db.erunkhiiKholbolt;
-    if (baiguullagiinId) {
+    if (baiguullagiinId && db && db.kholboltuud && Array.isArray(db.kholboltuud)) {
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
-        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+        (k) => k && String(k.baiguullagiinId) === String(baiguullagiinId)
       );
       if (tukhainBaaziinKholbolt) {
         kholbolt = tukhainBaaziinKholbolt;
