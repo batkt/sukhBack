@@ -76,7 +76,35 @@ router.delete("/orshinSuugch/:id", tokenShalgakh, orshinSuugchUstgakh);
 // Use crud for other operations (GET, POST, PUT) but not DELETE
 router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
   try {
+    const { db } = require("zevbackv2");
     const body = req.query;
+    
+    // Extract baiguullagiinId and barilgiinId from query params
+    const baiguullagiinId = body.baiguullagiinId || req.body?.baiguullagiinId;
+    const barilgiinId = body.barilgiinId;
+    
+    // baiguullagiinId is required to determine which database to use
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "Байгууллагын ID заавал бөглөх шаардлагатай!",
+        aldaa: "Байгууллагын ID заавал бөглөх шаардлагатай!",
+      });
+    }
+    
+    // Get tenant-specific database connection
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (kholbolt) => String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
+    );
+    
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын холболт олдсонгүй!",
+        aldaa: "Байгууллагын холболт олдсонгүй!",
+      });
+    }
+    
     const {
       query = {},
       order,
@@ -86,6 +114,7 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       collation = {},
       select = {},
     } = body;
+    
     if (!!body?.query) body.query = JSON.parse(body.query);
     if (!!body?.order) body.order = JSON.parse(body.order);
     if (!!body?.select) body.select = JSON.parse(body.select);
@@ -94,14 +123,26 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
     if (!!body?.khuudasniiKhemjee)
       body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
-    let jagsaalt = await OrshinSuugch(db.erunkhiiKholbolt)
+    
+    // Add baiguullagiinId filter (required)
+    if (!body.query.baiguullagiinId) {
+      body.query.baiguullagiinId = baiguullagiinId;
+    }
+    
+    // Add barilgiinId filter if provided
+    if (barilgiinId) {
+      body.query.barilgiinId = barilgiinId;
+    }
+    
+    // Use tenant-specific database instead of main database
+    let jagsaalt = await OrshinSuugch(tukhainBaaziinKholbolt)
       .find(body.query)
       .sort(body.order)
       .collation(body.collation ? body.collation : {})
       .select(body.select)
       .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
       .limit(body.khuudasniiKhemjee);
-    let niitMur = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments(
+    let niitMur = await OrshinSuugch(tukhainBaaziinKholbolt).countDocuments(
       body.query
     );
     let niitKhuudas =
@@ -123,9 +164,21 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
 
 router.get("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
   try {
-    const result = await OrshinSuugch(db.erunkhiiKholbolt).findById(
-      req.params.id
-    );
+    const { db } = require("zevbackv2");
+    const baiguullagiinId = req.query.baiguullagiinId || req.body?.baiguullagiinId;
+    
+    // If baiguullagiinId is provided, use tenant-specific database
+    let kholbolt = db.erunkhiiKholbolt;
+    if (baiguullagiinId) {
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      );
+      if (tukhainBaaziinKholbolt) {
+        kholbolt = tukhainBaaziinKholbolt;
+      }
+    }
+    
+    const result = await OrshinSuugch(kholbolt).findById(req.params.id);
     if (result != null) result.key = result._id;
     res.send(result);
   } catch (error) {
