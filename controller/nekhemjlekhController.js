@@ -430,6 +430,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
     
     filteredZardluud = normalizeZardluudTurul(filteredZardluud);
     
+    let choloolugdokhDavkhar = [];
+    
     if (tempData.davkhar) {
       const { db } = require("zevbackv2");
       const Baiguullaga = require("../models/baiguullaga");
@@ -441,7 +443,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
         (b) => String(b._id) === String(tempData.barilgiinId || "")
       );
 
-      let choloolugdokhDavkhar = targetBarilga?.tokhirgoo?.liftShalgaya?.choloolugdokhDavkhar || [];
+      choloolugdokhDavkhar = targetBarilga?.tokhirgoo?.liftShalgaya?.choloolugdokhDavkhar || [];
       
       console.log(`🔍 [LIFT] Initial check - Floor: ${tempData.davkhar}, Exempted from baiguullaga:`, choloolugdokhDavkhar);
       
@@ -460,15 +462,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
             console.log(`✅ [LIFT] Found in collection, syncing to baiguullaga:`, choloolugdokhDavkhar);
             
             if (targetBarilga) {
-              if (!targetBarilga.tokhirgoo) {
-                targetBarilga.tokhirgoo = {};
+              try {
+                if (!targetBarilga.tokhirgoo) {
+                  targetBarilga.tokhirgoo = {};
+                }
+                if (!targetBarilga.tokhirgoo.liftShalgaya) {
+                  targetBarilga.tokhirgoo.liftShalgaya = {};
+                }
+                targetBarilga.tokhirgoo.liftShalgaya.choloolugdokhDavkhar = choloolugdokhDavkhar;
+                await baiguullaga.save({ validateBeforeSave: false });
+                console.log(`✅ [LIFT] Synced to baiguullaga`);
+              } catch (saveError) {
+                console.error("❌ [LIFT] Error syncing to baiguullaga (non-critical, continuing):", saveError.message);
               }
-              if (!targetBarilga.tokhirgoo.liftShalgaya) {
-                targetBarilga.tokhirgoo.liftShalgaya = {};
-              }
-              targetBarilga.tokhirgoo.liftShalgaya.choloolugdokhDavkhar = choloolugdokhDavkhar;
-              await baiguullaga.save();
-              console.log(`✅ [LIFT] Synced to baiguullaga`);
             }
           }
         } catch (error) {
@@ -856,6 +862,14 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   (gz) => z.ner === gz.ner && z.zardliinTurul === gz.zardliinTurul
                 );
               }
+              if (z.zardliinTurul === "Лифт" && tempData.davkhar) {
+                const davkharStr = String(tempData.davkhar);
+                const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
+                if (choloolugdokhDavkharStr.includes(davkharStr)) {
+                  console.log(`🚫 [LIFT] Removing Лифт charge again during electricity processing for floor ${davkharStr}`);
+                  return false;
+                }
+              }
               return true;
             }
           );
@@ -913,7 +927,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     const normalizedZardluud = normalizeZardluudTurul(finalZardluud);
     
-    const zardluudWithDun = normalizedZardluud.map((zardal) => {
+    let zardluudWithDun = normalizedZardluud.map((zardal) => {
       if (zardal.zaalt === true) {
         return zardal;
       }
@@ -923,6 +937,21 @@ const gereeNeesNekhemjlekhUusgekh = async (
         dun: dun
       };
     });
+    
+    if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
+      const davkharStr = String(tempData.davkhar);
+      const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
+      if (choloolugdokhDavkharStr.includes(davkharStr)) {
+        const beforeCount = zardluudWithDun.length;
+        zardluudWithDun = zardluudWithDun.filter(
+          (zardal) => !(zardal.zardliinTurul === "Лифт")
+        );
+        const afterCount = zardluudWithDun.length;
+        if (beforeCount !== afterCount) {
+          console.log(`🚫 [LIFT] Final check - Removed Лифт charge for floor ${davkharStr}. Before: ${beforeCount}, After: ${afterCount}`);
+        }
+      }
+    }
     
     const correctedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
       ? 0
