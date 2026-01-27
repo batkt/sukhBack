@@ -42,28 +42,30 @@ liftShalgayaSchema.post("save", async function (doc) {
     );
 
     if (barilgaIndex >= 0) {
-      if (!baiguullaga.barilguud[barilgaIndex].tokhirgoo) {
-        baiguullaga.barilguud[barilgaIndex].tokhirgoo = {};
-      }
-      if (!baiguullaga.barilguud[barilgaIndex].tokhirgoo.liftShalgaya) {
-        baiguullaga.barilguud[barilgaIndex].tokhirgoo.liftShalgaya = {};
-      }
-      baiguullaga.barilguud[
-        barilgaIndex
-      ].tokhirgoo.liftShalgaya.choloolugdokhDavkhar = doc.choloolugdokhDavkhar || [];
-      
-      await baiguullaga.save({ validateBeforeSave: false });
+      const BaiguullagaModel = Baiguullaga(db.erunkhiiKholbolt);
+      await BaiguullagaModel.collection.updateOne(
+        { _id: doc.baiguullagiinId },
+        {
+          $set: {
+            [`barilguud.${barilgaIndex}.tokhirgoo.liftShalgaya.choloolugdokhDavkhar`]: doc.choloolugdokhDavkhar || []
+          }
+        }
+      );
       console.log(
         `✅ [LIFTSHALGAYA HOOK] Synced liftShalgaya to baiguullaga: ${doc.baiguullagiinId}, barilga: ${doc.barilgiinId}`
       );
 
-      // Update choloolugdsonDavkhar to true for lift zardals in ashiglaltiinZardluud
-      if (baiguullaga.barilguud[barilgaIndex].tokhirgoo?.ashiglaltiinZardluud) {
-        let updated = false;
-        baiguullaga.barilguud[barilgaIndex].tokhirgoo.ashiglaltiinZardluud = 
-          baiguullaga.barilguud[barilgaIndex].tokhirgoo.ashiglaltiinZardluud.map((zardal) => {
+      const baiguullagaAfterUpdate = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        doc.baiguullagiinId
+      ).lean();
+      
+      if (baiguullagaAfterUpdate?.barilguud?.[barilgaIndex]?.tokhirgoo?.ashiglaltiinZardluud) {
+        const ashiglaltiinZardluud = baiguullagaAfterUpdate.barilguud[barilgaIndex].tokhirgoo.ashiglaltiinZardluud;
+        const hasLiftZardal = ashiglaltiinZardluud.some(z => z.zardliinTurul === "Лифт");
+        
+        if (hasLiftZardal) {
+          const updatedZardluud = ashiglaltiinZardluud.map((zardal) => {
             if (zardal.zardliinTurul === "Лифт") {
-              updated = true;
               return {
                 ...zardal,
                 choloolugdsonDavkhar: true
@@ -71,9 +73,16 @@ liftShalgayaSchema.post("save", async function (doc) {
             }
             return zardal;
           });
-        
-        if (updated) {
-          await baiguullaga.save({ validateBeforeSave: false });
+          
+          const BaiguullagaModel = Baiguullaga(db.erunkhiiKholbolt);
+          await BaiguullagaModel.collection.updateOne(
+            { _id: doc.baiguullagiinId },
+            {
+              $set: {
+                [`barilguud.${barilgaIndex}.tokhirgoo.ashiglaltiinZardluud`]: updatedZardluud
+              }
+            }
+          );
           console.log(
             `✅ [LIFTSHALGAYA HOOK] Updated choloolugdsonDavkhar to true for lift zardals`
           );
