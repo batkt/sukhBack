@@ -147,7 +147,6 @@ crud(router, "zogsoolUilchluulegch", Uilchluulegch, UstsanBarimt);
 crud(router, "uilchluulegch", Uilchluulegch, UstsanBarimt);
 crud(router, "kassCameraKhaalt", KassCameraKhaalt, UstsanBarimt);
 
-// Get active Uilchluulegch list (for initial load)
 router.get("/uilchluulegch/active", tokenShalgakh, async (req, res, next) => {
   try {
     const { baiguullagiinId, barilgiinId } = req.query;
@@ -159,7 +158,6 @@ router.get("/uilchluulegch/active", tokenShalgakh, async (req, res, next) => {
       });
     }
     
-    // Get database connection
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
@@ -171,11 +169,10 @@ router.get("/uilchluulegch/active", tokenShalgakh, async (req, res, next) => {
       });
     }
     
-    // Build query - get active (not exited) records
     const query = {
       baiguullagiinId: baiguullagiinId,
-      "tuukh.0.tuluv": { $ne: 1 }, // Not fully paid/exited
-      "tuukh.0.garsanKhaalga": { $exists: false }, // Not exited yet
+      "tuukh.0.tuluv": { $ne: 1 }, 
+      "tuukh.0.garsanKhaalga": { $exists: false }, 
     };
     
     if (barilgiinId) {

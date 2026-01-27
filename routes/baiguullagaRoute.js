@@ -76,12 +76,52 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
     
     // Handle barilguud array - if provided, merge with existing or add new ones
     if (req.body.barilguud && Array.isArray(req.body.barilguud)) {
-      // Separate existing barilguud (with _id) and new barilguud (without _id)
-      const existingBarilguud = req.body.barilguud.filter(b => b._id);
-      const newBarilguud = req.body.barilguud.filter(b => !b._id);
-      
-      // If there are new barilguud, add them to the array
-      if (newBarilguud.length > 0) {
+      // Check if we should replace the entire array (if replaceBarilguud flag is set)
+      if (req.body.replaceBarilguud === true) {
+        // Replace entire barilguud array
+        baiguullaga.barilguud = [];
+        
+        // Process each barilga in the request
+        req.body.barilguud.forEach(barilga => {
+          const newBarilga = { ...barilga };
+          delete newBarilga._id;
+          delete newBarilga.baiguullagiinId;
+          
+          // Ensure bairshil follows the pattern
+          if (!newBarilga.bairshil) {
+            newBarilga.bairshil = { coordinates: [] };
+          } else if (!newBarilga.bairshil.coordinates) {
+            newBarilga.bairshil.coordinates = [];
+          }
+          
+          // Ensure tokhirgoo structure
+          if (!newBarilga.tokhirgoo) {
+            newBarilga.tokhirgoo = {};
+          }
+          if (!newBarilga.tokhirgoo.ashiglaltiinZardluud) {
+            newBarilga.tokhirgoo.ashiglaltiinZardluud = [];
+          }
+          if (!newBarilga.tokhirgoo.liftShalgaya) {
+            newBarilga.tokhirgoo.liftShalgaya = { choloolugdokhDavkhar: [] };
+          }
+          if (!newBarilga.davkharuud) {
+            newBarilga.davkharuud = [];
+          }
+          
+          baiguullaga.barilguud.push(newBarilga);
+        });
+        
+        // Remove barilguud and replaceBarilguud from req.body since we've handled it
+        delete req.body.barilguud;
+        delete req.body.replaceBarilguud;
+      } else {
+        // Default behavior: merge/update existing and add new ones
+        // Separate existing barilguud (with _id) and new barilguud (without _id)
+        const existingBarilguud = req.body.barilguud.filter(b => b._id);
+        const newBarilguud = req.body.barilguud.filter(b => !b._id);
+        
+        // If there are new barilguud, add them to the array
+        if (newBarilguud.length > 0) {
         // Remove baiguullagiinId from new barilguud if present (shouldn't be in subdocuments)
         newBarilguud.forEach(barilga => {
           delete barilga.baiguullagiinId;
@@ -183,26 +223,27 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
         baiguullaga.barilguud.push(...newBarilguud);
       }
       
-      // Update existing barilguud if provided
-      if (existingBarilguud.length > 0) {
-        existingBarilguud.forEach(updatedBarilga => {
-          const barilgaId = updatedBarilga._id;
-          const index = baiguullaga.barilguud.findIndex(
-            b => String(b._id) === String(barilgaId)
-          );
-          
-          if (index >= 0) {
-            delete updatedBarilga._id;
-            delete updatedBarilga.baiguullagiinId;
+        // Update existing barilguud if provided
+        if (existingBarilguud.length > 0) {
+          existingBarilguud.forEach(updatedBarilga => {
+            const barilgaId = updatedBarilga._id;
+            const index = baiguullaga.barilguud.findIndex(
+              b => String(b._id) === String(barilgaId)
+            );
             
-            // Merge the updated data
-            Object.assign(baiguullaga.barilguud[index], updatedBarilga);
-          }
-        });
+            if (index >= 0) {
+              delete updatedBarilga._id;
+              delete updatedBarilga.baiguullagiinId;
+              
+              // Merge the updated data
+              Object.assign(baiguullaga.barilguud[index], updatedBarilga);
+            }
+          });
+        }
+        
+        // Remove barilguud from req.body since we've handled it manually
+        delete req.body.barilguud;
       }
-      
-      // Remove barilguud from req.body since we've handled it manually
-      delete req.body.barilguud;
     }
     
     // Update other fields
