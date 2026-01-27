@@ -451,8 +451,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
             barilgiinId: String(tempData.barilgiinId)
           }).lean();
           
-          if (liftShalgayaRecord?.choloolugdokhDavkhar) {
+          if (liftShalgayaRecord?.choloolugdokhDavkhar && liftShalgayaRecord.choloolugdokhDavkhar.length > 0) {
             choloolugdokhDavkhar = liftShalgayaRecord.choloolugdokhDavkhar;
+            
+            if (targetBarilga) {
+              if (!targetBarilga.tokhirgoo) {
+                targetBarilga.tokhirgoo = {};
+              }
+              if (!targetBarilga.tokhirgoo.liftShalgaya) {
+                targetBarilga.tokhirgoo.liftShalgaya = {};
+              }
+              targetBarilga.tokhirgoo.liftShalgaya.choloolugdokhDavkhar = choloolugdokhDavkhar;
+              await baiguullaga.save();
+            }
           }
         } catch (error) {
           console.error("Error fetching liftShalgaya:", error.message);
