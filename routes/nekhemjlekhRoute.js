@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const { crud, UstsanBarimt, tokenShalgakh } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
 const { downloadNekhemjlekhiinTuukhExcel } = require("../controller/excelImportController");
-const { gereeNeesNekhemjlekhUusgekhPreviousMonth, markInvoicesAsPaid, previewInvoice, manualSendInvoice, manualSendMassInvoices } = require("../controller/nekhemjlekhController");
+const { gereeNeesNekhemjlekhUusgekhPreviousMonth, markInvoicesAsPaid, previewInvoice, manualSendInvoice, manualSendMassInvoices, manualSendSelectedInvoices } = require("../controller/nekhemjlekhController");
 const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const { db } = require("zevbackv2");
@@ -234,25 +234,40 @@ router.get("/preview", tokenShalgakh, async (req, res, next) => {
   }
 });
 
-// Manual send single invoice
+// Manual send invoices for selected/checked contracts
 // POST /nekhemjlekh/manualSend
-// Body: { gereeId, baiguullagiinId, override: true/false, targetMonth: 1, targetYear: 2026 }
+// Body: { gereeIds: ["id1", "id2", ...], baiguullagiinId, override: true/false, targetMonth: 1, targetYear: 2026 }
+// Supports both single contract (array with one item) or multiple contracts
 router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
   try {
-    const { gereeId, baiguullagiinId, override = false, targetMonth, targetYear } = req.body;
+    const { gereeIds, gereeId, baiguullagiinId, override = false, targetMonth, targetYear } = req.body;
 
-    if (!gereeId || !baiguullagiinId) {
+    // Support both new format (gereeIds array) and old format (single gereeId) for backward compatibility
+    let contractIds = gereeIds;
+    if (!contractIds && gereeId) {
+      // Backward compatibility: if gereeId is provided, convert to array
+      contractIds = [gereeId];
+    }
+
+    if (!contractIds || !Array.isArray(contractIds) || contractIds.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "gereeId болон baiguullagiinId шаардлагатай",
+        message: "gereeIds (массив) болон baiguullagiinId шаардлагатай",
+      });
+    }
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId шаардлагатай",
       });
     }
 
     const month = targetMonth ? parseInt(targetMonth) : null;
     const year = targetYear ? parseInt(targetYear) : null;
 
-    const result = await manualSendInvoice(
-      gereeId,
+    const result = await manualSendSelectedInvoices(
+      contractIds,
       baiguullagiinId,
       override === true || override === "true",
       month,
@@ -260,15 +275,19 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
     );
 
     if (result.success) {
+      const message = result.created === 1 
+        ? "Нэхэмжлэх амжилттай үүсгэгдлээ"
+        : `${result.created} нэхэмжлэх амжилттай үүсгэгдлээ`;
+      
       res.json({
         success: true,
-        message: "Нэхэмжлэх амжилттай үүсгэгдлээ",
+        message: message,
         data: result,
       });
     } else {
       res.status(400).json({
         success: false,
-        message: result.error || "Нэхэмжлэх үүсгэхэд алдаа гарлаа",
+        message: result.error || "Нэхэмжлэхүүд үүсгэхэд алдаа гарлаа",
         error: result.error,
       });
     }

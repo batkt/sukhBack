@@ -2117,6 +2117,107 @@ const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, overr
   }
 };
 
+// Manual send invoices for selected/checked contracts
+// Accepts array of gereeIds (can be one or many)
+const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = false, targetMonth = null, targetYear = null) => {
+  try {
+    const { db } = require("zevbackv2");
+    const Geree = require("../models/geree");
+    const Baiguullaga = require("../models/baiguullaga");
+
+    // Validate input
+    if (!Array.isArray(gereeIds) || gereeIds.length === 0) {
+      return { success: false, error: "gereeIds нь хоосон биш массив байх ёстой!" };
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return { success: false, error: "Холболтын мэдээлэл олдсонгүй!" };
+    }
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
+    if (!baiguullaga) {
+      return { success: false, error: "Байгууллага олдсонгүй!" };
+    }
+
+    // Fetch all selected contracts
+    const gerees = await Geree(tukhainBaaziinKholbolt).find({
+      _id: { $in: gereeIds },
+      baiguullagiinId: String(baiguullagiinId),
+    }).lean();
+
+    if (gerees.length === 0) {
+      return { success: false, error: "Сонгосон гэрээ олдсонгүй!" };
+    }
+
+    if (gerees.length !== gereeIds.length) {
+      console.warn(`⚠️ [MANUAL SEND SELECTED] Warning: Requested ${gereeIds.length} contracts, but found ${gerees.length} contracts`);
+    }
+
+    const results = {
+      success: true,
+      total: gereeIds.length,
+      processed: gerees.length,
+      created: 0,
+      errors: 0,
+      invoices: [],
+      errorsList: [],
+    };
+
+    // Process each checked contract
+    for (let i = 0; i < gerees.length; i++) {
+      const geree = gerees[i];
+      try {
+        console.log(`📝 [${i + 1}/${gerees.length}] Processing contract ${geree.gereeniiDugaar || geree._id}...`);
+        
+        const invoiceResult = await manualSendInvoice(
+          geree._id,
+          baiguullagiinId,
+          override,
+          targetMonth,
+          targetYear
+        );
+
+        if (invoiceResult.success) {
+          results.created++;
+          results.invoices.push({
+            gereeniiId: geree._id,
+            gereeniiDugaar: geree.gereeniiDugaar,
+            nekhemjlekhiinId: invoiceResult.nekhemjlekh?._id || invoiceResult.nekhemjlekh,
+            tulbur: invoiceResult.tulbur,
+          });
+          console.log(`✅ [${i + 1}/${gerees.length}] Invoice created for ${geree.gereeniiDugaar || geree._id}`);
+        } else {
+          results.errors++;
+          results.errorsList.push({
+            gereeniiId: geree._id,
+            gereeniiDugaar: geree.gereeniiDugaar,
+            error: invoiceResult.error || "Unknown error",
+          });
+          console.log(`❌ [${i + 1}/${gerees.length}] Error for ${geree.gereeniiDugaar || geree._id}: ${invoiceResult.error}`);
+        }
+      } catch (error) {
+        results.errors++;
+        results.errorsList.push({
+          gereeniiId: geree._id,
+          gereeniiDugaar: geree.gereeniiDugaar,
+          error: error.message || "Unknown error",
+        });
+        console.error(`❌ [${i + 1}/${gerees.length}] Гэрээ ${geree.gereeniiDugaar || geree._id} боловсруулах алдаа:`, error.message);
+      }
+    }
+
+    console.log(`📊 [MANUAL SEND SELECTED] Results: Created: ${results.created}, Errors: ${results.errors}, Total: ${results.total}`);
+
+    return results;
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
   gereeNeesNekhemjlekhUusgekhPreviousMonth,
@@ -2125,4 +2226,5 @@ module.exports = {
   previewInvoice,
   manualSendInvoice,
   manualSendMassInvoices,
+  manualSendSelectedInvoices,
 };
