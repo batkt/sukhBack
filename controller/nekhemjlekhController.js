@@ -629,7 +629,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
     let tsahilgaanNekhemjlekh = 0;
     let electricityZardalEntry = null;
     
-    if (tempData.barilgiinId && tempData.baiguullagiinId && tempData.orshinSuugchId) {
+    // TEMPORARILY DISABLED: Electricity processing
+    if (false && tempData.barilgiinId && tempData.baiguullagiinId && tempData.orshinSuugchId) {
       try {
         const { db } = require("zevbackv2");
         const Baiguullaga = require("../models/baiguullaga");
