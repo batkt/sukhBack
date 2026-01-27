@@ -413,10 +413,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
       
       const ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
       
-      filteredZardluud = ashiglaltiinZardluud.map(zardal => ({
-        ...zardal,
-        dun: zardal.tariff || 0,
-      }));
+      filteredZardluud = ashiglaltiinZardluud.map(zardal => {
+        const dun = zardal.dun && zardal.dun > 0 ? zardal.dun : (zardal.tariff || 0);
+        return {
+          ...zardal,
+          dun: dun,
+        };
+      });
     } catch (error) {
       console.error("Error fetching ashiglaltiinZardluud:", error.message);
       filteredZardluud = (tempData.zardluud || []).map(zardal => ({
@@ -426,7 +429,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
     
     filteredZardluud = normalizeZardluudTurul(filteredZardluud);
-    filteredZardluud = deduplicateZardluud(filteredZardluud);
     
     if (tempData.davkhar) {
       const { db } = require("zevbackv2");
@@ -808,12 +810,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
           
           const filteredZardluudWithoutZaalt = finalZardluud.filter(
             (z) => {
-              if (z.zaalt === false) {
-                return true; 
+              if (z.zaalt === true) {
+                return !zaaltZardluudToProcess.some(
+                  (gz) => z.ner === gz.ner && z.zardliinTurul === gz.zardliinTurul
+                );
               }
-              return !zaaltZardluudToProcess.some(
-                (gz) => z.ner === gz.ner && z.zardliinTurul === gz.zardliinTurul
-              );
+              return true;
             }
           );
           
@@ -828,8 +830,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
           finalZardluud.push(...filteredZardluudWithoutZaalt);
           
           finalZardluud = normalizeZardluudTurul(finalZardluud);
-          
-          finalZardluud = deduplicateZardluud(finalZardluud);
           
           updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
             ? 0
@@ -872,19 +872,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     const normalizedZardluud = normalizeZardluudTurul(finalZardluud);
     
-    const deduplicatedZardluud = deduplicateZardluud(normalizedZardluud);
-    
-    const zardluudWithDun = deduplicatedZardluud.map((zardal) => {
+    const zardluudWithDun = normalizedZardluud.map((zardal) => {
       if (zardal.zaalt === true) {
         return zardal;
       }
-      if (!zardal.dun || zardal.dun === 0) {
-        return {
-          ...zardal,
-          dun: zardal.tariff || 0
-        };
-      }
-      return zardal;
+      const dun = zardal.dun && zardal.dun > 0 ? zardal.dun : (zardal.tariff || 0);
+      return {
+        ...zardal,
+        dun: dun
+      };
     });
     
     const correctedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
