@@ -147,7 +147,8 @@ crud(
       try {
         const { db } = require("zevbackv2");
         const body = req.query;
-        const baiguullagiinId = body.baiguullagiinId || req.body?.baiguullagiinId;
+        const baiguullagiinId = body.baiguullagiinId;
+        const barilgiinId = body.barilgiinId;
         
         if (!baiguullagiinId) {
           return res.status(400).json({
@@ -156,49 +157,73 @@ crud(
           });
         }
         
+        // Validate db and kholboltuud exist
+        if (!db || !db.kholboltuud || !Array.isArray(db.kholboltuud)) {
+          return res.status(500).json({
+            success: false,
+            aldaa: "Холболтын мэдээлэл алдаатай байна!",
+          });
+        }
+        
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          (kholbolt) => String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
+          (kholbolt) => kholbolt && String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
         );
 
         if (!tukhainBaaziinKholbolt) {
-          return res.status(400).json({
+          return res.status(404).json({
             success: false,
-            aldaa: "Холболтын мэдээлэл олдсонгүй!",
+            aldaa: "Байгууллагын холболт олдсонгүй!",
           });
         }
-        const {
-          query = {},
-          order,
-          khuudasniiDugaar = 1,
-          khuudasniiKhemjee = 10,
-          search,
-          collation = {},
-          select = {},
-        } = body;
-
-        if (!!body?.query) body.query = JSON.parse(body.query);
+        
+        // Initialize body.query if it doesn't exist
+        if (!body.query) {
+          body.query = {};
+        } else if (typeof body.query === 'string') {
+          body.query = JSON.parse(body.query);
+        }
+        
+        // Parse other query parameters
         if (!!body?.order) body.order = JSON.parse(body.order);
         if (!!body?.select) body.select = JSON.parse(body.select);
         if (!!body?.collation) body.collation = JSON.parse(body.collation);
-        if (!!body?.khuudasniiDugaar)
-          body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
-        if (!!body?.khuudasniiKhemjee)
-          body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+        
+        // Set default values and parse pagination parameters
+        const khuudasniiDugaar = body.khuudasniiDugaar 
+          ? Number(body.khuudasniiDugaar) 
+          : 1;
+        const khuudasniiKhemjee = body.khuudasniiKhemjee 
+          ? Number(body.khuudasniiKhemjee) 
+          : 10;
+        
+        // Add baiguullagiinId filter (required) - ensure it's set even if in query JSON
+        body.query.baiguullagiinId = String(baiguullagiinId);
+        
+        // Add barilgiinId filter if provided in query params
+        if (barilgiinId) {
+          body.query.barilgiinId = String(barilgiinId);
+        }
+        
+        // Debug: Log the query
+        console.log("🔍 [geree GET] Query:", JSON.stringify(body.query, null, 2));
 
         let jagsaalt = await Geree(tukhainBaaziinKholbolt)
           .find(body.query)
           .sort(body.order)
           .collation(body.collation ? body.collation : {})
-          .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
-          .limit(body.khuudasniiKhemjee);
+          .select(body.select)
+          .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
+          .limit(khuudasniiKhemjee);
 
         let niitMur = await Geree(tukhainBaaziinKholbolt).countDocuments(
           body.query
         );
         let niitKhuudas =
-          niitMur % body.khuudasniiKhemjee == 0
-            ? Math.floor(niitMur / body.khuudasniiKhemjee)
-            : Math.floor(niitMur / body.khuudasniiKhemjee) + 1;
+          niitMur % khuudasniiKhemjee == 0
+            ? Math.floor(niitMur / khuudasniiKhemjee)
+            : Math.floor(niitMur / khuudasniiKhemjee) + 1;
+        
+        console.log("✅ [geree GET] Found", niitMur, "records");
 
         // Normalize horoo field to always be an object format for consistency
         if (jagsaalt != null) {
@@ -216,8 +241,8 @@ crud(
         console.log("Found contracts:", jagsaalt.length);
 
         res.json({
-          khuudasniiDugaar: body.khuudasniiDugaar,
-          khuudasniiKhemjee: body.khuudasniiKhemjee,
+          khuudasniiDugaar,
+          khuudasniiKhemjee,
           jagsaalt,
           niitMur,
           niitKhuudas,
