@@ -203,7 +203,20 @@ router.post(
 // GET /nekhemjlekh/preview?gereeId=xxx&baiguullagiinId=xxx&barilgiinId=xxx&targetMonth=1&targetYear=2026
 router.get("/preview", tokenShalgakh, async (req, res, next) => {
   try {
-    const { gereeId, baiguullagiinId, barilgiinId, targetMonth, targetYear } = req.query;
+    // Handle duplicate query parameters (Express converts them to arrays)
+    const gereeId = Array.isArray(req.query.gereeId) ? req.query.gereeId[0] : req.query.gereeId;
+    const baiguullagiinId = Array.isArray(req.query.baiguullagiinId) 
+      ? req.query.baiguullagiinId[0] 
+      : req.query.baiguullagiinId;
+    const barilgiinId = Array.isArray(req.query.barilgiinId) 
+      ? req.query.barilgiinId[0] 
+      : req.query.barilgiinId;
+    const targetMonth = Array.isArray(req.query.targetMonth) 
+      ? req.query.targetMonth[0] 
+      : req.query.targetMonth;
+    const targetYear = Array.isArray(req.query.targetYear) 
+      ? req.query.targetYear[0] 
+      : req.query.targetYear;
 
     if (!gereeId || !baiguullagiinId) {
       return res.status(400).json({
