@@ -143,17 +143,48 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       body.query.barilgiinId = barilgiinId;
     }
     
-    // Use tenant-specific database instead of main database
-    let jagsaalt = await OrshinSuugch(tukhainBaaziinKholbolt)
-      .find(body.query)
-      .sort(body.order)
-      .collation(body.collation ? body.collation : {})
-      .select(body.select)
-      .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
-      .limit(khuudasniiKhemjee);
-    let niitMur = await OrshinSuugch(tukhainBaaziinKholbolt).countDocuments(
-      body.query
-    );
+    // Debug: Log the query and connection info
+    console.log("🔍 [orshinSuugch GET] Query:", JSON.stringify(body.query, null, 2));
+    console.log("🔍 [orshinSuugch GET] Using database:", tukhainBaaziinKholbolt?.baaziinNer || "unknown");
+    
+    // Try tenant-specific database first, fallback to main database if needed
+    // Note: OrshinSuugch might be stored in main database (db.erunkhiiKholbolt) 
+    // or tenant database depending on the system architecture
+    let jagsaalt;
+    let niitMur;
+    
+    try {
+      // Try tenant-specific database
+      jagsaalt = await OrshinSuugch(tukhainBaaziinKholbolt)
+        .find(body.query)
+        .sort(body.order)
+        .collation(body.collation ? body.collation : {})
+        .select(body.select)
+        .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
+        .limit(khuudasniiKhemjee)
+        .lean();
+      niitMur = await OrshinSuugch(tukhainBaaziinKholbolt).countDocuments(
+        body.query
+      );
+      
+      console.log("✅ [orshinSuugch GET] Found", niitMur, "records in tenant database");
+    } catch (tenantError) {
+      console.log("⚠️ [orshinSuugch GET] Tenant database query failed, trying main database:", tenantError.message);
+      // Fallback to main database if tenant database fails
+      jagsaalt = await OrshinSuugch(db.erunkhiiKholbolt)
+        .find(body.query)
+        .sort(body.order)
+        .collation(body.collation ? body.collation : {})
+        .select(body.select)
+        .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
+        .limit(khuudasniiKhemjee)
+        .lean();
+      niitMur = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments(
+        body.query
+      );
+      
+      console.log("✅ [orshinSuugch GET] Found", niitMur, "records in main database");
+    }
     let niitKhuudas =
       niitMur % khuudasniiKhemjee == 0
         ? Math.floor(niitMur / khuudasniiKhemjee)
