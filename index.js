@@ -292,7 +292,7 @@ async function automataarNekhemjlekhUusgekh() {
 
 //nehemjleh ilgeeh tsag
 const cronJob = cron.schedule(
-  "45 13 * * *",
+  "46 13 * * *",
   function () {
     const now = new Date();
     console.log(
