@@ -82,34 +82,12 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
     const baiguullagiinId = body.baiguullagiinId;
     const barilgiinId = body.barilgiinId;
     
-    // baiguullagiinId is required to determine which database to use
+    // baiguullagiinId is required for filtering
     if (!baiguullagiinId) {
       return res.status(400).json({
         success: false,
         message: "Байгууллагын ID заавал бөглөх шаардлагатай!",
         aldaa: "Байгууллагын ID заавал бөглөх шаардлагатай!",
-      });
-    }
-    
-    // Validate db and kholboltuud exist
-    if (!db || !db.kholboltuud || !Array.isArray(db.kholboltuud)) {
-      return res.status(500).json({
-        success: false,
-        message: "Холболтын мэдээлэл алдаатай байна!",
-        aldaa: "Холболтын мэдээлэл алдаатай байна!",
-      });
-    }
-    
-    // Get tenant-specific database connection
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt && String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
-    );
-    
-    if (!tukhainBaaziinKholbolt) {
-      return res.status(404).json({
-        success: false,
-        message: "Байгууллагын холболт олдсонгүй!",
-        aldaa: "Байгууллагын холболт олдсонгүй!",
       });
     }
     
@@ -134,57 +112,31 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       : 1000;
     
     // Add baiguullagiinId filter (required)
-    if (!body.query.baiguullagiinId) {
-      body.query.baiguullagiinId = baiguullagiinId;
-    }
+    // Convert to string to ensure proper matching
+    body.query.baiguullagiinId = String(baiguullagiinId);
     
     // Add barilgiinId filter if provided
     if (barilgiinId) {
-      body.query.barilgiinId = barilgiinId;
+      body.query.barilgiinId = String(barilgiinId);
     }
     
-    // Debug: Log the query and connection info
+    // Debug: Log the query
     console.log("🔍 [orshinSuugch GET] Query:", JSON.stringify(body.query, null, 2));
-    console.log("🔍 [orshinSuugch GET] Using database:", tukhainBaaziinKholbolt?.baaziinNer || "unknown");
     
-    // Try tenant-specific database first, fallback to main database if needed
-    // Note: OrshinSuugch might be stored in main database (db.erunkhiiKholbolt) 
-    // or tenant database depending on the system architecture
-    let jagsaalt;
-    let niitMur;
+    // OrshinSuugch is stored in the main database (db.erunkhiiKholbolt), not tenant-specific databases
+    // We filter by baiguullagiinId and barilgiinId in the query
+    let jagsaalt = await OrshinSuugch(db.erunkhiiKholbolt)
+      .find(body.query)
+      .sort(body.order)
+      .collation(body.collation ? body.collation : {})
+      .select(body.select)
+      .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
+      .limit(khuudasniiKhemjee);
+    let niitMur = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments(
+      body.query
+    );
     
-    try {
-      // Try tenant-specific database
-      jagsaalt = await OrshinSuugch(tukhainBaaziinKholbolt)
-        .find(body.query)
-        .sort(body.order)
-        .collation(body.collation ? body.collation : {})
-        .select(body.select)
-        .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
-        .limit(khuudasniiKhemjee)
-        .lean();
-      niitMur = await OrshinSuugch(tukhainBaaziinKholbolt).countDocuments(
-        body.query
-      );
-      
-      console.log("✅ [orshinSuugch GET] Found", niitMur, "records in tenant database");
-    } catch (tenantError) {
-      console.log("⚠️ [orshinSuugch GET] Tenant database query failed, trying main database:", tenantError.message);
-      // Fallback to main database if tenant database fails
-      jagsaalt = await OrshinSuugch(db.erunkhiiKholbolt)
-        .find(body.query)
-        .sort(body.order)
-        .collation(body.collation ? body.collation : {})
-        .select(body.select)
-        .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
-        .limit(khuudasniiKhemjee)
-        .lean();
-      niitMur = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments(
-        body.query
-      );
-      
-      console.log("✅ [orshinSuugch GET] Found", niitMur, "records in main database");
-    }
+    console.log("✅ [orshinSuugch GET] Found", niitMur, "records");
     let niitKhuudas =
       niitMur % khuudasniiKhemjee == 0
         ? Math.floor(niitMur / khuudasniiKhemjee)
