@@ -441,8 +441,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
         (b) => String(b._id) === String(tempData.barilgiinId || "")
       );
 
-      const liftShalgayaData = targetBarilga?.tokhirgoo?.liftShalgaya;
-      const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+      let choloolugdokhDavkhar = targetBarilga?.tokhirgoo?.liftShalgaya?.choloolugdokhDavkhar || [];
+      
+      if (choloolugdokhDavkhar.length === 0 && tempData.barilgiinId) {
+        try {
+          const LiftShalgaya = require("../models/liftShalgaya");
+          const liftShalgayaRecord = await LiftShalgaya(tukhainBaaziinKholbolt).findOne({
+            baiguullagiinId: String(tempData.baiguullagiinId),
+            barilgiinId: String(tempData.barilgiinId)
+          }).lean();
+          
+          if (liftShalgayaRecord?.choloolugdokhDavkhar) {
+            choloolugdokhDavkhar = liftShalgayaRecord.choloolugdokhDavkhar;
+          }
+        } catch (error) {
+          console.error("Error fetching liftShalgaya:", error.message);
+        }
+      }
 
       if (choloolugdokhDavkhar.includes(tempData.davkhar)) {
         filteredZardluud = filteredZardluud.filter(
