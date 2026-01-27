@@ -113,17 +113,14 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       });
     }
     
-    const {
-      query = {},
-      order,
-      khuudasniiDugaar = 1,
-      khuudasniiKhemjee = 10,
-      search,
-      collation = {},
-      select = {},
-    } = body;
+    // Initialize body.query if it doesn't exist
+    if (!body.query) {
+      body.query = {};
+    } else if (typeof body.query === 'string') {
+      body.query = JSON.parse(body.query);
+    }
     
-    if (!!body?.query) body.query = JSON.parse(body.query);
+    // Parse other query parameters
     if (!!body?.order) body.order = JSON.parse(body.order);
     if (!!body?.select) body.select = JSON.parse(body.select);
     if (!!body?.collation) body.collation = JSON.parse(body.collation);
