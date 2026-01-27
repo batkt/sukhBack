@@ -124,10 +124,14 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
     if (!!body?.order) body.order = JSON.parse(body.order);
     if (!!body?.select) body.select = JSON.parse(body.select);
     if (!!body?.collation) body.collation = JSON.parse(body.collation);
-    if (!!body?.khuudasniiDugaar)
-      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
-    if (!!body?.khuudasniiKhemjee)
-      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+    
+    // Set default values and parse pagination parameters
+    const khuudasniiDugaar = body.khuudasniiDugaar 
+      ? Number(body.khuudasniiDugaar) 
+      : 1;
+    const khuudasniiKhemjee = body.khuudasniiKhemjee 
+      ? Number(body.khuudasniiKhemjee) 
+      : 1000;
     
     // Add baiguullagiinId filter (required)
     if (!body.query.baiguullagiinId) {
@@ -145,8 +149,8 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       .sort(body.order)
       .collation(body.collation ? body.collation : {})
       .select(body.select)
-      .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
-      .limit(body.khuudasniiKhemjee);
+      .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
+      .limit(khuudasniiKhemjee);
     let niitMur = await OrshinSuugch(tukhainBaaziinKholbolt).countDocuments(
       body.query
     );
