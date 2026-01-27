@@ -944,16 +944,21 @@ const gereeNeesNekhemjlekhUusgekh = async (
     if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
       const davkharStr = String(tempData.davkhar);
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
+      console.log(`🔍 [LIFT] Final check - Floor: ${davkharStr}, Exempted floors: [${choloolugdokhDavkharStr.join(', ')}], zardluudWithDun count: ${zardluudWithDun.length}`);
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         const beforeCount = zardluudWithDun.length;
+        const liftCharges = zardluudWithDun.filter(z => z.zardliinTurul === "Лифт");
+        console.log(`🚫 [LIFT] Final check - Found ${liftCharges.length} Лифт charges to remove for floor ${davkharStr}`);
         zardluudWithDun = zardluudWithDun.filter(
           (zardal) => !(zardal.zardliinTurul === "Лифт")
         );
         const afterCount = zardluudWithDun.length;
-        if (beforeCount !== afterCount) {
-          console.log(`🚫 [LIFT] Final check - Removed Лифт charge for floor ${davkharStr}. Before: ${beforeCount}, After: ${afterCount}`);
-        }
+        console.log(`🚫 [LIFT] Final check - Removed Лифт charge for floor ${davkharStr}. Before: ${beforeCount}, After: ${afterCount}`);
+      } else {
+        console.log(`⚠️ [LIFT] Final check - Floor ${davkharStr} is NOT in exempted list [${choloolugdokhDavkharStr.join(', ')}]`);
       }
+    } else {
+      console.log(`⚠️ [LIFT] Final check - Skipping: davkhar=${tempData.davkhar}, choloolugdokhDavkhar.length=${choloolugdokhDavkhar.length}`);
     }
     
     const correctedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
@@ -973,29 +978,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
       correctedFinalNiitTulbur = Math.max(0, correctedFinalNiitTulbur - positiveBalanceUsed);
       remainingPositiveBalance = gereePositiveBalance - positiveBalanceUsed;
       
-      console.log("💰 [INVOICE] Deducting positiveBalance:", {
-        originalTotal: correctedFinalNiitTulbur + positiveBalanceUsed,
-        positiveBalance: gereePositiveBalance,
-        positiveBalanceUsed,
-        remainingPositiveBalance,
-        finalTotal: correctedFinalNiitTulbur,
-      });
+     
     }
     
-    console.log("💰 [INVOICE] Corrected total calculation:", {
-      shouldUseEkhniiUldegdel,
-      ekhniiUldegdelAmount,
-      correctedZardluudTotal,
-      guilgeenuudTotal,
-      correctedFinalNiitTulbur,
-      positiveBalanceUsed,
-      remainingPositiveBalance,
-      zardluudCount: zardluudWithDun.length,
-      isAvlagaOnlyInvoice,
-      zardluudBreakdown: zardluudWithDun.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, dun: z.dun, tariff: z.tariff })),
-      davkhar: tempData.davkhar,
-      choloolugdokhDavkhar: choloolugdokhDavkhar,
-    });
+  
     
     tuukh.medeelel = {
       zardluud: zardluudWithDun,
@@ -1222,17 +1208,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
           savedMedegdel = medegdelObj;
           
-          console.log("✅ [NOTIFICATION] Medegdel prepared for socket emission:", {
-            medegdelId: medegdelObj._id,
-            orshinSuugchId: medegdelObj.orshinSuugchId,
-            eventName: `orshinSuugch${medegdelObj.orshinSuugchId}`,
-            timestamp: new Date().toISOString(),
-          });
-
-          console.log("📡 [NOTIFICATION] Medegdel ready for socket emission - caller should emit:", {
-            eventName: `orshinSuugch${medegdelObj.orshinSuugchId}`,
-            note: "Socket emission will be handled by caller (gereeController.js) if invoice created from avlaga",
-          });
+         
         }
       } else {
         console.warn("⚠️ [NOTIFICATION] No orshinSuugchId in tempData, skipping notification");
