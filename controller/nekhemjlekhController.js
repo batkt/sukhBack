@@ -443,6 +443,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
       let choloolugdokhDavkhar = targetBarilga?.tokhirgoo?.liftShalgaya?.choloolugdokhDavkhar || [];
       
+      console.log(`🔍 [LIFT] Initial check - Floor: ${tempData.davkhar}, Exempted from baiguullaga:`, choloolugdokhDavkhar);
+      
       if (choloolugdokhDavkhar.length === 0 && tempData.barilgiinId) {
         try {
           const LiftShalgaya = require("../models/liftShalgaya");
@@ -451,8 +453,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
             barilgiinId: String(tempData.barilgiinId)
           }).lean();
           
+          console.log(`🔍 [LIFT] Checking liftShalgaya collection:`, liftShalgayaRecord);
+          
           if (liftShalgayaRecord?.choloolugdokhDavkhar && liftShalgayaRecord.choloolugdokhDavkhar.length > 0) {
             choloolugdokhDavkhar = liftShalgayaRecord.choloolugdokhDavkhar;
+            console.log(`✅ [LIFT] Found in collection, syncing to baiguullaga:`, choloolugdokhDavkhar);
             
             if (targetBarilga) {
               if (!targetBarilga.tokhirgoo) {
@@ -463,17 +468,27 @@ const gereeNeesNekhemjlekhUusgekh = async (
               }
               targetBarilga.tokhirgoo.liftShalgaya.choloolugdokhDavkhar = choloolugdokhDavkhar;
               await baiguullaga.save();
+              console.log(`✅ [LIFT] Synced to baiguullaga`);
             }
           }
         } catch (error) {
-          console.error("Error fetching liftShalgaya:", error.message);
+          console.error("❌ [LIFT] Error fetching liftShalgaya:", error.message);
         }
       }
 
-      if (choloolugdokhDavkhar.includes(tempData.davkhar)) {
+      const davkharStr = String(tempData.davkhar);
+      const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
+      
+      console.log(`🔍 [LIFT] Checking floor exemption - Floor: ${davkharStr}, Exempted floors: [${choloolugdokhDavkharStr.join(', ')}]`);
+      
+      if (choloolugdokhDavkharStr.includes(davkharStr)) {
+        console.log(`🚫 [LIFT] Floor ${davkharStr} is exempted - Removing Лифт charge`);
         filteredZardluud = filteredZardluud.filter(
           (zardal) => !(zardal.zardliinTurul === "Лифт")
         );
+        console.log(`✅ [LIFT] Лифт charge removed. Remaining charges: ${filteredZardluud.length}`);
+      } else {
+        console.log(`✅ [LIFT] Floor ${davkharStr} is NOT exempted - Keeping Лифт charge`);
       }
     }
 
