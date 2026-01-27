@@ -1756,17 +1756,42 @@ const markInvoicesAsPaid = asyncHandler(async (req, res, next) => {
 const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth = null, targetYear = null) => {
   try {
     const { db } = require("zevbackv2");
+    const mongoose = require("mongoose");
     const Geree = require("../models/geree");
     const Baiguullaga = require("../models/baiguullaga");
     const OrshinSuugch = require("../models/orshinSuugch");
     const NekhemjlekhCron = require("../models/cronSchedule");
 
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    // Try to find the connection
+    let tukhainBaaziinKholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
 
+    // If not found, try with ObjectId comparison
+    if (!tukhainBaaziinKholbolt && mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
+      const baiguullagiinObjectId = new mongoose.Types.ObjectId(baiguullagiinId);
+      tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (k) => {
+          const kId = k.baiguullagiinId;
+          if (mongoose.Types.ObjectId.isValid(kId)) {
+            return kId.equals(baiguullagiinObjectId);
+          }
+          return String(kId) === String(baiguullagiinId);
+        }
+      );
+    }
+
     if (!tukhainBaaziinKholbolt) {
-      return { success: false, error: "Холболтын мэдээлэл олдсонгүй!" };
+      // Log diagnostic information
+      console.error("❌ [PREVIEW] Connection not found for baiguullagiinId:", baiguullagiinId);
+      console.error("Available connections:", db.kholboltuud.map(k => ({
+        baiguullagiinId: k.baiguullagiinId,
+        baaziinNer: k.baaziinNer || "N/A"
+      })));
+      return { 
+        success: false, 
+        error: `Холболтын мэдээлэл олдсонгүй! (baiguullagiinId: ${baiguullagiinId})` 
+      };
     }
 
     const geree = await Geree(tukhainBaaziinKholbolt).findById(gereeId).lean();
