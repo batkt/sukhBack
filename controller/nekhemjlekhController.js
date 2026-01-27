@@ -439,7 +439,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       const Baiguullaga = require("../models/baiguullaga");
       const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
         tempData.baiguullagiinId
-      );
+      ).lean();
 
       const targetBarilga = baiguullaga?.barilguud?.find(
         (b) => String(b._id) === String(tempData.barilgiinId || "")
@@ -448,6 +448,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       choloolugdokhDavkhar = targetBarilga?.tokhirgoo?.liftShalgaya?.choloolugdokhDavkhar || [];
 
       console.log(`🔍 [LIFT] Initial check - Floor: ${tempData.davkhar}, Exempted from baiguullaga:`, choloolugdokhDavkhar);
+      console.log(`🔍 [LIFT] Full targetBarilga.tokhirgoo.liftShalgaya:`, JSON.stringify(targetBarilga?.tokhirgoo?.liftShalgaya, null, 2));
       
       if (choloolugdokhDavkhar.length === 0 && tempData.barilgiinId) {
         try {
