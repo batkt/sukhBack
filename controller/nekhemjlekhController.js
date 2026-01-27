@@ -1043,6 +1043,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     }
     
+    if (hasEkhniiUldegdel && ekhniiUldegdelAmount > 0) {
+      zardluudWithDun.push({
+        ner: "Эхний үлдэгдэл",
+        turul: "Тогтмол",
+        bodokhArga: "тогтмол",
+        zardliinTurul: "Энгийн",
+        tariff: ekhniiUldegdelAmount,
+        tariffUsgeer: tempData.ekhniiUldegdelUsgeer || "₮",
+        dun: ekhniiUldegdelAmount,
+        zaalt: false,
+        ognoonuud: [],
+        nuatNemekhEsekh: false,
+        nuatBodokhEsekh: false,
+      });
+      console.log(`💰 [INVOICE] Added ekhniiUldegdel to zardluud: ${ekhniiUldegdelAmount}₮`);
+    }
+    
     tuukh.medeelel = {
       zardluud: zardluudWithDun,
       guilgeenuud: guilgeenuudForNekhemjlekh, 
