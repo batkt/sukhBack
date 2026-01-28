@@ -35,6 +35,7 @@ const ashiglaltiinZardluudRoute = require("./routes/ashiglaltiinZardluudRoute");
 const zogsoolRoute = require("./routes/zogsoolRoute");
 const parkingRoute = require("./routes/parkingRoute");
 const uneguiMashinRoute = require("./routes/uneguiMashinRoute");
+const zochinUrikhRoute = require("./routes/zochinUrikhRoute");
 
 const { db } = require("zevbackv2");
 
@@ -97,6 +98,7 @@ app.use(ashiglaltiinZardluudRoute);
 app.use(zogsoolRoute);
 app.use(parkingRoute);
 app.use(uneguiMashinRoute);
+app.use(zochinUrikhRoute);
 
 app.use(aldaaBarigch);
 
