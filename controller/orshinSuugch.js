@@ -329,12 +329,23 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
     }
 
-    if (!req.body.nuutsUg) {
-      throw new aldaa("Нууц үг заавал бөглөх шаардлагатай!");
-    }
-
     if (!req.body.ner) {
       throw new aldaa("Нэр заавал бөглөх шаардлагатай!");
+    }
+
+    // Auto-set defaults for nevtrekhNer and nuutsUg from backend
+    const phoneNumber = String(req.body.utas).trim();
+    
+    // Set nevtrekhNer to utas if not provided
+    if (!req.body.nevtrekhNer) {
+      req.body.nevtrekhNer = phoneNumber;
+      console.log(`✅ [REGISTER] Auto-set nevtrekhNer to: ${phoneNumber}`);
+    }
+    
+    // Set default password to "1234" if not provided
+    if (!req.body.nuutsUg) {
+      req.body.nuutsUg = "1234";
+      console.log(`✅ [REGISTER] Auto-set nuutsUg to default: 1234`);
     }
 
     // Email is optional - only register with Wallet API if email is provided
@@ -357,8 +368,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
     }
     // If email is provided but no baiguullagiinId, we'll try to get it from address selection later
-
-    const phoneNumber = String(req.body.utas).trim();
     let walletUserInfo = null;
     let walletUserId = null;
 
@@ -825,7 +834,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         duureg: req.body.duureg,
         horoo: req.body.horoo,
         soh: req.body.soh,
-        nevtrekhNer: req.body.utas,
+        nevtrekhNer: req.body.nevtrekhNer, // Auto-set from utas earlier if not provided
+        utas: phoneNumber, // Ensure phone number is properly set
         toot: req.body.toot || "",
         davkhar: determinedDavkhar, // Automatically determined from toot
         orts: req.body.orts || "", // Automatically determined from toot if found
