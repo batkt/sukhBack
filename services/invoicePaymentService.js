@@ -72,8 +72,11 @@ async function markInvoicesAsPaid(options) {
   if (nekhemjlekhiinIds && nekhemjlekhiinIds.length > 0) {
     // Mark specific invoices by IDs
     query._id = { $in: nekhemjlekhiinIds };
+  } else if (gereeniiId) {
+    // Mark all invoices for a specific contract (highest priority after explicit IDs)
+    query.gereeniiId = String(gereeniiId);
   } else if (orshinSuugchId) {
-    // Mark all invoices for a user
+    // Mark all invoices for a user (all their active contracts)
     const gerees = await GereeModel.find({
       orshinSuugchId: String(orshinSuugchId),
       baiguullagiinId: String(baiguullagiinId),
@@ -92,9 +95,6 @@ async function markInvoicesAsPaid(options) {
 
     const gereeniiIds = gerees.map((g) => g._id.toString());
     query.gereeniiId = { $in: gereeniiIds };
-  } else if (gereeniiId) {
-    // Mark all invoices for a contract
-    query.gereeniiId = String(gereeniiId);
   }
 
   // Find all unpaid invoices matching the query, sorted by date (latest first)
