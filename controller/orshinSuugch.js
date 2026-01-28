@@ -1161,7 +1161,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           });
 
           if (existingGereeForToot) {
-            console.log(`orshinSuugch service`);
+            console.log(`ℹ️ [REGISTER] Geree already exists for toot ${tootEntry.toot}, skipping...`);
             continue; // Skip if geree already exists for this toot
           }
 
@@ -1171,9 +1171,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           );
 
           if (!targetBarilgaForToot) {
-            console.log(`orshinSuugch service`);
+            console.log(`⚠️ [REGISTER] Building not found for barilgiinId: ${tootEntry.barilgiinId || barilgiinId}, skipping geree creation for toot ${tootEntry.toot}`);
             continue; // Skip if barilga not found
           }
+          
+          console.log(`📋 [REGISTER] Creating geree for toot ${tootEntry.toot} in building ${targetBarilgaForToot.ner}...`);
 
           const duuregNerForToot = targetBarilgaForToot.tokhirgoo?.duuregNer || tootEntry.duureg || duuregNer || "";
           // Normalize horoo to always be an object format
@@ -1228,7 +1230,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
           const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
           await geree.save();
-          console.log(`orshinSuugch service`);
+          console.log(`✅ [REGISTER] Geree created successfully for toot ${tootEntry.toot}:`, geree._id);
+          console.log(`✅ [REGISTER] Geree number: ${geree.gereeniiDugaar}`);
 
           // Update davkhar with toot if provided
           if (tootEntry.toot && tootEntry.davkhar) {
@@ -1239,11 +1242,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
               tootEntry.toot,
               tukhainBaaziinKholbolt
             );
+            console.log(`✅ [REGISTER] Updated davkhar ${tootEntry.davkhar} with toot ${tootEntry.toot}`);
           }
         }
-
+        
+        console.log(`✅ [REGISTER] Processed ${tootsToProcess.length} toot(s) for geree creation`);
+        
         // Invoice will be created by cron job on scheduled date
         // Do not create invoice immediately for new users
+      } else {
+        console.log(`ℹ️ [REGISTER] Skipping geree creation (reactivating existing geree)`);
       }
 
       // If reactivating, check if today is the scheduled invoice creation date

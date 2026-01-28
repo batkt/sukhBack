@@ -331,6 +331,10 @@ router
   .route("/khayagaarBaiguullagaAvya/:duureg/:horoo/:soh")
   .get(khayagaarBaiguullagaAvya);
 
+// Phone verification for registration and password reset (NOT for login)
+router.post("/dugaarBatalgaajuulya", dugaarBatalgaajuulya); // Send verification code
+router.post("/dugaarBatalgaajuulakh", dugaarBatalgaajuulakh); // Verify code
+
 router.post("/orshinSuugchBatalgaajuulya", orshinSuugchBatalgaajuulya);
 router.post("/utasBatalgaajuulakhLogin", utasBatalgaajuulakhLogin);
 router.post("/nuutsUgSergeeye", nuutsUgSergeeye);
