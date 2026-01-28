@@ -140,6 +140,7 @@ async function markInvoicesAsPaid(options) {
   const updatedInvoices = [];
   const gereePositiveBalanceMap = new Map(); // Track positiveBalance per geree
   const tulsunAvlagaDocs = []; // Track created gereeniiTulsunAvlaga records
+  const gereesNeedingRecalc = new Set(); // geree IDs whose globalUldegdel we will recalculate
 
   // Process invoices from latest to oldest
   for (const invoice of invoices) {
@@ -203,6 +204,11 @@ async function markInvoicesAsPaid(options) {
         amountApplied: amountToApply,
         isFullyPaid,
       });
+
+      // Track geree whose invoices changed, to recalc globalUldegdel later
+      if (updatedInvoice.gereeniiId) {
+        gereesNeedingRecalc.add(String(updatedInvoice.gereeniiId));
+      }
 
       // NEW: persist paid portion as gereeniiTulsunAvlaga row
       try {
@@ -339,12 +345,54 @@ async function markInvoicesAsPaid(options) {
                 prepayError.message
               );
             }
+
+            // PositiveBalance changes also affect globalUldegdel view, so recalc
+            gereesNeedingRecalc.add(String(geree._id.toString()));
           }
         } catch (error) {
           console.error(`❌ [INVOICE PAYMENT] Error updating positiveBalance for geree ${gereeId}:`, error.message);
         }
       }
     }
+  }
+
+  // Recalculate and store globalUldegdel on affected gerees
+  try {
+    const NekhemjlekhiinTuukhForRecalc = NekhemjlekhiinTuukh;
+
+    for (const gereeId of gereesNeedingRecalc) {
+      try {
+        const invs = await NekhemjlekhiinTuukhForRecalc.find({
+          baiguullagiinId: String(baiguullagiinId),
+          gereeniiId: String(gereeId),
+          tuluv: { $ne: "Төлсөн" },
+        })
+          .select("niitTulbur uldegdel")
+          .lean();
+
+        let globalUldegdel = 0;
+        invs.forEach((inv) => {
+          const unpaid =
+            typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel)
+              ? inv.uldegdel
+              : inv.niitTulbur || 0;
+          globalUldegdel += unpaid;
+        });
+
+        const gereeToUpdate = await GereeModel.findById(gereeId);
+        if (gereeToUpdate) {
+          gereeToUpdate.globalUldegdel = globalUldegdel;
+          await gereeToUpdate.save();
+        }
+      } catch (recalcError) {
+        console.error(
+          `❌ [INVOICE PAYMENT] Error recalculating globalUldegdel for geree ${gereeId}:`,
+          recalcError.message
+        );
+      }
+    }
+  } catch (outerRecalcError) {
+    console.error("❌ [INVOICE PAYMENT] Error in globalUldegdel recalculation loop:", outerRecalcError.message);
   }
 
   return {

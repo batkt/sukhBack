@@ -131,6 +131,11 @@ const gereeSchema = new Schema(
       type: Number,
       default: 0,
     }, // Positive balance/credit that will be deducted from future invoices
+    // Global outstanding balance for this geree (sum of all unpaid invoices)
+    globalUldegdel: {
+      type: Number,
+      default: 0,
+    },
     // Electricity readings (цахилгаан заалт)
     umnukhZaalt: Number, // Previous reading (Өмнө)
     suuliinZaalt: Number, // Current total reading (Нийт одоо)
