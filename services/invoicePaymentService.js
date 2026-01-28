@@ -1,6 +1,7 @@
 const { db } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
+const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 
 /**
  * Mark invoices as paid with credit/overpayment system
@@ -51,6 +52,7 @@ async function markInvoicesAsPaid(options) {
 
   const NekhemjlekhiinTuukh = nekhemjlekhiinTuukh(kholbolt);
   const GereeModel = Geree(kholbolt);
+  const GereeniiTulsunAvlagaModel = GereeniiTulsunAvlaga(kholbolt);
 
   // Build query to find invoices
   const query = {
@@ -137,6 +139,7 @@ async function markInvoicesAsPaid(options) {
   let remainingPayment = dun;
   const updatedInvoices = [];
   const gereePositiveBalanceMap = new Map(); // Track positiveBalance per geree
+  const tulsunAvlagaDocs = []; // Track created gereeniiTulsunAvlaga records
 
   // Process invoices from latest to oldest
   for (const invoice of invoices) {
@@ -201,6 +204,46 @@ async function markInvoicesAsPaid(options) {
         isFullyPaid,
       });
 
+      // NEW: persist paid portion as gereeniiTulsunAvlaga row
+      try {
+        const tulsunDoc = new GereeniiTulsunAvlagaModel({
+          baiguullagiinId: String(updatedInvoice.baiguullagiinId),
+          baiguullagiinNer: updatedInvoice.baiguullagiinNer || "",
+          barilgiinId: updatedInvoice.barilgiinId || "",
+          gereeniiId: updatedInvoice.gereeniiId,
+          gereeniiDugaar: updatedInvoice.gereeniiDugaar || "",
+          orshinSuugchId: updatedInvoice.orshinSuugchId || "",
+          nekhemjlekhId: updatedInvoice._id.toString(),
+
+          ognoo: new Date(),
+          tulsunDun: amountToApply,
+          tulsunAldangi: 0, // can be split later if needed
+
+          turul: "invoice_payment",
+          zardliinTurul: "",
+          zardliinId: "",
+          zardliinNer: "",
+
+          tailbar:
+            tailbar ||
+            (isFullyPaid
+              ? "Нэхэмжлэх бүрэн төлөгдлөө"
+              : `Нэхэмжлэлийн хэсэгчилсэн төлбөр: ${amountToApply}₮`),
+
+          source: "nekhemjlekh",
+          guilgeeKhiisenAjiltniiNer: null,
+          guilgeeKhiisenAjiltniiId: null,
+        });
+
+        const savedTulsun = await tulsunDoc.save();
+        tulsunAvlagaDocs.push(savedTulsun);
+      } catch (tulsunError) {
+        console.error(
+          "❌ [INVOICE PAYMENT] Error creating gereeniiTulsunAvlaga:",
+          tulsunError.message
+        );
+      }
+
       // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel and is fully paid
       if (isFullyPaid && updatedInvoice.ekhniiUldegdel && updatedInvoice.ekhniiUldegdel > 0) {
         try {
@@ -258,6 +301,44 @@ async function markInvoicesAsPaid(options) {
             await geree.save();
             gereePositiveBalanceMap.set(gereeId, geree.positiveBalance);
             console.log(`💰 [INVOICE PAYMENT] Added ${balancePerGeree}₮ to positiveBalance for geree ${gereeId}`);
+
+            // NEW: persist positiveBalance as gereeniiTulsunAvlaga row (prepayment)
+            try {
+              const prepayDoc = new GereeniiTulsunAvlagaModel({
+                baiguullagiinId: String(baiguullagiinId),
+                baiguullagiinNer: geree.baiguullagiinNer || "",
+                barilgiinId: geree.barilgiinId || "",
+                gereeniiId: geree._id.toString(),
+                gereeniiDugaar: geree.gereeniiDugaar || "",
+                orshinSuugchId: geree.orshinSuugchId || "",
+                nekhemjlekhId: null,
+
+                ognoo: new Date(),
+                tulsunDun: balancePerGeree,
+                tulsunAldangi: 0,
+
+                turul: "prepayment",
+                zardliinTurul: "",
+                zardliinId: "",
+                zardliinNer: "",
+
+                tailbar:
+                  tailbar ||
+                  `Нэхэмжлэхгүй илүү төлөлт (positiveBalance): ${balancePerGeree}₮`,
+
+                source: "geree",
+                guilgeeKhiisenAjiltniiNer: null,
+                guilgeeKhiisenAjiltniiId: null,
+              });
+
+              const savedPrepay = await prepayDoc.save();
+              tulsunAvlagaDocs.push(savedPrepay);
+            } catch (prepayError) {
+              console.error(
+                "❌ [INVOICE PAYMENT] Error creating prepayment gereeniiTulsunAvlaga:",
+                prepayError.message
+              );
+            }
           }
         } catch (error) {
           console.error(`❌ [INVOICE PAYMENT] Error updating positiveBalance for geree ${gereeId}:`, error.message);
@@ -284,6 +365,17 @@ async function markInvoicesAsPaid(options) {
       uldegdel: invoice.uldegdel || 0,
       tuluv: invoice.tuluv,
       tulsunOgnoo: invoice.tulsunOgnoo,
+    })),
+    // NEW: high‑level view of payment projection rows created
+    tulsunAvlaga: tulsunAvlagaDocs.map((doc) => ({
+      _id: doc._id,
+      gereeniiId: doc.gereeniiId,
+      gereeniiDugaar: doc.gereeniiDugaar,
+      nekhemjlekhId: doc.nekhemjlekhId,
+      tulsunDun: doc.tulsunDun,
+      turul: doc.turul,
+      source: doc.source,
+      ognoo: doc.ognoo,
     })),
     positiveBalance: Array.from(gereePositiveBalanceMap.entries()).map(([gereeId, balance]) => ({
       gereeniiId: gereeId,
