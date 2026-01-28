@@ -381,7 +381,9 @@ async function markInvoicesAsPaid(options) {
 
         const gereeToUpdate = await GereeModel.findById(gereeId);
         if (gereeToUpdate) {
-          gereeToUpdate.globalUldegdel = globalUldegdel;
+          const positive = gereeToUpdate.positiveBalance || 0;
+          // Global balance = unpaid invoices - positiveBalance (can be negative when overpaid)
+          gereeToUpdate.globalUldegdel = globalUldegdel - positive;
           await gereeToUpdate.save();
         }
       } catch (recalcError) {
