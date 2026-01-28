@@ -455,7 +455,7 @@ async function markInvoicesAsPaid(options) {
     message: `Applied ${dun - remainingPayment}₮ to ${updatedInvoices.length} invoice(s)${remainingPayment > 0 ? `, saved ${remainingPayment}₮ as positive balance` : ''}`,
     invoices: updatedInvoices.map(({ invoice, amountApplied, isFullyPaid }) => ({
       _id: invoice._id,
-      nekhemjlekhiinDugaar: invoice.nekhemjlekhiinDugaar,
+      nekhemjlekhiinDugaar: invoice.nekhemjlekhiiDugaar,
       gereeniiDugaar: invoice.gereeniiDugaar,
       niitTulbur: invoice.niitTulbur,
       amountApplied,
@@ -482,6 +482,74 @@ async function markInvoicesAsPaid(options) {
   };
 }
 
+/**
+ * Get payment summary (tulsunDun) for a single geree from gereeniiTulsunAvlaga.
+ *
+ * Returns total paid, split by invoice payments and prepayments.
+ *
+ * @param {Object} options
+ * @param {String} options.baiguullagiinId - Organization ID (required)
+ * @param {String} options.gereeniiId - Contract ID (required)
+ */
+async function getGereeniiTulsunSummary(options) {
+  const { baiguullagiinId, gereeniiId } = options || {};
+
+  if (!baiguullagiinId) {
+    throw new Error("baiguullagiinId is required");
+  }
+  if (!gereeniiId) {
+    throw new Error("gereeniiId is required");
+  }
+
+  const kholbolt = db.kholboltuud.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+
+  if (!kholbolt) {
+    throw new Error(`Холболт олдсонгүй: ${baiguullagiinId}`);
+  }
+
+  const GereeniiTulsunAvlagaModel = GereeniiTulsunAvlaga(kholbolt);
+
+  const [row] = await GereeniiTulsunAvlagaModel.aggregate([
+    {
+      $match: {
+        baiguullagiinId: String(baiguullagiinId),
+        gereeniiId: String(gereeniiId),
+      },
+    },
+    {
+      $group: {
+        _id: "$gereeniiId",
+        totalTulsunDun: { $sum: "$tulsunDun" },
+        totalInvoicePayment: {
+          $sum: {
+            $cond: [
+              { $eq: ["$turul", "invoice_payment"] },
+              "$tulsunDun",
+              0,
+            ],
+          },
+        },
+        totalPrepayment: {
+          $sum: {
+            $cond: [{ $eq: ["$turul", "prepayment"] }, "$tulsunDun", 0],
+          },
+        },
+      },
+    },
+  ]);
+
+  return {
+    success: true,
+    gereeniiId: String(gereeniiId),
+    totalTulsunDun: row?.totalTulsunDun || 0,
+    totalInvoicePayment: row?.totalInvoicePayment || 0,
+    totalPrepayment: row?.totalPrepayment || 0,
+  };
+}
+
 module.exports = {
   markInvoicesAsPaid,
+  getGereeniiTulsunSummary,
 };
