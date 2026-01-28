@@ -152,11 +152,11 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
     const davkharArray = targetBarilga.tokhirgoo?.davkhar || [];
     const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
 
-    // Ensure davkhar (floor number) is in the array
+    // Validate that davkhar already exists - do not allow creating new davkhar when assigning toot
     const davkharStr = String(davkhar);
     if (!davkharArray.includes(davkharStr)) {
-      davkharArray.push(davkharStr);
-      davkharArray.sort((a, b) => parseInt(a) - parseInt(b)); // Sort numerically
+      console.warn(`⚠️ [updateDavkharWithToot] Davkhar "${davkharStr}" does not exist in barilga. Cannot assign toot "${toot}" to unregistered davkhar.`);
+      return; // Exit early - do not create new davkhar or assign toot
     }
 
     // Get or create toot array for this floor

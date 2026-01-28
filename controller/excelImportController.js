@@ -1640,14 +1640,13 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
           const davkharStr = String(davkhar).trim();
           const ortsStr = orts ? String(orts).trim() : "1"; // Default to "1" if orts not provided
 
+          // Validate that davkhar already exists in barilga - do not allow creating new davkhar
+          if (!davkharArray.includes(davkharStr)) {
+            throw new Error(`Давхар "${davkharStr}" барилгын мэдээлэлд бүртгэгдээгүй байна. Зөвхөн одоо байгаа давхарт тоот оноох боломжтой.`);
+          }
+
           // Create key format: "orts::davkhar" (e.g., "1::1", "1::2")
           const floorKey = `${ortsStr}::${davkharStr}`;
-
-          // Ensure davkhar is in the array
-          if (!davkharArray.includes(davkharStr)) {
-            davkharArray.push(davkharStr);
-            davkharArray.sort((a, b) => parseInt(a) - parseInt(b));
-          }
 
           // Get or create toot array for this floor::entrance combination
           if (!davkhariinToonuud[floorKey]) {
