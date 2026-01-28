@@ -2032,8 +2032,19 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
     const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
     const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
 
+    // Check for existing unsent (preview/unpaid) invoices for this month
+    const existingUnsentInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).find({
+      gereeniiId: String(gereeId),
+      tuluv: { $in: ["Төлөөгүй", "Хугацаа хэтэрсэн"] }, // Only unsent/unpaid invoices
+      $or: [
+        { ognoo: { $gte: monthStart, $lte: monthEnd } },
+        { createdAt: { $gte: monthStart, $lte: monthEnd } }
+      ]
+    }).sort({ createdAt: 1 }); // Sort by oldest first
+
     if (override) {
-      const existingInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).find({
+      // If override=true, delete ALL existing invoices for this month (old behavior)
+      const allExistingInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).find({
         gereeniiId: String(gereeId),
         $or: [
           { ognoo: { $gte: monthStart, $lte: monthEnd } },
@@ -2041,9 +2052,26 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         ]
       });
 
-      for (const invoice of existingInvoices) {
+      for (const invoice of allExistingInvoices) {
         await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: invoice._id });
         console.log(`🗑️ [MANUAL SEND] Deleted existing invoice: ${invoice.nekhemjlekhiinDugaar || invoice._id}`);
+      }
+    } else if (existingUnsentInvoices.length > 0) {
+      // If override=false but there are unsent invoices, update the oldest one instead of creating new
+      const oldestUnsentInvoice = existingUnsentInvoices[0];
+      
+      console.log(`🔄 [MANUAL SEND] Found existing unsent invoice: ${oldestUnsentInvoice.nekhemjlekhiinDugaar || oldestUnsentInvoice._id}`);
+      console.log(`🔄 [MANUAL SEND] Updating invoice instead of creating new one`);
+      
+      // Delete the oldest unsent invoice so we can recreate it with fresh data
+      await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: oldestUnsentInvoice._id });
+      
+      // Delete any additional unsent invoices for this month (keep only one)
+      if (existingUnsentInvoices.length > 1) {
+        for (let i = 1; i < existingUnsentInvoices.length; i++) {
+          await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: existingUnsentInvoices[i]._id });
+          console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${existingUnsentInvoices[i].nekhemjlekhiinDugaar || existingUnsentInvoices[i]._id}`);
+        }
       }
     }
 
@@ -2055,6 +2083,10 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
       "manual",
       true
     );
+
+    if (result.success && existingUnsentInvoices.length > 0 && !override) {
+      console.log(`✅ [MANUAL SEND] Updated existing unsent invoice for geree ${geree.gereeniiDugaar || gereeId}`);
+    }
 
     return result;
   } catch (error) {

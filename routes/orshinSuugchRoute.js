@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const OrshinSuugch = require("../models/orshinSuugch");
 const Baiguullaga = require("../models/baiguullaga");
+const Geree = require("../models/geree");
 const NevtreltiinTuukh = require("../models/nevtreltiinTuukh");
 const BackTuukh = require("../models/backTuukh");
 const request = require("request");
@@ -194,14 +195,120 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
     delete req.body.erunkhiiKholbolt;
     delete req.body.tukhainBaaziinKholbolt;
 
+    // Update orshinSuugch
     const result = await OrshinSuugch(db.erunkhiiKholbolt).findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true }
     );
-    if (result != null) result.key = result._id;
+    
+    if (result != null) {
+      result.key = result._id;
+      
+      // Update corresponding geree(s) with the same information
+      if (result.baiguullagiinId) {
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(result.baiguullagiinId);
+        
+        if (baiguullaga) {
+          const tukhainBaaziinKholbolt = db.kholboltuud.find(
+            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+          );
+          
+          if (tukhainBaaziinKholbolt) {
+            const GereeModel = Geree(tukhainBaaziinKholbolt);
+            
+            // Build update object for geree - only update fields that are relevant to geree
+            const gereeUpdateData = {};
+            
+            // Personal information
+            if (req.body.ner !== undefined) gereeUpdateData.ner = req.body.ner;
+            if (req.body.ovog !== undefined) gereeUpdateData.ovog = req.body.ovog;
+            if (req.body.register !== undefined) gereeUpdateData.register = req.body.register;
+            if (req.body.mail !== undefined) gereeUpdateData.mail = req.body.mail;
+            
+            // Phone number (utas is array in geree)
+            if (req.body.utas !== undefined) {
+              gereeUpdateData.utas = Array.isArray(req.body.utas) 
+                ? req.body.utas 
+                : [req.body.utas];
+            }
+            
+            // Address information - Apartment/Unit details
+            if (req.body.toot !== undefined) gereeUpdateData.toot = req.body.toot;
+            if (req.body.davkhar !== undefined) gereeUpdateData.davkhar = req.body.davkhar;
+            if (req.body.orts !== undefined) gereeUpdateData.orts = req.body.orts;
+            
+            // Building information
+            if (req.body.barilgiinId !== undefined) gereeUpdateData.barilgiinId = req.body.barilgiinId;
+            if (req.body.bairniiNer !== undefined) gereeUpdateData.bairNer = req.body.bairniiNer;
+            
+            // Organization information
+            if (req.body.baiguullagiinId !== undefined) {
+              gereeUpdateData.baiguullagiinId = req.body.baiguullagiinId;
+            }
+            if (req.body.baiguullagiinNer !== undefined) {
+              gereeUpdateData.baiguullagiinNer = req.body.baiguullagiinNer;
+            }
+            
+            // Address location details
+            if (req.body.duureg !== undefined) gereeUpdateData.duureg = req.body.duureg;
+            if (req.body.horoo !== undefined) gereeUpdateData.horoo = req.body.horoo;
+            if (req.body.soh !== undefined) gereeUpdateData.sohNer = req.body.soh;
+            
+            // Build full address string (sukhBairshil) if any address component changed
+            const addressChanged = req.body.duureg !== undefined || 
+                                  req.body.horoo !== undefined || 
+                                  req.body.soh !== undefined;
+            
+            if (addressChanged) {
+              const duuregVal = req.body.duureg || result.duureg || "";
+              const horooVal = req.body.horoo || result.horoo || "";
+              const sohVal = req.body.soh || result.soh || "";
+              
+              // Extract horoo name if it's an object
+              const horooNer = typeof horooVal === 'object' && horooVal.ner 
+                ? horooVal.ner 
+                : (typeof horooVal === 'string' ? horooVal : "");
+              
+              gereeUpdateData.sukhBairshil = `${duuregVal}, ${horooNer}, ${sohVal}`.replace(/^,\s*|,\s*$/g, '').replace(/,\s*,/g, ',').trim();
+            }
+            
+            // Financial information
+            if (req.body.ekhniiUldegdel !== undefined) {
+              gereeUpdateData.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
+            }
+            
+            // Electricity readings
+            if (req.body.tsahilgaaniiZaalt !== undefined) {
+              const zaalt = parseFloat(req.body.tsahilgaaniiZaalt) || 0;
+              gereeUpdateData.suuliinZaalt = zaalt;
+              // Only update umnukhZaalt if it's not already set or is 0
+              gereeUpdateData.umnukhZaalt = zaalt;
+            }
+            
+            // Update all active gerees for this orshinSuugch
+            if (Object.keys(gereeUpdateData).length > 0) {
+              const updateResult = await GereeModel.updateMany(
+                {
+                  orshinSuugchId: result._id.toString(),
+                  tuluv: "Идэвхтэй"
+                },
+                { $set: gereeUpdateData }
+              );
+              
+              console.log(`✅ [UPDATE] Updated ${updateResult.modifiedCount} geree(s) for orshinSuugch ${result._id}`);
+              console.log(`✅ [UPDATE] Updated fields:`, Object.keys(gereeUpdateData).join(", "));
+            } else {
+              console.log(`ℹ️ [UPDATE] No geree-relevant fields to update`);
+            }
+          }
+        }
+      }
+    }
+    
     res.send(result);
   } catch (error) {
+    console.error("❌ [UPDATE] Error updating orshinSuugch/geree:", error.message);
     next(error);
   }
 });
