@@ -1645,62 +1645,69 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     // Send SMS verification code on login
     // Frontend will handle verification status in local storage
-    try {
-      console.log("📱 [LOGIN] Sending SMS verification code");
-      
-      // Get baiguullaga for SMS sending
-      let baiguullagiinId = orshinSuugch.baiguullagiinId;
-      if (!baiguullagiinId && req.body.baiguullagiinId) {
-        baiguullagiinId = req.body.baiguullagiinId;
-      }
-      
-      if (baiguullagiinId) {
-        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
-        if (baiguullaga) {
-          const tukhainBaaziinKholbolt = db.kholboltuud.find(
-            (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
-          );
-          
-          if (tukhainBaaziinKholbolt) {
-            // Generate and send verification code
-            const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
-            const verificationCodeDoc = await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
-              phoneNumber,
-              "login", // Purpose: login verification
-              10 // Expires in 10 minutes
+    // TEMPORARILY DISABLED: SMS sending for login
+    const ENABLE_LOGIN_SMS = false; // Set to true to re-enable SMS verification on login
+    
+    if (ENABLE_LOGIN_SMS) {
+      try {
+        console.log("📱 [LOGIN] Sending SMS verification code");
+        
+        // Get baiguullaga for SMS sending
+        let baiguullagiinId = orshinSuugch.baiguullagiinId;
+        if (!baiguullagiinId && req.body.baiguullagiinId) {
+          baiguullagiinId = req.body.baiguullagiinId;
+        }
+        
+        if (baiguullagiinId) {
+          const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+          if (baiguullaga) {
+            const tukhainBaaziinKholbolt = db.kholboltuud.find(
+              (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
             );
-
-            // Send SMS
-            var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
-            var msgIlgeekhDugaar = "72002002";
-            var smsText = `AmarSukh: Tany nevtrekh batalgaajuulax code: ${verificationCodeDoc.code}.`;
             
-            var ilgeexList = [
-              {
-                to: phoneNumber,
-                text: smsText,
-                gereeniiId: "login_verification",
-              },
-            ];
+            if (tukhainBaaziinKholbolt) {
+              // Generate and send verification code
+              const BatalgaajuulahCodeModel = BatalgaajuulahCode(tukhainBaaziinKholbolt);
+              const verificationCodeDoc = await BatalgaajuulahCodeModel.batalgaajuulkhCodeUusgeye(
+                phoneNumber,
+                "login", // Purpose: login verification
+                10 // Expires in 10 minutes
+              );
 
-            var khariu = [];
-            msgIlgeeye(
-              ilgeexList,
-              msgIlgeekhKey,
-              msgIlgeekhDugaar,
-              khariu,
-              0,
-              tukhainBaaziinKholbolt,
-              baiguullagiinId
-            );
+              // Send SMS
+              var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
+              var msgIlgeekhDugaar = "72002002";
+              var smsText = `AmarSukh: Tany nevtrekh batalgaajuulax code: ${verificationCodeDoc.code}.`;
+              
+              var ilgeexList = [
+                {
+                  to: phoneNumber,
+                  text: smsText,
+                  gereeniiId: "login_verification",
+                },
+              ];
 
-            console.log("✅ [LOGIN] SMS verification code sent to:", phoneNumber);
+              var khariu = [];
+              msgIlgeeye(
+                ilgeexList,
+                msgIlgeekhKey,
+                msgIlgeekhDugaar,
+                khariu,
+                0,
+                tukhainBaaziinKholbolt,
+                baiguullagiinId
+              );
+
+              console.log("✅ [LOGIN] SMS verification code sent to:", phoneNumber);
+            }
           }
         }
+      } catch (smsError) {
+        console.error("⚠️ [LOGIN] Error sending SMS (continuing with login):", smsError.message);
+        // Don't fail login if SMS fails
       }
-    } catch (smsError) {
-      console.error("⚠️ [LOGIN] Error sending SMS (continuing with login):", smsError.message);
-      // Don't fail login if SMS fails
+    } else {
+      console.log("⚠️ [LOGIN] SMS verification DISABLED - login proceeding without SMS");
     }
 
     const userData = {
@@ -4301,6 +4308,32 @@ function msgIlgeeye(
 exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
+
+    // TEMPORARILY DISABLED: SMS verification for login
+    const ENABLE_LOGIN_SMS = false; // Set to true to re-enable SMS verification on login
+    
+    // If SMS is disabled, automatically verify without checking code
+    if (!ENABLE_LOGIN_SMS) {
+      console.log("⚠️ [LOGIN VERIFY] SMS verification DISABLED - auto-approving verification");
+      
+      const { db } = require("zevbackv2");
+      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
+      
+      if (!orshinSuugch) {
+        return res.status(404).json({
+          success: false,
+          message: "Хэрэглэгч олдсонгүй!",
+        });
+      }
+
+      console.log("✅ [LOGIN VERIFY] Auto-approved verification for user:", orshinSuugch._id);
+
+      return res.json({
+        success: true,
+        message: "Баталгаажуулалт амжилттай (SMS идэвхгүй)",
+        // Frontend should save verification status to local storage
+      });
+    }
 
     // If baiguullagiinId is not provided, skip OTP verification and proceed
     // This allows wallet-only registrations (without organization) to proceed
