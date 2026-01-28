@@ -2,6 +2,7 @@ const { db } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 
 /**
  * Mark invoices as paid with credit/overpayment system
@@ -53,6 +54,7 @@ async function markInvoicesAsPaid(options) {
   const NekhemjlekhiinTuukh = nekhemjlekhiinTuukh(kholbolt);
   const GereeModel = Geree(kholbolt);
   const GereeniiTulsunAvlagaModel = GereeniiTulsunAvlaga(kholbolt);
+  const GereeniiTulukhAvlagaModel = GereeniiTulukhAvlaga(kholbolt);
 
   // Build query to find invoices
   const query = {
@@ -141,6 +143,7 @@ async function markInvoicesAsPaid(options) {
   const gereePositiveBalanceMap = new Map(); // Track positiveBalance per geree
   const tulsunAvlagaDocs = []; // Track created gereeniiTulsunAvlaga records
   const gereesNeedingRecalc = new Set(); // geree IDs whose globalUldegdel we will recalculate
+  const gereePaymentMap = new Map(); // Track how much payment (including prepayment) applied per geree
 
   // Process invoices from latest to oldest
   for (const invoice of invoices) {
@@ -208,6 +211,9 @@ async function markInvoicesAsPaid(options) {
       // Track geree whose invoices changed, to recalc globalUldegdel later
       if (updatedInvoice.gereeniiId) {
         gereesNeedingRecalc.add(String(updatedInvoice.gereeniiId));
+        const key = String(updatedInvoice.gereeniiId);
+        const prev = gereePaymentMap.get(key) || 0;
+        gereePaymentMap.set(key, prev + amountToApply);
       }
 
       // NEW: persist paid portion as gereeniiTulsunAvlaga row
@@ -348,12 +354,54 @@ async function markInvoicesAsPaid(options) {
 
             // PositiveBalance changes also affect globalUldegdel view, so recalc
             gereesNeedingRecalc.add(String(geree._id.toString()));
+
+            // Track this prepayment against geree as well
+            const key = String(geree._id.toString());
+            const prev = gereePaymentMap.get(key) || 0;
+            gereePaymentMap.set(key, prev + balancePerGeree);
           }
         } catch (error) {
           console.error(`❌ [INVOICE PAYMENT] Error updating positiveBalance for geree ${gereeId}:`, error.message);
         }
       }
     }
+  }
+
+  // Apply payments to gereeniiTulukhAvlaga (reduce uldegdel on avlaga side)
+  try {
+    for (const [gereeId, paymentForGeree] of gereePaymentMap.entries()) {
+      let remainingForGeree = paymentForGeree;
+      if (remainingForGeree <= 0) continue;
+
+      const openTulukhRows = await GereeniiTulukhAvlagaModel.find({
+        gereeniiId: String(gereeId),
+        baiguullagiinId: String(baiguullagiinId),
+        uldegdel: { $gt: 0 },
+      })
+        .sort({ ognoo: 1, createdAt: 1 })
+        .lean();
+
+      for (const row of openTulukhRows) {
+        if (remainingForGeree <= 0) break;
+        const currentUldegdel = row.uldegdel || 0;
+        if (currentUldegdel <= 0) continue;
+
+        const applyHere = Math.min(remainingForGeree, currentUldegdel);
+        const newUldegdel = currentUldegdel - applyHere;
+
+        await GereeniiTulukhAvlagaModel.updateOne(
+          { _id: row._id },
+          { $set: { uldegdel: newUldegdel } }
+        );
+
+        remainingForGeree -= applyHere;
+      }
+    }
+  } catch (tulukhUpdateError) {
+    console.error(
+      "❌ [INVOICE PAYMENT] Error updating gereeniiTulukhAvlaga uldegdel:",
+      tulukhUpdateError.message
+    );
   }
 
   // Recalculate and store globalUldegdel on affected gerees
