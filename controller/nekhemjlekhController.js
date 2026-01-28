@@ -1216,17 +1216,28 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     }
 
-    await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
-      tempData._id,
-      {
-        $set: {
-          nekhemjlekhiinOgnoo: new Date(),
+    // Update geree with latest invoice date and increment globalUldegdel
+    try {
+      await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
+        tempData._id,
+        {
+          $set: {
+            nekhemjlekhiinOgnoo: new Date(),
+          },
+          $inc: {
+            globalUldegdel: tuukh.niitTulbur || 0,
+          },
         },
-      },
-      {
-        runValidators: false,
-      }
-    );
+        {
+          runValidators: false,
+        }
+      );
+    } catch (gereeUpdateError) {
+      console.error(
+        "❌ [INVOICE] Error updating geree.globalUldegdel after invoice creation:",
+        gereeUpdateError.message
+      );
+    }
 
     // TEMPORARILY DISABLED: Send SMS to orshinSuugch when invoice is created
     // try {
