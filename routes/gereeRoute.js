@@ -29,6 +29,10 @@ const {
   importTootBurtgelFromExcel,
 } = require("../controller/excelImportController");
 const { gereeniiGuilgeeKhadgalya } = require("../controller/gereeController");
+const {
+  markInvoicesAsPaid,
+  getGereeniiTulsunSummary,
+} = require("../services/invoicePaymentService");
 
 const storage = multer.memoryStorage();
 const uploadFile = multer({ storage: storage });
@@ -56,6 +60,20 @@ router.post(
   tokenShalgakh,
   downloadGuilgeeniiTuukhExcel
 );
+
+// Payment summary for a single geree (from gereeniiTulsunAvlaga)
+router.post("/tulsunSummary", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { baiguullagiinId, gereeniiId } = req.body || {};
+    const result = await getGereeniiTulsunSummary({
+      baiguullagiinId,
+      gereeniiId,
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
 
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
