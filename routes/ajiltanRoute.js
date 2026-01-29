@@ -35,6 +35,40 @@ router.use((req, res, next) => {
   next();
 });
 
+// Manual PUT handler to fix "immutable field _id" error and ensure hooks run
+router.put("/:id", tokenShalgakh, async (req, res, next) => {
+  try {
+    // If multipart (file upload), let crudWithFile handle it (or handle it here if needed)
+    // But usually simple edits are JSON
+    if (req.headers['content-type']?.includes('multipart/form-data')) return next();
+
+    const { db } = require("zevbackv2");
+    const AjiltanModel = Ajiltan(db.erunkhiiKholbolt);
+    
+    // 1. Fetch document
+    const doc = await AjiltanModel.findById(req.params.id);
+    if (!doc) {
+       // If not found, let crudWithFile attempt (or 404)
+       return next();
+    }
+
+    // 2. Safe Update
+    const forbidden = ['_id', 'id', 'updatedAt', 'createdAt', '__v'];
+    Object.keys(req.body).forEach(key => {
+      if (!forbidden.includes(key)) {
+        doc[key] = req.body[key];
+      }
+    });
+
+    // 3. Save (Triggers pre-save hooks for password hashing & post-save for phone sync)
+    await doc.save();
+    
+    res.send(doc);
+  } catch (error) {
+    next(error);
+  }
+});
+
 crudWithFile(
   router,
   "ajiltan",
