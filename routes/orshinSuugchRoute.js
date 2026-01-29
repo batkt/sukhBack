@@ -121,9 +121,6 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       body.query.barilgiinId = String(barilgiinId);
     }
     
-    // Debug: Log the query
-    console.log("🔍 [orshinSuugch GET] Query:", JSON.stringify(body.query, null, 2));
-    
     // OrshinSuugch is stored in the main database (db.erunkhiiKholbolt), not tenant-specific databases
     // We filter by baiguullagiinId and barilgiinId in the query
     let jagsaalt = await OrshinSuugch(db.erunkhiiKholbolt)
@@ -137,7 +134,6 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       body.query
     );
     
-    console.log("✅ [orshinSuugch GET] Found", niitMur, "records");
     let niitKhuudas =
       niitMur % khuudasniiKhemjee == 0
         ? Math.floor(niitMur / khuudasniiKhemjee)
@@ -288,18 +284,13 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
             
             // Update all active gerees for this orshinSuugch
             if (Object.keys(gereeUpdateData).length > 0) {
-              const updateResult = await GereeModel.updateMany(
+              await GereeModel.updateMany(
                 {
                   orshinSuugchId: result._id.toString(),
                   tuluv: "Идэвхтэй"
                 },
                 { $set: gereeUpdateData }
               );
-              
-              console.log(`✅ [UPDATE] Updated ${updateResult.modifiedCount} geree(s) for orshinSuugch ${result._id}`);
-              console.log(`✅ [UPDATE] Updated fields:`, Object.keys(gereeUpdateData).join(", "));
-            } else {
-              console.log(`ℹ️ [UPDATE] No geree-relevant fields to update`);
             }
           }
         }

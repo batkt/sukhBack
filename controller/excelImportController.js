@@ -1014,10 +1014,12 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             }
           }
 
-          // If no toots were found, log warning but allow import to proceed
+          // If no toots were found, block import for this row
           if (foundToonuud.length === 0) {
+            throw new Error(`"${userData.toot}" тоот бүртгэлгүй байна. Та барилгын тохиргооноос тоотыг шалгана уу.`);
           } else if (foundToonuud.length < tootListToValidate.length) {
             const notFound = tootListToValidate.filter(t => !foundToonuud.includes(t));
+            throw new Error(`"${notFound.join(", ")}" тоотнууд бүртгэлгүй байна.`);
           }
         }
 

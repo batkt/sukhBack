@@ -231,8 +231,6 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
       return;
     }
 
-    console.log("🔄 [BAIGULLAGA HOOK] Post-save hook triggered for baiguullaga:", doc._id);
-
     const { db } = require("zevbackv2");
     const Geree = require("./geree");
 
@@ -241,7 +239,6 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
     );
 
     if (!kholbolt) {
-      console.log("⚠️ [BAIGULLAGA HOOK] No kholbolt found for baiguullaga:", doc._id);
       return;
     }
 
@@ -265,11 +262,7 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
         barilgiinId: barilgiinId,
         tuluv: "Идэвхтэй", // Only update active contracts
       });
-
-      console.log(
-        `🔄 [BAIGULLAGA HOOK] Found ${gereenuud.length} active geree for barilga ${barilgiinId} with ${ashiglaltiinZardluud.length} zardluud`
-      );
-
+      
       for (const geree of gereenuud) {
         if (!geree.zardluud) {
           geree.zardluud = [];
@@ -366,11 +359,6 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
 
         // Save the updated geree
         await geree.save();
-
-        console.log(
-          `✅ [BAIGULLAGA HOOK] Updated geree ${geree.gereeniiDugaar}: niitTulbur ${oldNiitTulbur} → ${niitTulbur}, zardluud count: ${geree.zardluud.length}`
-        );
-
         // NOTE: Do NOT update existing nekhemjlekhiinTuukh (invoice) records
         // Once an invoice is created, it should NEVER be modified
         // This ensures historical accuracy - invoices represent what was billed at a specific point in time
@@ -385,21 +373,14 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
 }
 
 // Pre-save hook to validate that toots are unique across all davkhars
-baiguullagaSchema.pre("save", function (next) {
-  console.log(`🚨🚨🚨 [VALIDATION PRE-SAVE] ========== PRE-SAVE HOOK EXECUTING ==========`);
-  console.log(`🚨🚨🚨 [VALIDATION PRE-SAVE] this._id:`, this._id);
-  console.log(`🚨🚨🚨 [VALIDATION PRE-SAVE] this.barilguud exists:`, !!this.barilguud);
-  console.log(`🚨🚨🚨 [VALIDATION PRE-SAVE] this.barilguud is array:`, Array.isArray(this.barilguud));
-  
+ baiguullagaSchema.pre("save", function (next) {
   try {
-    console.log(`🔍 [VALIDATION PRE-SAVE] Validating baiguullaga before save...`);
     const error = validateDavkhariinToonuud(this.barilguud);
     if (error) {
       console.error(`❌ [VALIDATION PRE-SAVE] Validation failed:`, error.message);
       error.name = "ValidationError";
       return next(error);
     }
-    console.log(`✅ [VALIDATION PRE-SAVE] Validation passed, allowing save`);
     next();
   } catch (error) {
     console.error(`❌ [VALIDATION PRE-SAVE] Error in validation:`, error);
@@ -410,64 +391,37 @@ baiguullagaSchema.pre("save", function (next) {
 
 // Post-save hook - validate AFTER save as safety check
 baiguullagaSchema.post("save", async function (doc) {
-  console.log(`🚨 [VALIDATION POST-SAVE] ========== POST-SAVE HOOK EXECUTING ==========`);
-  console.log(`🚨 [VALIDATION POST-SAVE] doc._id:`, doc._id);
-  console.log(`🚨 [VALIDATION POST-SAVE] doc.barilguud exists:`, !!doc.barilguud);
-  console.log(`🚨 [VALIDATION POST-SAVE] doc.barilguud is array:`, Array.isArray(doc.barilguud));
-  
   try {
-    // Validate after save as a safety check (though pre-save should catch it)
-    console.log(`🔍 [VALIDATION POST-SAVE] Validating after save as safety check...`);
-    
     if (doc.barilguud && Array.isArray(doc.barilguud)) {
-      console.log(`🔍 [VALIDATION POST-SAVE] Calling validateDavkhariinToonuud with ${doc.barilguud.length} buildings...`);
       const error = validateDavkhariinToonuud(doc.barilguud);
       if (error) {
-        console.error(`❌ [VALIDATION POST-SAVE] Duplicate toots detected after save! This should not happen.`, error.message);
-        // Note: We can't prevent the save at this point, but we log the error
-        // The pre-save hook should have caught this
-      } else {
-        console.log(`✅ [VALIDATION POST-SAVE] No duplicates found after save`);
       }
-    } else {
-      console.log(`⚠️ [VALIDATION POST-SAVE] No barilguud to validate`);
     }
   } catch (err) {
     console.error(`❌ [VALIDATION POST-SAVE] Error during validation:`, err);
     console.error(`❌ [VALIDATION POST-SAVE] Error stack:`, err.stack);
   }
   
-  console.log(`🚨 [VALIDATION POST-SAVE] About to call updateGereeFromBaiguullagaZardluud...`);
   await updateGereeFromBaiguullagaZardluud(doc);
-  console.log(`🚨 [VALIDATION POST-SAVE] Finished updateGereeFromBaiguullagaZardluud`);
 });
 
 // Helper function to validate davkhariinToonuud for duplicate toots
 function validateDavkhariinToonuud(barilguud) {
-  console.log(`🔍 [VALIDATION FUNCTION] Starting validation, barilguud length:`, barilguud?.length || 0);
   if (!barilguud || !Array.isArray(barilguud)) {
-    console.log(`⚠️ [VALIDATION FUNCTION] No barilguud or not an array, skipping validation`);
     return null; // No error
   }
 
   // Check each building's davkhariinToonuud for duplicate toots across davkhars
   for (let barilgaIndex = 0; barilgaIndex < barilguud.length; barilgaIndex++) {
     const barilga = barilguud[barilgaIndex];
-    console.log(`🔍 [VALIDATION FUNCTION] Checking barilga[${barilgaIndex}], ner: ${barilga?.ner || 'N/A'}`);
-    
     if (!barilga.tokhirgoo || !barilga.tokhirgoo.davkhariinToonuud) {
-      console.log(`⚠️ [VALIDATION FUNCTION] Barilga[${barilgaIndex}] has no tokhirgoo.davkhariinToonuud, skipping`);
       continue;
     }
 
     const davkhariinToonuud = barilga.tokhirgoo.davkhariinToonuud;
     const tootMap = new Map(); // Map<toot, davkhar>
-    console.log(`🔍 [VALIDATION FUNCTION] Barilga[${barilgaIndex}] has ${Object.keys(davkhariinToonuud).length} floor keys:`, Object.keys(davkhariinToonuud));
-
-    // Iterate through all floor keys (format: "orts::davkhar" or just "davkhar")
     for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
       if (!tootArray || !Array.isArray(tootArray)) {
-        console.log(`⚠️ [VALIDATION FUNCTION] FloorKey "${floorKey}" has invalid tootArray, skipping`);
         continue;
       }
 
@@ -487,9 +441,6 @@ function validateDavkhariinToonuud(barilguud) {
       } else {
         tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
       }
-
-      console.log(`🔍 [VALIDATION FUNCTION] Processing floorKey "${floorKey}" (davkhar: ${davkhar}), toots:`, tootList);
-
       // Check each toot for duplicates across davkhars
       for (const toot of tootList) {
         if (tootMap.has(toot)) {
@@ -503,11 +454,8 @@ function validateDavkhariinToonuud(barilguud) {
         }
         tootMap.set(toot, davkhar);
       }
-      console.log(`✅ [VALIDATION FUNCTION] Processed floorKey "${floorKey}" (davkhar: ${davkhar}), total unique toots so far: ${tootMap.size}`);
     }
-    console.log(`✅ [VALIDATION FUNCTION] Barilga[${barilgaIndex}] validation complete, no duplicates found`);
   }
-  console.log(`✅ [VALIDATION FUNCTION] All barilguud validated, no duplicates found`);
   return null; // No error
 }
 
@@ -534,44 +482,29 @@ baiguullagaSchema.pre("updateOne", function (next) {
 // Validate both full array updates AND nested path updates that modify davkhariinToonuud
 baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
   try {
-    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] ========== HOOK TRIGGERED ==========`);
-    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] _update keys:`, Object.keys(this._update || {}));
-    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] _update has barilguud:`, !!(this._update && this._update.barilguud));
-    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] _update has $set:`, !!(this._update && this._update.$set));
-    console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] _update.$set has barilguud:`, !!(this._update && this._update.$set && this._update.$set.barilguud));
-    
     let barilguudToValidate = null;
     
     // Case 1: Direct barilguud update (PUT with full object, Mongoose sets it directly)
     if (this._update && this._update.barilguud && !this._update.$set) {
-      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Case 1: Direct barilguud array update detected`);
       barilguudToValidate = this._update.barilguud;
     }
     // Case 2: barilguud in $set (PUT with full object wrapped in $set)
     else if (this._update && this._update.$set && this._update.$set.barilguud) {
-      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Case 2: barilguud in $set detected`);
       barilguudToValidate = this._update.$set.barilguud;
     }
     // Case 3: Nested davkhariinToonuud update via $set (partial update)
     else if (this._update && this._update.$set) {
       const setKeys = Object.keys(this._update.$set);
-      console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Case 3: Checking $set keys:`, setKeys);
       const isDavkhariinToonuudUpdate = setKeys.some(key => 
         key.includes('tokhirgoo.davkhariinToonuud') || key.includes('barilguud')
       );
-      
       if (isDavkhariinToonuudUpdate) {
-        console.log(`🔍 [VALIDATION PRE-FINDONEANDUPDATE] Detected davkhariinToonuud or barilguud update, fetching document to merge...`);
-        // Fetch current document to merge with update
         const doc = await this.model.findOne(this.getQuery()).lean();
         if (doc && doc.barilguud) {
-          // Create a merged copy of barilguud
           const mergedBarilguud = JSON.parse(JSON.stringify(doc.barilguud));
           
-          // Apply $set updates to merged copy
           for (const [path, value] of Object.entries(this._update.$set)) {
             if (path === 'barilguud') {
-              // Full barilguud array replacement
               barilguudToValidate = value;
               break;
             } else if (path.startsWith('barilguud.')) {
@@ -582,7 +515,6 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
                 if (pathParts[2] === 'tokhirgoo' && pathParts[3] === 'davkhariinToonuud') {
                   mergedBarilguud[barilgaIndex].tokhirgoo = mergedBarilguud[barilgaIndex].tokhirgoo || {};
                   mergedBarilguud[barilgaIndex].tokhirgoo.davkhariinToonuud = value;
-                  console.log(`📝 [VALIDATION PRE-FINDONEANDUPDATE] Updated barilga[${barilgaIndex}].tokhirgoo.davkhariinToonuud`);
                 }
               }
             }
@@ -591,26 +523,16 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
           if (!barilguudToValidate) {
             barilguudToValidate = mergedBarilguud;
           }
-        } else {
-          console.warn(`⚠️ [VALIDATION PRE-FINDONEANDUPDATE] Document not found or no barilguud`);
         }
-      } else {
-        console.log(`ℹ️ [VALIDATION PRE-FINDONEANDUPDATE] Not a barilguud/davkhariinToonuud update, skipping validation`);
       }
     }
     
-    // Validate if we found barilguud to check
     if (barilguudToValidate) {
-      console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] Validating barilguud with ${barilguudToValidate.length} buildings...`);
       const error = validateDavkhariinToonuud(barilguudToValidate);
       if (error) {
-        console.error(`❌ [VALIDATION PRE-FINDONEANDUPDATE] Validation failed:`, error.message);
         error.name = "ValidationError";
         return next(error);
       }
-      console.log(`✅ [VALIDATION PRE-FINDONEANDUPDATE] Validation passed, allowing update`);
-    } else {
-      console.log(`ℹ️ [VALIDATION PRE-FINDONEANDUPDATE] No barilguud to validate, skipping`);
     }
     
     next();
@@ -620,14 +542,12 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
   }
 });
 
-// Post-findOneAndUpdate hook (for findOneAndUpdate operations)
 baiguullagaSchema.post("findOneAndUpdate", async function (doc) {
   if (doc) {
     await updateGereeFromBaiguullagaZardluud(doc);
   }
 });
 
-// Post-updateOne hook (for updateOne operations)
 baiguullagaSchema.post("updateOne", async function () {
   try {
     const doc = await this.model.findOne(this.getQuery());
@@ -639,27 +559,9 @@ baiguullagaSchema.post("updateOne", async function () {
   }
 });
 
-//const BaiguullagaModel = mongoose.model("baiguullaga", baiguullagaSchema);
-
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
   conn = conn.kholbolt;
   return conn.model("baiguullaga", baiguullagaSchema);
 };
-
-/*var newId = new mongoose.mongo.ObjectId('62bbb00140b7dd4f39c99e64');
-BaiguullagaModel.estimatedDocumentCount().then((count) => {
-  if (count == 0) {
-    BaiguullagaModel.create(
-      new BaiguullagaModel({
-        _id: newId,
-        ner: "E-Mart",
-        utas: "80994111",
-        register: "5811651",
-      })
-    );
-  }
-});
-*/
-//module.exports = BaiguullagaModel;
