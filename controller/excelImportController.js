@@ -1460,7 +1460,7 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
       }
 
       // Determine number of orts (entrances) from building configuration
-      // Check davkhariinToonuud keys to find unique orts values
+      // Method 1: Check davkhariinToonuud keys to find unique orts values
       const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
       const ortsSet = new Set();
       
@@ -1474,8 +1474,37 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
         }
       });
 
-      // If no orts found in davkhariinToonuud, default to 1
+      console.log("🔍 [TOOT TEMPLATE] davkhariinToonuud keys:", Object.keys(davkhariinToonuud));
+      console.log("🔍 [TOOT TEMPLATE] Extracted orts from keys:", Array.from(ortsSet));
+
+      // Method 2: Check if there's a direct orts field in tokhirgoo
+      if (ortsSet.size === 0 && targetBarilga.tokhirgoo?.orts) {
+        const ortsValue = targetBarilga.tokhirgoo.orts;
+        console.log("🔍 [TOOT TEMPLATE] Found tokhirgoo.orts:", ortsValue, "Type:", typeof ortsValue);
+        
+        // Try to parse as a number first (handles both number and numeric string like "2")
+        const ortsAsNumber = typeof ortsValue === 'number' ? ortsValue : parseInt(ortsValue);
+        
+        if (!isNaN(ortsAsNumber) && ortsAsNumber > 0) {
+          // If orts is a number, create range from 1 to orts
+          for (let i = 1; i <= ortsAsNumber; i++) {
+            ortsSet.add(String(i));
+          }
+          console.log("🔍 [TOOT TEMPLATE] Using orts as count, created range 1 to", ortsAsNumber);
+        } else if (typeof ortsValue === 'string' && ortsValue.includes(',')) {
+          // If it's a comma-separated string like "1,2,3"
+          ortsValue.split(',').forEach(o => {
+            const trimmed = o.trim();
+            if (trimmed) ortsSet.add(trimmed);
+          });
+          console.log("🔍 [TOOT TEMPLATE] Using orts as comma-separated list:", ortsValue);
+        }
+      }
+
+      // If no orts found, default to 1
       const ortsList = ortsSet.size > 0 ? Array.from(ortsSet).sort((a, b) => parseInt(a) - parseInt(b)) : ["1"];
+      
+      console.log("✅ [TOOT TEMPLATE] Final ortsList:", ortsList);
 
       const wb = XLSX.utils.book_new();
       const headers = ["Давхар", "Тоот"];
@@ -1491,6 +1520,7 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
         ws["!cols"] = colWidths;
         
         const sheetName = `Орц ${orts}`;
+        console.log(`📄 [TOOT TEMPLATE] Creating sheet: ${sheetName}`);
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       });
 
