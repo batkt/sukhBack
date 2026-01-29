@@ -25,28 +25,48 @@ const {
 
 
 router.put("/:id", tokenShalgakh, async (req, res, next) => {
+  console.log(`🔥 [CustomPUT] INTERCEPTED PUT request for ID: ${req.params.id}`);
   try {
+    // If request contains files (multipart), pass to standard handler
     if (req.headers['content-type']?.includes('multipart/form-data')) {
+      console.log("⚠️ [CustomPUT] Skipping: Multipart request");
       return next();
     }
 
     const { db } = require("zevbackv2");
+    if (!db || !db.erunkhiiKholbolt) {
+       console.log("⚠️ [CustomPUT] Skipping: DB not ready");
+       return next();
+    }
+
     const AjiltanModel = Ajiltan(db.erunkhiiKholbolt);
     
+    // 1. Fetch document
     const doc = await AjiltanModel.findById(req.params.id);
-    if (!doc) return next(); // Fallback if not found
+    if (!doc) {
+       console.log(`⚠️ [CustomPUT] Skipping: Document not found ${req.params.id}`);
+       return next(); // Fallback if not found
+    }
 
+    // 2. Safe Update (Exclude immutable fields)
     const forbidden = ['_id', 'id', 'updatedAt', 'createdAt', '__v'];
+    
+    // Explicitly delete from req.body just in case
+    forbidden.forEach(k => delete req.body[k]);
+
     Object.keys(req.body).forEach(key => {
       if (!forbidden.includes(key)) {
         doc[key] = req.body[key];
       }
     });
+
     // 3. Save (Triggers password hashing and phone sync hooks)
     await doc.save();
+    console.log(`✅ [CustomPUT] Update successful for ${doc._id}`);
     
     res.send(doc);
   } catch (error) {
+    console.error("❌ [CustomPUT] Error:", error);
     next(error);
   }
 });

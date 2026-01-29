@@ -196,26 +196,34 @@ const syncPhonesToGeree = async function (doc) {
     console.log(`🔄 [AutoSync] Syncing phones for employee: ${doc._id}`);
 
     // Load Geree Model with tenant connection
-    const GereeModel = require("./geree")({ kholbolt: kholbolt });
+    // kholbolt object from db.kholboltuud is already the wrapper expected (has .kholbolt property)
+    const GereeModel = require("./geree")(kholbolt);
     
     const AjiltanModel = doc.constructor;
 
     for (const buildingId of doc.barilguud) {
+      // Find all employees for this building
       const employees = await AjiltanModel.find({
         baiguullagiinId: doc.baiguullagiinId,
         barilguud: buildingId
       }).select('utas');
       
+      console.log(`🔎 [AutoSync] Found ${employees.length} employees for building ${buildingId}`);
+
       const phoneNumbers = [...new Set(
         employees
           .map(e => e.utas)
           .filter(p => p && p.trim().length > 0)
       )];
       
-      await GereeModel.updateMany(
+      console.log(`📱 [AutoSync] Phones to sync:`, phoneNumbers);
+
+      // Update all contracts in this building
+      const updateResult = await GereeModel.updateMany(
          { barilgiinId: buildingId },
          { $set: { suhUtas: phoneNumbers } }
       );
+      console.log(`📝 [AutoSync] Updated ${updateResult.modifiedCount} contracts in building ${buildingId}`);
     }
     console.log(`✅ [AutoSync] Phones synced successfully.`);
   } catch (error) {
