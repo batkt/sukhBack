@@ -23,36 +23,23 @@ const {
 } = require("../controller/ajiltan");
 
 
-router.use((req, res, next) => {
-  if (req.body && (req.method === 'PUT' || req.method === 'POST')) {
-    const forbidden = ['_id', 'id', 'updatedAt', 'createdAt', '__v'];
-    forbidden.forEach(key => {
-       if (req.body[key] !== undefined || key in req.body) {
-         delete req.body[key];
-       }
-    });
-  }
-  next();
-});
-
-// Manual PUT handler to fix "immutable field _id" error and ensure hooks run
+// Custom PUT Handler to fix "immutable field _id" error safely
+// This bypasses zevbackv2 for standard JSON updates but allows file uploads to pass through
 router.put("/:id", tokenShalgakh, async (req, res, next) => {
   try {
-    // If multipart (file upload), let crudWithFile handle it (or handle it here if needed)
-    // But usually simple edits are JSON
-    if (req.headers['content-type']?.includes('multipart/form-data')) return next();
+    // If request contains files (multipart), pass to standard handler
+    if (req.headers['content-type']?.includes('multipart/form-data')) {
+      return next();
+    }
 
     const { db } = require("zevbackv2");
     const AjiltanModel = Ajiltan(db.erunkhiiKholbolt);
     
     // 1. Fetch document
     const doc = await AjiltanModel.findById(req.params.id);
-    if (!doc) {
-       // If not found, let crudWithFile attempt (or 404)
-       return next();
-    }
+    if (!doc) return next(); // Fallback if not found
 
-    // 2. Safe Update
+    // 2. Safe Update (Exclude immutable fields)
     const forbidden = ['_id', 'id', 'updatedAt', 'createdAt', '__v'];
     Object.keys(req.body).forEach(key => {
       if (!forbidden.includes(key)) {
@@ -60,7 +47,7 @@ router.put("/:id", tokenShalgakh, async (req, res, next) => {
       }
     });
 
-    // 3. Save (Triggers pre-save hooks for password hashing & post-save for phone sync)
+    // 3. Save (Triggers password hashing and phone sync hooks)
     await doc.save();
     
     res.send(doc);
@@ -93,7 +80,6 @@ crudWithFile(
         const forbidden = ['_id', 'id', 'updatedAt', 'createdAt', '__v'];
         forbidden.forEach(key => {
            if (req.body[key] !== undefined || key in req.body) {
-             console.log(`🧹 [SANITIZER] Removing forbidden key: ${key}`);
              delete req.body[key];
            }
         });
