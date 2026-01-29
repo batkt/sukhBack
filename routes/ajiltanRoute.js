@@ -36,10 +36,16 @@ crudWithFile(
       const { db } = require("zevbackv2");
       var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
       
-      // Log albanTushaal if present in request body
       if (req.body?.albanTushaal !== undefined) {
         console.log(`📝 [AJILTAN] albanTushaal received:`, req.body.albanTushaal);
       }
+      
+      // Remove immutable fields to prevent update errors
+      if (req.body._id) delete req.body._id;
+      if (req.body.id) delete req.body.id;
+      if (req.body.updatedAt) delete req.body.updatedAt;
+      if (req.body.createdAt) delete req.body.createdAt;
+      if (req.body.__v) delete req.body.__v;
       
       if (req.params.id) {
         var ObjectId = require("mongodb").ObjectId;
