@@ -154,9 +154,7 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
               newBarilga.niitTalbai = firstBarilga.niitTalbai || 0;
             }
             if (newBarilga.davkharuud === undefined) {
-              newBarilga.davkharuud = firstBarilga.davkharuud 
-                ? JSON.parse(JSON.stringify(firstBarilga.davkharuud))
-                : [];
+              newBarilga.davkharuud = []; // Do not duplicate floor metadata
             }
           } else {
             // If no first barilga, use baiguullaga defaults
@@ -183,6 +181,9 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
           if (firstBarilga && firstBarilga.tokhirgoo) {
             // Deep clone the first barilga's tokhirgoo as base
             const baseTokhirgoo = JSON.parse(JSON.stringify(firstBarilga.tokhirgoo));
+            
+            // Do not duplicate unit structure (room numbers)
+            delete baseTokhirgoo.davkhariinToonuud;
             
             // Merge user-provided tokhirgoo with base (user values take precedence)
             newBarilga.tokhirgoo = {
@@ -552,8 +553,16 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
     // Get the first barilga (the template)
     const firstBarilga = baiguullaga.barilguud[0];
 
-    // Create a new barilga object by copying the first one
-    // But use main baiguullaga tokhirgoo as base, then merge with first barilga's tokhirgoo
+    // Create a new barilga object by copying the first one but excluding units and floor metadata
+    const tokhirgooBase = firstBarilga.tokhirgoo
+      ? JSON.parse(JSON.stringify(firstBarilga.tokhirgoo))
+      : baiguullaga.tokhirgoo
+        ? JSON.parse(JSON.stringify(baiguullaga.tokhirgoo))
+        : {};
+
+    // Do not duplicate unit structure (room numbers)
+    delete tokhirgooBase.davkhariinToonuud;
+
     const newBarilga = {
       ner: ner,
       khayag: firstBarilga.khayag || baiguullaga.khayag || "",
@@ -563,15 +572,8 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
         type: "Point",
         coordinates: [],
       },
-      // Get main tokhirgoo from baiguullaga, then merge with first barilga's barilga-specific tokhirgoo
-      tokhirgoo: firstBarilga.tokhirgoo
-        ? JSON.parse(JSON.stringify(firstBarilga.tokhirgoo))
-        : baiguullaga.tokhirgoo
-          ? JSON.parse(JSON.stringify(baiguullaga.tokhirgoo))
-          : {},
-      davkharuud: firstBarilga.davkharuud
-        ? JSON.parse(JSON.stringify(firstBarilga.davkharuud))
-        : [],
+      tokhirgoo: tokhirgooBase,
+      davkharuud: [], // Do not duplicate floor metadata
     };
 
     // Update sohNer and davkhar in tokhirgoo
