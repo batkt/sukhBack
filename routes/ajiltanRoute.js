@@ -22,6 +22,19 @@ const {
   baiguullagaIdgaarAvya,
 } = require("../controller/ajiltan");
 
+
+router.use((req, res, next) => {
+  if (req.body && (req.method === 'PUT' || req.method === 'POST')) {
+    const forbidden = ['_id', 'id', 'updatedAt', 'createdAt', '__v'];
+    forbidden.forEach(key => {
+       if (req.body[key] !== undefined || key in req.body) {
+         delete req.body[key];
+       }
+    });
+  }
+  next();
+});
+
 crudWithFile(
   router,
   "ajiltan",
