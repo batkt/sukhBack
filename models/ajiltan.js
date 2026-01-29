@@ -188,8 +188,14 @@ const syncPhonesToGeree = async function (doc) {
     if (!db || !db.kholboltuud) return;
 
     const kholbolt = db.kholboltuud.find(k => k.baiguullagiinId == doc.baiguullagiinId);
-    if (!kholbolt) return;
+    if (!kholbolt) {
+      console.log("❌ [AutoSync] Kholbolt not found for", doc.baiguullagiinId);
+      return;
+    }
 
+    console.log(`🔄 [AutoSync] Syncing phones for employee: ${doc._id}`);
+
+    // Load Geree Model with tenant connection
     const GereeModel = require("./geree")({ kholbolt: kholbolt });
     
     const AjiltanModel = doc.constructor;
@@ -211,6 +217,7 @@ const syncPhonesToGeree = async function (doc) {
          { $set: { suhUtas: phoneNumbers } }
       );
     }
+    console.log(`✅ [AutoSync] Phones synced successfully.`);
   } catch (error) {
     console.error("❌ [AutoSync] Error syncing phones:", error);
   }

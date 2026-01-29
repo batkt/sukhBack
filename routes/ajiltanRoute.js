@@ -23,11 +23,9 @@ const {
 } = require("../controller/ajiltan");
 
 
-// Custom PUT Handler to fix "immutable field _id" error safely
-// This bypasses zevbackv2 for standard JSON updates but allows file uploads to pass through
+
 router.put("/:id", tokenShalgakh, async (req, res, next) => {
   try {
-    // If request contains files (multipart), pass to standard handler
     if (req.headers['content-type']?.includes('multipart/form-data')) {
       return next();
     }
@@ -35,18 +33,15 @@ router.put("/:id", tokenShalgakh, async (req, res, next) => {
     const { db } = require("zevbackv2");
     const AjiltanModel = Ajiltan(db.erunkhiiKholbolt);
     
-    // 1. Fetch document
     const doc = await AjiltanModel.findById(req.params.id);
     if (!doc) return next(); // Fallback if not found
 
-    // 2. Safe Update (Exclude immutable fields)
     const forbidden = ['_id', 'id', 'updatedAt', 'createdAt', '__v'];
     Object.keys(req.body).forEach(key => {
       if (!forbidden.includes(key)) {
         doc[key] = req.body[key];
       }
     });
-
     // 3. Save (Triggers password hashing and phone sync hooks)
     await doc.save();
     
@@ -74,9 +69,7 @@ crudWithFile(
         console.log(`📝 [AJILTAN] albanTushaal received:`, req.body.albanTushaal);
       }
       
-      // Remove immutable fields to prevent update errors
       if (req.body) {
-        // console.log("🧹 [SANITIZER] Raw body:", JSON.stringify(req.body));
         const forbidden = ['_id', 'id', 'updatedAt', 'createdAt', '__v'];
         forbidden.forEach(key => {
            if (req.body[key] !== undefined || key in req.body) {
