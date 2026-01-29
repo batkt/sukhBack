@@ -41,11 +41,16 @@ crudWithFile(
       }
       
       // Remove immutable fields to prevent update errors
-      if (req.body._id) delete req.body._id;
-      if (req.body.id) delete req.body.id;
-      if (req.body.updatedAt) delete req.body.updatedAt;
-      if (req.body.createdAt) delete req.body.createdAt;
-      if (req.body.__v) delete req.body.__v;
+      if (req.body) {
+        // console.log("🧹 [SANITIZER] Raw body:", JSON.stringify(req.body));
+        const forbidden = ['_id', 'id', 'updatedAt', 'createdAt', '__v'];
+        forbidden.forEach(key => {
+           if (req.body[key] !== undefined || key in req.body) {
+             console.log(`🧹 [SANITIZER] Removing forbidden key: ${key}`);
+             delete req.body[key];
+           }
+        });
+      }
       
       if (req.params.id) {
         var ObjectId = require("mongodb").ObjectId;
