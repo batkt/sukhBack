@@ -195,14 +195,11 @@ const syncPhonesToGeree = async function (doc) {
 
     console.log(`🔄 [AutoSync] Syncing phones for employee: ${doc._id}`);
 
-    // Load Geree Model with tenant connection
-    // kholbolt object from db.kholboltuud is already the wrapper expected (has .kholbolt property)
     const GereeModel = require("./geree")(kholbolt);
     
     const AjiltanModel = doc.constructor;
 
     for (const buildingId of doc.barilguud) {
-      // Find all employees for this building
       const employees = await AjiltanModel.find({
         baiguullagiinId: doc.baiguullagiinId,
         barilguud: buildingId
