@@ -174,6 +174,51 @@ ajiltanSchema.methods.passwordShalgaya = async function (pass) {
   }
 };
 
+const syncPhonesToGeree = async function (doc) {
+  try {
+    if (!doc || !doc.baiguullagiinId || !doc.barilguud || doc.barilguud.length === 0) return;
+
+    let db;
+    try {
+      db = require("zevbackv2").db;
+    } catch (e) {
+      return;
+    }
+
+    if (!db || !db.kholboltuud) return;
+
+    const kholbolt = db.kholboltuud.find(k => k.baiguullagiinId == doc.baiguullagiinId);
+    if (!kholbolt) return;
+
+    const GereeModel = require("./geree")({ kholbolt: kholbolt });
+    
+    const AjiltanModel = doc.constructor;
+
+    for (const buildingId of doc.barilguud) {
+      const employees = await AjiltanModel.find({
+        baiguullagiinId: doc.baiguullagiinId,
+        barilguud: buildingId
+      }).select('utas');
+      
+      const phoneNumbers = [...new Set(
+        employees
+          .map(e => e.utas)
+          .filter(p => p && p.trim().length > 0)
+      )];
+      
+      await GereeModel.updateMany(
+         { barilgiinId: buildingId },
+         { $set: { suhUtas: phoneNumbers } }
+      );
+    }
+  } catch (error) {
+    console.error("❌ [AutoSync] Error syncing phones:", error);
+  }
+};
+
+ajiltanSchema.post('save', syncPhonesToGeree);
+ajiltanSchema.post('findOneAndUpdate', syncPhonesToGeree);
+
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");
