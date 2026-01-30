@@ -79,9 +79,10 @@ crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
 crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
 
-
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 crud(router, "gereeniiTulsunAvlaga", GereeniiTulsunAvlaga, UstsanBarimt);
+crud(router, "gereeniiTulukhAvlaga", GereeniiTulukhAvlaga, UstsanBarimt);
 crud(
   router,
   "geree",
