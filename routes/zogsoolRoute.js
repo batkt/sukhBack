@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
-const { Uilchluulegch } = require("parking-v2");
+const { Uilchluulegch } = require("sukhParking-v1");
 //const UstsanBarimt = require("../models/ustsanBarimt");
 const { Pool } = require("pg");
 const Zogsool = require("../models/zogsool");

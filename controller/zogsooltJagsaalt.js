@@ -1,4 +1,4 @@
-const Uilchluulegch = require("parking-v2");
+const Uilchluulegch = require("sukhParking-v1");
 
 module.exports.archiveUilchluulegch = async function archiveUilchluulegch() {
   try {

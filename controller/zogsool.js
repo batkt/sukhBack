@@ -7,7 +7,7 @@ const {
   Uilchluulegch,
   zogsooliinDunAvya,
   sdkData,
-} = require("parking-v2");
+} = require("sukhParking-v1");
 const moment = require("moment");
 const got = require("got");
 const FormData = require("form-data");
