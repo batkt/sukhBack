@@ -842,16 +842,18 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
 
           
           // Emit to organization level
-          io.emit(`parkingEntry/${req.body.baiguullagiinId}`, {
-            type: 'new_entry',
-            uilchluulegch: uilchluulegchRecord,
-            data: khariu.data,
-            mashiniiDugaar: req.body.mashiniiDugaar,
-            CAMERA_IP: req.body.CAMERA_IP,
-            barilgiinId: req.body.barilgiinId,
-            baiguullagiinId: req.body.baiguullagiinId,
-            timestamp: new Date(),
-          });
+          // Emit to organization level - specific event format requested by user
+          io.emit(`zogsool${req.body.baiguullagiinId}`, uilchluulegchRecord);
+
+          // Emit specific entry/exit events based on context (optional but matches logs)
+          /* 
+             Example logs showed: 
+             zogsoolOroh<id><ip>
+             zogsoolGarah<id><ip>
+             We can allow the frontend to deduce this or emit these later if needed.
+             For now, the main 'zogsool' event carries the full record which is enough for the table.
+          */
+
           
           // Emit to building level
           if (req.body.barilgiinId) {
