@@ -1811,19 +1811,6 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
           },
         }
       );
-
-      // Recalculate liftShalgaya
-      try {
-        const { calculateLiftShalgaya } = require("./orshinSuugch");
-        await calculateLiftShalgaya(
-          baiguullaga._id.toString(),
-          defaultBarilgiinId,
-          davkharArray,
-          tukhainBaaziinKholbolt
-        );
-      } catch (liftError) {
-        console.error("Error calculating liftShalgaya:", liftError);
-      }
     }
 
     res.json({

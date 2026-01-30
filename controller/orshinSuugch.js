@@ -209,18 +209,10 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
     const updatedBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
       baiguullaga._id
     );
-    const finalDavkharArray =
-      updatedBaiguullaga?.barilguud?.find(
-        (b) => String(b._id) === String(barilgiinId)
-      )?.tokhirgoo?.davkhar || davkharArray;
 
-    // Calculate and update liftShalgaya
-    await exports.calculateLiftShalgaya(
-      baiguullaga._id.toString(),
-      barilgiinId,
-      finalDavkharArray,
-      tukhainBaaziinKholbolt
-    );
+    // NOTE: liftShalgaya.choloolugdokhDavkhar should be configured manually by admin
+    // It represents floors EXEMPT from lift charges, NOT all floors in the building
+    // So we do NOT auto-calculate it when registering users
   } catch (error) {
     console.error("Error updating davkhar with toot:", error);
   }
