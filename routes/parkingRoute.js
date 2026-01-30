@@ -667,6 +667,32 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
       }
     }
     const khariu = await sdkData(req, medegdel);
+    
+    if (req.body.burtgelOgnoo && req.body.mashiniiDugaar) {
+      try {
+         const uilchluulegchModel = Uilchluulegch(req.body.tukhainBaaziinKholbolt);
+         const manualDate = moment(req.body.burtgelOgnoo).toDate();
+         
+         const latest = await uilchluulegchModel.findOne({ 
+           mashiniiDugaar: req.body.mashiniiDugaar
+         }).sort({ createdAt: -1 });
+
+         if (latest) {
+           await uilchluulegchModel.updateOne(
+             { _id: latest._id },
+             {
+               $set: {
+                 "tuukh.0.tsagiinTuukh.0.orsonTsag": manualDate,
+                 "createdAt": manualDate
+               }
+             }
+           );
+         }
+      } catch(e) {
+         console.error("Manual date update error:", e);
+      }
+    }
+
     console.log("sdkData", khariu);
     res.send(khariu);
   } catch (err) {
