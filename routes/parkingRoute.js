@@ -185,17 +185,47 @@ router.get("/uilchluulegch/active", tokenShalgakh, async (req, res, next) => {
       .sort({ createdAt: -1 })
       .limit(100) // Limit to last 100 active entries
       .lean();
-    
-    res.json({
-      success: true,
-      data: activeUilchluulegchuud,
-      count: activeUilchluulegchuud.length,
-    });
+
+    // Enrich with Mashin data
+    try {
+      const activeDataWithCarDetails = await Promise.all(activeUilchluulegchuud.map(async (item) => {
+        if (!item.mashiniiDugaar) return item;
+        
+        try {
+          const mashin = await Mashin(tukhainBaaziinKholbolt).findOne({ dugaar: item.mashiniiDugaar }).lean();
+          if (mashin) {
+             if (item.tuukh && item.tuukh.length > 0) {
+                 item.tuukh[0].turul = mashin.turul || item.tuukh[0].turul || "Үйлчлүүлэгч";
+                 item.tuukh[0].khungulult = mashin.khungulult;
+             }
+          }
+        } catch (mashinError) {
+           console.error("Error fetching mashin details for active list:", mashinError);
+        }
+        return item;
+      }));
+
+      res.json({
+        success: true,
+        data: activeDataWithCarDetails,
+        count: activeDataWithCarDetails.length,
+      });
+    } catch (enrichError) {
+      console.error("Error enriching active list:", enrichError);
+      // Fallback to original data
+      res.json({
+        success: true,
+        data: activeUilchluulegchuud,
+        count: activeUilchluulegchuud.length,
+      });
+    }
+
   } catch (error) {
     console.error("❌ [uilchluulegch/active] Error:", error);
     next(error);
   }
 });
+
 
 router.get(
   "/zogsoolUilchluulegchJagsaalt",
@@ -793,9 +823,23 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
                 .sort({ createdAt: -1 })
                 .lean();
             }
+
+            // Enrich with Mashin data
+            if (uilchluulegchRecord && uilchluulegchRecord.mashiniiDugaar) {
+                try {
+                    const mashin = await Mashin(req.body.tukhainBaaziinKholbolt).findOne({ dugaar: uilchluulegchRecord.mashiniiDugaar }).lean();
+                    if (mashin && uilchluulegchRecord.tuukh && uilchluulegchRecord.tuukh.length > 0) {
+                        uilchluulegchRecord.tuukh[0].turul = mashin.turul || uilchluulegchRecord.tuukh[0].turul || "Үйлчлүүлэгч";
+                        uilchluulegchRecord.tuukh[0].khungulult = mashin.khungulult;
+                    }
+                } catch (e) {
+                    console.error("Error fetching mashin details for socket event:", e);
+                }
+            }
           } catch (fetchError) {
             console.error("❌ [zogsoolSdkService] Error fetching Uilchluulegch:", fetchError);
           }
+
           
           // Emit to organization level
           io.emit(`parkingEntry/${req.body.baiguullagiinId}`, {
