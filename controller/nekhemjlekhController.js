@@ -346,7 +346,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.gereeniiId = tempData._id;
     tuukh.gereeniiDugaar = tempData.gereeniiDugaar;
     tuukh.davkhar = tempData.davkhar;
-    tuukh.uldegdel = tempData.uldegdel || tempData.baritsaaniiUldegdel || 0;
+    tuukh.uldegdel = tempData.globalUldegdel || tempData.baritsaaniiUldegdel || 0;
     tuukh.daraagiinTulukhOgnoo =
       tempData.daraagiinTulukhOgnoo || tempData.tulukhOgnoo;
     tuukh.dansniiDugaar =
