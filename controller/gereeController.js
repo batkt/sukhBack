@@ -95,17 +95,18 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     }
 
     // avlaga creates invoice only, tulult and ashiglalt pay (reduce balance)
+    // NOTE: Using globalUldegdel field (not uldegdel) as that's what exists in Geree schema
     var inc = {};
     
     if (guilgee.turul == "tulult" || guilgee.turul == "ashiglalt") {
       // These types pay - reduce the balance (use tulsunDun)
-      inc.uldegdel = -(guilgee?.tulsunDun || 0);
+      inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
     } else if (guilgee.turul == "avlaga") {
       // avlaga creates invoice - increases the debt (use tulukhDun)
-      inc.uldegdel = +(guilgee?.tulukhDun || 0);
+      inc.globalUldegdel = +(guilgee?.tulukhDun || 0);
     } else {
       // Default behavior for other types (barter, etc.)
-      inc.uldegdel = -(guilgee?.tulsunDun || 0);
+      inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
     }
 
     // Debug logging
@@ -114,14 +115,14 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     console.log("   dun from body:", req.body.dun || req.body.guilgee?.dun);
     console.log("   tulukhDun:", guilgee.tulukhDun);
     console.log("   tulsunDun:", guilgee.tulsunDun);
-    console.log("   inc.uldegdel:", inc.uldegdel);
+    console.log("   inc.globalUldegdel:", inc.globalUldegdel);
 
     const guilgeeForNekhemjlekh = { ...guilgee };
     const geree = await Geree(tukhainBaaziinKholbolt, true)
       .findById(guilgee.gereeniiId)
-      .select("+avlaga orshinSuugchId gereeniiDugaar barilgiinId uldegdel");
+      .select("+avlaga orshinSuugchId gereeniiDugaar barilgiinId globalUldegdel");
     
-    console.log("   Current geree uldegdel BEFORE update:", geree?.uldegdel);
+    console.log("   Current geree globalUldegdel BEFORE update:", geree?.globalUldegdel);
     
     const currentGuilgeenuudCount = geree?.avlaga?.guilgeenuud?.length || 0;
     guilgeeForNekhemjlekh.avlagaGuilgeeIndex = currentGuilgeenuudCount;
@@ -139,7 +140,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         { new: true } // Return updated document
       );
 
-    console.log("   Geree uldegdel AFTER update:", result?.uldegdel);
+    console.log("   Geree globalUldegdel AFTER update:", result?.globalUldegdel);
 
     // Store in appropriate model based on turul type
     try {
