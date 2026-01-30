@@ -1726,18 +1726,21 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       userData.walletUserId = walletUserId;
     }
 
-    // Preserve existing baiguullagiinId if user already has one
+    // 1. Preserve existing primary organization - STRIKTLY IMMUTABLE
     if (orshinSuugch && orshinSuugch.baiguullagiinId) {
+      // If user exists and has an org, that is their PERMANENT primary home in erunkhiiBaaz
       userData.baiguullagiinId = orshinSuugch.baiguullagiinId;
       userData.baiguullagiinNer = orshinSuugch.baiguullagiinNer;
+      console.log(`ℹ️ [LOGIN] Locked primary org: ${orshinSuugch.baiguullagiinId}`);
+    } else if (req.body.baiguullagiinId) {
+      // For NEW users without an org, set the initial primary org
+      userData.baiguullagiinId = req.body.baiguullagiinId;
     }
     
-    // Save baiguullagiinId if provided (from OWN_ORG bair selection)
-    if (req.body.baiguullagiinId) {
-      userData.baiguullagiinId = req.body.baiguullagiinId;
-      // Also get baiguullaga name if available
+    // 2. Fetch baiguullaga name if we are setting it for the first time
+    if (userData.baiguullagiinId && !userData.baiguullagiinNer) {
       try {
-        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(userData.baiguullagiinId);
         if (baiguullaga && baiguullaga.ner) {
           userData.baiguullagiinNer = baiguullaga.ner;
         }
@@ -1805,11 +1808,14 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       console.log("✅ [LOGIN] barilgiinIdToSave:", barilgiinIdToSave);
     }
     
-    if (barilgiinIdToSave) {
-      userData.barilgiinId = barilgiinIdToSave;
-    } else if (orshinSuugch && orshinSuugch.barilgiinId) {
-      // Preserve existing barilgiinId if user already has one
+    // 3. Preserve existing primary building - STRIKTLY IMMUTABLE
+    if (orshinSuugch && orshinSuugch.barilgiinId) {
+      // Use existing building, ignore barilgiinIdToSave for primary document
       userData.barilgiinId = orshinSuugch.barilgiinId;
+      console.log(`ℹ️ [LOGIN] Locked primary building: ${orshinSuugch.barilgiinId}`);
+    } else if (barilgiinIdToSave) {
+      // First time setting a building
+      userData.barilgiinId = barilgiinIdToSave;
     }
 
     // Validate OWN_ORG bair toot/doorNo if provided
@@ -1983,28 +1989,34 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         console.log(`➕ [WALLET LOGIN] Added new toot to array: ${userData.newTootEntry.toot}`);
       }
       
-      // Also set as primary toot for backward compatibility
-      orshinSuugch.toot = userData.newTootEntry.toot;
-      orshinSuugch.baiguullagiinId = userData.newTootEntry.baiguullagiinId;
-      orshinSuugch.barilgiinId = userData.newTootEntry.barilgiinId;
-      orshinSuugch.davkhar = userData.newTootEntry.davkhar; // Auto-determined from toot
-      orshinSuugch.orts = userData.newTootEntry.orts; // Auto-determined from toot
-      orshinSuugch.duureg = userData.newTootEntry.duureg;
-      orshinSuugch.horoo = userData.newTootEntry.horoo;
-      orshinSuugch.soh = userData.newTootEntry.soh;
+      // Also set as primary toot ONLY if user doesn't have one (first registration)
+      if (!orshinSuugch.baiguullagiinId) {
+        orshinSuugch.toot = userData.newTootEntry.toot;
+        orshinSuugch.baiguullagiinId = userData.newTootEntry.baiguullagiinId;
+        orshinSuugch.barilgiinId = userData.newTootEntry.barilgiinId;
+        orshinSuugch.davkhar = userData.newTootEntry.davkhar;
+        orshinSuugch.orts = userData.newTootEntry.orts;
+        orshinSuugch.duureg = userData.newTootEntry.duureg;
+        orshinSuugch.horoo = userData.newTootEntry.horoo;
+        orshinSuugch.soh = userData.newTootEntry.soh;
+      }
     } else if (req.body.baiguullagiinId && (req.body.barilgiinId || req.body.bairId)) {
-      // OWN_ORG address selected but no doorNo/toot provided - still save baiguullagiinId and barilgiinId
-      // This handles the case where user selects OWN_ORG building but hasn't entered toot yet
-      if (userData.baiguullagiinId) {
-        orshinSuugch.baiguullagiinId = userData.baiguullagiinId;
-        if (userData.baiguullagiinNer) {
-          orshinSuugch.baiguullagiinNer = userData.baiguullagiinNer;
+      // OWN_ORG address selected but no doorNo/toot provided
+      // Only set primary fields if user doesn't have them yet
+      if (!orshinSuugch.baiguullagiinId) {
+        if (userData.baiguullagiinId) {
+          orshinSuugch.baiguullagiinId = userData.baiguullagiinId;
+          if (userData.baiguullagiinNer) {
+            orshinSuugch.baiguullagiinNer = userData.baiguullagiinNer;
+          }
         }
+        if (userData.barilgiinId) {
+          orshinSuugch.barilgiinId = userData.barilgiinId;
+        }
+        console.log(`✅ [WALLET LOGIN] OWN_ORG primary address set for NEW user: baiguullagiinId=${userData.baiguullagiinId}`);
+      } else {
+        console.log(`ℹ️ [WALLET LOGIN] OWN_ORG address selection ignored for existing primary user (will wait for toot to add to array)`);
       }
-      if (userData.barilgiinId) {
-        orshinSuugch.barilgiinId = userData.barilgiinId;
-      }
-      console.log(`✅ [WALLET LOGIN] OWN_ORG address saved (without toot): baiguullagiinId=${userData.baiguullagiinId}, barilgiinId=${userData.barilgiinId}`);
     } else if (bairIdToUse && doorNoToUse && !req.body.baiguullagiinId) {
       // Handle Wallet API address - add to toots array
       // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
