@@ -102,7 +102,7 @@ crud(
         orshinSuugchData.utas = "";
       }
 
-      const orshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)(orshinSuugchData);
+      const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(orshinSuugchData);
       orshinSuugch.id;
 
       var unuudur = new Date();

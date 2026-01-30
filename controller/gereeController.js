@@ -241,7 +241,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         medegdel.baiguullagiinId = baiguullagiinId;
         medegdel.barilgiinId = geree.barilgiinId || "";
         medegdel.title = "Шинэ авлага нэмэгдлээ";
-        medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Төлбөр: ${guilgee.tulsunDun || 0}₮`;
+        medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Төлбөр: ${guilgee.tulukhDun || 0}₮`;
         medegdel.kharsanEsekh = false;
         medegdel.turul = "мэдэгдэл";
         medegdel.ognoo = new Date();

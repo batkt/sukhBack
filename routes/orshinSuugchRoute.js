@@ -121,16 +121,26 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       body.query.barilgiinId = String(barilgiinId);
     }
     
-    // OrshinSuugch is stored in the main database (db.erunkhiiKholbolt), not tenant-specific databases
-    // We filter by baiguullagiinId and barilgiinId in the query
-    let jagsaalt = await OrshinSuugch(db.erunkhiiKholbolt)
+    // Resolve the correct database connection
+    let kholbolt = db.erunkhiiKholbolt;
+    if (baiguullagiinId && db && db.kholboltuud && Array.isArray(db.kholboltuud)) {
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      );
+      if (tukhainBaaziinKholbolt) {
+        kholbolt = tukhainBaaziinKholbolt;
+      }
+    }
+    
+    // Fetch residents from the resolved connection (tenant or main)
+    let jagsaalt = await OrshinSuugch(kholbolt)
       .find(body.query)
       .sort(body.order)
       .collation(body.collation ? body.collation : {})
       .select(body.select)
       .skip((khuudasniiDugaar - 1) * khuudasniiKhemjee)
       .limit(khuudasniiKhemjee);
-    let niitMur = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments(
+    let niitMur = await OrshinSuugch(kholbolt).countDocuments(
       body.query
     );
     
