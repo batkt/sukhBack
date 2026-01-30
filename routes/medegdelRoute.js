@@ -56,20 +56,28 @@ router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
 // Route matching the URL structure user provided: /medegdel/:baiguullagiinId/:filename
 router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
   const fileName = req.params.ner;
-  const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
+  // Use __dirname to find public folder relative to routes folder
+  const directoryPath = path.join(__dirname, "../public", "medegdel", req.params.baiguullagiinId);
   const filePath = path.join(directoryPath, fileName);
+  
+  console.log(`🔍 [IMAGE DEBUG] Request: ${req.originalUrl}`);
+  console.log(`🔍 [IMAGE DEBUG] Params: ID=${req.params.baiguullagiinId}, File=${fileName}`);
+  console.log(`🔍 [IMAGE DEBUG] Trying path: ${filePath}`);
+  console.log(`🔍 [IMAGE DEBUG] Exists: ${fs.existsSync(filePath)}`);
   
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath);
   } else {
     // If it's not a file (e.g. API call), pass to next router/middleware
     // This is important because this route pattern might conflict with /medegdel/:id API route
-    if (fileName.match(/\.(jpg|jpeg|png|gif|pdf)$/i)) {
+    if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp)$/i)) {
+       console.log(`❌ [IMAGE DEBUG] File not found, returning 404`);
        res.status(404).json({
         success: false,
         message: "Зураг олдсонгүй"
       });
     } else {
+      console.log(`➡️ [IMAGE DEBUG] Not an image, passing to next handler`);
       next();
     }
   }
