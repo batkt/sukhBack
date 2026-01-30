@@ -77,6 +77,7 @@ router.post("/tulsunSummary", tokenShalgakh, async (req, res, next) => {
 
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
+crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
 crud(
   router,
   "geree",
