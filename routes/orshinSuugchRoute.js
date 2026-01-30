@@ -118,7 +118,11 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
     
     // Add barilgiinId filter if provided
     if (barilgiinId) {
-      body.query.barilgiinId = String(barilgiinId);
+      // Look for barilgiinId at top level OR inside the toots array
+      body.query.$or = [
+        { barilgiinId: String(barilgiinId) },
+        { "toots.barilgiinId": String(barilgiinId) }
+      ];
     }
     
     // Resolve the correct database connection
@@ -158,6 +162,19 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       // If neither has data with the full query, let's see if Main has data for just the org
       const mainOrgCount = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments({ baiguullagiinId: String(baiguullagiinId) });
       console.log("   ℹ️ No docs found with full query. Docs with just baiguullagiinId in Main:", mainOrgCount);
+      
+      // TEMP DUMP: What do these 14 docs look like?
+      if (mainOrgCount > 0) {
+        const sample = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ baiguullagiinId: String(baiguullagiinId) }).lean();
+        console.log("   DEBUG SAMPLE DOC (Main DB):", JSON.stringify({ 
+          _id: sample._id, 
+          ner: sample.ner, 
+          baiguullagiinId: sample.baiguullagiinId, 
+          barilgiinId: sample.barilgiinId,
+          tootsCount: sample.toots?.length 
+        }, null, 2));
+      }
+
       kholbolt = db.erunkhiiKholbolt; // Default back to main
     }
     
