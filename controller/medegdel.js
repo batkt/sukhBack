@@ -325,7 +325,7 @@ exports.medegdelUstgakh = asyncHandler(async (req, res, next) => {
 exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
   try {
     const {
-      medeelel,
+      medeelel: medeelelRaw,
       orshinSuugchId,
       baiguullagiinId,
       barilgiinId,
@@ -333,10 +333,13 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       turul,
     } = req.body;
 
-    if (!baiguullagiinId || !tukhainBaaziinKholbolt) {
+    // medeelel might be stringified if sent via multipart/form-data
+    const medeelel = typeof medeelelRaw === 'string' ? JSON.parse(medeelelRaw) : medeelelRaw;
+
+    if (!baiguullagiinId) {
       return res.status(400).json({
         success: false,
-        message: "baiguullagiinId and tukhainBaaziinKholbolt are required",
+        message: "baiguullagiinId is required",
       });
     }
 
@@ -351,21 +354,64 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    const medegdel = new Medegdel(kholbolt)();
-    medegdel.orshinSuugchId = orshinSuugchId;
-    medegdel.baiguullagiinId = baiguullagiinId;
-    medegdel.barilgiinId = barilgiinId;
-    medegdel.title = medeelel?.title || "";
-    medegdel.message = medeelel?.body || medeelel?.message || "";
-    medegdel.kharsanEsekh = false;
-    medegdel.ognoo = new Date();
-    if (turul) medegdel.turul = String(turul);
+    if (!orshinSuugchId) {
+      return res.status(400).json({
+        success: false,
+        message: "orshinSuugchId is required",
+      });
+    }
 
-    await medegdel.save();
+    const orshinSuugchIds = Array.isArray(orshinSuugchId)
+      ? orshinSuugchId
+      : [orshinSuugchId];
+
+    const medegdelList = [];
+    const io = req.app.get("socketio");
+
+    for (const id of orshinSuugchIds) {
+      const medegdel = new Medegdel(kholbolt)();
+      medegdel.orshinSuugchId = id;
+      medegdel.baiguullagiinId = baiguullagiinId;
+      medegdel.barilgiinId = barilgiinId;
+      medegdel.title = medeelel?.title || "";
+      medegdel.message = medeelel?.body || medeelel?.message || "";
+      medegdel.kharsanEsekh = false;
+      medegdel.ognoo = new Date();
+      if (turul) medegdel.turul = String(turul);
+
+      // Add image path if file was uploaded
+      if (req.file) {
+        medegdel.zurag = req.file.path.replace(/\\/g, "/");
+      }
+
+      await medegdel.save();
+
+      // Convert UTC dates to Mongolian time (UTC+8) for response
+      const medegdelObj = medegdel.toObject();
+      const mongolianOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+
+      if (medegdelObj.createdAt) {
+        medegdelObj.createdAt = new Date(medegdelObj.createdAt.getTime() + mongolianOffset).toISOString();
+      }
+      if (medegdelObj.updatedAt) {
+        medegdelObj.updatedAt = new Date(medegdelObj.updatedAt.getTime() + mongolianOffset).toISOString();
+      }
+      if (medegdelObj.ognoo) {
+        medegdelObj.ognoo = new Date(medegdelObj.ognoo.getTime() + mongolianOffset).toISOString();
+      }
+
+      medegdelList.push(medegdelObj);
+
+      if (io) {
+        const eventName = "orshinSuugch" + id;
+        io.emit(eventName, medegdelObj);
+      }
+    }
 
     res.json({
       success: true,
-      data: medegdel,
+      data: medegdelList.length === 1 ? medegdelList[0] : medegdelList,
+      count: medegdelList.length,
       message: "Мэдэгдэл амжилттай илгээгдлээ",
     });
   } catch (error) {

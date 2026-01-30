@@ -27,6 +27,7 @@ const medegdelSchema = new Schema(
     tailbar: String, // Reply/notes from web admin
     repliedAt: Date, // When the reply was sent
     repliedBy: String, // Admin/employee ID who replied
+    zurag: String, // Path to attached image
   },
   {
     timestamps: true,

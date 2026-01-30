@@ -9,113 +9,47 @@ const {
   medegdelZasah,
   medegdelUstgakh,
 } = require("../controller/medegdel");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
-router.route("/medegdelIlgeeye").post(tokenShalgakh, async (req, res, next) => {
-  try {
-    const {
-      medeelel,
-      orshinSuugchId,
-      baiguullagiinId,
-      barilgiinId,
-      tukhainBaaziinKholbolt,
-      turul,
-    } = req.body;
-
-    if (!baiguullagiinId) {
-      return res.status(400).json({
-        success: false,
-        message: "baiguullagiinId is required",
-      });
+// Configure multer for image storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const { baiguullagiinId } = req.body;
+    const dir = `public/medegdel/${baiguullagiinId}/`;
+    
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, "medegdel-" + uniqueSuffix + path.extname(file.originalname));
+  },
+});
 
-    const kholbolt = db.kholboltuud.find(
-      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-    );
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+});
 
-    if (!kholbolt) {
-      return res.status(404).json({
-        success: false,
-        message: "Холболтын мэдээлэл олдсонгүй",
-      });
-    }
+router.route("/medegdelIlgeeye").post(tokenShalgakh, upload.single("zurag"), medegdelIlgeeye);
 
-    if (!orshinSuugchId) {
-      return res.status(400).json({
-        success: false,
-        message: "orshinSuugchId is required",
-      });
-    }
-
-    const orshinSuugchIds = Array.isArray(orshinSuugchId)
-      ? orshinSuugchId
-      : [orshinSuugchId];
-
-    const sonorduulgaList = [];
-    const io = req.app.get("socketio");
-
-    for (const id of orshinSuugchIds) {
-      const sonorduulga = new Sonorduulga(kholbolt)();
-      sonorduulga.orshinSuugchId = id;
-      sonorduulga.baiguullagiinId = baiguullagiinId;
-      sonorduulga.barilgiinId = barilgiinId;
-      sonorduulga.title = medeelel.title;
-      sonorduulga.message = medeelel.body;
-      sonorduulga.kharsanEsekh = false;
-      if (turul) sonorduulga.turul = String(turul);
-      // Set ognoo to current time (will be stored in UTC by MongoDB)
-      sonorduulga.ognoo = new Date();
-
-      await sonorduulga.save();
-      
-      // Convert UTC dates to Mongolian time (UTC+8) for response
-      const sonorduulgaObj = sonorduulga.toObject();
-      const mongolianOffset = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
-      
-      if (sonorduulgaObj.createdAt) {
-        const createdAtMongolian = new Date(sonorduulgaObj.createdAt.getTime() + mongolianOffset);
-        sonorduulgaObj.createdAt = createdAtMongolian.toISOString();
-      }
-      if (sonorduulgaObj.updatedAt) {
-        const updatedAtMongolian = new Date(sonorduulgaObj.updatedAt.getTime() + mongolianOffset);
-        sonorduulgaObj.updatedAt = updatedAtMongolian.toISOString();
-      }
-      if (sonorduulgaObj.ognoo) {
-        const ognooMongolian = new Date(sonorduulgaObj.ognoo.getTime() + mongolianOffset);
-        sonorduulgaObj.ognoo = ognooMongolian.toISOString();
-      }
-      
-      sonorduulgaList.push(sonorduulgaObj);
-
-      if (io) {
-        const eventName = "orshinSuugch" + id;
-        console.log("📡 [SOCKET] Emitting notification via medegdelIlgeeye route...", {
-          eventName: eventName,
-          orshinSuugchId: id,
-          medegdelId: sonorduulgaObj._id,
-          title: sonorduulgaObj.title,
-          message: sonorduulgaObj.message,
-          timestamp: new Date().toISOString(),
-        });
-        
-        io.emit(eventName, sonorduulgaObj);
-        
-        console.log("✅ [SOCKET] Notification emitted successfully", {
-          eventName: eventName,
-          timestamp: new Date().toISOString(),
-        });
-      } else {
-        console.warn("⚠️ [SOCKET] Socket.io instance not available in req.app");
-      }
-    }
-
-    return res.json({
-      success: true,
-      message: "Мэдэгдэл амжилттай хадгалагдлаа",
-      data: sonorduulgaList,
-      count: sonorduulgaList.length,
+router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
+  const fileName = req.params.ner;
+  const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
+  const filePath = path.join(directoryPath, fileName);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({
+      success: false,
+      message: "Зураг олдсонгүй"
     });
-  } catch (error) {
-    next(error);
   }
 });
 
