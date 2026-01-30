@@ -102,10 +102,57 @@ crud(
         orshinSuugchData.utas = "";
       }
 
-      const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(orshinSuugchData);
-      orshinSuugch.id;
+      // 1. Check if resident already exists by phone number (cross-org check in main DB)
+      const phoneNumber = orshinSuugchData.utas;
+      let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas: phoneNumber });
+
+      if (orshinSuugch) {
+        // User already exists - preserve their "primary" org/building at top level
+        // only update personal info if provided
+        if (orshinSuugchData.ner) orshinSuugch.ner = orshinSuugchData.ner;
+        if (orshinSuugchData.ovog) orshinSuugch.ovog = orshinSuugchData.ovog;
+        if (orshinSuugchData.mail) orshinSuugch.mail = orshinSuugchData.mail;
+        
+        console.log(`ℹ️ [GEREE] Existing resident found (${phoneNumber}). Preserving primary org: ${orshinSuugch.baiguullagiinId}`);
+      } else {
+        // Create NEW resident document
+        orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(orshinSuugchData);
+        // For new users, the provided org/building IS the primary one
+        orshinSuugch.baiguullagiinId = req.body.baiguullagiinId;
+        orshinSuugch.baiguullagiinNer = req.body.baiguullagiinNer; // Assuming it's in body or will be fetched
+        orshinSuugch.barilgiinId = req.body.barilgiinId;
+        console.log(`ℹ️ [GEREE] Creating new resident for org: ${req.body.baiguullagiinId}`);
+      }
+
+      // 2. Add/Update the specific building association in the toots array
+      if (req.body.barilgiinId && (req.body.toot || orshinSuugchData.toot)) {
+        if (!orshinSuugch.toots) orshinSuugch.toots = [];
+        
+        const targetToot = req.body.toot || orshinSuugchData.toot;
+        const barilgiinIdStr = String(req.body.barilgiinId);
+        
+        const existingTootIndex = orshinSuugch.toots.findIndex(
+          t => t.toot === targetToot && String(t.barilgiinId) === barilgiinIdStr
+        );
+
+        const tootEntry = {
+          toot: targetToot,
+          barilgiinId: barilgiinIdStr,
+          baiguullagiinId: String(req.body.baiguullagiinId),
+          davkhar: req.body.davkhar || orshinSuugchData.davkhar || "",
+          orts: req.body.orts || orshinSuugchData.orts || "1",
+          source: "OWN_ORG"
+        };
+
+        if (existingTootIndex >= 0) {
+          orshinSuugch.toots[existingTootIndex] = { ...orshinSuugch.toots[existingTootIndex], ...tootEntry };
+        } else {
+          orshinSuugch.toots.push(tootEntry);
+        }
+      }
 
       var unuudur = new Date();
+      // ... rest of the date logic ...
       unuudur = new Date(
         unuudur.getFullYear(),
         unuudur.getMonth(),
@@ -138,9 +185,6 @@ crud(
         isNew: true,
       });
 
-      // Only append maxDugaar suffix if it's greater than 1 (multiple contracts on same day)
-      // Format: ГД-12345678 (for first contract) or ГД-12345678-2 (for subsequent contracts)
-      // This prevents "-0" or "-1" suffixes from appearing
       if (maxDugaar && maxDugaar > 1) {
         req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
       }

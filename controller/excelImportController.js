@@ -1069,34 +1069,23 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         let orshinSuugch;
         if (existingUser) {
           orshinSuugch = existingUser;
-          // Update basic info
-          Object.assign(orshinSuugch, {
-            ovog: userObject.ovog,
-            ner: userObject.ner,
-            mail: userObject.mail,
-            baiguullagiinId: userObject.baiguullagiinId,
-            baiguullagiinNer: userObject.baiguullagiinNer,
-            barilgiinId: userObject.barilgiinId,
-            duureg: userObject.duureg,
-            horoo: userObject.horoo,
-            soh: userObject.soh,
-            davkhar: userObject.davkhar,
-            bairniiNer: userObject.bairniiNer,
-            toot: userObject.toot,
-            orts: userObject.orts,
-            ekhniiUldegdel: userObject.ekhniiUldegdel,
-            tsahilgaaniiZaalt: userObject.tsahilgaaniiZaalt, // Update electricity reading
-            tailbar: userObject.tailbar,
-            // Update walletUserId if we got it from Wallet API
-            ...(walletUserId ? { walletUserId: walletUserId } : {})
-          });
+          // Update personal info
+          if (userObject.ovog) orshinSuugch.ovog = userObject.ovog;
+          if (userObject.ner) orshinSuugch.ner = userObject.ner;
+          if (userObject.mail) orshinSuugch.mail = userObject.mail;
+          if (walletUserId) orshinSuugch.walletUserId = walletUserId;
           
-          // Initialize toots array if it doesn't exist
-          if (!orshinSuugch.toots) {
-            orshinSuugch.toots = [];
-          }
+          // DO NOT overwrite baiguullagiinId, barilgiinId at top level
+          // These are the resident's "primary" home.
+          // New building links go into the toots array.
+          
+          console.log(`ℹ️ [IMPORT] Existing resident found (${phoneNumber}). Preserving primary org: ${orshinSuugch.baiguullagiinId}`);
         } else {
           orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
+          // For new users, set the top-level fields
+          orshinSuugch.baiguullagiinId = baiguullaga._id;
+          orshinSuugch.baiguullagiinNer = baiguullaga.ner;
+          orshinSuugch.barilgiinId = finalBarilgiinId;
         }
 
         // Add toot(s) to toots array if provided
