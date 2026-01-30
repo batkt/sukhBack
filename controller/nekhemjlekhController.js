@@ -2285,6 +2285,73 @@ const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = 
   }
 };
 
+const deleteInvoiceZardal = asyncHandler(async (req, res, next) => {
+  const { invoiceId, zardalId, baiguullagiinId } = req.body;
+
+  if (!invoiceId || !zardalId || !baiguullagiinId) {
+    return res.status(400).json({ success: false, error: "invoiceId, zardalId, and baiguullagiinId are required" });
+  }
+
+  const kholbolt = db.kholboltuud.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+
+  if (!kholbolt) {
+    return res.status(404).json({ success: false, error: "Холболтын мэдээлэл олдсонгүй!" });
+  }
+
+  const NekhemjlekhModel = nekhemjlekhiinTuukh(kholbolt);
+  const GereeModel = Geree(kholbolt);
+
+  const invoice = await NekhemjlekhModel.findById(invoiceId);
+  if (!invoice) {
+    return res.status(404).json({ success: false, error: "Нэхэмжлэх олдсонгүй!" });
+  }
+
+
+  if (!invoice.medeelel || !Array.isArray(invoice.medeelel.zardluud)) {
+    return res.status(400).json({ success: false, error: "Энэ нэхэмжлэхэд зардал олдсонгүй!" });
+  }
+
+  const zardluud = invoice.medeelel.zardluud;
+  const zardalIndex = zardluud.findIndex(z => String(z._id) === String(zardalId));
+
+  if (zardalIndex === -1) {
+    return res.status(404).json({ success: false, error: "Зардал олдсонгүй (ID mismatch)!" });
+  }
+
+  const deletedZardal = zardluud[zardalIndex];
+
+  const deletedAmount = Number(deletedZardal.dun || deletedZardal.tariff || 0);
+
+
+  await NekhemjlekhModel.findByIdAndUpdate(invoiceId, {
+    $pull: { "medeelel.zardluud": { _id: zardalId } },
+    $inc: { niitTulbur: -deletedAmount }
+  });
+
+
+  if (invoice.gereeniiId && deletedAmount !== 0) {
+    await GereeModel.findByIdAndUpdate(invoice.gereeniiId, {
+      $inc: { globalUldegdel: -deletedAmount }
+    });
+
+  }
+
+
+  const updatedInvoice = await NekhemjlekhModel.findById(invoiceId);
+  if (updatedInvoice && updatedInvoice.niitTulbur <= 0) {
+    updatedInvoice.tuluv = "Төлсөн";
+    await updatedInvoice.save();
+  }
+
+  res.json({
+    success: true,
+    message: "Зардал амжилттай устгагдлаа",
+    newTotal: updatedInvoice?.niitTulbur || 0
+  });
+});
+
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
   gereeNeesNekhemjlekhUusgekhPreviousMonth,
@@ -2294,4 +2361,5 @@ module.exports = {
   manualSendInvoice,
   manualSendMassInvoices,
   manualSendSelectedInvoices,
+  deleteInvoiceZardal,
 };

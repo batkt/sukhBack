@@ -278,7 +278,7 @@ async function markInvoicesAsPaid(options) {
   if (remainingPayment > 0) {
     // Determine which geree(s) to update
     const gereesToUpdate = new Set();
-    
+
     if (gereeniiId) {
       gereesToUpdate.add(gereeniiId);
     } else if (orshinSuugchId) {
@@ -287,14 +287,14 @@ async function markInvoicesAsPaid(options) {
         baiguullagiinId: String(baiguullagiinId),
         tuluv: { $ne: "Цуцалсан" },
       }).select("_id").lean();
-      
+
       gerees.forEach(g => gereesToUpdate.add(g._id.toString()));
     } else if (nekhemjlekhiinIds && nekhemjlekhiinIds.length > 0) {
       // Get gerees from invoices
       const invoiceGerees = await NekhemjlekhiinTuukh.find({
         _id: { $in: nekhemjlekhiinIds }
       }).select("gereeniiId").lean();
-      
+
       invoiceGerees.forEach(inv => {
         if (inv.gereeniiId) gereesToUpdate.add(inv.gereeniiId);
       });
@@ -304,7 +304,7 @@ async function markInvoicesAsPaid(options) {
     // Otherwise, add to single geree
     if (gereesToUpdate.size > 0) {
       const balancePerGeree = remainingPayment / gereesToUpdate.size;
-      
+
       for (const gereeId of gereesToUpdate) {
         try {
           const geree = await GereeModel.findById(gereeId);
@@ -492,13 +492,13 @@ async function markInvoicesAsPaid(options) {
  * @param {String} options.gereeniiId - Contract ID (required)
  */
 async function getGereeniiTulsunSummary(options) {
-  const { baiguullagiinId, gereeniiId } = options || {};
+  const { baiguullagiinId, gereeniiId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = options || {};
 
   if (!baiguullagiinId) {
     throw new Error("baiguullagiinId is required");
   }
-  if (!gereeniiId) {
-    throw new Error("gereeniiId is required");
+  if (!gereeniiId && !barilgiinId) {
+    throw new Error("Either gereeniiId or barilgiinId must be provided");
   }
 
   const kholbolt = db.kholboltuud.find(
@@ -511,12 +511,19 @@ async function getGereeniiTulsunSummary(options) {
 
   const GereeniiTulsunAvlagaModel = GereeniiTulsunAvlaga(kholbolt);
 
+  const match = { baiguullagiinId: String(baiguullagiinId) };
+  if (gereeniiId) match.gereeniiId = String(gereeniiId);
+  if (barilgiinId) match.barilgiinId = String(barilgiinId);
+
+  if (ekhlekhOgnoo || duusakhOgnoo) {
+    match.ognoo = {};
+    if (ekhlekhOgnoo) match.ognoo.$gte = new Date(ekhlekhOgnoo);
+    if (duusakhOgnoo) match.ognoo.$lte = new Date(duusakhOgnoo);
+  }
+
   const [row] = await GereeniiTulsunAvlagaModel.aggregate([
     {
-      $match: {
-        baiguullagiinId: String(baiguullagiinId),
-        gereeniiId: String(gereeniiId),
-      },
+      $match: match,
     },
     {
       $group: {
@@ -542,7 +549,8 @@ async function getGereeniiTulsunSummary(options) {
 
   return {
     success: true,
-    gereeniiId: String(gereeniiId),
+    gereeniiId: gereeniiId ? String(gereeniiId) : undefined,
+    barilgiinId: barilgiinId ? String(barilgiinId) : undefined,
     totalTulsunDun: row?.totalTulsunDun || 0,
     totalInvoicePayment: row?.totalInvoicePayment || 0,
     totalPrepayment: row?.totalPrepayment || 0,

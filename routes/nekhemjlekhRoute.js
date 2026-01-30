@@ -138,7 +138,7 @@ router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
       const geree = gerees[i];
       try {
         console.log(`📝 [${i + 1}/${gerees.length}] Processing contract ${geree.gereeniiDugaar}...`);
-        
+
         const invoiceResult = await gereeNeesNekhemjlekhUusgekhPreviousMonth(
           geree,
           baiguullaga,
@@ -205,17 +205,17 @@ router.get("/preview", tokenShalgakh, async (req, res, next) => {
   try {
     // Handle duplicate query parameters (Express converts them to arrays)
     const gereeId = Array.isArray(req.query.gereeId) ? req.query.gereeId[0] : req.query.gereeId;
-    const baiguullagiinId = Array.isArray(req.query.baiguullagiinId) 
-      ? req.query.baiguullagiinId[0] 
+    const baiguullagiinId = Array.isArray(req.query.baiguullagiinId)
+      ? req.query.baiguullagiinId[0]
       : req.query.baiguullagiinId;
-    const barilgiinId = Array.isArray(req.query.barilgiinId) 
-      ? req.query.barilgiinId[0] 
+    const barilgiinId = Array.isArray(req.query.barilgiinId)
+      ? req.query.barilgiinId[0]
       : req.query.barilgiinId;
-    const targetMonth = Array.isArray(req.query.targetMonth) 
-      ? req.query.targetMonth[0] 
+    const targetMonth = Array.isArray(req.query.targetMonth)
+      ? req.query.targetMonth[0]
       : req.query.targetMonth;
-    const targetYear = Array.isArray(req.query.targetYear) 
-      ? req.query.targetYear[0] 
+    const targetYear = Array.isArray(req.query.targetYear)
+      ? req.query.targetYear[0]
       : req.query.targetYear;
 
     if (!gereeId || !baiguullagiinId) {
@@ -288,10 +288,10 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
     );
 
     if (result.success) {
-      const message = result.created === 1 
+      const message = result.created === 1
         ? "Нэхэмжлэх амжилттай үүсгэгдлээ"
         : `${result.created} нэхэмжлэх амжилттай үүсгэгдлээ`;
-      
+
       res.json({
         success: true,
         message: message,
