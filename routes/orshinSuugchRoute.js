@@ -44,6 +44,7 @@ const {
   generateExcelTemplate,
   importUsersFromExcel,
   downloadExcelList,
+  downloadOrshinSuugchExcel,
 } = require("../controller/excelImportController");
 
 // Configure multer for memory storage (Excel files)
@@ -368,7 +369,7 @@ router.post(
 );
 
 // Excel download service - generic list download
-router.post("/downloadExcelList", tokenShalgakh, downloadExcelList);
+router.post("/downloadExcelList", tokenShalgakh, downloadOrshinSuugchExcel);
 
 router.get("/orshinSuugchiiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   const fileName = req.params.ner;

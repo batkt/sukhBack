@@ -450,6 +450,89 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
   }
 });
 
+// OrshinSuugch Excel Download
+exports.downloadOrshinSuugchExcel = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, barilgiinId, filters } = req.body;
+
+    if (!baiguullagiinId) {
+      throw new aldaa("Байгууллагын ID хоосон!");
+    }
+
+    // Build query
+    const query = { baiguullagiinId: String(baiguullagiinId) };
+    
+    // Add barilgiinId filter if provided
+    if (barilgiinId) {
+      // Consistent with orshinSuugch list route: look in top level OR toots array
+      query.$or = [
+        { barilgiinId: String(barilgiinId) },
+        { "toots.barilgiinId": String(barilgiinId) }
+      ];
+    }
+
+    // Apply additional filters if provided
+    if (filters) {
+      Object.assign(query, filters);
+    }
+
+    // Fetch residents from erunkhiiKholbolt
+    const orshinSuugchList = await OrshinSuugch(db.erunkhiiKholbolt)
+      .find(query)
+      .lean()
+      .sort({ createdAt: -1 });
+
+    if (!orshinSuugchList || orshinSuugchList.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Оршин суугчийн мэдээлэл олдсонгүй",
+      });
+    }
+
+    // Format data for Excel
+    const formattedData = orshinSuugchList.map((item, index) => ({
+      dugaar: index + 1,
+      ovog: item.ovog || "",
+      ner: item.ner || "",
+      utas: item.utas || "",
+      mail: item.mail || "",
+      orts: item.orts || "1",
+      davkhar: item.davkhar || "",
+      toot: item.toot || "",
+      bairniiNer: item.bairniiNer || "",
+      duureg: item.duureg || "",
+      horoo: typeof item.horoo === 'object' ? item.horoo?.ner || "" : item.horoo || "",
+      soh: item.soh || "",
+    }));
+
+    // Set data for download
+    req.body.data = formattedData;
+    req.body.headers = [
+      { key: "dugaar", label: "№" },
+      { key: "ovog", label: "Овог" },
+      { key: "ner", label: "Нэр" },
+      { key: "utas", label: "Утас" },
+      { key: "mail", label: "Имэйл" },
+      { key: "orts", label: "Орц" },
+      { key: "davkhar", label: "Давхар" },
+      { key: "toot", label: "Тоот" },
+      { key: "bairniiNer", label: "Барилгын нэр" },
+      { key: "duureg", label: "Дүүрэг" },
+      { key: "horoo", label: "Хороо" },
+      { key: "soh", label: "СӨХ" },
+    ];
+    req.body.fileName = req.body.fileName || `orshinSuugch_${Date.now()}`;
+    req.body.sheetName = req.body.sheetName || "Оршин суугчид";
+    req.body.colWidths = [10, 20, 20, 15, 25, 10, 10, 10, 25, 15, 15, 20];
+
+    // Call downloadExcelList function directly
+    return exports.downloadExcelList(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+});
+
 exports.downloadExcelList = asyncHandler(async (req, res, next) => {
   try {
     const { data, headers, fileName, sheetName, colWidths } = req.body;
