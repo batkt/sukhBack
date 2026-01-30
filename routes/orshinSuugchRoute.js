@@ -151,31 +151,23 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
 
     // Logic: Use tenant DB ONLY if it has data and main DB doesn't, 
     // or if only tenant DB has matches for the specific query.
-    // Defaulting to Main DB if it has data.
     if (mainCountWithQuery > 0) {
       kholbolt = db.erunkhiiKholbolt;
-      console.log("   ✅ Using MAIN DB");
     } else if (tenantCountWithQuery > 0 && tenantKholbolt) {
       kholbolt = tenantKholbolt;
-      console.log("   ✅ Using TENANT DB");
     } else {
-      // If neither has data with the full query, let's see if Main has data for just the org
+      // FALLBACK LOGIC: If no results found with the building filter, but the organization
+      // HAS residents, we should show them. This helps in cases of building alignment issues.
       const mainOrgCount = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments({ baiguullagiinId: String(baiguullagiinId) });
-      console.log("   ℹ️ No docs found with full query. Docs with just baiguullagiinId in Main:", mainOrgCount);
       
-      // TEMP DUMP: What do these 14 docs look like?
       if (mainOrgCount > 0) {
-        const sample = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ baiguullagiinId: String(baiguullagiinId) }).lean();
-        console.log("   DEBUG SAMPLE DOC (Main DB):", JSON.stringify({ 
-          _id: sample._id, 
-          ner: sample.ner, 
-          baiguullagiinId: sample.baiguullagiinId, 
-          barilgiinId: sample.barilgiinId,
-          tootsCount: sample.toots?.length 
-        }, null, 2));
+        console.log(`⚠️ [ORSHINSUUGCH] Falling back to organization-wide search (${mainOrgCount} docs found)`);
+        delete body.query.$or; // Remove building filter
+        delete body.query.barilgiinId;
+        kholbolt = db.erunkhiiKholbolt;
+      } else {
+        kholbolt = db.erunkhiiKholbolt; // Default back to main
       }
-
-      kholbolt = db.erunkhiiKholbolt; // Default back to main
     }
     
     // Fetch residents from the resolved connection
