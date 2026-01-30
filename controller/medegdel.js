@@ -22,12 +22,7 @@ exports.medegdelAvya = asyncHandler(async (req, res, next) => {
       });
     }
 
-    if (!tukhainBaaziinKholbolt) {
-      return res.status(400).json({
-        success: false,
-        message: "tukhainBaaziinKholbolt is required",
-      });
-    }
+    // tukhainBaaziinKholbolt check removed as we find connection by baiguullagiinId below
 
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
