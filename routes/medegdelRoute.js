@@ -53,16 +53,16 @@ router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
   }
 });
 
-// Route matching the URL structure user provided: /public/medegdel/:baiguullagiinId/:filename
-router.get("/public/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
+// Route matching the URL structure user provided: /medegdel/:baiguullagiinId/:ner
+router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
   const fileName = req.params.ner;
-  // Use __dirname to find public folder relative to routes folder
-  const directoryPath = path.join(__dirname, "../public", "medegdel", req.params.baiguullagiinId);
+  // Use process.cwd() to reliably find the public folder from the project root
+  const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
   const filePath = path.join(directoryPath, fileName);
   
-  console.log(`🔍 [IMAGE DEBUG] Request: ${req.originalUrl}`);
+  console.log(`🔍 [IMAGE DEBUG] URL: ${req.originalUrl}`);
   console.log(`🔍 [IMAGE DEBUG] Params: ID=${req.params.baiguullagiinId}, File=${fileName}`);
-  console.log(`🔍 [IMAGE DEBUG] Trying path: ${filePath}`);
+  console.log(`🔍 [IMAGE DEBUG] Looking for file at: ${filePath}`);
   console.log(`🔍 [IMAGE DEBUG] Exists: ${fs.existsSync(filePath)}`);
   
   if (fs.existsSync(filePath)) {
