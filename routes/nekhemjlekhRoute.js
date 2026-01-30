@@ -355,6 +355,6 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
 });
 
 // Delete a specific zardal from an invoice
-router.post("/deleteZardal", tokenShalgakh, deleteInvoiceZardal);
+router.post("/nekhemjlekhiinTuukh/deleteZardal", tokenShalgakh, deleteInvoiceZardal);
 
 module.exports = router;
