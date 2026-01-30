@@ -559,6 +559,7 @@ router.post("/zogsoolUstgay", tokenShalgakh, async (req, res, next) => {
 });
 
 router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
+  console.log("iiishee orlooo zogsoolSdkService", req.body);
   try {
     if (req.body.mashiniiDugaar)
       req.body.mashiniiDugaar = req.body.mashiniiDugaar.replace(/\0/g, "");
@@ -666,6 +667,7 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
       }
     }
     const khariu = await sdkData(req, medegdel);
+    console.log("sdkData", khariu);
     res.send(khariu);
   } catch (err) {
     next(err);
