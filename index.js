@@ -83,9 +83,28 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files for medegdel
-// Maps /medegdel/ID/file.jpg -> public/medegdel/ID/file.jpg
-app.use("/medegdel", express.static(path.join(process.cwd(), "public", "medegdel")));
+// Image serving route - Matches /medegdel/ID/FILENAME
+// Must be defined before other routes to handle image requests cleanly
+app.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
+  const { baiguullagiinId, ner } = req.params;
+  
+  // Construct absolute path to the file
+  const filePath = path.join(process.cwd(), "public", "medegdel", baiguullagiinId, ner);
+  
+  // Only handle if it looks like a file request (has extension) or exists
+  if (fs.existsSync(filePath)) {
+    console.log(`✅ [IMAGE FOUND] Serving: ${filePath}`);
+    res.sendFile(filePath);
+  } else {
+    console.log(`⚠️ [IMAGE NOT FOUND] Path: ${filePath}`);
+    // Check if it looks like an image request to return 404 explicitly
+    if (ner.match(/\.(jpg|jpeg|png|gif|pdf|webp)$/i)) {
+      return res.status(404).json({ success: false, message: "File not found" });
+    }
+    // Otherwise pass it on (though likely nothing else handles this pattern)
+    next();
+  }
+});
 
 app.use(baiguullagaRoute);
 app.use(ajiltanRoute);
