@@ -108,10 +108,21 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       inc.uldegdel = -(guilgee?.tulsunDun || 0);
     }
 
+    // Debug logging
+    console.log("📊 [GEREE GUILGEE] Debug values:");
+    console.log("   turul:", guilgee.turul);
+    console.log("   dun from body:", req.body.dun || req.body.guilgee?.dun);
+    console.log("   tulukhDun:", guilgee.tulukhDun);
+    console.log("   tulsunDun:", guilgee.tulsunDun);
+    console.log("   inc.uldegdel:", inc.uldegdel);
+
     const guilgeeForNekhemjlekh = { ...guilgee };
     const geree = await Geree(tukhainBaaziinKholbolt, true)
       .findById(guilgee.gereeniiId)
-      .select("+avlaga orshinSuugchId gereeniiDugaar barilgiinId");
+      .select("+avlaga orshinSuugchId gereeniiDugaar barilgiinId uldegdel");
+    
+    console.log("   Current geree uldegdel BEFORE update:", geree?.uldegdel);
+    
     const currentGuilgeenuudCount = geree?.avlaga?.guilgeenuud?.length || 0;
     guilgeeForNekhemjlekh.avlagaGuilgeeIndex = currentGuilgeenuudCount;
 
@@ -124,8 +135,11 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh, // Add to tracking array for one-time inclusion in invoice
           },
           $inc: inc,
-        }
+        },
+        { new: true } // Return updated document
       );
+
+    console.log("   Geree uldegdel AFTER update:", result?.uldegdel);
 
     // Store in appropriate model based on turul type
     try {
