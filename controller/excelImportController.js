@@ -1633,11 +1633,22 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
         ortsFromSheet = ortsMatch[1].trim();
       }
 
+      console.log(`[EXCEL DEBUG] Processing sheet: "${sheetName}"`);
       const worksheet = workbook.Sheets[sheetName];
+      
+      // Check raw data first (array of arrays)
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      if (!rawRows || rawRows.length === 0) {
+        console.log(`[EXCEL DEBUG] Sheet "${sheetName}" is empty.`);
+        continue; 
+      }
+      console.log(`[EXCEL DEBUG] Sheet "${sheetName}" has ${rawRows.length} raw rows.`);
+
       const data = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
       if (!data || data.length === 0) {
-        continue; // Skip empty sheets
+        console.log(`[EXCEL DEBUG] Sheet "${sheetName}" parsed to 0 objects (possible missing headers?).`);
+        continue;
       }
 
       results.total += data.length;
@@ -1645,15 +1656,17 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
       // Validate that this sheet has the correct columns
       const firstRow = data[0] || {};
       const columnNames = Object.keys(firstRow);
+      console.log(`[EXCEL DEBUG] Columns found: ${columnNames.join(", ")}`);
       
       // Should have "Давхар" and "Тоот" columns
       const requiredColumns = ["Тоот", "Давхар"];
       const hasRequiredColumns = requiredColumns.every(col => columnNames.includes(col));
       
       if (!hasRequiredColumns) {
+        console.log(`[EXCEL DEBUG] Missing required columns. Needed: ${requiredColumns.join(", ")}`);
         results.failed.push({
           sheet: sheetName,
-          error: `Шаардлагатай багануудыг олдсонгүй: ${requiredColumns.join(", ")}`,
+          error: `Шаардлагатай багануудыг олдсонгүй: ${requiredColumns.join(", ")}. Олдсон: ${columnNames.join(", ")}`,
         });
         continue;
       }
@@ -1749,6 +1762,9 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
             // Validate that davkhar already exists in barilga - do not allow creating new davkhar
             if (!davkharArray.includes(davkharStr)) {
+               // Relaxing this constraint for import? Or keeping strict?
+               // User wants valid import. If Excel has floor 5 but building has only 4, it should probably fail.
+               // Keeping strict as per existing code.
               throw new Error(`Давхар "${davkharStr}" барилгын мэдээлэлд бүртгэгдээгүй байна. Зөвхөн одоо байгаа давхарт тоот оноох боломжтой.`);
             }
 
@@ -1811,7 +1827,8 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     }
 
     // Update baiguullaga with davkhar and davkhariinToonuud
-    if (barilgaIndex >= 0) {
+    // IMPORTANT: Check if we actually processed anything before saving
+    if (results.total > 0 && barilgaIndex >= 0) {
       const davkharPath = `barilguud.${barilgaIndex}.tokhirgoo.davkhar`;
       const toonuudPath = `barilguud.${barilgaIndex}.tokhirgoo.davkhariinToonuud`;
 
@@ -1824,6 +1841,15 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
           },
         }
       );
+    }
+    
+    // Check if total processed is 0 (Validation for empty/wrong file)
+    if (results.total === 0) {
+        return res.status(400).json({
+            success: false,
+            message: "Excel файл хоосон эсвэл зөв форматтай өгөгдөл олдсонгүй. Шаардлагатай баганууд: 'Тоот', 'Давхар'. Нэмэлт мэдээллийг server log-оос харна уу.",
+            results
+        });
     }
 
     res.json({
