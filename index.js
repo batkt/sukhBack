@@ -77,31 +77,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// High priority image serving route
-app.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
-  const fileName = req.params.ner;
-  const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
-  const filePath = path.join(directoryPath, fileName);
-  
-  console.log(`🔍 [INDEX DEBUG] URL: ${req.url}`);
-  console.log(`🔍 [INDEX DEBUG] Looking for file at: ${filePath}`);
-  console.log(`🔍 [INDEX DEBUG] Exists: ${fs.existsSync(filePath)}`);
-  
-  if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
-  } else {
-    // Check if it looks like an image/file request
-    if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp)$/i)) {
-       console.log(`❌ [INDEX DEBUG] File not found, returning 404`);
-       res.status(404).json({
-        success: false,
-        message: "Зураг олдсонгүй"
-      });
-    } else {
-      next();
-    }
-  }
+// Global Request Logger
+app.use((req, res, next) => {
+  console.log(`[GLOBAL SERVER LOG] ${req.method} ${req.url}`);
+  next();
 });
+
+// Serve static files for medegdel
+// Maps /medegdel/ID/file.jpg -> public/medegdel/ID/file.jpg
+app.use("/medegdel", express.static(path.join(process.cwd(), "public", "medegdel")));
 
 app.use(baiguullagaRoute);
 app.use(ajiltanRoute);
