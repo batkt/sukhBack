@@ -13,10 +13,10 @@ const liftShalgayaSchema = new Schema(
 
 // NOTE: Unique index temporarily removed to allow cleanup of existing duplicates
 // After running scripts/cleanupLiftShalgayaDuplicates.js, uncomment the index below:
-// liftShalgayaSchema.index(
-//   { baiguullagiinId: 1, barilgiinId: 1 },
-//   { unique: true, sparse: true }
-// );
+liftShalgayaSchema.index(
+  { baiguullagiinId: 1, barilgiinId: 1 },
+  { unique: true, sparse: true }
+);
 
 // Post-save hook to sync liftShalgaya back to baiguullaga.barilguud[].tokhirgoo.liftShalgaya
 liftShalgayaSchema.post("save", async function (doc) {
