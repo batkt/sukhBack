@@ -1665,7 +1665,8 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
         try {
           const tootRaw = row["Тоот"]?.toString().trim() || "";
           const davkhar = row["Давхар"]?.toString().trim() || "";
-          const orts = ortsFromSheet; // Use orts from sheet name
+          // Prioritize 'Орц' column if conflicting, otherwise use sheet name
+          const orts = row["Орц"]?.toString().trim() || ortsFromSheet;
 
           const validationErrors = [];
 
@@ -1710,6 +1711,18 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
           // Create a separate tootBurtgel record for each toot
           const createdTootBurtgelIds = [];
           for (const toot of tootList) {
+            // Check if tootBurtgel already exists to prevent duplicates
+            const existingToot = await TootBurtgel(tukhainBaaziinKholbolt).findOne({
+              kharagdakhDugaar: toot,
+              baiguullagiinId: baiguullaga._id.toString(),
+              barilgiinId: defaultBarilgiinId || "",
+            });
+
+            if (existingToot) {
+              createdTootBurtgelIds.push(existingToot._id.toString());
+              continue;
+            }
+
             const tootBurtgelData = {
               kharagdakhDugaar: toot,
               zaalt: "",

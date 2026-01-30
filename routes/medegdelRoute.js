@@ -53,6 +53,28 @@ router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
   }
 });
 
+// Route matching the URL structure user provided: /medegdel/:baiguullagiinId/:filename
+router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
+  const fileName = req.params.ner;
+  const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
+  const filePath = path.join(directoryPath, fileName);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    // If it's not a file (e.g. API call), pass to next router/middleware
+    // This is important because this route pattern might conflict with /medegdel/:id API route
+    if (fileName.match(/\.(jpg|jpeg|png|gif|pdf)$/i)) {
+       res.status(404).json({
+        success: false,
+        message: "Зураг олдсонгүй"
+      });
+    } else {
+      next();
+    }
+  }
+});
+
 router.get("/medegdel", tokenShalgakh, medegdelAvya);
 router.get("/medegdel/:id", tokenShalgakh, medegdelNegAvya);
 router.put("/medegdel/:id", tokenShalgakh, medegdelZasah);
