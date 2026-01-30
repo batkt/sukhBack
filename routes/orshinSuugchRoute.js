@@ -123,13 +123,29 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
     
     // Resolve the correct database connection
     let kholbolt = db.erunkhiiKholbolt;
-    if (baiguullagiinId && db && db.kholboltuud && Array.isArray(db.kholboltuud)) {
-      const tukhainBaaziinKholbolt = db.kholboltuud.find(
-        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-      );
-      if (tukhainBaaziinKholbolt) {
-        kholbolt = tukhainBaaziinKholbolt;
-      }
+    const tenantKholbolt = baiguullagiinId && db && db.kholboltuud && Array.isArray(db.kholboltuud)
+      ? db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId))
+      : null;
+    
+    if (tenantKholbolt) {
+      kholbolt = tenantKholbolt;
+    }
+
+    // DEBUG LOGGING
+    console.log("🔍 [ORSHINSUUGCH DEBUG] List Request:");
+    console.log("   baiguullagiinId:", baiguullagiinId);
+    console.log("   Selected Database:", kholbolt.baaziinNer || "erunkhiiKholbolt");
+    console.log("   Final Query:", JSON.stringify(body.query, null, 2));
+    
+    // Check total counts to see if data exists at all
+    const mainCount = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments({ baiguullagiinId: String(baiguullagiinId) });
+    console.log("   Docs in MAIN DB with this baiguullagiinId:", mainCount);
+    
+    if (tenantKholbolt) {
+      const tenantCount = await OrshinSuugch(tenantKholbolt).countDocuments({ baiguullagiinId: String(baiguullagiinId) });
+      const tenantTotalCount = await OrshinSuugch(tenantKholbolt).countDocuments({});
+      console.log("   Docs in TENANT DB with this baiguullagiinId:", tenantCount);
+      console.log("   Total docs in TENANT DB (any) orshinsuugch:", tenantTotalCount);
     }
     
     // Fetch residents from the resolved connection (tenant or main)
