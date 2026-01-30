@@ -1,6 +1,4 @@
 const express = require("express");
-const path = require("path");
-const fs = require("fs");
 const app = express();
 const http = require("http");
 const cors = require("cors");
@@ -77,32 +75,29 @@ app.use((req, res, next) => {
   next();
 });
 
-// Global Request Logger
-app.use((req, res, next) => {
-  console.log(`[GLOBAL SERVER LOG] ${req.method} ${req.url}`);
-  next();
-});
-
-// Image serving route - Matches /medegdel/ID/FILENAME
-// Must be defined before other routes to handle image requests cleanly
+// High priority image serving route
 app.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
-  const { baiguullagiinId, ner } = req.params;
+  const fileName = req.params.ner;
+  const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
+  const filePath = path.join(directoryPath, fileName);
   
-  // Construct absolute path to the file
-  const filePath = path.join(process.cwd(), "public", "medegdel", baiguullagiinId, ner);
+  console.log(`🔍 [INDEX DEBUG] URL: ${req.url}`);
+  console.log(`🔍 [INDEX DEBUG] Looking for file at: ${filePath}`);
+  console.log(`🔍 [INDEX DEBUG] Exists: ${fs.existsSync(filePath)}`);
   
-  // Only handle if it looks like a file request (has extension) or exists
   if (fs.existsSync(filePath)) {
-    console.log(`✅ [IMAGE FOUND] Serving: ${filePath}`);
     res.sendFile(filePath);
   } else {
-    console.log(`⚠️ [IMAGE NOT FOUND] Path: ${filePath}`);
-    // Check if it looks like an image request to return 404 explicitly
-    if (ner.match(/\.(jpg|jpeg|png|gif|pdf|webp)$/i)) {
-      return res.status(404).json({ success: false, message: "File not found" });
+    // Check if it looks like an image/file request
+    if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp)$/i)) {
+       console.log(`❌ [INDEX DEBUG] File not found, returning 404`);
+       res.status(404).json({
+        success: false,
+        message: "Зураг олдсонгүй"
+      });
+    } else {
+      next();
     }
-    // Otherwise pass it on (though likely nothing else handles this pattern)
-    next();
   }
 });
 
