@@ -1633,21 +1633,17 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
         ortsFromSheet = ortsMatch[1].trim();
       }
 
-      console.log(`[EXCEL DEBUG] Processing sheet: "${sheetName}"`);
       const worksheet = workbook.Sheets[sheetName];
       
       // Check raw data first (array of arrays)
       const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
       if (!rawRows || rawRows.length === 0) {
-        console.log(`[EXCEL DEBUG] Sheet "${sheetName}" is empty.`);
         continue; 
       }
-      console.log(`[EXCEL DEBUG] Sheet "${sheetName}" has ${rawRows.length} raw rows.`);
 
       const data = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
       if (!data || data.length === 0) {
-        console.log(`[EXCEL DEBUG] Sheet "${sheetName}" parsed to 0 objects (possible missing headers?).`);
         continue;
       }
 
@@ -1656,14 +1652,12 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
       // Validate that this sheet has the correct columns
       const firstRow = data[0] || {};
       const columnNames = Object.keys(firstRow);
-      console.log(`[EXCEL DEBUG] Columns found: ${columnNames.join(", ")}`);
       
       // Should have "Давхар" and "Тоот" columns
       const requiredColumns = ["Тоот", "Давхар"];
       const hasRequiredColumns = requiredColumns.every(col => columnNames.includes(col));
       
       if (!hasRequiredColumns) {
-        console.log(`[EXCEL DEBUG] Missing required columns. Needed: ${requiredColumns.join(", ")}`);
         results.failed.push({
           sheet: sheetName,
           error: `Шаардлагатай багануудыг олдсонгүй: ${requiredColumns.join(", ")}. Олдсон: ${columnNames.join(", ")}`,
@@ -1847,7 +1841,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     if (results.total === 0) {
         return res.status(400).json({
             success: false,
-            message: "Excel файл хоосон эсвэл зөв форматтай өгөгдөл олдсонгүй. Шаардлагатай баганууд: 'Тоот', 'Давхар'. Нэмэлт мэдээллийг server log-оос харна уу.",
+            message: "Алдаатай өгөгдөл байна",
             results
         });
     }

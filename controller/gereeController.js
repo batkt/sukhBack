@@ -4,6 +4,7 @@ const BankniiGuilgee = require("../models/bankniiGuilgee");
 const Medegdel = require("../models/medegdel");
 const { daraagiinTulukhOgnooZasya } = require("./tulbur");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 
 exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
   try {
@@ -60,7 +61,8 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     if (
       (guilgee.turul == "barter" ||
         guilgee.turul == "avlaga" ||
-        guilgee.turul == "aldangi") &&
+        guilgee.turul == "tulult" ||
+        guilgee.turul == "ashiglalt") &&
       !guilgee.tailbar
     ) {
       throw new Error("Тайлбар заавал оруулна уу?");
@@ -72,13 +74,18 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       guilgee.guilgeeKhiisenAjiltniiId = req.body.nevtersenAjiltniiToken.id;
     }
 
-    var inc = {
-      uldegdel: -(guilgee?.tulsunDun || 0),
-    };
+    // avlaga creates invoice only, tulult and ashiglalt pay (reduce balance)
+    var inc = {};
     
-    if (guilgee.turul == "aldangi") {
-      inc["aldangiinUldegdel"] = -guilgee.tulsunAldangi;
-      inc["niitTulsunAldangi"] = +guilgee.tulsunAldangi;
+    if (guilgee.turul == "tulult" || guilgee.turul == "ashiglalt") {
+      // These types pay - reduce the balance
+      inc.uldegdel = -(guilgee?.tulsunDun || 0);
+    } else if (guilgee.turul == "avlaga") {
+      // avlaga creates invoice - increases the debt (positive uldegdel)
+      inc.uldegdel = +(guilgee?.tulsunDun || 0);
+    } else {
+      // Default behavior for other types (barter, etc.)
+      inc.uldegdel = -(guilgee?.tulsunDun || 0);
     }
 
     const guilgeeForNekhemjlekh = { ...guilgee };
@@ -100,6 +107,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         }
       );
 
+    // Store in appropriate model based on turul type
     try {
       const freshGereeForAvlaga = await Geree(tukhainBaaziinKholbolt, true)
         .findById(guilgee.gereeniiId)
@@ -107,49 +115,83 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         .lean();
 
       if (freshGereeForAvlaga) {
-        const tulukhModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
+        if (guilgee.turul === "avlaga") {
+          // AVLAGA: Store in GereeniiTulukhAvlaga (debt/invoice record)
+          const tulukhModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
 
-        const tulukhDoc = new tulukhModel({
-          baiguullagiinId: freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
-          baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
-          barilgiinId: freshGereeForAvlaga.barilgiinId || "",
-          gereeniiId: guilgee.gereeniiId,
-          gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
-          orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
+          const tulukhDoc = new tulukhModel({
+            baiguullagiinId: freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
+            baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
+            barilgiinId: freshGereeForAvlaga.barilgiinId || "",
+            gereeniiId: guilgee.gereeniiId,
+            gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
+            orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
 
-          ognoo: guilgee.guilgeeKhiisenOgnoo || new Date(),
-          undsenDun: guilgee.tulsunDun || 0,
-          tulukhDun: guilgee.tulsunDun || 0,
-          tulukhAldangi: guilgee.tulsunAldangi || 0,
-          uldegdel: (guilgee.tulsunDun || 0) + (guilgee.tulsunAldangi || 0),
+            ognoo: guilgee.guilgeeKhiisenOgnoo || new Date(),
+            undsenDun: guilgee.tulsunDun || 0,
+            tulukhDun: guilgee.tulsunDun || 0,
+            uldegdel: guilgee.tulsunDun || 0,
 
-          turul: guilgee.turul || "avlaga",
-          aldangiinTurul: guilgee.aldangiinTurul || "",
-          zardliinTurul: guilgee.zardliinTurul || "",
-          zardliinId: guilgee.zardliinId || "",
-          zardliinNer: guilgee.zardliinNer || "",
+            turul: "avlaga",
+            zardliinTurul: guilgee.zardliinTurul || "",
+            zardliinId: guilgee.zardliinId || "",
+            zardliinNer: guilgee.zardliinNer || "",
 
-          nekhemjlekhDeerKharagdakh:
-            typeof guilgee.nekhemjlekhDeerKharagdakh === "boolean"
-              ? guilgee.nekhemjlekhDeerKharagdakh
-              : true,
-          nuatBodokhEsekh:
-            typeof guilgee.nuatBodokhEsekh === "boolean"
-              ? guilgee.nuatBodokhEsekh
-              : true,
-          ekhniiUldegdelEsekh: !!guilgee.ekhniiUldegdelEsekh,
+            nekhemjlekhDeerKharagdakh:
+              typeof guilgee.nekhemjlekhDeerKharagdakh === "boolean"
+                ? guilgee.nekhemjlekhDeerKharagdakh
+                : true,
+            nuatBodokhEsekh:
+              typeof guilgee.nuatBodokhEsekh === "boolean"
+                ? guilgee.nuatBodokhEsekh
+                : true,
+            ekhniiUldegdelEsekh: !!guilgee.ekhniiUldegdelEsekh,
 
-          tailbar: guilgee.tailbar || "",
-          nemeltTailbar: guilgee.nemeltTailbar || "",
+            tailbar: guilgee.tailbar || "",
+            nemeltTailbar: guilgee.nemeltTailbar || "",
 
-          source: "geree",
-          avlagaGuilgeeIndex: guilgeeForNekhemjlekh.avlagaGuilgeeIndex,
-        });
+            source: "geree",
+            avlagaGuilgeeIndex: guilgeeForNekhemjlekh.avlagaGuilgeeIndex,
+          });
 
-        await tulukhDoc.save();
+          await tulukhDoc.save();
+          console.log("✅ [GEREE AVLAGA] Created gereeniiTulukhAvlaga record for avlaga");
+
+        } else if (guilgee.turul === "tulult" || guilgee.turul === "ashiglalt") {
+          // TULULT/ASHIGLALT: Store in GereeniiTulsunAvlaga (payment record)
+          const tulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);
+
+          const tulsunDoc = new tulsunModel({
+            baiguullagiinId: freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
+            baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
+            barilgiinId: freshGereeForAvlaga.barilgiinId || "",
+            gereeniiId: guilgee.gereeniiId,
+            gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
+            orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
+
+            ognoo: guilgee.guilgeeKhiisenOgnoo || new Date(),
+            tulsunDun: guilgee.tulsunDun || 0,
+            tulsunAldangi: 0,
+
+            turul: guilgee.turul, // "tulult" or "ashiglalt"
+            zardliinTurul: guilgee.zardliinTurul || "",
+            zardliinId: guilgee.zardliinId || "",
+            zardliinNer: guilgee.zardliinNer || "",
+
+            tailbar: guilgee.tailbar || "",
+            nemeltTailbar: guilgee.nemeltTailbar || "",
+
+            source: "geree",
+            guilgeeKhiisenAjiltniiNer: guilgee.guilgeeKhiisenAjiltniiNer || "",
+            guilgeeKhiisenAjiltniiId: guilgee.guilgeeKhiisenAjiltniiId || "",
+          });
+
+          await tulsunDoc.save();
+          console.log(`✅ [GEREE ${guilgee.turul.toUpperCase()}] Created gereeniiTulsunAvlaga record for ${guilgee.turul}`);
+        }
       }
-    } catch (tulukhError) {
-      console.error("❌ [GEREE AVLAGA] Error creating gereeniiTulukhAvlaga:", tulukhError.message);
+    } catch (recordError) {
+      console.error("❌ [GEREE] Error creating avlaga/tulsun record:", recordError.message);
     }
 
     await daraagiinTulukhOgnooZasya(
