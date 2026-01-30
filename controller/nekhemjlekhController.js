@@ -40,24 +40,24 @@ function deduplicateZardluud(zardluud) {
   if (!Array.isArray(zardluud)) {
     return zardluud;
   }
-  
+
   const seen = new Set();
   const deduplicated = [];
-  
+
   for (const zardal of zardluud) {
     if (!zardal || typeof zardal !== 'object') {
       continue;
     }
-    
+
     const normalizedTurul = normalizeTurul(zardal.turul);
     const key = `${zardal.ner || ''}|${normalizedTurul || ''}|${zardal.zardliinTurul || ''}|${zardal.barilgiinId || ''}`;
-    
+
     if (!seen.has(key)) {
       seen.add(key);
       deduplicated.push(zardal);
     }
   }
-  
+
   return deduplicated;
 }
 
@@ -88,13 +88,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
           barilgiinId: tempData.barilgiinId,
         });
       }
-      
+
       if (!cronSchedule) {
         cronSchedule = await NekhemjlekhCron(
           tukhainBaaziinKholbolt
         ).findOne({
           baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
-          barilgiinId: null, 
+          barilgiinId: null,
         });
       }
 
@@ -117,7 +117,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           tukhainBaaziinKholbolt
         ).countDocuments({
           gereeniiId: tempData._id.toString(),
-          ekhniiUldegdel: { $exists: true, $gt: 0 }, 
+          ekhniiUldegdel: { $exists: true, $gt: 0 },
         });
 
         if (
@@ -389,20 +389,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     let filteredZardluud = [];
-    
+
     try {
       const { db } = require("zevbackv2");
       const Baiguullaga = require("../models/baiguullaga");
       const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
         tempData.baiguullagiinId
       );
-      
+
       const targetBarilga = baiguullaga?.barilguud?.find(
         (b) => String(b._id) === String(tempData.barilgiinId || "")
       );
-      
+
       const ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
-      
+
       filteredZardluud = ashiglaltiinZardluud
         .filter(zardal => zardal.zaalt !== true)
         .map(zardal => {
@@ -419,9 +419,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
         dun: zardal.dun || zardal.tariff || 0,
       }));
     }
-    
+
     filteredZardluud = normalizeZardluudTurul(filteredZardluud);
-    
+
     let choloolugdokhDavkhar = [];
     let liftZardalFromBuilding = null;
     let liftTariff = null;
@@ -441,7 +441,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
       console.log(`🔍 [LIFT] Initial check - Floor: ${tempData.davkhar}, Exempted from baiguullaga:`, choloolugdokhDavkhar);
       console.log(`🔍 [LIFT] Full targetBarilga.tokhirgoo.liftShalgaya:`, JSON.stringify(targetBarilga?.tokhirgoo?.liftShalgaya, null, 2));
-      
+
       liftZardalFromBuilding = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud?.find(z => z.zardliinTurul === "Лифт" || (z.ner && z.ner.includes("Лифт")));
       if (liftZardalFromBuilding) {
         liftTariff = liftZardalFromBuilding.tariff || liftZardalFromBuilding.dun;
@@ -449,7 +449,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       } else {
         console.warn(`⚠️ [LIFT] No lift zardal found in building's ashiglaltiinZardluud`);
       }
-      
+
       if (choloolugdokhDavkhar.length === 0 && tempData.barilgiinId) {
         try {
           const LiftShalgaya = require("../models/liftShalgaya");
@@ -457,13 +457,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
             baiguullagiinId: String(tempData.baiguullagiinId),
             barilgiinId: String(tempData.barilgiinId)
           }).lean();
-          
+
           console.log(`🔍 [LIFT] Checking liftShalgaya collection:`, liftShalgayaRecord);
-          
+
           if (liftShalgayaRecord?.choloolugdokhDavkhar && liftShalgayaRecord.choloolugdokhDavkhar.length > 0) {
             choloolugdokhDavkhar = liftShalgayaRecord.choloolugdokhDavkhar;
             console.log(`✅ [LIFT] Found in collection, syncing to baiguullaga:`, choloolugdokhDavkhar);
-            
+
             if (targetBarilga) {
               try {
                 if (!targetBarilga.tokhirgoo) {
@@ -487,14 +487,14 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
       const davkharStr = String(tempData.davkhar);
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
-      
+
       console.log(`🔍 [LIFT] Checking floor exemption - Floor: ${davkharStr}, Exempted floors: [${choloolugdokhDavkharStr.join(', ')}]`);
-      
+
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         console.log(`🚫 [LIFT] Floor ${davkharStr} is exempted - Removing Лифт charge`);
         filteredZardluud = filteredZardluud.filter(
-          (zardal) => 
-            zardal.zardliinTurul !== "Лифт" && 
+          (zardal) =>
+            zardal.zardliinTurul !== "Лифт" &&
             !(zardal.ner && zardal.ner.trim() === "Лифт") &&
             !(zardal.ner && zardal.ner.includes("Лифт"))
         );
@@ -515,13 +515,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
           barilgiinId: tempData.barilgiinId,
         });
       }
-      
+
       if (!cronSchedule) {
         cronSchedule = await NekhemjlekhCron(
           tukhainBaaziinKholbolt
         ).findOne({
           baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
-          barilgiinId: null, 
+          barilgiinId: null,
         });
       }
 
@@ -582,8 +582,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
       shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
         ? 0
         : filteredZardluud.reduce((sum, zardal) => {
-            return sum + (zardal.dun || 0);
-          }, 0);
+          return sum + (zardal.dun || 0);
+        }, 0);
 
     let ekhniiUldegdelFromOrshinSuugch = 0;
     if (tempData.orshinSuugchId) {
@@ -600,15 +600,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
         console.error(`❌ [INVOICE] Error fetching ekhniiUldegdel from orshinSuugch:`, error.message);
       }
     }
-    
+
     const hasEkhniiUldegdel = ekhniiUldegdelFromOrshinSuugch > 0;
     const ekhniiUldegdelAmount = ekhniiUldegdelFromOrshinSuugch;
 
     let updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
       ? 0
       : finalZardluud.reduce((sum, zardal) => {
-          return sum + (zardal.dun || 0);
-        }, 0);
+        return sum + (zardal.dun || 0);
+      }, 0);
 
     let finalNiitTulbur = shouldUseEkhniiUldegdel
       ? ekhniiUldegdelAmount + guilgeenuudTotal
@@ -647,7 +647,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     let zaaltMedeelel = null;
     let tsahilgaanNekhemjlekh = 0;
     let electricityZardalEntry = null;
-    
+
     // TEMPORARILY DISABLED: Electricity processing
     if (false && tempData.barilgiinId && tempData.baiguullagiinId && tempData.orshinSuugchId) {
       try {
@@ -659,8 +659,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
         const targetBarilga = baiguullaga?.barilguud?.find(
           (b) => String(b._id) === String(tempData.barilgiinId)
         );
-          const gereeZaaltZardluud = (tempData.zardluud || []).filter((z) => z.zaalt === true);
-        
+        const gereeZaaltZardluud = (tempData.zardluud || []).filter((z) => z.zaalt === true);
+
         const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
         const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
 
@@ -674,20 +674,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
         });
 
         if (gereeZaaltZardluud.length > 0 || (zaaltZardluud.length > 0 && (tempData.umnukhZaalt !== undefined || tempData.suuliinZaalt !== undefined))) {
-          const zaaltZardluudToProcess = gereeZaaltZardluud.length > 0 
-            ? gereeZaaltZardluud 
-            : zaaltZardluud; 
+          const zaaltZardluudToProcess = gereeZaaltZardluud.length > 0
+            ? gereeZaaltZardluud
+            : zaaltZardluud;
           const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
             tempData.orshinSuugchId
           ).select("tsahilgaaniiZaalt").lean();
-          
+
           const zaaltTariff = orshinSuugch?.tsahilgaaniiZaalt || 0;
-          
+
           const umnukhZaalt = tempData.umnukhZaalt ?? zaaltZardluudToProcess[0]?.umnukhZaalt ?? 0;
           const suuliinZaalt = tempData.suuliinZaalt ?? zaaltZardluudToProcess[0]?.suuliinZaalt ?? 0;
-          
+
           const zoruu = suuliinZaalt - umnukhZaalt;
-          
+
           console.log("⚡ [INVOICE] Electricity readings check:", {
             gereeniiDugaar: tempData.gereeniiDugaar,
             tempData_umnukhZaalt: tempData.umnukhZaalt,
@@ -699,18 +699,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
             zoruu: zoruu,
             hasReadings: !!(umnukhZaalt || suuliinZaalt)
           });
-          
+
           const electricityEntries = [];
           let totalTsahilgaanNekhemjlekh = 0;
-          
+
           for (const gereeZaaltZardal of zaaltZardluudToProcess) {
             let zaaltDefaultDun = 0;
-            
+
             try {
               const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
               const gereeniiId = tempData._id?.toString() || tempData.gereeniiId || tempData._id;
               const gereeniiDugaar = tempData.gereeniiDugaar;
-              
+
               let latestReading = null;
               if (gereeniiId) {
                 latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
@@ -718,14 +718,14 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1, unshlaltiinOgnoo: -1 })
                   .lean();
               }
-              
+
               if (!latestReading && gereeniiDugaar) {
                 latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
                   .findOne({ gereeniiDugaar: gereeniiDugaar })
                   .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1, unshlaltiinOgnoo: -1 })
                   .lean();
               }
-              
+
               if (latestReading) {
                 zaaltDefaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
                 console.log("💰 [INVOICE] Using defaultDun from Excel reading:", {
@@ -744,7 +744,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
             } catch (error) {
               console.error("❌ [INVOICE] Error fetching latest reading for defaultDun:", error.message);
             }
-            
+
             if (!zaaltDefaultDun) {
               zaaltDefaultDun = gereeZaaltZardal.zaaltDefaultDun || 0;
               if (zaaltDefaultDun) {
@@ -754,7 +754,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 });
               }
             }
-            
+
             if (!zaaltDefaultDun || zaaltDefaultDun === 0) {
               console.error("❌ [INVOICE] CRITICAL: defaultDun is 0! Base fee will NOT be added!", {
                 gereeniiDugaar: tempData.gereeniiDugaar,
@@ -763,10 +763,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 gereeZaaltZardal_zaaltDefaultDun: gereeZaaltZardal.zaaltDefaultDun
               });
             }
-            
+
             const zaaltDun = (zoruu * zaaltTariff) + zaaltDefaultDun;
             totalTsahilgaanNekhemjlekh += zaaltDun;
-            
+
             console.log("⚡ [INVOICE] Electricity calculation:", {
               gereeniiDugaar: tempData.gereeniiDugaar,
               ner: gereeZaaltZardal.ner,
@@ -787,7 +787,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
               WARNING: "NEVER using geree.tariff or geree.dun - they are ignored"
             });
             const finalZaaltTariff = zaaltDun;
-            
+
             if (finalZaaltTariff === 175 || finalZaaltTariff === gereeZaaltZardal.tariff) {
               console.error("❌ [INVOICE] ERROR: finalZaaltTariff is using tariff rate instead of calculated amount!", {
                 finalZaaltTariff,
@@ -798,17 +798,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 zaaltDefaultDun
               });
             }
-            
+
             const electricityZardalEntry = {
               ner: gereeZaaltZardal.ner || "Цахилгаан",
               turul: normalizeTurul(gereeZaaltZardal.turul) || "Тогтмол",
-              tariff: finalZaaltTariff, 
-              tariffUsgeer: zoruu === 0 || zaaltDun === 0 
+              tariff: finalZaaltTariff,
+              tariffUsgeer: zoruu === 0 || zaaltDun === 0
                 ? (gereeZaaltZardal?.tariffUsgeer || buildingZaaltZardal?.tariffUsgeer || "₮")
-                : "₮", 
+                : "₮",
               zardliinTurul: gereeZaaltZardal.zardliinTurul || "Энгийн",
               barilgiinId: tempData.barilgiinId,
-              dun: finalZaaltTariff, 
+              dun: finalZaaltTariff,
               bodokhArga: gereeZaaltZardal.bodokhArga || "тогтмол",
               tseverUsDun: 0,
               bokhirUsDun: 0,
@@ -816,31 +816,31 @@ const gereeNeesNekhemjlekhUusgekh = async (
               tsakhilgaanUrjver: 1,
               tsakhilgaanChadal: 0,
               tsakhilgaanDemjikh: 0,
-              suuriKhuraamj: zaaltDefaultDun.toString(), 
+              suuriKhuraamj: zaaltDefaultDun.toString(),
               nuatNemekhEsekh: false,
               ognoonuud: [],
               zaalt: true,
-              zaaltTariff: zaaltTariff, 
-              zaaltDefaultDun: zaaltDefaultDun, 
+              zaaltTariff: zaaltTariff,
+              zaaltDefaultDun: zaaltDefaultDun,
               umnukhZaalt: tempData.umnukhZaalt || 0,
               suuliinZaalt: tempData.suuliinZaalt || 0,
               zaaltTog: tempData.zaaltTog || 0,
               zaaltUs: tempData.zaaltUs || 0,
-              zoruu: zoruu, 
+              zoruu: zoruu,
             };
-            
+
             electricityEntries.push(electricityZardalEntry);
           }
-          
+
           if (zaaltZardluud.length > 0) {
-            const ashiglaltiinZaaltZardal = zaaltZardluud[0]; 
-            
+            const ashiglaltiinZaaltZardal = zaaltZardluud[0];
+
             const ashiglaltiinZaaltDun = ashiglaltiinZaaltZardal.dun || ashiglaltiinZaaltZardal.tariff || 0;
             if (ashiglaltiinZaaltDun > 0) {
               const ashiglaltiinZaaltEntry = {
                 ner: ashiglaltiinZaaltZardal.ner || "Цахилгаан",
                 turul: normalizeTurul(ashiglaltiinZaaltZardal.turul) || "Тогтмол",
-                tariff: ashiglaltiinZaaltDun, 
+                tariff: ashiglaltiinZaaltDun,
                 tariffUsgeer: ashiglaltiinZaaltZardal.tariffUsgeer || "₮",
                 zardliinTurul: ashiglaltiinZaaltZardal.zardliinTurul || "Энгийн",
                 barilgiinId: tempData.barilgiinId,
@@ -855,12 +855,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 suuriKhuraamj: ashiglaltiinZaaltZardal.suuriKhuraamj || "0",
                 nuatNemekhEsekh: ashiglaltiinZaaltZardal.nuatNemekhEsekh || false,
                 ognoonuud: ashiglaltiinZaaltZardal.ognoonuud || [],
-                  zaalt: false, 
+                zaalt: false,
               };
-              
+
               electricityEntries.push(ashiglaltiinZaaltEntry);
               totalTsahilgaanNekhemjlekh += ashiglaltiinZaaltDun;
-              
+
               console.log("💰 [INVOICE] Added Цахилгаан charge from ashiglaltiinZardluud:", {
                 gereeniiDugaar: tempData.gereeniiDugaar,
                 ner: ashiglaltiinZaaltZardal.ner,
@@ -871,10 +871,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
               });
             }
           }
-          
+
           tsahilgaanNekhemjlekh = totalTsahilgaanNekhemjlekh;
-          electricityZardalEntry = electricityEntries[0]; 
-          
+          electricityZardalEntry = electricityEntries[0];
+
           const filteredZardluudWithoutZaalt = finalZardluud.filter(
             (z) => {
               if (z.zaalt === true) {
@@ -893,29 +893,29 @@ const gereeNeesNekhemjlekhUusgekh = async (
               return true;
             }
           );
-          
+
           filteredZardluudWithoutZaalt.push(...electricityEntries);
-          
+
           console.log("⚡ [INVOICE] Electricity entries being added:", {
             count: electricityEntries.length,
             entries: electricityEntries.map(e => ({ ner: e.ner, dun: e.dun, zaalt: e.zaalt }))
           });
-          
+
           finalZardluud.length = 0;
           finalZardluud.push(...filteredZardluudWithoutZaalt);
-          
+
           finalZardluud = normalizeZardluudTurul(finalZardluud);
-          
+
           updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
             ? 0
             : finalZardluud.reduce((sum, zardal) => {
-                return sum + (zardal.dun || 0);
-              }, 0);
-          
+              return sum + (zardal.dun || 0);
+            }, 0);
+
           finalNiitTulbur = shouldUseEkhniiUldegdel
             ? ekhniiUldegdelAmount + guilgeenuudTotal
             : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
-          
+
           const firstElectricityEntry = electricityEntries[0];
           const firstBuildingZaaltZardal = zaaltZardluud.find(
             (z) => firstElectricityEntry && z.ner === firstElectricityEntry.ner && z.zardliinTurul === firstElectricityEntry.zardliinTurul
@@ -933,7 +933,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
             defaultDun: firstElectricityEntry?.zaaltDefaultDun || 0,
             zaaltDun: tsahilgaanNekhemjlekh,
           };
-          
+
           console.log("⚡ [INVOICE] Added electricity charge to zardluud array:", {
             ner: electricityZardalEntry.ner,
             tariff: electricityZardalEntry.tariff,
@@ -946,7 +946,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     const normalizedZardluud = normalizeZardluudTurul(finalZardluud);
-    
+
     let zardluudWithDun = normalizedZardluud.map((zardal) => {
       if (zardal.zaalt === true) {
         return zardal;
@@ -962,9 +962,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
       return result;
     });
-    
+
     console.log(`🔍 [LIFT] After mapping zardluudWithDun:`, zardluudWithDun.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, dun: z.dun })));
-    
+
     if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
       const davkharStr = String(tempData.davkhar);
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
@@ -972,8 +972,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
       console.log(`🔍 [LIFT] zardluudWithDun before removal:`, zardluudWithDun.map(z => ({ ner: z.ner, zardliinTurul: z.zardliinTurul, dun: z.dun })));
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         const beforeCount = zardluudWithDun.length;
-        const liftCharges = zardluudWithDun.filter(z => 
-          z.zardliinTurul === "Лифт" || 
+        const liftCharges = zardluudWithDun.filter(z =>
+          z.zardliinTurul === "Лифт" ||
           (z.ner && z.ner.trim() === "Лифт") ||
           (z.ner && z.ner.includes("Лифт")) ||
           (z.dun === liftTariff && z.tariff === liftTariff)
@@ -995,31 +995,31 @@ const gereeNeesNekhemjlekhUusgekh = async (
     } else {
       console.log(`⚠️ [LIFT] Final check - Skipping: davkhar=${tempData.davkhar}, choloolugdokhDavkhar.length=${choloolugdokhDavkhar.length}`);
     }
-    
+
     const correctedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
       ? 0
       : zardluudWithDun.reduce((sum, zardal) => {
-          return sum + (zardal.dun || 0);
-        }, 0);
-    
+        return sum + (zardal.dun || 0);
+      }, 0);
+
     console.log(`💰 [LIFT] Final total calculation - correctedZardluudTotal: ${correctedZardluudTotal}, zardluudWithDun count: ${zardluudWithDun.length}`);
-    
+
     let correctedFinalNiitTulbur = shouldUseEkhniiUldegdel
       ? ekhniiUldegdelAmount + guilgeenuudTotal
       : correctedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
-    
+
     let positiveBalanceUsed = 0;
     let remainingPositiveBalance = 0;
     if (gereePositiveBalance > 0) {
       positiveBalanceUsed = Math.min(gereePositiveBalance, correctedFinalNiitTulbur);
       correctedFinalNiitTulbur = Math.max(0, correctedFinalNiitTulbur - positiveBalanceUsed);
       remainingPositiveBalance = gereePositiveBalance - positiveBalanceUsed;
-      
-     
+
+
     }
-    
-  
-    
+
+
+
     if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
       const davkharStr = String(tempData.davkhar);
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
@@ -1049,7 +1049,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }
       }
     }
-    
+
     if (hasEkhniiUldegdel && ekhniiUldegdelAmount > 0) {
       zardluudWithDun.push({
         ner: "Эхний үлдэгдэл",
@@ -1066,7 +1066,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       });
       console.log(`💰 [INVOICE] Added ekhniiUldegdel to zardluud: ${ekhniiUldegdelAmount}₮`);
     }
-    
+
     zardluudWithDun = zardluudWithDun.map(zardal => {
       if (zardal.zaalt === true) {
         return zardal;
@@ -1079,18 +1079,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
       return zardal;
     });
-    
+
     tuukh.medeelel = {
       zardluud: zardluudWithDun,
-      guilgeenuud: guilgeenuudForNekhemjlekh, 
+      guilgeenuud: guilgeenuudForNekhemjlekh,
       segmentuud: tempData.segmentuud || [],
       khungulultuud: tempData.khungulultuud || [],
       toot: tempData.toot,
       temdeglel: tempData.temdeglel,
-      tailbar: tempData.temdeglel || "", 
+      tailbar: tempData.temdeglel || "",
       uusgegsenEsekh: uusgegsenEsekh,
       uusgegsenOgnoo: new Date(),
-      ...(zaaltMedeelel ? { zaalt: zaaltMedeelel } : {}), 
+      ...(zaaltMedeelel ? { zaalt: zaaltMedeelel } : {}),
     };
     tuukh.nekhemjlekh =
       tempData.nekhemjlekh ||
@@ -1098,23 +1098,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
         ? "Автоматаар үүссэн нэхэмжлэх"
         : "Гаран үүссэн нэхэмжлэх");
     tuukh.zagvariinNer = tempData.zagvariinNer || org.ner;
-    
+
     console.log(`💰 [LIFT] FINAL INVOICE - niitTulbur: ${tuukh.niitTulbur}, zardluud count: ${tuukh.medeelel.zardluud.length}, lift charges: ${tuukh.medeelel.zardluud.filter(z => z.zardliinTurul === "Лифт").length}`);
 
     const tailbarText =
       tempData.temdeglel &&
-      tempData.temdeglel !== "Excel файлаас автоматаар үүссэн гэрээ"
+        tempData.temdeglel !== "Excel файлаас автоматаар үүссэн гэрээ"
         ? `\nТайлбар: ${tempData.temdeglel}`
         : "";
-    
+
     const zaaltText = zaaltMedeelel
       ? `\nЦахилгаан: Өмнө: ${zaaltMedeelel.umnukhZaalt}, Өдөр: ${zaaltMedeelel.zaaltTog}, Шөнө: ${zaaltMedeelel.zaaltUs}, Нийт: ${zaaltMedeelel.suuliinZaalt}`
       : "";
-    
-    const positiveBalanceText = positiveBalanceUsed > 0 
+
+    const positiveBalanceText = positiveBalanceUsed > 0
       ? `\nЭерэг үлдэгдэл ашигласан: ${positiveBalanceUsed}₮${remainingPositiveBalance > 0 ? `, Үлдсэн: ${remainingPositiveBalance}₮` : ''}`
       : '';
-    
+
     tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮${tailbarText}${zaaltText}${positiveBalanceText}`;
     tuukh.nekhemjlekhiinDans =
       tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
@@ -1127,7 +1127,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = correctedFinalNiitTulbur;
-    
+
     if (tsahilgaanNekhemjlekh > 0) {
       tuukh.tsahilgaanNekhemjlekh = tsahilgaanNekhemjlekh;
       console.log("⚡ [INVOICE] Saved tsahilgaanNekhemjlekh:", tuukh.tsahilgaanNekhemjlekh);
@@ -1149,7 +1149,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       const month = String(currentDate.getMonth() + 1).padStart(2, '0');
       const day = String(currentDate.getDate()).padStart(2, '0');
       const datePrefix = `${year}${month}${day}`;
-      
+
       const todayInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
         .find({
           nekhemjlekhiinDugaar: { $regex: `^НЭХ-${datePrefix}-` }
@@ -1157,7 +1157,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
         .sort({ nekhemjlekhiinDugaar: -1 })
         .limit(1)
         .lean();
-      
+
       let sequence = 1;
       if (todayInvoices.length > 0 && todayInvoices[0].nekhemjlekhiinDugaar) {
         const lastDugaar = todayInvoices[0].nekhemjlekhiinDugaar;
@@ -1166,26 +1166,26 @@ const gereeNeesNekhemjlekhUusgekh = async (
           sequence = parseInt(match[1], 10) + 1;
         }
       }
-      
+
       return `НЭХ-${datePrefix}-${String(sequence).padStart(4, '0')}`;
     };
-    
+
     const saveInvoiceWithRetry = async (maxRetries = 10) => {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            tuukh.nekhemjlekhiinDugaar = await generateUniqueNekhemjlekhiinDugaar();
-          
+          tuukh.nekhemjlekhiinDugaar = await generateUniqueNekhemjlekhiinDugaar();
+
           await tuukh.save();
-          
+
           return;
         } catch (error) {
           if (error.code === 11000 && error.keyPattern && error.keyPattern.nekhemjlekhiinDugaar) {
             console.log(`⚠️ [INVOICE] Duplicate invoice number detected for ${tempData.gereeniiDugaar} (attempt ${attempt}/${maxRetries}), regenerating...`);
-            
+
             if (attempt === maxRetries) {
               throw new Error(`Failed to generate unique invoice number after ${maxRetries} attempts for contract ${tempData.gereeniiDugaar}: ${error.message}`);
             }
-            
+
             const delay = 50 * attempt + Math.random() * 50;
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
@@ -1195,7 +1195,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }
       }
     };
-    
+
     await saveInvoiceWithRetry();
 
     if (guilgeenuudForNekhemjlekh.length > 0) {
@@ -1204,7 +1204,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           tempData._id,
           {
             $set: {
-              guilgeenuudForNekhemjlekh: [], 
+              guilgeenuudForNekhemjlekh: [],
             },
           },
           {
@@ -1264,7 +1264,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       if (tempData.orshinSuugchId) {
         const baiguullagiinId = org._id ? org._id.toString() : (org.id ? org.id.toString() : String(org));
         console.log("🔍 [NOTIFICATION] Looking for kholbolt...", { baiguullagiinId });
-        
+
         const kholbolt = db.kholboltuud.find(
           (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
         );
@@ -1273,7 +1273,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           console.error("❌ [NOTIFICATION] Kholbolt not found for baiguullagiinId:", baiguullagiinId);
         } else {
           console.log("✅ [NOTIFICATION] Kholbolt found, creating medegdel...");
-          
+
           const medegdel = new Medegdel(kholbolt)();
           medegdel.orshinSuugchId = tempData.orshinSuugchId;
           medegdel.baiguullagiinId = baiguullagiinId;
@@ -1291,7 +1291,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           });
 
           await medegdel.save();
-          
+
           console.log("✅ [NOTIFICATION] Medegdel saved successfully:", {
             medegdelId: medegdel._id,
             orshinSuugchId: medegdel.orshinSuugchId,
@@ -1299,10 +1299,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
           });
 
           const medegdelObj = medegdel.toObject();
-          const mongolianOffset = 8 * 60 * 60 * 1000; 
-          
+          const mongolianOffset = 8 * 60 * 60 * 1000;
+
           console.log("🕐 [NOTIFICATION] Converting dates to Mongolian time...");
-          
+
           if (medegdelObj.createdAt) {
             const createdAtMongolian = new Date(medegdelObj.createdAt.getTime() + mongolianOffset);
             medegdelObj.createdAt = createdAtMongolian.toISOString();
@@ -1317,8 +1317,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
           }
 
           savedMedegdel = medegdelObj;
-          
-         
+
+
         }
       } else {
         console.warn("⚠️ [NOTIFICATION] No orshinSuugchId in tempData, skipping notification");
@@ -1338,7 +1338,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       gereeniiId: tempData._id,
       gereeniiDugaar: tempData.gereeniiDugaar,
       tulbur: correctedFinalNiitTulbur,
-      medegdel: savedMedegdel, 
+      medegdel: savedMedegdel,
     };
   } catch (error) {
     return {
@@ -1403,7 +1403,7 @@ const updateGereeAndNekhemjlekhFromZardluud = async (
           tukhainBaaziinKholbolt
         ).findOne({
           gereeniiId: geree._id,
-          tuluv: { $ne: "Төлсөн" }, 
+          tuluv: { $ne: "Төлсөн" },
         });
 
         if (nekhemjlekh) {
@@ -1470,7 +1470,7 @@ async function sendInvoiceSmsToOrshinSuugch(
 
     if (!geree.orshinSuugchId) {
       console.log("❌ [SMS] No orshinSuugchId found in geree");
-      return; 
+      return;
     }
 
     console.log("✅ [SMS] Found orshinSuugchId:", geree.orshinSuugchId);
@@ -1485,7 +1485,7 @@ async function sendInvoiceSmsToOrshinSuugch(
         "❌ [SMS] OrshinSuugch not found with ID:",
         geree.orshinSuugchId
       );
-      return; 
+      return;
     }
 
     console.log("✅ [SMS] Found orshinSuugch:", orshinSuugch.ner);
@@ -1493,7 +1493,7 @@ async function sendInvoiceSmsToOrshinSuugch(
 
     if (!orshinSuugch.utas) {
       console.log("❌ [SMS] No phone number (utas) found for orshinSuugch");
-      return; 
+      return;
     }
 
     var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
@@ -1506,11 +1506,10 @@ async function sendInvoiceSmsToOrshinSuugch(
       msgIlgeekhDugaar
     );
 
-    const smsText = `Tany ${nekhemjlekh.gereeniiDugaar} gereend, ${
-      nekhemjlekh.niitTulbur
-    }₮ nekhemjlekh uuslee, tulukh ognoo ${new Date(
-      nekhemjlekh.tulukhOgnoo
-    ).toLocaleDateString("mn-MN")}`;
+    const smsText = `Tany ${nekhemjlekh.gereeniiDugaar} gereend, ${nekhemjlekh.niitTulbur
+      }₮ nekhemjlekh uuslee, tulukh ognoo ${new Date(
+        nekhemjlekh.tulukhOgnoo
+      ).toLocaleDateString("mn-MN")}`;
     console.log("📱 [SMS] SMS text:", smsText);
 
     const msgServer = process.env.MSG_SERVER || "https://api.messagepro.mn";
@@ -1581,15 +1580,15 @@ const gereeNeesNekhemjlekhUusgekhPreviousMonth = async (
 ) => {
   try {
     console.log(`📅 [PREVIOUS MONTH INVOICE] Creating invoice for ${monthsAgo} month(s) ago`);
-    
+
     const today = new Date();
     const targetDate = new Date(today);
     targetDate.setMonth(targetDate.getMonth() - monthsAgo);
     const targetYear = targetDate.getFullYear();
-    const targetMonth = targetDate.getMonth(); 
-    
+    const targetMonth = targetDate.getMonth();
+
     console.log(`📅 [PREVIOUS MONTH INVOICE] Target month: ${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`);
-    
+
     const NekhemjlekhCron = require("../models/cronSchedule");
     let cronSchedule = null;
     if (tempData.barilgiinId) {
@@ -1598,32 +1597,32 @@ const gereeNeesNekhemjlekhUusgekhPreviousMonth = async (
         barilgiinId: tempData.barilgiinId,
       });
     }
-    
+
     if (!cronSchedule) {
       cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
         baiguullagiinId: tempData.baiguullagiinId || org?._id?.toString(),
         barilgiinId: null,
       });
     }
-    
+
     const scheduledDay = cronSchedule?.nekhemjlekhUusgekhOgnoo || 1;
-    
+
     const invoiceDate = new Date(targetYear, targetMonth, scheduledDay, 0, 0, 0, 0);
-    
+
     const dueDate = new Date(targetYear, targetMonth + 1, scheduledDay, 0, 0, 0, 0);
     const lastDayOfMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
     if (scheduledDay > lastDayOfMonth) {
       dueDate.setDate(lastDayOfMonth);
     }
-    
+
     const modifiedTempData = {
       ...tempData,
       ognoo: invoiceDate,
       nekhemjlekhiinOgnoo: invoiceDate,
     };
-    
+
     const originalFunction = gereeNeesNekhemjlekhUusgekh;
-    
+
     const monthStart = new Date(targetYear, targetMonth, 1, 0, 0, 0, 0);
     const monthEnd = new Date(
       targetYear,
@@ -1634,14 +1633,14 @@ const gereeNeesNekhemjlekhUusgekhPreviousMonth = async (
       59,
       999
     );
-    
+
     // Check for existing invoice in target month
     if (!skipDuplicateCheck) {
       let checkBarilgiinId = tempData.barilgiinId;
       if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
         checkBarilgiinId = String(org.barilguud[0]._id);
       }
-      
+
       const existingInvoiceQuery = {
         gereeniiId: tempData._id.toString(),
         $or: [
@@ -1659,15 +1658,15 @@ const gereeNeesNekhemjlekhUusgekhPreviousMonth = async (
           },
         ],
       };
-      
+
       if (checkBarilgiinId) {
         existingInvoiceQuery.barilgiinId = checkBarilgiinId;
       }
-      
+
       const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
         .findOne(existingInvoiceQuery)
         .sort({ ognoo: -1, createdAt: -1 });
-      
+
       if (existingInvoice) {
         console.log(
           `ℹ️  Invoice already exists for contract ${tempData.gereeniiDugaar} in target month ${targetYear}-${targetMonth + 1}:`,
@@ -1683,32 +1682,32 @@ const gereeNeesNekhemjlekhUusgekhPreviousMonth = async (
         };
       }
     }
-    
+
     const result = await originalFunction(
       modifiedTempData,
       org,
       tukhainBaaziinKholbolt,
       uusgegsenEsekh,
-      true 
+      true
     );
-    
+
     if (result.success && result.nekhemjlekh) {
       const invoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).findById(
         result.nekhemjlekh._id || result.nekhemjlekh
       );
-      
+
       if (invoice) {
         invoice.ognoo = invoiceDate;
         invoice.nekhemjlekhiinOgnoo = invoiceDate;
         invoice.tulukhOgnoo = dueDate;
         await invoice.save();
-        
+
         console.log(`✅ [PREVIOUS MONTH INVOICE] Updated dates for invoice ${invoice._id}`);
         console.log(`   Invoice date: ${invoiceDate.toISOString()}`);
         console.log(`   Due date: ${dueDate.toISOString()}`);
       }
     }
-    
+
     return result;
   } catch (error) {
     console.error(`❌ [PREVIOUS MONTH INVOICE] Error:`, error.message);
@@ -1720,7 +1719,7 @@ const markInvoicesAsPaid = asyncHandler(async (req, res, next) => {
   try {
     const {
       baiguullagiinId,
-      dun, 
+      dun,
       orshinSuugchId,
       gereeniiId,
       nekhemjlekhiinIds,
@@ -1743,7 +1742,7 @@ const markInvoicesAsPaid = asyncHandler(async (req, res, next) => {
     }
 
     const { markInvoicesAsPaid: markInvoices } = require("../services/invoicePaymentService");
-    
+
     const result = await markInvoices({
       baiguullagiinId,
       dun,
@@ -1799,9 +1798,9 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         baiguullagiinId: k.baiguullagiinId,
         baaziinNer: k.baaziinNer || "N/A"
       })));
-      return { 
-        success: false, 
-        error: `Холболтын мэдээлэл олдсонгүй! (baiguullagiinId: ${baiguullagiinId})` 
+      return {
+        success: false,
+        error: `Холболтын мэдээлэл олдсонгүй! (baiguullagiinId: ${baiguullagiinId})`
       };
     }
 
@@ -1826,7 +1825,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
     );
 
     const ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
-    
+
     let filteredZardluud = ashiglaltiinZardluud
       .filter(zardal => zardal.zaalt !== true)
       .map(zardal => {
@@ -1841,7 +1840,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
 
     if (geree.davkhar && geree.barilgiinId && geree.baiguullagiinId) {
       choloolugdokhDavkhar = targetBarilga?.tokhirgoo?.liftShalgaya?.choloolugdokhDavkhar || [];
-      
+
       const liftZardalFromBuilding = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud?.find(
         z => z.zardliinTurul === "Лифт" || (z.ner && z.ner.includes("Лифт"))
       );
@@ -1856,7 +1855,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
             baiguullagiinId: String(geree.baiguullagiinId),
             barilgiinId: String(geree.barilgiinId)
           }).lean();
-          
+
           if (liftShalgayaRecord?.choloolugdokhDavkhar && liftShalgayaRecord.choloolugdokhDavkhar.length > 0) {
             choloolugdokhDavkhar = liftShalgayaRecord.choloolugdokhDavkhar;
           }
@@ -1867,11 +1866,11 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
 
       const davkharStr = String(geree.davkhar);
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map(d => String(d));
-      
+
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         filteredZardluud = filteredZardluud.filter(
-          (zardal) => 
-            zardal.zardliinTurul !== "Лифт" && 
+          (zardal) =>
+            zardal.zardliinTurul !== "Лифт" &&
             !(zardal.ner && zardal.ner.trim() === "Лифт") &&
             !(zardal.ner && zardal.ner.includes("Лифт")) &&
             !(liftTariff !== null && (zardal.dun === liftTariff || zardal.tariff === liftTariff))
@@ -1938,7 +1937,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         baiguullagiinId: String(baiguullagiinId),
         barilgiinId: barilgiinId ? String(barilgiinId) : null,
       });
-      
+
       if (!cronSchedule) {
         cronSchedule = await NekhemjlekhCron(tukhainBaaziinKholbolt).findOne({
           baiguullagiinId: String(baiguullagiinId),
@@ -2070,18 +2069,18 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
     } else if (existingUnsentInvoices.length > 0) {
       // If override=false but there are unsent invoices, update the oldest one instead of creating new
       const oldestUnsentInvoice = existingUnsentInvoices[0];
-      
+
       console.log(`🔄 [MANUAL SEND] Found existing unsent invoice: ${oldestUnsentInvoice.nekhemjlekhiinDugaar || oldestUnsentInvoice._id}`);
       console.log(`🔄 [MANUAL SEND] Updating invoice instead of creating new one`);
-      
-      // Delete the oldest unsent invoice so we can recreate it with fresh data
+
       await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: oldestUnsentInvoice._id });
-      
+
       // Delete any additional unsent invoices for this month (keep only one)
       if (existingUnsentInvoices.length > 1) {
         for (let i = 1; i < existingUnsentInvoices.length; i++) {
-          await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: existingUnsentInvoices[i]._id });
-          console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${existingUnsentInvoices[i].nekhemjlekhiinDugaar || existingUnsentInvoices[i]._id}`);
+          const extraInvoice = existingUnsentInvoices[i];
+          await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: extraInvoice._id });
+          console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${extraInvoice.nekhemjlekhiinDugaar || extraInvoice._id}`);
         }
       }
     }
@@ -2240,7 +2239,7 @@ const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = 
       const geree = gerees[i];
       try {
         console.log(`📝 [${i + 1}/${gerees.length}] Processing contract ${geree.gereeniiDugaar || geree._id}...`);
-        
+
         const invoiceResult = await manualSendInvoice(
           geree._id,
           baiguullagiinId,

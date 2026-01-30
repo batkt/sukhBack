@@ -179,6 +179,41 @@ nekhemjlekhiinTuukhSchema.post("findOne", async function (doc) {
     console.error("Error populating zardal in nekhemjlekhiinTuukh:", error);
   }
 });
+// Update global balance on deletion
+// This covers both doc.deleteOne() and Query.deleteOne() / Query.findOneAndDelete()
+const handleBalanceOnDelete = async function (doc) {
+  if (doc && doc.niitTulbur > 0 && doc.gereeniiId && doc.baiguullagiinId) {
+    try {
+      const { db } = require("zevbackv2");
+      const Geree = require("./geree");
+      const kholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(doc.baiguullagiinId)
+      );
+      if (kholbolt) {
+        await Geree(kholbolt).findByIdAndUpdate(doc.gereeniiId, {
+          $inc: { globalUldegdel: -doc.niitTulbur },
+        });
+        console.log(`📉 [Middleware] Decremented globalUldegdel by ${doc.niitTulbur} for invoice ${doc.nekhemjlekhiinDugaar || doc._id}`);
+      }
+    } catch (error) {
+      console.error("Error updating globalUldegdel on deletion middleware:", error);
+    }
+  }
+};
+
+nekhemjlekhiinTuukhSchema.pre("deleteOne", { document: true, query: true }, async function () {
+  if (this instanceof mongoose.Document) {
+    await handleBalanceOnDelete(this);
+  } else {
+    const doc = await this.model.findOne(this.getQuery());
+    await handleBalanceOnDelete(doc);
+  }
+});
+
+nekhemjlekhiinTuukhSchema.pre("findOneAndDelete", async function () {
+  const doc = await this.model.findOne(this.getQuery());
+  await handleBalanceOnDelete(doc);
+});
 
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
