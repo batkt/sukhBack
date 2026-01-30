@@ -10,13 +10,23 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
   try {
     console.log("gereeniiGuilgeeKhadgalya -----> Ийшээ орлоо");
     const { db } = require("zevbackv2");
-    var guilgee = req.body.guilgee;
+    
+    // Handle both formats: { guilgee: {...} } OR flat { gereeniiId: ..., turul: ..., etc }
+    var guilgee = req.body.guilgee || req.body;
+    
+    // Also need tulsunDun - frontend might send dun or tulukhDun instead
+    if (!guilgee.tulsunDun && guilgee.dun) {
+      guilgee.tulsunDun = guilgee.dun;
+    }
+    if (!guilgee.tulsunDun && guilgee.tulukhDun) {
+      guilgee.tulsunDun = guilgee.tulukhDun;
+    }
 
     if (!guilgee.gereeniiId) {
       throw new Error("Гэрээний ID заавал бөглөх шаардлагатай!");
     }
 
-    let baiguullagiinId = req.body.baiguullagiinId;
+    let baiguullagiinId = req.body.baiguullagiinId || guilgee.baiguullagiinId;
     
     if (!baiguullagiinId) {
       const allConnections = db.kholboltuud || [];
