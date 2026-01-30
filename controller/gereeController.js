@@ -14,12 +14,22 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     // Handle both formats: { guilgee: {...} } OR flat { gereeniiId: ..., turul: ..., etc }
     var guilgee = req.body.guilgee || req.body;
     
-    // Also need tulsunDun - frontend might send dun or tulukhDun instead
-    if (!guilgee.tulsunDun && guilgee.dun) {
-      guilgee.tulsunDun = guilgee.dun;
-    }
-    if (!guilgee.tulsunDun && guilgee.tulukhDun) {
-      guilgee.tulsunDun = guilgee.tulukhDun;
+    // Normalize amount fields based on turul type
+    // avlaga = debt/invoice (uses tulukhDun - amount TO pay)
+    // tulult/ashiglalt = payment (uses tulsunDun - amount PAID)
+    const dun = guilgee.dun || guilgee.tulukhDun || guilgee.tulsunDun || 0;
+    
+    if (guilgee.turul === "avlaga") {
+      // For avlaga: set tulukhDun, NOT tulsunDun
+      guilgee.tulukhDun = dun;
+      guilgee.tulsunDun = 0; // avlaga doesn't pay, it creates debt
+    } else if (guilgee.turul === "tulult" || guilgee.turul === "ashiglalt") {
+      // For payment types: set tulsunDun
+      guilgee.tulsunDun = dun;
+      guilgee.tulukhDun = 0;
+    } else {
+      // Default (barter, etc.)
+      guilgee.tulsunDun = dun;
     }
 
     if (!guilgee.gereeniiId) {
@@ -88,11 +98,11 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     var inc = {};
     
     if (guilgee.turul == "tulult" || guilgee.turul == "ashiglalt") {
-      // These types pay - reduce the balance
+      // These types pay - reduce the balance (use tulsunDun)
       inc.uldegdel = -(guilgee?.tulsunDun || 0);
     } else if (guilgee.turul == "avlaga") {
-      // avlaga creates invoice - increases the debt (positive uldegdel)
-      inc.uldegdel = +(guilgee?.tulsunDun || 0);
+      // avlaga creates invoice - increases the debt (use tulukhDun)
+      inc.uldegdel = +(guilgee?.tulukhDun || 0);
     } else {
       // Default behavior for other types (barter, etc.)
       inc.uldegdel = -(guilgee?.tulsunDun || 0);
@@ -138,9 +148,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
 
             ognoo: guilgee.guilgeeKhiisenOgnoo || new Date(),
-            undsenDun: guilgee.tulsunDun || 0,
-            tulukhDun: guilgee.tulsunDun || 0,
-            uldegdel: guilgee.tulsunDun || 0,
+            undsenDun: guilgee.tulukhDun || 0,
+            tulukhDun: guilgee.tulukhDun || 0,
+            uldegdel: guilgee.tulukhDun || 0,
 
             turul: "avlaga",
             zardliinTurul: guilgee.zardliinTurul || "",
