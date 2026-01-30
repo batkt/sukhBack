@@ -127,28 +127,41 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       ? db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId))
       : null;
     
+    // Check where the data actually resides
+    const mainCountWithQuery = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments(body.query);
+    let tenantCountWithQuery = 0;
+    
     if (tenantKholbolt) {
-      kholbolt = tenantKholbolt;
+      tenantCountWithQuery = await OrshinSuugch(tenantKholbolt).countDocuments(body.query);
     }
 
     // DEBUG LOGGING
     console.log("🔍 [ORSHINSUUGCH DEBUG] List Request:");
     console.log("   baiguullagiinId:", baiguullagiinId);
-    console.log("   Selected Database:", kholbolt.baaziinNer || "erunkhiiKholbolt");
     console.log("   Final Query:", JSON.stringify(body.query, null, 2));
-    
-    // Check total counts to see if data exists at all
-    const mainCount = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments({ baiguullagiinId: String(baiguullagiinId) });
-    console.log("   Docs in MAIN DB with this baiguullagiinId:", mainCount);
-    
+    console.log("   Count in MAIN DB (with query):", mainCountWithQuery);
     if (tenantKholbolt) {
-      const tenantCount = await OrshinSuugch(tenantKholbolt).countDocuments({ baiguullagiinId: String(baiguullagiinId) });
-      const tenantTotalCount = await OrshinSuugch(tenantKholbolt).countDocuments({});
-      console.log("   Docs in TENANT DB with this baiguullagiinId:", tenantCount);
-      console.log("   Total docs in TENANT DB (any) orshinsuugch:", tenantTotalCount);
+      console.log("   Count in TENANT DB (with query):", tenantCountWithQuery);
+      console.log("   Tenant DB Name:", tenantKholbolt.baaziinNer);
+    }
+
+    // Logic: Use tenant DB ONLY if it has data and main DB doesn't, 
+    // or if only tenant DB has matches for the specific query.
+    // Defaulting to Main DB if it has data.
+    if (mainCountWithQuery > 0) {
+      kholbolt = db.erunkhiiKholbolt;
+      console.log("   ✅ Using MAIN DB");
+    } else if (tenantCountWithQuery > 0 && tenantKholbolt) {
+      kholbolt = tenantKholbolt;
+      console.log("   ✅ Using TENANT DB");
+    } else {
+      // If neither has data with the full query, let's see if Main has data for just the org
+      const mainOrgCount = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments({ baiguullagiinId: String(baiguullagiinId) });
+      console.log("   ℹ️ No docs found with full query. Docs with just baiguullagiinId in Main:", mainOrgCount);
+      kholbolt = db.erunkhiiKholbolt; // Default back to main
     }
     
-    // Fetch residents from the resolved connection (tenant or main)
+    // Fetch residents from the resolved connection
     let jagsaalt = await OrshinSuugch(kholbolt)
       .find(body.query)
       .sort(body.order)
