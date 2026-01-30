@@ -1029,7 +1029,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         return total + tariff;
       }, 0);
 
-      // Validate: One toot cannot have different owners
+      // Validate: One toot occupancy check
       // Check if this toot already has an active contract with a different orshinSuugchId
       const GereeModel = Geree(tukhainBaaziinKholbolt);
       if (orshinSuugch.toot && barilgiinId) {
@@ -1039,9 +1039,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           tuluv: "Идэвхтэй",
           orshinSuugchId: { $ne: orshinSuugch._id.toString() }
         });
-
+ 
         if (conflictingGeree) {
-          throw new aldaa(`Тоот ${orshinSuugch.toot} аль хэдийн өөр хэрэглэгчид хамаарсан байна!`);
+          // Log warning instead of throwing error to allow roommates/multi-family registration
+          console.warn(`⚠️ [REGISTER] Unit ${orshinSuugch.toot} is already occupied by another user (${conflictingGeree.orshinSuugchId}). Allowing multiple registration.`);
         }
       }
 
