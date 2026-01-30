@@ -118,59 +118,21 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
     
     // Add barilgiinId filter if provided
     if (barilgiinId) {
-      // Look for barilgiinId at top level OR inside the toots array
-      body.query.$or = [
-        { barilgiinId: String(barilgiinId) },
-        { "toots.barilgiinId": String(barilgiinId) }
-      ];
+      body.query.barilgiinId = String(barilgiinId);
     }
     
     // Resolve the correct database connection
     let kholbolt = db.erunkhiiKholbolt;
-    const tenantKholbolt = baiguullagiinId && db && db.kholboltuud && Array.isArray(db.kholboltuud)
-      ? db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId))
-      : null;
-    
-    // Check where the data actually resides
-    const mainCountWithQuery = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments(body.query);
-    let tenantCountWithQuery = 0;
-    
-    if (tenantKholbolt) {
-      tenantCountWithQuery = await OrshinSuugch(tenantKholbolt).countDocuments(body.query);
-    }
-
-    // DEBUG LOGGING
-    console.log("🔍 [ORSHINSUUGCH DEBUG] List Request:");
-    console.log("   baiguullagiinId:", baiguullagiinId);
-    console.log("   Final Query:", JSON.stringify(body.query, null, 2));
-    console.log("   Count in MAIN DB (with query):", mainCountWithQuery);
-    if (tenantKholbolt) {
-      console.log("   Count in TENANT DB (with query):", tenantCountWithQuery);
-      console.log("   Tenant DB Name:", tenantKholbolt.baaziinNer);
-    }
-
-    // Logic: Use tenant DB ONLY if it has data and main DB doesn't, 
-    // or if only tenant DB has matches for the specific query.
-    if (mainCountWithQuery > 0) {
-      kholbolt = db.erunkhiiKholbolt;
-    } else if (tenantCountWithQuery > 0 && tenantKholbolt) {
-      kholbolt = tenantKholbolt;
-    } else {
-      // FALLBACK LOGIC: If no results found with the building filter, but the organization
-      // HAS residents, we should show them. This helps in cases of building alignment issues.
-      const mainOrgCount = await OrshinSuugch(db.erunkhiiKholbolt).countDocuments({ baiguullagiinId: String(baiguullagiinId) });
-      
-      if (mainOrgCount > 0) {
-        console.log(`⚠️ [ORSHINSUUGCH] Falling back to organization-wide search (${mainOrgCount} docs found)`);
-        delete body.query.$or; // Remove building filter
-        delete body.query.barilgiinId;
-        kholbolt = db.erunkhiiKholbolt;
-      } else {
-        kholbolt = db.erunkhiiKholbolt; // Default back to main
+    if (baiguullagiinId && db && db.kholboltuud && Array.isArray(db.kholboltuud)) {
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      );
+      if (tukhainBaaziinKholbolt) {
+        kholbolt = tukhainBaaziinKholbolt;
       }
     }
     
-    // Fetch residents from the resolved connection
+    // Fetch residents from the resolved connection (tenant or main)
     let jagsaalt = await OrshinSuugch(kholbolt)
       .find(body.query)
       .sort(body.order)
