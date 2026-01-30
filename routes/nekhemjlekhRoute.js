@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const { crud, UstsanBarimt, tokenShalgakh } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
 const { downloadNekhemjlekhiinTuukhExcel } = require("../controller/excelImportController");
-const { gereeNeesNekhemjlekhUusgekhPreviousMonth, markInvoicesAsPaid, previewInvoice, manualSendInvoice, manualSendMassInvoices, manualSendSelectedInvoices } = require("../controller/nekhemjlekhController");
+const { gereeNeesNekhemjlekhUusgekhPreviousMonth, markInvoicesAsPaid, previewInvoice, manualSendInvoice, manualSendMassInvoices, manualSendSelectedInvoices, deleteInvoiceZardal } = require("../controller/nekhemjlekhController");
 const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const { db } = require("zevbackv2");
@@ -353,5 +353,8 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
     next(error);
   }
 });
+
+// Delete a specific zardal from an invoice
+router.post("/deleteZardal", tokenShalgakh, deleteInvoiceZardal);
 
 module.exports = router;

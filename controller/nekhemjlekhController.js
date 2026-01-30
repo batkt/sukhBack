@@ -2313,22 +2313,37 @@ const deleteInvoiceZardal = asyncHandler(async (req, res, next) => {
     return res.status(400).json({ success: false, error: "Энэ нэхэмжлэхэд зардал олдсонгүй!" });
   }
 
-  const zardluud = invoice.medeelel.zardluud;
-  const zardalIndex = zardluud.findIndex(z => String(z._id) === String(zardalId));
+  const zardluud = Array.isArray(invoice.medeelel?.zardluud) ? invoice.medeelel.zardluud : [];
+  const guilgeenuud = Array.isArray(invoice.medeelel?.guilgeenuud) ? invoice.medeelel.guilgeenuud : [];
 
-  if (zardalIndex === -1) {
-    return res.status(404).json({ success: false, error: "Зардал олдсонгүй (ID mismatch)!" });
+  let deletedAmount = 0;
+  let pullPath = "";
+
+  const zardalIndex = zardluud.findIndex(z => String(z._id) === String(zardalId));
+  const guilgeeIndex = guilgeenuud.findIndex(g => String(g._id) === String(zardalId));
+
+  if (zardalIndex !== -1) {
+    const deletedZardal = zardluud[zardalIndex];
+    deletedAmount = Number(deletedZardal.dun || deletedZardal.tariff || deletedZardal.tulukhDun || 0);
+    pullPath = "medeelel.zardluud";
+  } else if (guilgeeIndex !== -1) {
+    const deletedGuilgee = guilgeenuud[guilgeeIndex];
+    // If it was a charge, decrement total. If it was a payment, increment total.
+    const charge = Number(deletedGuilgee.tulukhDun || 0);
+    const payment = Number(deletedGuilgee.tulsunDun || 0);
+    deletedAmount = charge - payment;
+    pullPath = "medeelel.guilgeenuud";
+  } else {
+    return res.status(404).json({ success: false, error: "Зардал эсвэл гүйлгээ олдсонгүй (ID mismatch)!" });
   }
 
-  const deletedZardal = zardluud[zardalIndex];
-
-  const deletedAmount = Number(deletedZardal.dun || deletedZardal.tariff || 0);
-
-
-  await NekhemjlekhModel.findByIdAndUpdate(invoiceId, {
-    $pull: { "medeelel.zardluud": { _id: zardalId } },
+  const mongoose = require("mongoose");
+  const updateQuery = {
+    $pull: { [pullPath]: { _id: mongoose.Types.ObjectId.isValid(zardalId) ? new mongoose.Types.ObjectId(zardalId) : zardalId } },
     $inc: { niitTulbur: -deletedAmount }
-  });
+  };
+
+  await NekhemjlekhModel.findByIdAndUpdate(invoiceId, updateQuery);
 
 
   if (invoice.gereeniiId && deletedAmount !== 0) {
