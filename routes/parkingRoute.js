@@ -668,25 +668,40 @@ router.post("/zogsoolSdkService", tokenShalgakh, async (req, res, next) => {
     }
     const khariu = await sdkData(req, medegdel);
     
+    // Manual Date Fix: Update orsonTsag if burtgelOgnoo is provided
     if (req.body.burtgelOgnoo && req.body.mashiniiDugaar) {
       try {
+         // Wait a moment for the record to be created/indexed
+         await new Promise(resolve => setTimeout(resolve, 500));
+
          const uilchluulegchModel = Uilchluulegch(req.body.tukhainBaaziinKholbolt);
          const manualDate = moment(req.body.burtgelOgnoo).toDate();
-         
+         console.log("Attempting manual date update:", {
+           plate: req.body.mashiniiDugaar,
+           date: manualDate
+         });
+
+         // Find relevant record (just created)
          const latest = await uilchluulegchModel.findOne({ 
            mashiniiDugaar: req.body.mashiniiDugaar
          }).sort({ createdAt: -1 });
 
          if (latest) {
+           console.log("Found record to update:", latest._id);
            await uilchluulegchModel.updateOne(
              { _id: latest._id },
              {
                $set: {
                  "tuukh.0.tsagiinTuukh.0.orsonTsag": manualDate,
-                 "createdAt": manualDate
+                 "createdAt": manualDate,
+                 "updatedAt": manualDate,
+                 "checkInTime": manualDate
                }
              }
            );
+           console.log("Manual date update success");
+         } else {
+           console.log("No record found for manual date update");
          }
       } catch(e) {
          console.error("Manual date update error:", e);
