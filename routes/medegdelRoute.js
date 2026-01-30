@@ -53,8 +53,8 @@ router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
   }
 });
 
-// Route matching the URL structure user provided: /medegdel/:baiguullagiinId/:filename
-router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
+// Route matching the URL structure user provided: /public/medegdel/:baiguullagiinId/:filename
+router.get("/public/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
   const fileName = req.params.ner;
   // Use __dirname to find public folder relative to routes folder
   const directoryPath = path.join(__dirname, "../public", "medegdel", req.params.baiguullagiinId);
