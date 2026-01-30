@@ -78,6 +78,10 @@ router.post("/tulsunSummary", tokenShalgakh, async (req, res, next) => {
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
 crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
+
+
+const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+crud(router, "gereeniiTulsunAvlaga", GereeniiTulsunAvlaga, UstsanBarimt);
 crud(
   router,
   "geree",
@@ -112,7 +116,7 @@ crud(
         if (orshinSuugchData.ner) orshinSuugch.ner = orshinSuugchData.ner;
         if (orshinSuugchData.ovog) orshinSuugch.ovog = orshinSuugchData.ovog;
         if (orshinSuugchData.mail) orshinSuugch.mail = orshinSuugchData.mail;
-        
+
         console.log(`ℹ️ [GEREE] Existing resident found (${phoneNumber}). Preserving primary org: ${orshinSuugch.baiguullagiinId}`);
       } else {
         // Create NEW resident document
@@ -127,10 +131,10 @@ crud(
       // 2. Add/Update the specific building association in the toots array
       if (req.body.barilgiinId && (req.body.toot || orshinSuugchData.toot)) {
         if (!orshinSuugch.toots) orshinSuugch.toots = [];
-        
+
         const targetToot = req.body.toot || orshinSuugchData.toot;
         const barilgiinIdStr = String(req.body.barilgiinId);
-        
+
         const existingTootIndex = orshinSuugch.toots.findIndex(
           t => t.toot === targetToot && String(t.barilgiinId) === barilgiinIdStr
         );
@@ -188,7 +192,7 @@ crud(
       if (maxDugaar && maxDugaar > 1) {
         req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
       }
-      
+
       // Set orshinSuugchId in req.body so geree can reference it
       req.body.orshinSuugchId = orshinSuugch._id.toString();
 
@@ -210,14 +214,14 @@ crud(
         const body = req.query;
         const baiguullagiinId = body.baiguullagiinId;
         const barilgiinId = body.barilgiinId;
-        
+
         if (!baiguullagiinId) {
           return res.status(400).json({
             success: false,
             aldaa: "Байгууллагын ID заавал бөглөх шаардлагатай!",
           });
         }
-        
+
         // Validate db and kholboltuud exist
         if (!db || !db.kholboltuud || !Array.isArray(db.kholboltuud)) {
           return res.status(500).json({
@@ -225,7 +229,7 @@ crud(
             aldaa: "Холболтын мэдээлэл алдаатай байна!",
           });
         }
-        
+
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
           (kholbolt) => kholbolt && String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
         );
@@ -236,35 +240,35 @@ crud(
             aldaa: "Байгууллагын холболт олдсонгүй!",
           });
         }
-        
+
         // Initialize body.query if it doesn't exist
         if (!body.query) {
           body.query = {};
         } else if (typeof body.query === 'string') {
           body.query = JSON.parse(body.query);
         }
-        
+
         // Parse other query parameters
         if (!!body?.order) body.order = JSON.parse(body.order);
         if (!!body?.select) body.select = JSON.parse(body.select);
         if (!!body?.collation) body.collation = JSON.parse(body.collation);
-        
+
         // Set default values and parse pagination parameters
-        const khuudasniiDugaar = body.khuudasniiDugaar 
-          ? Number(body.khuudasniiDugaar) 
+        const khuudasniiDugaar = body.khuudasniiDugaar
+          ? Number(body.khuudasniiDugaar)
           : 1;
-        const khuudasniiKhemjee = body.khuudasniiKhemjee 
-          ? Number(body.khuudasniiKhemjee) 
+        const khuudasniiKhemjee = body.khuudasniiKhemjee
+          ? Number(body.khuudasniiKhemjee)
           : 10;
-        
+
         // Add baiguullagiinId filter (required) - ensure it's set even if in query JSON
         body.query.baiguullagiinId = String(baiguullagiinId);
-        
+
         // Add barilgiinId filter if provided in query params
         if (barilgiinId) {
           body.query.barilgiinId = String(barilgiinId);
         }
-        
+
         // Debug: Log the query
         console.log("🔍 [geree GET] Query:", JSON.stringify(body.query, null, 2));
 
@@ -283,7 +287,7 @@ crud(
           niitMur % khuudasniiKhemjee == 0
             ? Math.floor(niitMur / khuudasniiKhemjee)
             : Math.floor(niitMur / khuudasniiKhemjee) + 1;
-        
+
         console.log("✅ [geree GET] Found", niitMur, "records");
 
         // Normalize horoo field to always be an object format for consistency
@@ -315,19 +319,19 @@ crud(
         return;
       }
     }
-    
+
     // Handle PUT requests - automatically update electricity readings if tsahilgaaniiZaalt is provided
     if (req.method === "PUT" && req.body.tsahilgaaniiZaalt !== undefined) {
       try {
         const { db } = require("zevbackv2");
         const baiguullagiinId = req.body.baiguullagiinId;
-        
+
         if (!baiguullagiinId) {
           // Try to get baiguullagiinId from the geree document if ID is provided
           if (req.params.id) {
             const allConnections = db.kholboltuud || [];
             let foundGeree = null;
-            
+
             for (const conn of allConnections) {
               try {
                 const tempGeree = await Geree(conn, true).findById(req.params.id).select("baiguullagiinId");
@@ -341,13 +345,13 @@ crud(
               }
             }
           }
-          
+
           if (!req.body.baiguullagiinId) {
             console.log("⚠️ [GEREE PUT] baiguullagiinId not found, skipping automatic electricity update");
             return next();
           }
         }
-        
+
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
           (kholbolt) => String(kholbolt.baiguullagiinId) === String(req.body.baiguullagiinId)
         );
@@ -358,8 +362,8 @@ crud(
         }
 
         // Parse tsahilgaaniiZaalt (default to 0 if invalid)
-        const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined 
-          ? parseFloat(req.body.tsahilgaaniiZaalt) || 0 
+        const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined
+          ? parseFloat(req.body.tsahilgaaniiZaalt) || 0
           : 0;
 
         // Automatically update electricity readings in req.body
@@ -383,7 +387,7 @@ crud(
         // Don't block the request, just log the error
       }
     }
-    
+
     // IMPORTANT: When cancelling a geree (tuluv: "Цуцалсан"), preserve the original barilgiinId
     // Do NOT allow barilgiinId to be changed when cancelling a contract
     if (req.method === "PUT" && req.body.tuluv === "Цуцалсан" && req.params.id) {
@@ -391,7 +395,7 @@ crud(
         const { db } = require("zevbackv2");
         const allConnections = db.kholboltuud || [];
         let originalGeree = null;
-        
+
         // Find the original geree to preserve its barilgiinId
         for (const conn of allConnections) {
           try {
@@ -404,7 +408,7 @@ crud(
             // Continue searching
           }
         }
-        
+
         // If original geree found, preserve its barilgiinId
         if (originalGeree && originalGeree.barilgiinId) {
           req.body.barilgiinId = originalGeree.barilgiinId;
@@ -415,7 +419,7 @@ crud(
         // Don't block the request, just log the error
       }
     }
-    
+
     next();
   }
 );
@@ -527,78 +531,78 @@ router.route("/gereeKhadgalya").post(
   async (req, res, next) => {
     const { db } = require("zevbackv2");
     const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(req.body);
-  orshinSuugch.id = orshinSuugch.register
-    ? orshinSuugch.register
-    : orshinSuugch.customerTin;
-  if (req.body.gereeniiDugaar === `ГД${moment(new Date()).format("YYMMDD")}`) {
-    var unuudur = new Date();
-    unuudur = new Date(
-      unuudur.getFullYear(),
-      unuudur.getMonth(),
-      unuudur.getDate()
-    );
-    var maxDugaar = 1;
-    await Dugaarlalt(req.body.tukhainBaaziinKholbolt)
-      .find({
+    orshinSuugch.id = orshinSuugch.register
+      ? orshinSuugch.register
+      : orshinSuugch.customerTin;
+    if (req.body.gereeniiDugaar === `ГД${moment(new Date()).format("YYMMDD")}`) {
+      var unuudur = new Date();
+      unuudur = new Date(
+        unuudur.getFullYear(),
+        unuudur.getMonth(),
+        unuudur.getDate()
+      );
+      var maxDugaar = 1;
+      await Dugaarlalt(req.body.tukhainBaaziinKholbolt)
+        .find({
+          baiguullagiinId: req.body.baiguullagiinId,
+          barilgiinId: req.body.barilgiinId,
+          turul: "geree",
+          ognoo: unuudur,
+        })
+        .sort({
+          dugaar: -1,
+        })
+        .limit(1)
+        .then((result) => {
+          if (result != 0) maxDugaar = result[0].dugaar + 1;
+        });
+      var dugaarlalt = new Dugaarlalt(req.body.tukhainBaaziinKholbolt)({
         baiguullagiinId: req.body.baiguullagiinId,
         barilgiinId: req.body.barilgiinId,
+        dugaar: maxDugaar,
         turul: "geree",
         ognoo: unuudur,
-      })
-      .sort({
-        dugaar: -1,
-      })
-      .limit(1)
-      .then((result) => {
-        if (result != 0) maxDugaar = result[0].dugaar + 1;
+        isNew: true,
       });
-    var dugaarlalt = new Dugaarlalt(req.body.tukhainBaaziinKholbolt)({
-      baiguullagiinId: req.body.baiguullagiinId,
-      barilgiinId: req.body.barilgiinId,
-      dugaar: maxDugaar,
-      turul: "geree",
-      ognoo: unuudur,
-      isNew: true,
-    });
-    // Only append maxDugaar suffix if it's greater than 1 (multiple contracts on same day)
-    // This prevents "-0" or "-1" suffixes from appearing
-    if (maxDugaar && maxDugaar > 1) {
-      req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
+      // Only append maxDugaar suffix if it's greater than 1 (multiple contracts on same day)
+      // This prevents "-0" or "-1" suffixes from appearing
+      if (maxDugaar && maxDugaar > 1) {
+        req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
+      }
+      dugaarlalt.save();
     }
-    dugaarlalt.save();
-  }
 
-  var orshinSuugchShalguur;
-  if (!!orshinSuugch.register) {
-    orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      register: orshinSuugch.register,
-      barilgiinId: req.body.barilgiinId,
+    var orshinSuugchShalguur;
+    if (!!orshinSuugch.register) {
+      orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+        register: orshinSuugch.register,
+        barilgiinId: req.body.barilgiinId,
+      });
+    } else if (!!orshinSuugch.customerTin) {
+      orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+        customerTin: orshinSuugch.customerTin,
+        barilgiinId: req.body.barilgiinId,
+      });
+    }
+    if (!orshinSuugchShalguur) await orshinSuugch.save();
+    var geree = new Geree(req.body.tukhainBaaziinKholbolt)(req.body);
+    var daraagiinTulukhOgnoo = geree.duusakhOgnoo;
+    try {
+      if (geree.avlaga.guilgeenuud && geree.avlaga.guilgeenuud.length > 0)
+        daraagiinTulukhOgnoo = geree.avlaga.guilgeenuud[0].ognoo;
+    } catch (err) {
+      if (!!next) next(err);
+    }
+    geree.daraagiinTulukhOgnoo = daraagiinTulukhOgnoo;
+    geree.tuluv = 1;
+    await geree.save().then((result) => {
+      talbaiKhariltsagchiinTuluvUurchluy(
+        [result._id],
+        req.body.tukhainBaaziinKholbolt
+      );
     });
-  } else if (!!orshinSuugch.customerTin) {
-    orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-      customerTin: orshinSuugch.customerTin,
-      barilgiinId: req.body.barilgiinId,
-    });
-  }
-  if (!orshinSuugchShalguur) await orshinSuugch.save();
-  var geree = new Geree(req.body.tukhainBaaziinKholbolt)(req.body);
-  var daraagiinTulukhOgnoo = geree.duusakhOgnoo;
-  try {
-    if (geree.avlaga.guilgeenuud && geree.avlaga.guilgeenuud.length > 0)
-      daraagiinTulukhOgnoo = geree.avlaga.guilgeenuud[0].ognoo;
-  } catch (err) {
-    if (!!next) next(err);
-  }
-  geree.daraagiinTulukhOgnoo = daraagiinTulukhOgnoo;
-  geree.tuluv = 1;
-  await geree.save().then((result) => {
-    talbaiKhariltsagchiinTuluvUurchluy(
-      [result._id],
-      req.body.tukhainBaaziinKholbolt
-    );
+    res.send("Amjilttai");
   });
-  res.send("Amjilttai");
-});
 
 router
   .route("/gereeniiGuilgeeKhadgalya")
@@ -698,11 +702,11 @@ router
             chadalDun =
               baiguullaga?.tokhirgoo?.bichiltKhonog > 0 && tsakhilgaanKBTST > 0
                 ? (tsakhilgaanKBTST /
-                    baiguullaga?.tokhirgoo?.bichiltKhonog /
-                    12) *
-                  (req.body.baiguullagiinId === "679aea9032299b7ba8462a77"
-                    ? 11520
-                    : 15500)
+                  baiguullaga?.tokhirgoo?.bichiltKhonog /
+                  12) *
+                (req.body.baiguullagiinId === "679aea9032299b7ba8462a77"
+                  ? 11520
+                  : 15500)
                 : 0;
             tsekhDun = ashiglaltiinZardal.tariff * tsakhilgaanKBTST;
             if (baiguullaga?.tokhirgoo?.sekhDemjikhTulburAvakhEsekh) {
@@ -719,12 +723,12 @@ router
           var tempDun =
             (ashiglaltiinZardal.ner?.includes("Хүйтэн ус") ||
               ashiglaltiinZardal.ner?.includes("Халуун ус")) &&
-            ashiglaltiinZardal.bodokhArga === "Khatuu"
+              ashiglaltiinZardal.bodokhArga === "Khatuu"
               ? ashiglaltiinZardal.tseverUsDun * zoruuDun +
-                ashiglaltiinZardal.bokhirUsDun * zoruuDun +
-                (ashiglaltiinZardal.ner?.includes("Халуун ус")
-                  ? ashiglaltiinZardal.usKhalaasniiDun * zoruuDun
-                  : 0)
+              ashiglaltiinZardal.bokhirUsDun * zoruuDun +
+              (ashiglaltiinZardal.ner?.includes("Халуун ус")
+                ? ashiglaltiinZardal.usKhalaasniiDun * zoruuDun
+                : 0)
               : tsakhilgaanDun;
           updateObject = {
             turul: "avlaga",
