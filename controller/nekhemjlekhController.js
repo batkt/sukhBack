@@ -1039,31 +1039,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
       console.log(`💰 [INVOICE] Added ekhniiUldegdel to zardluud: ${ekhniiUldegdelAmount}₮`);
     }
 
-    // MERGE MANUAL QUEUED DEBTS: Move 'avlaga' type items from the queue into zardluud
-    // This ensures they are displayed as line items and correctly handled by the history modal.
-    if (guilgeenuudForNekhemjlekh.length > 0) {
-      guilgeenuudForNekhemjlekh.forEach(g => {
-        // Only move debts (avlaga). Payments (tulult) stay in the guilgeenuud array for the invoice.
-        if (g.turul === "avlaga") {
-          zardluudWithDun.push({
-            _id: g._id || `manual-${Date.now()}-${Math.random()}`,
-            ner: g.zardliinNer || (g.ekhniiUldegdelEsekh ? "Эхний үлдэгдэл" : "Гараар нэмсэн авлага"),
-            turul: "Тогтмол",
-            bodokhArga: "тогтмол",
-            zardliinTurul: "Энгийн",
-            tariff: g.tulukhDun || 0,
-            dun: g.tulukhDun || 0,
-            zaalt: false,
-            ognoonuud: [],
-            nuatNemekhEsekh: false,
-            nuatBodokhEsekh: false,
-            tailbar: g.tailbar || ""
-          });
-          console.log(`💰 [INVOICE] Merged queued manual debt into zardluud: ${g.tulukhDun}₮ (${g.zardliinNer || 'Авлага'})`);
-        }
-      });
-    }
-
     zardluudWithDun = zardluudWithDun.map(zardal => {
       if (zardal.zaalt === true) {
         return zardal;
