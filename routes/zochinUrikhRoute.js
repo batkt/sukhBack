@@ -157,11 +157,56 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
     // Харилцагчийн мэдээллийг хадгална/засварлана
     if (orshinSuugchMedeelel) {
       try {
+        // Create a copy for resident data and remove visitor-specific fields
+        // This ensures visitor fields are ONLY saved to OrshinSuugchMashin schema as requested
+        const residentData = { ...orshinSuugchMedeelel };
+        delete residentData.zochinUrikhEsekh;
+        delete residentData.zochinTurul;
+        delete residentData.davtamjiinTurul;
+        delete residentData.mashiniiDugaar;
+        delete residentData.dugaarUurchilsunOgnoo;
+        delete residentData.ezenToot;
+        delete residentData.zochinTailbar;
+        delete residentData.zochinErkhiinToo;
+        delete residentData.zochinTusBurUneguiMinut;
+        delete residentData.zochinNiitUneguiMinut;
+
         orshinSuugchResult = await orshinSuugchKhadgalya(
-          orshinSuugchMedeelel,
+          residentData,
           ezemshigchiinUtas,
           db.erunkhiiKholbolt
         );
+
+        // Also save to OrshinSuugchMashin (Visitor Vehicle History)
+        if (orshinSuugchResult) {
+          const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+          
+          // Check if record exists to update or create new
+          // We match by orshinSuugchiinId and mashiniiDugaar to avoid duplicates if preferred, 
+          // but strictly following "save into this", we will upsert or save.
+          // Given the fields track settings, we probably want to update the existing settings for this user/car.
+          
+          await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
+            { 
+               orshinSuugchiinId: orshinSuugchResult._id,
+               mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar 
+            },
+            {
+               $set: {
+                zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh,
+                zochinTurul: orshinSuugchMedeelel.zochinTurul,
+                davtamjiinTurul: orshinSuugchMedeelel.davtamjiinTurul,
+                dugaarUurchilsunOgnoo: orshinSuugchMedeelel.dugaarUurchilsunOgnoo,
+                ezenToot: orshinSuugchMedeelel.ezenToot,
+                zochinTailbar: orshinSuugchMedeelel.zochinTailbar,
+                zochinErkhiinToo: orshinSuugchMedeelel.zochinErkhiinToo,
+                zochinTusBurUneguiMinut: orshinSuugchMedeelel.zochinTusBurUneguiMinut,
+                zochinNiitUneguiMinut: orshinSuugchMedeelel.zochinNiitUneguiMinut,
+               }
+            },
+            { upsert: true, new: true }
+          );
+        }
       } catch (error) {
         return res.status(400).json({
           success: false,

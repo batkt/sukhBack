@@ -69,17 +69,7 @@ const orshinSuugchSchema = new Schema(
     walletBairId: String, // Keep for backward compatibility
     walletDoorNo: String, // Keep for backward compatibility
     
-    // zochin urih datanuud
-    zochinUrikhEsekh: Boolean,
-    zochinTurul: String,
-    davtamjiinTurul: String,
-    mashiniiDugaar: String,
-    dugaarUurchilsunOgnoo: Date,
-    ezenToot: String,
-    zochinTailbar: String,
-    zochinErkhiinToo: Number,
-    zochinTusBurUneguiMinut: Number,
-    zochinNiitUneguiMinut: Number,
+    
   },
   {
     timestamps: true,
