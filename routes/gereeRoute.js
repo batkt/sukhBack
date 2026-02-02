@@ -77,6 +77,50 @@ router.post("/tulsunSummary", tokenShalgakh, async (req, res, next) => {
 
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
+// Custom POST handler for liftShalgaya to handle upsert (prevent duplicate key error)
+router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, barilgiinId, choloolugdokhDavkhar } = req.body;
+
+    if (!baiguullagiinId || !barilgiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId and barilgiinId are required"
+      });
+    }
+
+    // Find connection
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Байгууллагын холболт олдсонгүй"
+      });
+    }
+
+    const LiftShalgayaModel = LiftShalgaya(tukhainBaaziinKholbolt);
+
+    const filter = { baiguullagiinId, barilgiinId };
+    const update = { 
+        $set: { 
+            choloolugdokhDavkhar: choloolugdokhDavkhar || [] 
+        } 
+    };
+    const options = { new: true, upsert: true, setDefaultsOnInsert: true };
+
+    const result = await LiftShalgayaModel.findOneAndUpdate(filter, update, options);
+
+    res.json(result);
+
+  } catch (error) {
+    next(error);
+  }
+});
+
 crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
 
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
@@ -777,19 +821,19 @@ router
           tukhainZardal.gereeniiId = geree._id;
           tukhainZardal.zoruu = ashiglaltiinZardal.zoruuDun;
           tukhainZardal.niitDun = tempDun;
-          if (updateObject.tulukhDun > 0) {
-            let upsertDoc = {
-              updateOne: {
-                filter: { _id: geree._id },
-                update: {
-                  $push: {
-                    "avlaga.guilgeenuud": updateObject,
-                  },
-                },
-              },
-            };
-            bulkOps.push(upsertDoc);
-          }
+          // if (updateObject.tulukhDun > 0) {
+          //   let upsertDoc = {
+          //     updateOne: {
+          //       filter: { _id: geree._id },
+          //       update: {
+          //         $push: {
+          //           "avlaga.guilgeenuud": updateObject,
+          //         },
+          //       },
+          //     },
+          //   };
+          //   bulkOps.push(upsertDoc);
+          // }
         }
       }
       if (aldaaniiMsg) throw new Error(aldaaniiMsg);
