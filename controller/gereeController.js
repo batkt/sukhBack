@@ -119,23 +119,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     // Use count from newly created collection logic later or just query it
     const GereeniiTulukhAvlagaModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
     const count = await GereeniiTulukhAvlagaModel.countDocuments({ gereeniiId: guilgee.gereeniiId });
-    const guilgeeForNekhemjlekh = { ...guilgee, avlagaGuilgeeIndex: count };
-
-    const updateData = { $inc: inc };
-    // Only push to guilgeenuudForNekhemjlekh if it's NOT an initial balance
-    // Initial balance should be a standalone record, NOT merged into the next invoice
-    if (!guilgee.ekhniiUldegdelEsekh) {
-      updateData.$push = { guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh };
-    }
-
-    const result = await Geree(tukhainBaaziinKholbolt)
-      .findByIdAndUpdate(
-        { _id: guilgee.gereeniiId },
-        updateData,
-        { new: true } // Return updated document
-      );
 
     // Store in appropriate model based on turul type
+    // We do this BEFORE updating the Geree so we have the ID for the queue
     try {
       const freshGereeForAvlaga = await Geree(tukhainBaaziinKholbolt, true)
         .findById(guilgee.gereeniiId)
@@ -144,35 +130,30 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
       if (freshGereeForAvlaga) {
         if (guilgee.turul === "avlaga") {
-          if (guilgee.ekhniiUldegdelEsekh === true) {
-            // INITIAL BALANCE: Create standalone GereeniiTulukhAvlaga record immediately
-            const TulukhAvlagaModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
-            const newAvlaga = new TulukhAvlagaModel({
-              baiguullagiinId: freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
-              baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
-              barilgiinId: freshGereeForAvlaga.barilgiinId || "",
-              gereeniiId: guilgee.gereeniiId,
-              gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
-              orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
-              ognoo: guilgee.ognoo || guilgee.guilgeeKhiisenOgnoo || new Date(),
-              undsenDun: dun,
-              tulukhDun: dun,
-              uldegdel: dun,
-              turul: "avlaga",
-              zardliinNer: "Эхний үлдэгдэл",
-              ekhniiUldegdelEsekh: true,
-              source: "gar",
-              tailbar: guilgee.tailbar || "Гараар нэмсэн эхний үлдэгдэл",
-              guilgeeKhiisenAjiltniiNer: guilgee.guilgeeKhiisenAjiltniiNer || "",
-              guilgeeKhiisenAjiltniiId: guilgee.guilgeeKhiisenAjiltniiId || "",
-            });
-            const savedAvlaga = await newAvlaga.save();
-            newAvlagaId = savedAvlaga._id;
-            console.log("✅ [GEREE AVLAGA] Created standalone initial balance record:", newAvlagaId);
-          } else {
-            console.log("ℹ️ [GEREE AVLAGA] Normal avlaga - skip manual record (invoice handles it)");
-          }
-
+          // Create standalone GereeniiTulukhAvlaga record immediately for history visibility
+          const TulukhAvlagaModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
+          const newAvlaga = new TulukhAvlagaModel({
+            baiguullagiinId: freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
+            baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
+            barilgiinId: freshGereeForAvlaga.barilgiinId || "",
+            gereeniiId: guilgee.gereeniiId,
+            gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
+            orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
+            ognoo: guilgee.ognoo || guilgee.guilgeeKhiisenOgnoo || new Date(),
+            undsenDun: dun,
+            tulukhDun: dun,
+            uldegdel: dun,
+            turul: "avlaga",
+            zardliinNer: guilgee.ekhniiUldegdelEsekh ? "Эхний үлдэгдэл" : (guilgee.zardliinNer || "Авлага"),
+            ekhniiUldegdelEsekh: guilgee.ekhniiUldegdelEsekh === true,
+            source: "gar",
+            tailbar: guilgee.tailbar || (guilgee.ekhniiUldegdelEsekh ? "Гараар нэмсэн эхний үлдэгдэл" : ""),
+            guilgeeKhiisenAjiltniiNer: guilgee.guilgeeKhiisenAjiltniiNer || "",
+            guilgeeKhiisenAjiltniiId: guilgee.guilgeeKhiisenAjiltniiId || "",
+          });
+          const savedAvlaga = await newAvlaga.save();
+          newAvlagaId = savedAvlaga._id;
+          console.log("✅ [GEREE AVLAGA] Created standalone debt record:", newAvlagaId);
         } else if (guilgee.turul === "tulult" || guilgee.turul === "ashiglalt") {
           // TULULT/ASHIGLALT: Store in GereeniiTulsunAvlaga (payment record)
           const tulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);
@@ -210,6 +191,27 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       console.error("❌ [GEREE] Error creating avlaga/tulsun record:", recordError.message);
     }
 
+    // Now update the Geree object
+    const updateData = { $inc: inc };
+
+    // Prepare the queued transaction
+    const guilgeeForNekhemjlekh = {
+      ...guilgee,
+      _id: newAvlagaId || `manual-${Date.now()}`, // Link to the standalone record
+      avlagaGuilgeeIndex: count
+    };
+
+    // ALWAYS push to guilgeenuudForNekhemjlekh for manual adjustments
+    // We want them to be merged into the next invoice automatically
+    updateData.$push = { guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh };
+
+    const result = await Geree(tukhainBaaziinKholbolt)
+      .findByIdAndUpdate(
+        { _id: guilgee.gereeniiId },
+        updateData,
+        { new: true } // Return updated document
+      );
+
     await daraagiinTulukhOgnooZasya(
       guilgee.gereeniiId,
       tukhainBaaziinKholbolt
@@ -238,123 +240,10 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       console.error("Error sending notification for avlaga:", notificationError);
     }
 
-    if (guilgee.turul === "avlaga") {
-      try {
-        const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
-        const Baiguullaga = require("../models/baiguullaga");
-
-        const freshGeree = await Geree(tukhainBaaziinKholbolt, true)
-          .findById(guilgee.gereeniiId)
-          .lean();
-
-        if (freshGeree) {
-          const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt)
-            .findById(baiguullagiinId)
-            .lean();
-
-          if (baiguullaga) {
-            // Pass ekhniiUldegdelEsekh flag and the standalone ID to sync records
-            const includeEkhniiUldegdel = guilgee.ekhniiUldegdelEsekh === true;
-
-            const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
-              freshGeree,
-              baiguullaga,
-              tukhainBaaziinKholbolt,
-              "garan",
-              true, // skipDuplicateCheck = true to bypass month restrictions
-              includeEkhniiUldegdel, // Only include ekhniiUldegdel when checkbox is checked
-              newAvlagaId // Sync with the standalone record ID
-            );
-
-            if (invoiceResult && invoiceResult.success && invoiceResult.nekhemjlekh) {
-              // Sync the standalone record with the created invoice ID
-              if (newAvlagaId) {
-                await GereeniiTulukhAvlaga(tukhainBaaziinKholbolt).findByIdAndUpdate(newAvlagaId, {
-                  nekhemjlekhId: invoiceResult.nekhemjlekh._id
-                });
-              }
-
-              if (freshGeree.orshinSuugchId) {
-                try {
-                  console.log("starting socket emission process...");
-
-                  const io = req.app.get("socketio");
-
-                  if (!io) {
-                    console.error("❌ [SOCKET] Socket.io instance not found in req.app");
-                    return;
-                  }
-
-                  console.log("✅ [SOCKET] Socket.io instance found");
-
-                  let medegdelToEmit = invoiceResult.medegdel;
-
-                  if (!medegdelToEmit) {
-                    console.log("⚠️ [SOCKET] No medegdel in invoice result, querying database...");
-                    const kholbolt = db.kholboltuud.find(
-                      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-                    );
-
-                    if (!kholbolt) {
-                      console.error("❌ [SOCKET] Kholbolt not found for baiguullagiinId:", baiguullagiinId);
-                      return;
-                    }
-
-                    console.log("querying for recent medegdel...");
-
-                    const recentMedegdel = await Medegdel(kholbolt)
-                      .findOne({ orshinSuugchId: freshGeree.orshinSuugchId })
-                      .sort({ createdAt: -1 })
-                      .lean();
-
-                    if (recentMedegdel) {
-                      console.log("✅ [SOCKET] Found recent medegdel:", recentMedegdel._id);
-                      const mongolianOffset = 8 * 60 * 60 * 1000;
-                      if (recentMedegdel.createdAt) {
-                        recentMedegdel.createdAt = new Date(recentMedegdel.createdAt.getTime() + mongolianOffset).toISOString();
-                      }
-                      if (recentMedegdel.updatedAt) {
-                        recentMedegdel.updatedAt = new Date(recentMedegdel.updatedAt.getTime() + mongolianOffset).toISOString();
-                      }
-                      if (recentMedegdel.ognoo) {
-                        recentMedegdel.ognoo = new Date(recentMedegdel.ognoo.getTime() + mongolianOffset).toISOString();
-                      }
-                      medegdelToEmit = recentMedegdel;
-                    } else {
-                      console.warn("no recent medegdel found for orshinSuugchId");
-                    }
-                  } else {
-                    console.log("using medegdel from invoice result");
-                  }
-
-                  if (medegdelToEmit) {
-                    const eventName = "orshinSuugch" + freshGeree.orshinSuugchId;
-
-                    console.log("emitting invoice notification...");
-
-                    io.emit(eventName, medegdelToEmit);
-
-                    console.log("invoice notification emitted successfully");
-                  } else {
-                    console.error("no medegdel to emit");
-                  }
-                } catch (socketError) {
-                  console.error("error emitting socket event for invoice notification", socketError.message);
-                }
-              }
-            } else {
-              console.warn("avlaga invoice not created");
-            }
-          } else {
-            console.warn("baiguullaga not found");
-          }
-        } else {
-          console.warn("fresh geree not found");
-        }
-      } catch (invoiceError) {
-        console.error("error creating invoice from avlaga", invoiceError.message);
-      }
-    }
+    // NOTE: Removed automatic call to gereeNeesNekhemjlekhUusgekh here.
+    // Manual adjustments are now correctly queued in 'guilgeenuudForNekhemjlekh'
+    // and will be merged into the next invoice (manual or scheduled).
+    // This prevents redundant invoice documents and the cascade-delete bug.
 
     if (guilgee.guilgeeniiId) {
       const result1 = await BankniiGuilgee(tukhainBaaziinKholbolt)
