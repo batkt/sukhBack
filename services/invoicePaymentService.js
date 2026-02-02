@@ -123,6 +123,39 @@ async function markInvoicesAsPaid(options) {
       gereeToUpdate.positiveBalance = (gereeToUpdate.positiveBalance || 0) + dun;
       await gereeToUpdate.save();
       console.log(`💰 [INVOICE PAYMENT] No invoices found, saved ${dun} as positiveBalance in geree ${gereeToUpdate._id}`);
+
+      // NEW: Also create a history record for this prepayment so it's visible and counts 
+      // towards the dashboard balance reduction.
+      try {
+        const prepayDoc = new GereeniiTulsunAvlagaModel({
+          baiguullagiinId: String(baiguullagiinId),
+          baiguullagiinNer: gereeToUpdate.baiguullagiinNer || "",
+          barilgiinId: gereeToUpdate.barilgiinId || "",
+          gereeniiId: gereeToUpdate._id.toString(),
+          gereeniiDugaar: gereeToUpdate.gereeniiDugaar || "",
+          orshinSuugchId: gereeToUpdate.orshinSuugchId || orshinSuugchId || "",
+          nekhemjlekhId: null,
+
+          ognoo: new Date(),
+          tulsunDun: dun,
+          tulsunAldangi: 0,
+
+          turul: "prepayment",
+          zardliinTurul: "",
+          zardliinId: "",
+          zardliinNer: "",
+
+          tailbar: tailbar || `Илүү төлөлт (positiveBalance): ${dun}₮`,
+
+          source: "geree",
+          guilgeeKhiisenAjiltniiNer: null,
+          guilgeeKhiisenAjiltniiId: null,
+        });
+        await prepayDoc.save();
+        console.log(`✅ [INVOICE PAYMENT] Created prepayment record for visibility.`);
+      } catch (historyError) {
+        console.error(`❌ [INVOICE PAYMENT] Error creating prepayment history:`, historyError.message);
+      }
     }
 
     return {
