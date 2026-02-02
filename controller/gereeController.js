@@ -10,15 +10,15 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
   try {
     console.log("gereeniiGuilgeeKhadgalya -----> Ийшээ орлоо");
     const { db } = require("zevbackv2");
-    
+
     // Handle both formats: { guilgee: {...} } OR flat { gereeniiId: ..., turul: ..., etc }
     var guilgee = req.body.guilgee || req.body;
-    
+
     // Normalize amount fields based on turul type
     // avlaga = debt/invoice (uses tulukhDun - amount TO pay)
     // tulult/ashiglalt = payment (uses tulsunDun - amount PAID)
     const dun = guilgee.dun || guilgee.tulukhDun || guilgee.tulsunDun || 0;
-    
+
     if (guilgee.turul === "avlaga") {
       // For avlaga: set tulukhDun, NOT tulsunDun
       guilgee.tulukhDun = dun;
@@ -37,11 +37,11 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     }
 
     let baiguullagiinId = req.body.baiguullagiinId || guilgee.baiguullagiinId;
-    
+
     if (!baiguullagiinId) {
       const allConnections = db.kholboltuud || [];
       let foundGeree = null;
-      
+
       for (const conn of allConnections) {
         try {
           const tempGeree = await Geree(conn, true).findById(guilgee.gereeniiId).select("baiguullagiinId");
@@ -53,7 +53,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         } catch (err) {
         }
       }
-      
+
       if (!baiguullagiinId) {
         throw new Error("Байгууллагын ID олдсонгүй! Гэрээ олдсонгүй эсвэл байгууллагын ID-г body-д оруулна уу.");
       }
@@ -77,7 +77,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       if (shalguur)
         throw new Error("Тухайн гүйлгээ тухайн гэрээнд холбогдсон байна!");
     }
-    
+
     if (
       (guilgee.turul == "barter" ||
         guilgee.turul == "avlaga" ||
@@ -87,7 +87,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     ) {
       throw new Error("Тайлбар заавал оруулна уу?");
     }
-    
+
     guilgee.guilgeeKhiisenOgnoo = new Date();
     if (req.body.nevtersenAjiltniiToken) {
       guilgee.guilgeeKhiisenAjiltniiNer = req.body.nevtersenAjiltniiToken.ner;
@@ -96,14 +96,18 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
     // avlaga creates invoice only, tulult and ashiglalt pay (reduce balance)
     // NOTE: Using globalUldegdel field (not uldegdel) as that's what exists in Geree schema
+    // AVLAGA (Charge) duplication prevention:
+    // If it's an 'avlaga' type, we skip the globalUldegdel increment here
+    // because it's handled by gereeNeesNekhemjlekhUusgekh (invoice creation service).
     var inc = {};
-    
+
     if (guilgee.turul == "tulult" || guilgee.turul == "ashiglalt") {
       // These types pay - reduce the balance (use tulsunDun)
       inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
     } else if (guilgee.turul == "avlaga") {
-      // avlaga creates invoice - increases the debt (use tulukhDun)
-      inc.globalUldegdel = +(guilgee?.tulukhDun || 0);
+      // avlaga creates invoice - SKIP increment here as it will be handled by invoice creation
+      inc = {};
+      console.log("ℹ️ [GEREE] Skipping globalUldegdel increment for avlaga - will be handled by invoice service");
     } else {
       // Default behavior for other types (barter, etc.)
       inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
@@ -121,9 +125,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     // const geree = await Geree(tukhainBaaziinKholbolt, true)
     //   .findById(guilgee.gereeniiId)
     //   .select("+avlaga orshinSuugchId gereeniiDugaar barilgiinId globalUldegdel");
-    
+
     // console.log("   Current geree globalUldegdel BEFORE update:", geree?.globalUldegdel);
-    
+
     // const currentGuilgeenuudCount = geree?.avlaga?.guilgeenuud?.length || 0;
     // guilgeeForNekhemjlekh.avlagaGuilgeeIndex = currentGuilgeenuudCount;
 
@@ -156,46 +160,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
       if (freshGereeForAvlaga) {
         if (guilgee.turul === "avlaga") {
-          // AVLAGA: Store in GereeniiTulukhAvlaga (debt/invoice record)
-          const tulukhModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
-
-          const tulukhDoc = new tulukhModel({
-            baiguullagiinId: freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
-            baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
-            barilgiinId: freshGereeForAvlaga.barilgiinId || "",
-            gereeniiId: guilgee.gereeniiId,
-            gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
-            orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
-
-            ognoo: guilgee.guilgeeKhiisenOgnoo || new Date(),
-            undsenDun: guilgee.tulukhDun || 0,
-            tulukhDun: guilgee.tulukhDun || 0,
-            uldegdel: guilgee.tulukhDun || 0,
-
-            turul: "avlaga",
-            zardliinTurul: guilgee.zardliinTurul || "",
-            zardliinId: guilgee.zardliinId || "",
-            zardliinNer: guilgee.zardliinNer || "",
-
-            nekhemjlekhDeerKharagdakh:
-              typeof guilgee.nekhemjlekhDeerKharagdakh === "boolean"
-                ? guilgee.nekhemjlekhDeerKharagdakh
-                : true,
-            nuatBodokhEsekh:
-              typeof guilgee.nuatBodokhEsekh === "boolean"
-                ? guilgee.nuatBodokhEsekh
-                : true,
-            ekhniiUldegdelEsekh: !!guilgee.ekhniiUldegdelEsekh,
-
-            tailbar: guilgee.tailbar || "",
-            nemeltTailbar: guilgee.nemeltTailbar || "",
-
-            source: "geree",
-            avlagaGuilgeeIndex: guilgeeForNekhemjlekh.avlagaGuilgeeIndex,
-          });
-
-          await tulukhDoc.save();
-          console.log("✅ [GEREE AVLAGA] Created gereeniiTulukhAvlaga record for avlaga");
+          // AVLAGA: Skipping manual creation in GereeniiTulukhAvlaga
+          // It's handled by gereeNeesNekhemjlekhUusgekh (invoice creation service).
+          console.log("ℹ️ [GEREE AVLAGA] Skipping manual gereeniiTulukhAvlaga record - will be handled by invoice service");
 
         } else if (guilgee.turul === "tulult" || guilgee.turul === "ashiglalt") {
           // TULULT/ASHIGLALT: Store in GereeniiTulsunAvlaga (payment record)
@@ -266,16 +233,16 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       try {
         const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
         const Baiguullaga = require("../models/baiguullaga");
-        
+
         const freshGeree = await Geree(tukhainBaaziinKholbolt, true)
           .findById(guilgee.gereeniiId)
           .lean();
-        
+
         if (freshGeree) {
           const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt)
             .findById(baiguullagiinId)
             .lean();
-          
+
           if (baiguullaga) {
             const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
               freshGeree,
@@ -284,13 +251,13 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               "garan",
               true // skipDuplicateCheck = true to bypass month restrictions
             );
-            
+
             if (invoiceResult && invoiceResult.success && invoiceResult.nekhemjlekh && freshGeree.orshinSuugchId) {
               try {
                 console.log("starting socket emission process...");
 
                 const io = req.app.get("socketio");
-                
+
                 if (!io) {
                   console.error("❌ [SOCKET] Socket.io instance not found in req.app");
                   return;
@@ -299,13 +266,13 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 console.log("✅ [SOCKET] Socket.io instance found");
 
                 let medegdelToEmit = invoiceResult.medegdel;
-                
+
                 if (!medegdelToEmit) {
                   console.log("⚠️ [SOCKET] No medegdel in invoice result, querying database...");
                   const kholbolt = db.kholboltuud.find(
                     (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
                   );
-                  
+
                   if (!kholbolt) {
                     console.error("❌ [SOCKET] Kholbolt not found for baiguullagiinId:", baiguullagiinId);
                     return;
@@ -317,7 +284,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                     .findOne({ orshinSuugchId: freshGeree.orshinSuugchId })
                     .sort({ createdAt: -1 })
                     .lean();
-                  
+
                   if (recentMedegdel) {
                     console.log("✅ [SOCKET] Found recent medegdel:", recentMedegdel._id);
                     const mongolianOffset = 8 * 60 * 60 * 1000;
@@ -337,14 +304,14 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 } else {
                   console.log("using medegdel from invoice result");
                 }
-                
+
                 if (medegdelToEmit) {
                   const eventName = "orshinSuugch" + freshGeree.orshinSuugchId;
-                  
+
                   console.log("emitting invoice notification...");
 
                   io.emit(eventName, medegdelToEmit);
-                  
+
                   console.log("invoice notification emitted successfully");
                 } else {
                   console.error("no medegdel to emit");
