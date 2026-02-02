@@ -212,6 +212,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             },
             { upsert: true, new: true }
           );
+          console.log("✅ [ZOCHIN_URI] Success. OrshinSuugchMashin saved/updated.");
         }
       } catch (error) {
         return res.status(400).json({
