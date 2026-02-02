@@ -129,19 +129,6 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
     // Residents MUST be in erunkhiiKholbolt
     const kholbolt = db.erunkhiiKholbolt;
     
-    // Check if any results exist for the query in the main database
-    const matchCount = await OrshinSuugch(kholbolt).countDocuments(body.query);
-
-    if (matchCount === 0) {
-      // FALLBACK: If no results for specific building, check if org has any residents at all
-      const orgCount = await OrshinSuugch(kholbolt).countDocuments({ baiguullagiinId: String(baiguullagiinId) });
-      if (orgCount > 0) {
-        console.log(`⚠️ [ORSHINSUUGCH] No building match, falling back to org-wide search (${orgCount} docs)`);
-        delete body.query.$or;
-        delete body.query.barilgiinId;
-      }
-    }
-    
     // Fetch residents from erunkhiiKholbolt
     let jagsaalt = await OrshinSuugch(kholbolt)
       .find(body.query)
