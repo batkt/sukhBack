@@ -105,9 +105,14 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       // These types pay - reduce the balance (use tulsunDun)
       inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
     } else if (guilgee.turul == "avlaga") {
-      // avlaga creates invoice - SKIP increment here as it will be handled by invoice creation
-      inc = {};
-      console.log("ℹ️ [GEREE] Skipping globalUldegdel increment for avlaga - will be handled by invoice service");
+      // If Initial Balance is checked, update balance IMMEDIATELY
+      if (guilgee.ekhniiUldegdelEsekh === true) {
+        inc.globalUldegdel = dun;
+      } else {
+        // Normal avlaga creates invoice - SKIP increment here as it will be handled by invoice service
+        inc = {};
+        console.log("ℹ️ [GEREE] Skipping globalUldegdel increment for avlaga - will be handled by invoice service");
+      }
     } else {
       // Default behavior for other types (barter, etc.)
       inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
@@ -136,16 +141,17 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     const count = await GereeniiTulukhAvlagaModel.countDocuments({ gereeniiId: guilgee.gereeniiId });
     const guilgeeForNekhemjlekh = { ...guilgee, avlagaGuilgeeIndex: count };
 
+    const updateData = { $inc: inc };
+    // Only push to guilgeenuudForNekhemjlekh if it's NOT an initial balance
+    // Initial balance should be a standalone record, NOT merged into the next invoice
+    if (!guilgee.ekhniiUldegdelEsekh) {
+      updateData.$push = { guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh };
+    }
+
     const result = await Geree(tukhainBaaziinKholbolt)
       .findByIdAndUpdate(
         { _id: guilgee.gereeniiId },
-        {
-          $push: {
-            // [`avlaga.guilgeenuud`]: guilgee, // REMOVED as per request
-            guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh, // Keep for invoice generation? Or should this also go? Assuming keep for now as only avlaga.guilgeenuud was targeted.
-          },
-          $inc: inc,
-        },
+        updateData,
         { new: true } // Return updated document
       );
 
@@ -160,9 +166,33 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
       if (freshGereeForAvlaga) {
         if (guilgee.turul === "avlaga") {
-          // AVLAGA: Skipping manual creation in GereeniiTulukhAvlaga
-          // It's handled by gereeNeesNekhemjlekhUusgekh (invoice creation service).
-          console.log("ℹ️ [GEREE AVLAGA] Skipping manual gereeniiTulukhAvlaga record - will be handled by invoice service");
+          if (guilgee.ekhniiUldegdelEsekh === true) {
+            // INITIAL BALANCE: Create standalone GereeniiTulukhAvlaga record immediately
+            const TulukhAvlagaModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
+            const newAvlaga = new TulukhAvlagaModel({
+              baiguullagiinId: freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
+              baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
+              barilgiinId: freshGereeForAvlaga.barilgiinId || "",
+              gereeniiId: guilgee.gereeniiId,
+              gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
+              orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
+              ognoo: guilgee.ognoo || guilgee.guilgeeKhiisenOgnoo || new Date(),
+              undsenDun: dun,
+              tulukhDun: dun,
+              uldegdel: dun,
+              turul: "avlaga",
+              zardliinNer: "Эхний үлдэгдэл",
+              ekhniiUldegdelEsekh: true,
+              source: "gar",
+              tailbar: guilgee.tailbar || "Гараар нэмсэн эхний үлдэгдэл",
+              guilgeeKhiisenAjiltniiNer: guilgee.guilgeeKhiisenAjiltniiNer || "",
+              guilgeeKhiisenAjiltniiId: guilgee.guilgeeKhiisenAjiltniiId || "",
+            });
+            await newAvlaga.save();
+            console.log("✅ [GEREE AVLAGA] Created standalone initial balance record");
+          } else {
+            console.log("ℹ️ [GEREE AVLAGA] Normal avlaga - skip manual record (invoice handles it)");
+          }
 
         } else if (guilgee.turul === "tulult" || guilgee.turul === "ashiglalt") {
           // TULULT/ASHIGLALT: Store in GereeniiTulsunAvlaga (payment record)
