@@ -134,15 +134,21 @@ async function mashinHadgalya(mashinMedeelel, tukhainBaaziinKholbolt) {
 router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const {
+    let {
       mashiniiDugaar,
       baiguullagiinId,
       barilgiinId,
       ezemshigchiinUtas,
       tukhainBaaziinKholbolt,
       orshinSuugchMedeelel,
+      khariltsagchMedeelel,
       mashinMedeelel,
     } = req.body;
+
+    // Fix: Map khariltsagchMedeelel to orshinSuugchMedeelel if implicit
+    if (!orshinSuugchMedeelel && khariltsagchMedeelel) {
+      orshinSuugchMedeelel = khariltsagchMedeelel;
+    }
 
     if (!mashiniiDugaar || !baiguullagiinId || !ezemshigchiinUtas) {
       return res.status(400).json({
