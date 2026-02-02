@@ -27,6 +27,8 @@ const {
   downloadGuilgeeniiTuukhExcel,
   generateTootBurtgelExcelTemplate,
   importTootBurtgelFromExcel,
+  generateInitialBalanceTemplate,
+  importInitialBalanceFromExcel,
 } = require("../controller/excelImportController");
 const { gereeniiGuilgeeKhadgalya } = require("../controller/gereeController");
 const {
@@ -59,6 +61,19 @@ router.post(
   "/guilgeeniiTuukhExcelDownload",
   tokenShalgakh,
   downloadGuilgeeniiTuukhExcel
+);
+
+// Initial Balance Excel routes
+router.post(
+  "/generateInitialBalanceTemplate",
+  tokenShalgakh,
+  generateInitialBalanceTemplate
+);
+router.post(
+  "/importInitialBalanceFromExcel",
+  uploadFile.single("file"),
+  tokenShalgakh,
+  importInitialBalanceFromExcel
 );
 
 // Payment summary for a single geree (from gereeniiTulsunAvlaga)
@@ -105,10 +120,10 @@ router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
     const LiftShalgayaModel = LiftShalgaya(tukhainBaaziinKholbolt);
 
     const filter = { baiguullagiinId, barilgiinId };
-    const update = { 
-        $set: { 
-            choloolugdokhDavkhar: choloolugdokhDavkhar || [] 
-        } 
+    const update = {
+      $set: {
+        choloolugdokhDavkhar: choloolugdokhDavkhar || []
+      }
     };
     const options = { new: true, upsert: true, setDefaultsOnInsert: true };
 
@@ -821,7 +836,7 @@ router
           tukhainZardal.gereeniiId = geree._id;
           tukhainZardal.zoruu = ashiglaltiinZardal.zoruuDun;
           tukhainZardal.niitDun = tempDun;
-          
+
           // Prepare document for GereeniiTulukhAvlaga
           if (updateObject.tulukhDun > 0) {
             const avlagaDoc = {
@@ -831,29 +846,29 @@ router
               gereeniiId: geree._id,
               gereeniiDugaar: geree.gereeniiDugaar,
               orshinSuugchId: geree.orshinSuugchId,
-              
+
               ognoo: updateObject.guilgeeKhiisenOgnoo || new Date(),
               undsenDun: updateObject.tulukhDun,
               tulukhDun: updateObject.tulukhDun,
               uldegdel: updateObject.tulukhDun,
-              
+
               turul: "avlaga",
               zardliinTurul: updateObject.khemjikhNegj || "", // or derive from ashiglaltiinZardal
               zardliinId: req.body.ashiglaltiinId,
               zardliinNer: ashiglaltiinZardal.ner,
-              
+
               tailbar: updateObject.tailbar,
-              
+
               khuraamj: updateObject.suuriKhuraamj,
               negj: updateObject.negj,
               tariff: updateObject.tariff,
-              
+
               umnukhZaalt: updateObject.umnukhZaalt,
               suuliinZaalt: updateObject.suuliinZaalt,
               tooluuriinDugaar: updateObject.tooluuriinDugaar,
-              
-              source: "excel_import", 
-              
+
+              source: "excel_import",
+
               // Fields from updateObject that map to schema
               nuatBodokhEsekh: updateObject.nuatBodokhEsekh
             };
@@ -878,8 +893,8 @@ router
             // I should check if AshiglaltiinExcel is defined in the file.
             // If not, I should define it or assume it's available. The snippet showed it being used.
             // Let's assume it requires the model.
-             const AshiglaltiinExcelModel = require("../models/ashiglaltiinExcel");
-             AshiglaltiinExcelModel(req.body.tukhainBaaziinKholbolt).insertMany(
+            const AshiglaltiinExcelModel = require("../models/ashiglaltiinExcel");
+            AshiglaltiinExcelModel(req.body.tukhainBaaziinKholbolt).insertMany(
               jagsaalt
             );
             res.status(200).send("Amjilttai");
