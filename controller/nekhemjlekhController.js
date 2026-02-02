@@ -66,7 +66,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
   org,
   tukhainBaaziinKholbolt,
   uusgegsenEsekh = "garan",
-  skipDuplicateCheck = false
+  skipDuplicateCheck = false,
+  includeEkhniiUldegdel = true // New flag to control ekhniiUldegdel inclusion
 ) => {
   try {
     console.log("Энэ рүү орлоо: gereeNeesNekhemjlekhUusgekh");
@@ -363,7 +364,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.nekhemjlekhiinZagvarId = tempData.nekhemjlekhiinZagvarId || "";
 
     let ekhniiUldegdelForInvoice = 0;
-    if (tempData.orshinSuugchId) {
+    // Only fetch and set ekhniiUldegdel if the flag is true
+    if (includeEkhniiUldegdel && tempData.orshinSuugchId) {
       try {
         const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
           .findById(tempData.orshinSuugchId)
@@ -378,9 +380,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     tuukh.ekhniiUldegdel = ekhniiUldegdelForInvoice;
-    console.log(`💰 [INVOICE] ekhniiUldegdel saved to invoice: ${tuukh.ekhniiUldegdel}`);
+    console.log(`💰 [INVOICE] ekhniiUldegdel saved to invoice: ${tuukh.ekhniiUldegdel} (includeEkhniiUldegdel: ${includeEkhniiUldegdel})`);
 
-    if (tempData.ekhniiUldegdelUsgeer !== undefined) {
+    if (includeEkhniiUldegdel && tempData.ekhniiUldegdelUsgeer !== undefined) {
       tuukh.ekhniiUldegdelUsgeer = tempData.ekhniiUldegdelUsgeer;
       console.log(
         "💰 [INVOICE] ekhniiUldegdelUsgeer saved:",
@@ -584,7 +586,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }, 0);
 
     let ekhniiUldegdelFromOrshinSuugch = 0;
-    if (tempData.orshinSuugchId) {
+    // Only fetch and include ekhniiUldegdel if the flag is true (checkbox checked)
+    if (includeEkhniiUldegdel && tempData.orshinSuugchId) {
       try {
         const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
           .findById(tempData.orshinSuugchId)
@@ -597,10 +600,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       } catch (error) {
         console.error(`❌ [INVOICE] Error fetching ekhniiUldegdel from orshinSuugch:`, error.message);
       }
+    } else if (!includeEkhniiUldegdel) {
+      console.log(`ℹ️ [INVOICE] Skipping ekhniiUldegdel - checkbox not checked`);
     }
 
-    const hasEkhniiUldegdel = ekhniiUldegdelFromOrshinSuugch > 0;
-    const ekhniiUldegdelAmount = ekhniiUldegdelFromOrshinSuugch;
+    const hasEkhniiUldegdel = includeEkhniiUldegdel && ekhniiUldegdelFromOrshinSuugch > 0;
+    const ekhniiUldegdelAmount = includeEkhniiUldegdel ? ekhniiUldegdelFromOrshinSuugch : 0;
 
     let updatedZardluudTotal = isAvlagaOnlyInvoice
       ? 0
@@ -1873,6 +1878,9 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       return result;
     });
 
+    // Calculate zardluudTotal BEFORE adding ekhniiUldegdel to match gereeNeesNekhemjlekhUusgekh logic
+    const zardluudTotal = zardluudWithDun.reduce((sum, zardal) => sum + (zardal.dun || 0), 0);
+
     if (ekhniiUldegdelAmount > 0) {
       zardluudWithDun.push({
         ner: "Эхний үлдэгдэл",
@@ -1898,7 +1906,6 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       });
     }
 
-    const zardluudTotal = zardluudWithDun.reduce((sum, zardal) => sum + (zardal.dun || 0), 0);
     const finalNiitTulbur = zardluudTotal + ekhniiUldegdelAmount;
 
     let tulukhOgnoo = null;

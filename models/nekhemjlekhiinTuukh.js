@@ -179,24 +179,61 @@ nekhemjlekhiinTuukhSchema.post("findOne", async function (doc) {
     console.error("Error populating zardal in nekhemjlekhiinTuukh:", error);
   }
 });
-// Update global balance on deletion
+// Update global balance on deletion and cascade delete related avlaga records
 // This covers both doc.deleteOne() and Query.deleteOne() / Query.findOneAndDelete()
 const handleBalanceOnDelete = async function (doc) {
-  if (doc && doc.niitTulbur > 0 && doc.gereeniiId && doc.baiguullagiinId) {
+  if (doc && doc.gereeniiId && doc.baiguullagiinId) {
     try {
       const { db } = require("zevbackv2");
       const Geree = require("./geree");
+      const GereeniiTulsunAvlaga = require("./gereeniiTulsunAvlaga");
+      const GereeniiTulukhAvlaga = require("./gereeniiTulukhAvlaga");
+
       const kholbolt = db.kholboltuud.find(
         (k) => String(k.baiguullagiinId) === String(doc.baiguullagiinId)
       );
+
       if (kholbolt) {
-        await Geree(kholbolt).findByIdAndUpdate(doc.gereeniiId, {
-          $inc: { globalUldegdel: -doc.niitTulbur },
-        });
-        console.log(`📉 [Middleware] Decremented globalUldegdel by ${doc.niitTulbur} for invoice ${doc.nekhemjlekhiinDugaar || doc._id}`);
+        // Update globalUldegdel if there was a payment amount
+        if (doc.niitTulbur > 0) {
+          await Geree(kholbolt).findByIdAndUpdate(doc.gereeniiId, {
+            $inc: { globalUldegdel: -doc.niitTulbur },
+          });
+          console.log(`📉 [Middleware] Decremented globalUldegdel by ${doc.niitTulbur} for invoice ${doc.nekhemjlekhiinDugaar || doc._id}`);
+        }
+
+        // Cascade delete related records from gereeniiTulsunAvlaga
+        try {
+          const tulsunDeleteResult = await GereeniiTulsunAvlaga(kholbolt).deleteMany({
+            $or: [
+              { nekhemjlekhId: String(doc._id) },
+              { nekhemjlekhId: doc._id }
+            ]
+          });
+          if (tulsunDeleteResult.deletedCount > 0) {
+            console.log(`🗑️ [Middleware] Cascade deleted ${tulsunDeleteResult.deletedCount} gereeniiTulsunAvlaga records for nekhemjlekh ${doc._id}`);
+          }
+        } catch (tulsunError) {
+          console.error("Error cascade deleting gereeniiTulsunAvlaga:", tulsunError.message);
+        }
+
+        // Cascade delete related records from gereeniiTulukhAvlaga
+        try {
+          const tulukhDeleteResult = await GereeniiTulukhAvlaga(kholbolt).deleteMany({
+            $or: [
+              { nekhemjlekhId: String(doc._id) },
+              { nekhemjlekhId: doc._id }
+            ]
+          });
+          if (tulukhDeleteResult.deletedCount > 0) {
+            console.log(`🗑️ [Middleware] Cascade deleted ${tulukhDeleteResult.deletedCount} gereeniiTulukhAvlaga records for nekhemjlekh ${doc._id}`);
+          }
+        } catch (tulukhError) {
+          console.error("Error cascade deleting gereeniiTulukhAvlaga:", tulukhError.message);
+        }
       }
     } catch (error) {
-      console.error("Error updating globalUldegdel on deletion middleware:", error);
+      console.error("Error in handleBalanceOnDelete middleware:", error);
     }
   }
 };

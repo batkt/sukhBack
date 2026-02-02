@@ -244,12 +244,16 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             .lean();
 
           if (baiguullaga) {
+            // Pass ekhniiUldegdelEsekh flag to control whether to include ekhniiUldegdel in invoice
+            const includeEkhniiUldegdel = guilgee.ekhniiUldegdelEsekh === true;
+
             const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
               freshGeree,
               baiguullaga,
               tukhainBaaziinKholbolt,
               "garan",
-              true // skipDuplicateCheck = true to bypass month restrictions
+              true, // skipDuplicateCheck = true to bypass month restrictions
+              includeEkhniiUldegdel // Only include ekhniiUldegdel when checkbox is checked
             );
 
             if (invoiceResult && invoiceResult.success && invoiceResult.nekhemjlekh && freshGeree.orshinSuugchId) {
