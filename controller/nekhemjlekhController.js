@@ -575,16 +575,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
       0
     );
 
-    const isAvlagaOnlyInvoice =
-      skipDuplicateCheck && guilgeenuudForNekhemjlekh.length > 0;
+    // MERGE MODE: We no longer treat queued transactions as a separate 'avlaga-only' type.
+    // Instead, we always include regular charges and merge the queued items into them.
+    const isAvlagaOnlyInvoice = false;
 
-    let finalZardluud = isAvlagaOnlyInvoice ? [] : [...filteredZardluud];
+    let finalZardluud = [...filteredZardluud];
 
-    const zardluudTotal = isAvlagaOnlyInvoice
-      ? 0
-      : filteredZardluud.reduce((sum, zardal) => {
-        return sum + (zardal.dun || 0);
-      }, 0);
+    const zardluudTotal = filteredZardluud.reduce((sum, zardal) => {
+      return sum + (zardal.dun || 0);
+    }, 0);
 
     let ekhniiUldegdelFromOrshinSuugch = 0;
     // Only fetch and include ekhniiUldegdel if the flag is true (checkbox checked)
@@ -608,11 +607,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
     const hasEkhniiUldegdel = includeEkhniiUldegdel && ekhniiUldegdelFromOrshinSuugch > 0;
     const ekhniiUldegdelAmount = includeEkhniiUldegdel ? ekhniiUldegdelFromOrshinSuugch : 0;
 
-    let updatedZardluudTotal = isAvlagaOnlyInvoice
-      ? 0
-      : finalZardluud.reduce((sum, zardal) => {
-        return sum + (zardal.dun || 0);
-      }, 0);
+    let updatedZardluudTotal = finalZardluud.reduce((sum, zardal) => {
+      return sum + (zardal.dun || 0);
+    }, 0);
 
     let finalNiitTulbur = updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
 
@@ -1017,9 +1014,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
             if (liftTariff !== null && (z.dun === liftTariff || z.tariff === liftTariff)) return false;
             return true;
           });
-          const correctedZardluudTotalAfter = (isAvlagaOnlyInvoice)
-            ? 0
-            : zardluudWithDun.reduce((sum, zardal) => sum + (zardal.dun || 0), 0);
+          const correctedZardluudTotalAfter = zardluudWithDun.reduce((sum, zardal) => sum + (zardal.dun || 0), 0);
           correctedFinalNiitTulbur = correctedZardluudTotalAfter + guilgeenuudTotal + ekhniiUldegdelAmount;
           console.log(`🚫 [LIFT] LAST CHANCE - Updated total: ${correctedFinalNiitTulbur}, removed ${liftCountBefore} lift charges`);
         }
@@ -1042,6 +1037,31 @@ const gereeNeesNekhemjlekhUusgekh = async (
         nuatBodokhEsekh: false,
       });
       console.log(`💰 [INVOICE] Added ekhniiUldegdel to zardluud: ${ekhniiUldegdelAmount}₮`);
+    }
+
+    // MERGE MANUAL QUEUED DEBTS: Move 'avlaga' type items from the queue into zardluud
+    // This ensures they are displayed as line items and correctly handled by the history modal.
+    if (guilgeenuudForNekhemjlekh.length > 0) {
+      guilgeenuudForNekhemjlekh.forEach(g => {
+        // Only move debts (avlaga). Payments (tulult) stay in the guilgeenuud array for the invoice.
+        if (g.turul === "avlaga") {
+          zardluudWithDun.push({
+            _id: g._id || `manual-${Date.now()}-${Math.random()}`,
+            ner: g.zardliinNer || (g.ekhniiUldegdelEsekh ? "Эхний үлдэгдэл" : "Гараар нэмсэн авлага"),
+            turul: "Тогтмол",
+            bodokhArga: "тогтмол",
+            zardliinTurul: "Энгийн",
+            tariff: g.tulukhDun || 0,
+            dun: g.tulukhDun || 0,
+            zaalt: false,
+            ognoonuud: [],
+            nuatNemekhEsekh: false,
+            nuatBodokhEsekh: false,
+            tailbar: g.tailbar || ""
+          });
+          console.log(`💰 [INVOICE] Merged queued manual debt into zardluud: ${g.tulukhDun}₮ (${g.zardliinNer || 'Авлага'})`);
+        }
+      });
     }
 
     zardluudWithDun = zardluudWithDun.map(zardal => {
