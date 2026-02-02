@@ -271,6 +271,9 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
     // Машины жагсаалт боловсруулах
     const mashiniiJagsaalt = [mashinResult];
 
+    console.log("✅ [ZOCHIN_URI] Success. OrshinSuugch:", orshinSuugchResult ? orshinSuugchResult._id : "NULL");
+    console.log("✅ [ZOCHIN_URI] Success. Mashin:", mashinResult ? mashinResult._id : "NULL");
+
     res.status(201).json({
       success: true,
       message: "Мэдээлэл амжилттай хадгалагдлаа",
