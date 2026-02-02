@@ -2016,15 +2016,31 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
     const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
     const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999);
 
-    // Check for existing unsent (preview/unpaid) invoices for this month
-    const existingUnsentInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).find({
+    // Check for ANY existing invoices (Paid or Unpaid) for this month to prevent duplicates
+    const allExistingInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).find({
       gereeniiId: String(gereeId),
-      tuluv: { $in: ["Төлөөгүй", "Хугацаа хэтэрсэн"] }, // Only unsent/unpaid invoices
       $or: [
         { ognoo: { $gte: monthStart, $lte: monthEnd } },
         { createdAt: { $gte: monthStart, $lte: monthEnd } }
       ]
-    }).sort({ createdAt: 1 }); // Sort by oldest first
+    }).sort({ createdAt: 1 });
+
+    // Filter for PAID invoices
+    const paidInvoices = allExistingInvoices.filter(inv => inv.tuluv === "Төлсөн");
+
+    // If override is FALSE and a PAID invoice exists, BLOCK creation
+    if (!override && paidInvoices.length > 0) {
+      console.log(`🚫 [MANUAL SEND] Blocked: Paid invoice exists for geree ${gereeId}`);
+      return {
+        success: false,
+        error: "Энэ сарын нэхэмжлэх төлөгдсөн байна. Дахин үүсгэх боломжгүй."
+      };
+    }
+
+    // Filter for UNSENT/UNPAID invoices for update logic
+    const existingUnsentInvoices = allExistingInvoices.filter(inv =>
+      inv.tuluv === "Төлөөгүй" || inv.tuluv === "Хугацаа хэтэрсэн"
+    );
 
     if (override) {
       // If override=true, delete ALL existing invoices for this month (old behavior)
@@ -2041,8 +2057,30 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         console.log(`🗑️ [MANUAL SEND] Deleted existing invoice: ${invoice.nekhemjlekhiinDugaar || invoice._id}`);
       }
     } else if (existingUnsentInvoices.length > 0) {
-      // If override=false but there are unsent invoices, update the oldest one instead of creating new
+      // If override=false but there are unsent invoices, update the oldest one
       const oldestUnsentInvoice = existingUnsentInvoices[0];
+
+      // SMART UPDATE CHECK: Calculate what the new invoice WOULD look like
+      const previewResult = await previewInvoice(gereeId, baiguullagiinId, targetMonth, targetYear);
+
+      if (previewResult.success) {
+        const newTotal = Number(previewResult.preview.niitTulbur) || 0;
+        const oldTotal = Number(oldestUnsentInvoice.niitTulbur) || 0;
+        const newZardluudCount = previewResult.preview.zardluud?.length || 0;
+        const oldZardluudCount = oldestUnsentInvoice.medeelel?.zardluud?.length || 0;
+
+        // If amounts are effectively equal and item counts match, skip update
+        if (Math.abs(newTotal - oldTotal) < 0.5 && newZardluudCount === oldZardluudCount) {
+          console.log(`✅ [MANUAL SEND] SKIPPED update: Invoice is identical (Amount: ${newTotal}).`);
+          return {
+            success: true,
+            message: "Нэхэмжлэх хэвийн байна. Өөрчлөлт ороогүй.",
+            skipped: true
+          };
+        }
+
+        console.log(`🔄 [MANUAL SEND] Detected change (Old: ${oldTotal}, New: ${newTotal}). Updating invoice...`);
+      }
 
       console.log(`🔄 [MANUAL SEND] Found existing unsent invoice: ${oldestUnsentInvoice.nekhemjlekhiinDugaar || oldestUnsentInvoice._id}`);
       console.log(`🔄 [MANUAL SEND] Updating invoice instead of creating new one`);
