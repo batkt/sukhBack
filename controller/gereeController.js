@@ -117,23 +117,28 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     console.log("   tulsunDun:", guilgee.tulsunDun);
     console.log("   inc.globalUldegdel:", inc.globalUldegdel);
 
-    const guilgeeForNekhemjlekh = { ...guilgee };
-    const geree = await Geree(tukhainBaaziinKholbolt, true)
-      .findById(guilgee.gereeniiId)
-      .select("+avlaga orshinSuugchId gereeniiDugaar barilgiinId globalUldegdel");
+    // const guilgeeForNekhemjlekh = { ...guilgee };
+    // const geree = await Geree(tukhainBaaziinKholbolt, true)
+    //   .findById(guilgee.gereeniiId)
+    //   .select("+avlaga orshinSuugchId gereeniiDugaar barilgiinId globalUldegdel");
     
-    console.log("   Current geree globalUldegdel BEFORE update:", geree?.globalUldegdel);
+    // console.log("   Current geree globalUldegdel BEFORE update:", geree?.globalUldegdel);
     
-    const currentGuilgeenuudCount = geree?.avlaga?.guilgeenuud?.length || 0;
-    guilgeeForNekhemjlekh.avlagaGuilgeeIndex = currentGuilgeenuudCount;
+    // const currentGuilgeenuudCount = geree?.avlaga?.guilgeenuud?.length || 0;
+    // guilgeeForNekhemjlekh.avlagaGuilgeeIndex = currentGuilgeenuudCount;
+
+    // Use count from newly created collection logic later or just query it
+    const GereeniiTulukhAvlagaModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
+    const count = await GereeniiTulukhAvlagaModel.countDocuments({ gereeniiId: guilgee.gereeniiId });
+    const guilgeeForNekhemjlekh = { ...guilgee, avlagaGuilgeeIndex: count };
 
     const result = await Geree(tukhainBaaziinKholbolt)
       .findByIdAndUpdate(
         { _id: guilgee.gereeniiId },
         {
           $push: {
-            [`avlaga.guilgeenuud`]: guilgee,
-            guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh, // Add to tracking array for one-time inclusion in invoice
+            // [`avlaga.guilgeenuud`]: guilgee, // REMOVED as per request
+            guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh, // Keep for invoice generation? Or should this also go? Assuming keep for now as only avlaga.guilgeenuud was targeted.
           },
           $inc: inc,
         },

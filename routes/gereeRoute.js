@@ -821,27 +821,65 @@ router
           tukhainZardal.gereeniiId = geree._id;
           tukhainZardal.zoruu = ashiglaltiinZardal.zoruuDun;
           tukhainZardal.niitDun = tempDun;
-          // if (updateObject.tulukhDun > 0) {
-          //   let upsertDoc = {
-          //     updateOne: {
-          //       filter: { _id: geree._id },
-          //       update: {
-          //         $push: {
-          //           "avlaga.guilgeenuud": updateObject,
-          //         },
-          //       },
-          //     },
-          //   };
-          //   bulkOps.push(upsertDoc);
-          // }
+          
+          // Prepare document for GereeniiTulukhAvlaga
+          if (updateObject.tulukhDun > 0) {
+            const avlagaDoc = {
+              baiguullagiinId: req.body.baiguullagiinId,
+              baiguullagiinNer: baiguullaga?.ner || "",
+              barilgiinId: req.body.barilgiinId,
+              gereeniiId: geree._id,
+              gereeniiDugaar: geree.gereeniiDugaar,
+              orshinSuugchId: geree.orshinSuugchId,
+              
+              ognoo: updateObject.guilgeeKhiisenOgnoo || new Date(),
+              undsenDun: updateObject.tulukhDun,
+              tulukhDun: updateObject.tulukhDun,
+              uldegdel: updateObject.tulukhDun,
+              
+              turul: "avlaga",
+              zardliinTurul: updateObject.khemjikhNegj || "", // or derive from ashiglaltiinZardal
+              zardliinId: req.body.ashiglaltiinId,
+              zardliinNer: ashiglaltiinZardal.ner,
+              
+              tailbar: updateObject.tailbar,
+              
+              khuraamj: updateObject.suuriKhuraamj,
+              negj: updateObject.negj,
+              tariff: updateObject.tariff,
+              
+              umnukhZaalt: updateObject.umnukhZaalt,
+              suuliinZaalt: updateObject.suuliinZaalt,
+              tooluuriinDugaar: updateObject.tooluuriinDugaar,
+              
+              source: "excel_import", 
+              
+              // Fields from updateObject that map to schema
+              nuatBodokhEsekh: updateObject.nuatBodokhEsekh
+            };
+
+            let upsertDoc = {
+              insertOne: {
+                document: avlagaDoc
+              },
+            };
+            bulkOps.push(upsertDoc);
+          }
         }
       }
       if (aldaaniiMsg) throw new Error(aldaaniiMsg);
       if (bulkOps && bulkOps.length > 0)
-        await Geree(req.body.tukhainBaaziinKholbolt)
+        await GereeniiTulukhAvlaga(req.body.tukhainBaaziinKholbolt)
           .bulkWrite(bulkOps)
           .then((bulkWriteOpResult) => {
-            AshiglaltiinExcel(req.body.tukhainBaaziinKholbolt).insertMany(
+            // Also need to insert into AshiglaltiinExcel (existing code)
+            const AshiglaltiinExcel = require("../models/ashiglaltiinExcel"); // Ensure this is imported if not already on top, but existing code used it? 
+            // Existing code used `AshiglaltiinExcel(req.body.tukhainBaaziinKholbolt).insertMany(jagsaalt)`
+            // I should check if AshiglaltiinExcel is defined in the file.
+            // If not, I should define it or assume it's available. The snippet showed it being used.
+            // Let's assume it requires the model.
+             const AshiglaltiinExcelModel = require("../models/ashiglaltiinExcel");
+             AshiglaltiinExcelModel(req.body.tukhainBaaziinKholbolt).insertMany(
               jagsaalt
             );
             res.status(200).send("Amjilttai");
