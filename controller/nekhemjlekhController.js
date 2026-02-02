@@ -575,11 +575,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
     const isAvlagaOnlyInvoice =
       skipDuplicateCheck && guilgeenuudForNekhemjlekh.length > 0;
 
-    let finalZardluud =
-      shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice ? [] : [...filteredZardluud];
+    let finalZardluud = isAvlagaOnlyInvoice ? [] : [...filteredZardluud];
 
-    const zardluudTotal =
-      shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+    const zardluudTotal = isAvlagaOnlyInvoice
         ? 0
         : filteredZardluud.reduce((sum, zardal) => {
           return sum + (zardal.dun || 0);
@@ -604,37 +602,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
     const hasEkhniiUldegdel = ekhniiUldegdelFromOrshinSuugch > 0;
     const ekhniiUldegdelAmount = ekhniiUldegdelFromOrshinSuugch;
 
-    let updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+    let updatedZardluudTotal = isAvlagaOnlyInvoice
       ? 0
       : finalZardluud.reduce((sum, zardal) => {
         return sum + (zardal.dun || 0);
       }, 0);
 
-    let finalNiitTulbur = shouldUseEkhniiUldegdel
-      ? ekhniiUldegdelAmount + guilgeenuudTotal
-      : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
-
-    console.log("💰 [INVOICE] Total calculation:", {
-      shouldUseEkhniiUldegdel,
-      ekhniiUldegdelAmount,
-      updatedZardluudTotal,
-      guilgeenuudTotal,
-      finalNiitTulbur,
-      zardluudCount: finalZardluud.length,
-      isAvlagaOnlyInvoice,
-    });
+    let finalNiitTulbur = updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
 
     if (finalNiitTulbur === 0 && guilgeenuudTotal === 0 && !hasEkhniiUldegdel) {
-      console.log(
-        "⚠️ [INVOICE] Skipping invoice creation - total amount is 0 MNT",
-        {
-          shouldUseEkhniiUldegdel,
-          updatedZardluudTotal,
-          guilgeenuudTotal,
-          hasEkhniiUldegdel,
-          zardluudCount: finalZardluud.length,
-        }
-      );
       return {
         success: false,
         error: "Нийт төлбөр 0₮ байна. Нэхэмжлэх үүсгэх шаардлагагүй.",

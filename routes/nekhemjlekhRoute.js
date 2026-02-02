@@ -9,7 +9,6 @@ const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const { db } = require("zevbackv2");
 
-// Excel download route - MUST be before crud to avoid conflicts
 router.post(
   "/nekhemjlekhiinTuukhExcelDownload",
   tokenShalgakh,
@@ -18,12 +17,10 @@ router.post(
 
 crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
-// Make this route more specific to avoid conflicts with other routes like /parking
 router.get("/nekhemjlekhiinTuukh/:id", tokenShalgakh, async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Validate that id is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -56,9 +53,6 @@ router.get("/nekhemjlekhiinTuukh/:id", tokenShalgakh, async (req, res, next) => 
   }
 });
 
-// Create invoices for previous months
-// POST /nekhemjlekh/previousMonth
-// Body: { baiguullagiinId, barilgiinId (optional), monthsAgo (1 or 2), gereeniiDugaar (optional - for specific contract) }
 router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
   try {
     const { baiguullagiinId, barilgiinId, monthsAgo, gereeniiDugaar } = req.body;
@@ -77,7 +71,6 @@ router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    // Find the connection
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );

@@ -198,7 +198,6 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
     delete req.body.erunkhiiKholbolt;
     delete req.body.tukhainBaaziinKholbolt;
 
-    // Update orshinSuugch
     const result = await OrshinSuugch(db.erunkhiiKholbolt).findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -208,7 +207,6 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
     if (result != null) {
       result.key = result._id;
       
-      // Update corresponding geree(s) with the same information
       if (result.baiguullagiinId) {
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(result.baiguullagiinId);
         
@@ -220,23 +218,19 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
           if (tukhainBaaziinKholbolt) {
             const GereeModel = Geree(tukhainBaaziinKholbolt);
             
-            // Build update object for geree - only update fields that are relevant to geree
             const gereeUpdateData = {};
             
-            // Personal information
             if (req.body.ner !== undefined) gereeUpdateData.ner = req.body.ner;
             if (req.body.ovog !== undefined) gereeUpdateData.ovog = req.body.ovog;
             if (req.body.register !== undefined) gereeUpdateData.register = req.body.register;
             if (req.body.mail !== undefined) gereeUpdateData.mail = req.body.mail;
             
-            // Phone number (utas is array in geree)
             if (req.body.utas !== undefined) {
               gereeUpdateData.utas = Array.isArray(req.body.utas) 
                 ? req.body.utas 
                 : [req.body.utas];
             }
             
-            // Address information - Apartment/Unit details
             if (req.body.toot !== undefined) gereeUpdateData.toot = req.body.toot;
             if (req.body.davkhar !== undefined) gereeUpdateData.davkhar = req.body.davkhar;
             if (req.body.orts !== undefined) gereeUpdateData.orts = req.body.orts;
@@ -268,7 +262,6 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
               const horooVal = req.body.horoo || result.horoo || "";
               const sohVal = req.body.soh || result.soh || "";
               
-              // Extract horoo name if it's an object
               const horooNer = typeof horooVal === 'object' && horooVal.ner 
                 ? horooVal.ner 
                 : (typeof horooVal === 'string' ? horooVal : "");
@@ -276,20 +269,16 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
               gereeUpdateData.sukhBairshil = `${duuregVal}, ${horooNer}, ${sohVal}`.replace(/^,\s*|,\s*$/g, '').replace(/,\s*,/g, ',').trim();
             }
             
-            // Financial information
             if (req.body.ekhniiUldegdel !== undefined) {
               gereeUpdateData.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
             }
             
-            // Electricity readings
             if (req.body.tsahilgaaniiZaalt !== undefined) {
               const zaalt = parseFloat(req.body.tsahilgaaniiZaalt) || 0;
               gereeUpdateData.suuliinZaalt = zaalt;
-              // Only update umnukhZaalt if it's not already set or is 0
               gereeUpdateData.umnukhZaalt = zaalt;
             }
             
-            // Update all active gerees for this orshinSuugch
             if (Object.keys(gereeUpdateData).length > 0) {
               await GereeModel.updateMany(
                 {
