@@ -67,7 +67,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
   tukhainBaaziinKholbolt,
   uusgegsenEsekh = "garan",
   skipDuplicateCheck = false,
-  includeEkhniiUldegdel = true // New flag to control ekhniiUldegdel inclusion
+  includeEkhniiUldegdel = true, // New flag to control ekhniiUldegdel inclusion
+  ekhniiUldegdelId = null // ID of the standalone GereeniiTulukhAvlaga record if it exists
 ) => {
   try {
     console.log("Энэ рүү орлоо: gereeNeesNekhemjlekhUusgekh");
@@ -1027,6 +1028,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     if (hasEkhniiUldegdel && ekhniiUldegdelAmount > 0) {
       zardluudWithDun.push({
+        _id: ekhniiUldegdelId || `init-${Math.random()}`,
         ner: "Эхний үлдэгдэл",
         turul: "Тогтмол",
         bodokhArga: "тогтмол",

@@ -105,36 +105,16 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       // These types pay - reduce the balance (use tulsunDun)
       inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
     } else if (guilgee.turul == "avlaga") {
-      // If Initial Balance is checked, update balance IMMEDIATELY
-      if (guilgee.ekhniiUldegdelEsekh === true) {
-        inc.globalUldegdel = dun;
-      } else {
-        // Normal avlaga creates invoice - SKIP increment here as it will be handled by invoice service
-        inc = {};
-        console.log("ℹ️ [GEREE] Skipping globalUldegdel increment for avlaga - will be handled by invoice service");
-      }
+      // Normal avlaga creates invoice - SKIP manual increment here as it will be handled by nekhemjlekh service
+      inc = {};
+      console.log("ℹ️ [GEREE] Skipping manual globalUldegdel increment for avlaga - handled by invoice service");
     } else {
       // Default behavior for other types (barter, etc.)
       inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
     }
 
-    // Debug logging
-    console.log("📊 [GEREE GUILGEE] Debug values:");
-    console.log("   turul:", guilgee.turul);
-    console.log("   dun from body:", req.body.dun || req.body.guilgee?.dun);
-    console.log("   tulukhDun:", guilgee.tulukhDun);
-    console.log("   tulsunDun:", guilgee.tulsunDun);
-    console.log("   inc.globalUldegdel:", inc.globalUldegdel);
-
-    // const guilgeeForNekhemjlekh = { ...guilgee };
-    // const geree = await Geree(tukhainBaaziinKholbolt, true)
-    //   .findById(guilgee.gereeniiId)
-    //   .select("+avlaga orshinSuugchId gereeniiDugaar barilgiinId globalUldegdel");
-
-    // console.log("   Current geree globalUldegdel BEFORE update:", geree?.globalUldegdel);
-
-    // const currentGuilgeenuudCount = geree?.avlaga?.guilgeenuud?.length || 0;
-    // guilgeeForNekhemjlekh.avlagaGuilgeeIndex = currentGuilgeenuudCount;
+    // Capture standalone record ID for syncing
+    let newAvlagaId = null;
 
     // Use count from newly created collection logic later or just query it
     const GereeniiTulukhAvlagaModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
@@ -154,8 +134,6 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         updateData,
         { new: true } // Return updated document
       );
-
-    console.log("   Geree globalUldegdel AFTER update:", result?.globalUldegdel);
 
     // Store in appropriate model based on turul type
     try {
@@ -188,8 +166,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               guilgeeKhiisenAjiltniiNer: guilgee.guilgeeKhiisenAjiltniiNer || "",
               guilgeeKhiisenAjiltniiId: guilgee.guilgeeKhiisenAjiltniiId || "",
             });
-            await newAvlaga.save();
-            console.log("✅ [GEREE AVLAGA] Created standalone initial balance record");
+            const savedAvlaga = await newAvlaga.save();
+            newAvlagaId = savedAvlaga._id;
+            console.log("✅ [GEREE AVLAGA] Created standalone initial balance record:", newAvlagaId);
           } else {
             console.log("ℹ️ [GEREE AVLAGA] Normal avlaga - skip manual record (invoice handles it)");
           }
@@ -223,7 +202,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             guilgeeKhiisenAjiltniiId: guilgee.guilgeeKhiisenAjiltniiId || "",
           });
 
-          await tulsunDoc.save();
+          const savedTulsun = await tulsunDoc.save();
           console.log(`✅ [GEREE ${guilgee.turul.toUpperCase()}] Created gereeniiTulsunAvlaga record for ${guilgee.turul}`);
         }
       }
@@ -237,13 +216,13 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     );
 
     try {
-      if (guilgee.turul === "avlaga" && geree && geree.orshinSuugchId) {
+      if (guilgee.turul === "avlaga" && result && result.orshinSuugchId) {
         const medegdel = new Medegdel(tukhainBaaziinKholbolt)();
-        medegdel.orshinSuugchId = geree.orshinSuugchId;
+        medegdel.orshinSuugchId = result.orshinSuugchId;
         medegdel.baiguullagiinId = baiguullagiinId;
-        medegdel.barilgiinId = geree.barilgiinId || "";
+        medegdel.barilgiinId = result.barilgiinId || "";
         medegdel.title = "Шинэ авлага нэмэгдлээ";
-        medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Төлбөр: ${guilgee.tulukhDun || 0}₮`;
+        medegdel.message = `Гэрээний дугаар: ${result.gereeniiDugaar || "N/A"}, Төлбөр: ${guilgee.tulukhDun || 0}₮`;
         medegdel.kharsanEsekh = false;
         medegdel.turul = "мэдэгдэл";
         medegdel.ognoo = new Date();
@@ -252,7 +231,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
         const io = req.app.get("socketio");
         if (io) {
-          io.emit("orshinSuugch" + geree.orshinSuugchId, medegdel);
+          io.emit("orshinSuugch" + result.orshinSuugchId, medegdel);
         }
       }
     } catch (notificationError) {
@@ -274,7 +253,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             .lean();
 
           if (baiguullaga) {
-            // Pass ekhniiUldegdelEsekh flag to control whether to include ekhniiUldegdel in invoice
+            // Pass ekhniiUldegdelEsekh flag and the standalone ID to sync records
             const includeEkhniiUldegdel = guilgee.ekhniiUldegdelEsekh === true;
 
             const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
@@ -283,75 +262,85 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               tukhainBaaziinKholbolt,
               "garan",
               true, // skipDuplicateCheck = true to bypass month restrictions
-              includeEkhniiUldegdel // Only include ekhniiUldegdel when checkbox is checked
+              includeEkhniiUldegdel, // Only include ekhniiUldegdel when checkbox is checked
+              newAvlagaId // Sync with the standalone record ID
             );
 
-            if (invoiceResult && invoiceResult.success && invoiceResult.nekhemjlekh && freshGeree.orshinSuugchId) {
-              try {
-                console.log("starting socket emission process...");
+            if (invoiceResult && invoiceResult.success && invoiceResult.nekhemjlekh) {
+              // Sync the standalone record with the created invoice ID
+              if (newAvlagaId) {
+                await GereeniiTulukhAvlaga(tukhainBaaziinKholbolt).findByIdAndUpdate(newAvlagaId, {
+                  nekhemjlekhId: invoiceResult.nekhemjlekh._id
+                });
+              }
 
-                const io = req.app.get("socketio");
+              if (freshGeree.orshinSuugchId) {
+                try {
+                  console.log("starting socket emission process...");
 
-                if (!io) {
-                  console.error("❌ [SOCKET] Socket.io instance not found in req.app");
-                  return;
-                }
+                  const io = req.app.get("socketio");
 
-                console.log("✅ [SOCKET] Socket.io instance found");
-
-                let medegdelToEmit = invoiceResult.medegdel;
-
-                if (!medegdelToEmit) {
-                  console.log("⚠️ [SOCKET] No medegdel in invoice result, querying database...");
-                  const kholbolt = db.kholboltuud.find(
-                    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-                  );
-
-                  if (!kholbolt) {
-                    console.error("❌ [SOCKET] Kholbolt not found for baiguullagiinId:", baiguullagiinId);
+                  if (!io) {
+                    console.error("❌ [SOCKET] Socket.io instance not found in req.app");
                     return;
                   }
 
-                  console.log("querying for recent medegdel...");
+                  console.log("✅ [SOCKET] Socket.io instance found");
 
-                  const recentMedegdel = await Medegdel(kholbolt)
-                    .findOne({ orshinSuugchId: freshGeree.orshinSuugchId })
-                    .sort({ createdAt: -1 })
-                    .lean();
+                  let medegdelToEmit = invoiceResult.medegdel;
 
-                  if (recentMedegdel) {
-                    console.log("✅ [SOCKET] Found recent medegdel:", recentMedegdel._id);
-                    const mongolianOffset = 8 * 60 * 60 * 1000;
-                    if (recentMedegdel.createdAt) {
-                      recentMedegdel.createdAt = new Date(recentMedegdel.createdAt.getTime() + mongolianOffset).toISOString();
+                  if (!medegdelToEmit) {
+                    console.log("⚠️ [SOCKET] No medegdel in invoice result, querying database...");
+                    const kholbolt = db.kholboltuud.find(
+                      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+                    );
+
+                    if (!kholbolt) {
+                      console.error("❌ [SOCKET] Kholbolt not found for baiguullagiinId:", baiguullagiinId);
+                      return;
                     }
-                    if (recentMedegdel.updatedAt) {
-                      recentMedegdel.updatedAt = new Date(recentMedegdel.updatedAt.getTime() + mongolianOffset).toISOString();
+
+                    console.log("querying for recent medegdel...");
+
+                    const recentMedegdel = await Medegdel(kholbolt)
+                      .findOne({ orshinSuugchId: freshGeree.orshinSuugchId })
+                      .sort({ createdAt: -1 })
+                      .lean();
+
+                    if (recentMedegdel) {
+                      console.log("✅ [SOCKET] Found recent medegdel:", recentMedegdel._id);
+                      const mongolianOffset = 8 * 60 * 60 * 1000;
+                      if (recentMedegdel.createdAt) {
+                        recentMedegdel.createdAt = new Date(recentMedegdel.createdAt.getTime() + mongolianOffset).toISOString();
+                      }
+                      if (recentMedegdel.updatedAt) {
+                        recentMedegdel.updatedAt = new Date(recentMedegdel.updatedAt.getTime() + mongolianOffset).toISOString();
+                      }
+                      if (recentMedegdel.ognoo) {
+                        recentMedegdel.ognoo = new Date(recentMedegdel.ognoo.getTime() + mongolianOffset).toISOString();
+                      }
+                      medegdelToEmit = recentMedegdel;
+                    } else {
+                      console.warn("no recent medegdel found for orshinSuugchId");
                     }
-                    if (recentMedegdel.ognoo) {
-                      recentMedegdel.ognoo = new Date(recentMedegdel.ognoo.getTime() + mongolianOffset).toISOString();
-                    }
-                    medegdelToEmit = recentMedegdel;
                   } else {
-                    console.warn("no recent medegdel found for orshinSuugchId");
+                    console.log("using medegdel from invoice result");
                   }
-                } else {
-                  console.log("using medegdel from invoice result");
+
+                  if (medegdelToEmit) {
+                    const eventName = "orshinSuugch" + freshGeree.orshinSuugchId;
+
+                    console.log("emitting invoice notification...");
+
+                    io.emit(eventName, medegdelToEmit);
+
+                    console.log("invoice notification emitted successfully");
+                  } else {
+                    console.error("no medegdel to emit");
+                  }
+                } catch (socketError) {
+                  console.error("error emitting socket event for invoice notification", socketError.message);
                 }
-
-                if (medegdelToEmit) {
-                  const eventName = "orshinSuugch" + freshGeree.orshinSuugchId;
-
-                  console.log("emitting invoice notification...");
-
-                  io.emit(eventName, medegdelToEmit);
-
-                  console.log("invoice notification emitted successfully");
-                } else {
-                  console.error("no medegdel to emit");
-                }
-              } catch (socketError) {
-                console.error("error emitting socket event for invoice notification", socketError.message);
               }
             } else {
               console.warn("avlaga invoice not created");
