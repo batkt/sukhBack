@@ -14,65 +14,65 @@ async function orshinSuugchKhadgalya(
   tukhainBaaziinKholbolt
 ) {
   if (!orshinSuugchMedeelel) return null;
-  try {
-    // ID байгаа эсэхийг шалгана
-    const orshinSuugchId = orshinSuugchMedeelel._id;
-    if (orshinSuugchId) {
-      // ID байгаа бол засварлах - зөвхөн өөрчлөгдсөн талбарууд л шинэчлэгдэнэ
-      const existingOrshinSuugch = await OrshinSuugch(
-        tukhainBaaziinKholbolt
-      ).findById(orshinSuugchId);
-      if (existingOrshinSuugch) {
-        // Өөрчлөгдсөн талбарууд л шинэчлэх
-        const updateFields = {};
-        // Талбарууд бүрийг шалгаж, өөрчлөгдсөн эсэхийг тодорхойлно
-        Object.keys(orshinSuugchMedeelel).forEach((key) => {
-          if (key !== "_id" && key !== "createdAt" && key !== "__v") {
-            const newValue = orshinSuugchMedeelel[key];
-            const oldValue = existingOrshinSuugch[key];
-            // Өөрчлөгдсөн талбаруудыг л нэмнэ
-            if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
-              updateFields[key] = newValue;
-            }
+  // Remove silent try-catch to properly handle errors
+  
+  // ID байгаа эсэхийг шалгана
+  const orshinSuugchId = orshinSuugchMedeelel._id;
+  if (orshinSuugchId) {
+    // ID байгаа бол засварлах - зөвхөн өөрчлөгдсөн талбарууд л шинэчлэгдэнэ
+    const existingOrshinSuugch = await OrshinSuugch(
+      tukhainBaaziinKholbolt
+    ).findById(orshinSuugchId);
+    if (existingOrshinSuugch) {
+      // Өөрчлөгдсөн талбарууд л шинэчлэх
+      const updateFields = {};
+      // Талбарууд бүрийг шалгаж, өөрчлөгдсөн эсэхийг тодорхойлно
+      Object.keys(orshinSuugchMedeelel).forEach((key) => {
+        if (key !== "_id" && key !== "createdAt" && key !== "__v") {
+          const newValue = orshinSuugchMedeelel[key];
+          const oldValue = existingOrshinSuugch[key];
+          // Өөрчлөгдсөн талбаруудыг л нэмнэ
+          if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
+            updateFields[key] = newValue;
           }
-        });
-        // Өөрчлөлт байгаа бол л шинэчилнэ
-        if (Object.keys(updateFields).length > 0) {
-          updateFields.updatedAt = new Date();
-          return await OrshinSuugch(tukhainBaaziinKholbolt).findByIdAndUpdate(
-            orshinSuugchId,
-            { $set: updateFields },
-            { new: true }
-          );
         }
-        return existingOrshinSuugch;
-      } else {
-        throw new Error(`ID: ${orshinSuugchId} харилцагч олдсонгүй`);
-      }
-    } else {
-      // ID байхгүй бол шинээр хадгална (save ашиглана)
-      const { _id, ...orshinSuugchData } = orshinSuugchMedeelel;
-      // Утасны дугаараар давхцах эсэхийг шалгана
-      const existingByUtas = await OrshinSuugch(tukhainBaaziinKholbolt).findOne(
-        {
-          utas: { $in: [utas] },
-          barilgiinId: orshinSuugchMedeelel.barilgiinId,
-        }
-      );
-      if (existingByUtas) {
-        throw new Error(
-          "Энэ утасны дугаартай харилцагч аль хэдийн бүртгэгдсэн байна"
+      });
+      // Өөрчлөлт байгаа бол л шинэчилнэ
+      if (Object.keys(updateFields).length > 0) {
+        updateFields.updatedAt = new Date();
+        return await OrshinSuugch(tukhainBaaziinKholbolt).findByIdAndUpdate(
+          orshinSuugchId,
+          { $set: updateFields },
+          { new: true }
         );
       }
-      const newOrshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
-        ...orshinSuugchData,
-        utas: orshinSuugchData.utas || [utas],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-      return await newOrshinSuugch.save();
+      return existingOrshinSuugch;
+    } else {
+      throw new Error(`ID: ${orshinSuugchId} харилцагч олдсонгүй`);
     }
-  } catch (error) {}
+  } else {
+    // ID байхгүй бол шинээр хадгална (save ашиглана)
+    const { _id, ...orshinSuugchData } = orshinSuugchMedeelel;
+    // Утасны дугаараар давхцах эсэхийг шалгана
+    const existingByUtas = await OrshinSuugch(tukhainBaaziinKholbolt).findOne(
+      {
+        utas: { $in: [utas] },
+        barilgiinId: orshinSuugchMedeelel.barilgiinId,
+      }
+    );
+    if (existingByUtas) {
+      // If user exists, return them instead of erroring
+      console.log(`ℹ️ [ZOCHIN_URI] User exists with phone ${utas}, using existing record.`);
+      return existingByUtas;
+    }
+    const newOrshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
+      ...orshinSuugchData,
+      utas: orshinSuugchData.utas || [utas],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    return await newOrshinSuugch.save();
+  }
 }
 
 // Машины мэдээллийг шинээр хадгалах буюу засварлах функц
