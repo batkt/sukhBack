@@ -578,10 +578,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
     let finalZardluud = isAvlagaOnlyInvoice ? [] : [...filteredZardluud];
 
     const zardluudTotal = isAvlagaOnlyInvoice
-        ? 0
-        : filteredZardluud.reduce((sum, zardal) => {
-          return sum + (zardal.dun || 0);
-        }, 0);
+      ? 0
+      : filteredZardluud.reduce((sum, zardal) => {
+        return sum + (zardal.dun || 0);
+      }, 0);
 
     let ekhniiUldegdelFromOrshinSuugch = 0;
     if (tempData.orshinSuugchId) {
@@ -882,15 +882,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
           finalZardluud = normalizeZardluudTurul(finalZardluud);
 
-          updatedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+          updatedZardluudTotal = (isAvlagaOnlyInvoice)
             ? 0
             : finalZardluud.reduce((sum, zardal) => {
               return sum + (zardal.dun || 0);
             }, 0);
 
-          finalNiitTulbur = shouldUseEkhniiUldegdel
-            ? ekhniiUldegdelAmount + guilgeenuudTotal
-            : updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
+          finalNiitTulbur = updatedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
 
           const firstElectricityEntry = electricityEntries[0];
           const firstBuildingZaaltZardal = zaaltZardluud.find(
@@ -972,7 +970,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       console.log(`⚠️ [LIFT] Final check - Skipping: davkhar=${tempData.davkhar}, choloolugdokhDavkhar.length=${choloolugdokhDavkhar.length}`);
     }
 
-    const correctedZardluudTotal = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+    const correctedZardluudTotal = (isAvlagaOnlyInvoice)
       ? 0
       : zardluudWithDun.reduce((sum, zardal) => {
         return sum + (zardal.dun || 0);
@@ -980,9 +978,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     console.log(`💰 [LIFT] Final total calculation - correctedZardluudTotal: ${correctedZardluudTotal}, zardluudWithDun count: ${zardluudWithDun.length}`);
 
-    let correctedFinalNiitTulbur = shouldUseEkhniiUldegdel
-      ? ekhniiUldegdelAmount + guilgeenuudTotal
-      : correctedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
+    let correctedFinalNiitTulbur = correctedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount;
 
     let positiveBalanceUsed = 0;
     let remainingPositiveBalance = 0;
@@ -1015,12 +1011,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
             if (liftTariff !== null && (z.dun === liftTariff || z.tariff === liftTariff)) return false;
             return true;
           });
-          const correctedZardluudTotalAfter = shouldUseEkhniiUldegdel || isAvlagaOnlyInvoice
+          const correctedZardluudTotalAfter = (isAvlagaOnlyInvoice)
             ? 0
             : zardluudWithDun.reduce((sum, zardal) => sum + (zardal.dun || 0), 0);
-          correctedFinalNiitTulbur = shouldUseEkhniiUldegdel
-            ? ekhniiUldegdelAmount + guilgeenuudTotal
-            : correctedZardluudTotalAfter + guilgeenuudTotal + ekhniiUldegdelAmount;
+          correctedFinalNiitTulbur = correctedZardluudTotalAfter + guilgeenuudTotal + ekhniiUldegdelAmount;
           console.log(`🚫 [LIFT] LAST CHANCE - Updated total: ${correctedFinalNiitTulbur}, removed ${liftCountBefore} lift charges`);
         }
       }
