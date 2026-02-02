@@ -329,4 +329,104 @@ router.post("/ezenUrisanTuukh", tokenShalgakh, async (req, res, next) => {
   }
 });
 
+router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+    
+    const page = parseInt(req.query.khuudasniiDugaar) || 1;
+    const limit = parseInt(req.query.khuudasniiKhemjee) || 10;
+    const skip = (page - 1) * limit;
+    const baiguullagiinId = req.query.baiguullagiinId;
+
+    if (!baiguullagiinId) {
+        return res.status(400).send("baiguullagiinId required");
+    }
+
+    // Aggregation pipeline
+    const pipeline = [
+      // 1. Convert string ID to ObjectId for lookup if necessary
+      {
+        $addFields: {
+           orshinSuugchObjId: { $toObjectId: "$orshinSuugchiinId" }
+        }
+      },
+      // 2. Lookup OrshinSuugch
+      {
+        $lookup: {
+          from: "orshinSuugch", 
+          localField: "orshinSuugchObjId",
+          foreignField: "_id",
+          as: "resident"
+        }
+      },
+      // 3. Unwind
+      { $unwind: "$resident" },
+      // 4. Match by baiguullagiinId (from resident)
+      {
+        $match: {
+          "resident.baiguullagiinId": baiguullagiinId
+        }
+      }
+    ];
+
+    // Add search if provided
+    if (req.query.search) {
+       const regex = new RegExp(req.query.search, 'i');
+       pipeline.push({
+           $match: {
+               $or: [
+                   { "resident.ner": regex },
+                   // Handle utas array or string
+                   { "resident.utas": regex }, 
+                   { "mashiniiDugaar": regex },
+                   { "resident.toot": regex },
+                   { "ezenToot": regex }
+               ]
+           }
+       });
+    }
+
+    // Sort by most recent
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // Facet for pagination
+    pipeline.push({
+        $facet: {
+            metadata: [{ $count: "total" }],
+            data: [{ $skip: skip }, { $limit: limit }]
+        }
+    });
+
+    const result = await OrshinSuugchMashin(db.erunkhiiKholbolt).aggregate(pipeline);
+    
+    const data = result[0].data;
+    const total = result[0].metadata[0] ? result[0].metadata[0].total : 0;
+
+    // Reshape data for table
+    const formattedData = data.map(item => ({
+        _id: item._id,
+        createdAt: item.createdAt,
+        ner: item.resident.ner,
+        utas: item.resident.utas,
+        mashiniiDugaar: item.mashiniiDugaar,
+        zochinTurul: item.zochinTurul,
+        zochinTailbar: item.zochinTailbar,
+        ezenToot: item.ezenToot || item.resident.toot, // Use visitor's ezenToot or resident's toot
+        davtamjiinTurul: item.davtamjiinTurul
+    }));
+
+     res.send({
+      jagsaalt: formattedData,
+      niitMur: total,
+      niitKhuudas: Math.ceil(total / limit),
+      khuudasniiDugaar: page,
+      khuudasniiKhemjee: limit
+    });
+    
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
