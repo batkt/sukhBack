@@ -336,6 +336,17 @@ const cronJob = cron.schedule(
   }
 );
 
+cron.schedule(
+  "20 7 * * * ",
+  async function () {
+    await zogsool.archiveUilchluulegchKhonog();
+  },
+  {
+    scheduled: true,
+    timezone: "Asia/Ulaanbaatar",
+  },
+);
+
 console.log(
   "🕐 Cron job тохируулагдлаа: Өдөр бүр 16:18 цагт автоматаар нэхэмжлэх үүсгэх"
 );
