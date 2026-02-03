@@ -1847,13 +1847,13 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
       tuluv: "Идэвхтэй",
     }).select("gereeniiDugaar toot orshinSuugchId").lean();
 
-    // Fetch orshinSuugch data to get name and phone
+    // Fetch orshinSuugch data to get name, phone, and electricity tariff (кВт)
     const orshinSuugchIds = [...new Set(gereenuud.map(g => g.orshinSuugchId).filter(id => id))];
     const orshinSuugchuud = await OrshinSuugch(db.erunkhiiKholbolt)
       .find({
         _id: { $in: orshinSuugchIds }
       })
-      .select("_id ner utas")
+      .select("_id ner utas tsahilgaaniiZaalt")
       .lean();
 
     // Create map for quick lookup
@@ -1871,12 +1871,14 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
       { header: "Тоот", key: "toot", width: 15 },
       { header: "Нэр", key: "ner", width: 20 },
       { header: "Утас", key: "utas", width: 15 },
+    
       { header: "Өмнө", key: "umnu", width: 15 },
       { header: "Өдөр", key: "odor", width: 15 },
       { header: "Шөнө", key: "shone", width: 15 },
       { header: "Нийт (одоо)", key: "niitOdoo", width: 15 },
       { header: "Зөрүү", key: "zoruu", width: 15 },
       { header: "Суурь хураамж", key: "defaultDun", width: 15 },
+      { header: "кВт", key: "kwt", width: 12 },
     ];
 
     // Style header row (worksheet.columns already creates headers in row 1)
@@ -1898,6 +1900,7 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
         toot: geree.toot || "",
         ner: orshinSuugch?.ner || "",
         utas: orshinSuugch?.utas || "",
+        kwt: orshinSuugch?.tsahilgaaniiZaalt || "",
         umnu: "",
         odor: "",
         shone: "",
@@ -1908,22 +1911,22 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
     });
 
     // Add formula for "Нийт (одоо)" column (Өдөр + Шөнө)
-    // Columns: A=Гэрээний дугаар, B=Тоот, C=Нэр, D=Утас, E=Өмнө, F=Өдөр, G=Шөнө, H=Нийт (одоо), I=Зөрүү, J=Суурь хураамж
+    // Columns: A=Гэрээний дугаар, B=Тоот, C=Нэр, D=Утас, E=кВт, F=Өмнө, G=Өдөр, H=Шөнө, I=Нийт (одоо), J=Зөрүү, K=Суурь хураамж
     // Add formula for "Зөрүү" column (Нийт (одоо) - Өмнө)
     gereenuud.forEach((geree, index) => {
       const rowNumber = index + 2; // +2 because row 1 is header
       
-      // Нийт (одоо) = Өдөр + Шөнө (Column H = F + G)
-      const niitCell = worksheet.getCell(`H${rowNumber}`);
+      // Нийт (одоо) = Өдөр + Шөнө (Column I = G + H)
+      const niitCell = worksheet.getCell(`I${rowNumber}`);
       niitCell.value = {
-        formula: `F${rowNumber}+G${rowNumber}`,
+        formula: `G${rowNumber}+H${rowNumber}`,
       };
       niitCell.numFmt = "0.00";
       
-      // Зөрүү = Нийт (одоо) - Өмнө (Column I = H - E)
-      const zoruuCell = worksheet.getCell(`I${rowNumber}`);
+      // Зөрүү = Нийт (одоо) - Өмнө (Column J = I - F)
+      const zoruuCell = worksheet.getCell(`J${rowNumber}`);
       zoruuCell.value = {
-        formula: `H${rowNumber}-E${rowNumber}`,
+        formula: `I${rowNumber}-F${rowNumber}`,
       };
       zoruuCell.numFmt = "0.00";
     });
