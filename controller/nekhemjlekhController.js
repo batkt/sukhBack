@@ -587,20 +587,43 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     let ekhniiUldegdelFromOrshinSuugch = 0;
     // Only fetch and include ekhniiUldegdel if the flag is true (checkbox checked)
-    if (includeEkhniiUldegdel && tempData.orshinSuugchId) {
+    if (includeEkhniiUldegdel) {
+      // First check gereeniiTulukhAvlaga for ekhniiUldegdel records (primary source)
       try {
-        const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
-          .findById(tempData.orshinSuugchId)
-          .select("ekhniiUldegdel")
-          .lean();
-        if (orshinSuugch && orshinSuugch.ekhniiUldegdel) {
-          ekhniiUldegdelFromOrshinSuugch = orshinSuugch.ekhniiUldegdel;
-          console.log(`💰 [INVOICE] ekhniiUldegdel from orshinSuugch: ${ekhniiUldegdelFromOrshinSuugch}`);
+        const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+        const tulukhAvlagaRecords = await GereeniiTulukhAvlaga(tukhainBaaziinKholbolt).find({
+          gereeniiId: String(tempData.gereeniiId || tempData._id),
+          baiguullagiinId: String(tempData.baiguullagiinId),
+          ekhniiUldegdelEsekh: true,
+        }).lean();
+        
+        if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
+          // Sum up all ekhniiUldegdel records and use uldegdel (remaining balance)
+          ekhniiUldegdelFromOrshinSuugch = tulukhAvlagaRecords.reduce((sum, record) => {
+            return sum + Number(record.uldegdel || record.tulukhDun || 0);
+          }, 0);
+          console.log(`💰 [INVOICE] ekhniiUldegdel from gereeniiTulukhAvlaga: ${ekhniiUldegdelFromOrshinSuugch}₮`);
         }
       } catch (error) {
-        console.error(`❌ [INVOICE] Error fetching ekhniiUldegdel from orshinSuugch:`, error.message);
+        console.error(`❌ [INVOICE] Error fetching ekhniiUldegdel from gereeniiTulukhAvlaga:`, error.message);
       }
-    } else if (!includeEkhniiUldegdel) {
+      
+      // Fallback to orshinSuugch.ekhniiUldegdel if no gereeniiTulukhAvlaga records found
+      if (ekhniiUldegdelFromOrshinSuugch === 0 && tempData.orshinSuugchId) {
+        try {
+          const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+            .findById(tempData.orshinSuugchId)
+            .select("ekhniiUldegdel")
+            .lean();
+          if (orshinSuugch && orshinSuugch.ekhniiUldegdel) {
+            ekhniiUldegdelFromOrshinSuugch = orshinSuugch.ekhniiUldegdel;
+            console.log(`💰 [INVOICE] ekhniiUldegdel from orshinSuugch: ${ekhniiUldegdelFromOrshinSuugch}`);
+          }
+        } catch (error) {
+          console.error(`❌ [INVOICE] Error fetching ekhniiUldegdel from orshinSuugch:`, error.message);
+        }
+      }
+    } else {
       console.log(`ℹ️ [INVOICE] Skipping ekhniiUldegdel - checkbox not checked`);
     }
 
@@ -1851,7 +1874,29 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
     }
 
     let ekhniiUldegdelAmount = 0;
-    if (geree.orshinSuugchId) {
+    
+    // First check gereeniiTulukhAvlaga for ekhniiUldegdel records (primary source)
+    try {
+      const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+      const tulukhAvlagaRecords = await GereeniiTulukhAvlaga(tukhainBaaziinKholbolt).find({
+        gereeniiId: String(gereeId),
+        baiguullagiinId: String(baiguullagiinId),
+        ekhniiUldegdelEsekh: true,
+      }).lean();
+      
+      if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
+        // Sum up all ekhniiUldegdel records and use uldegdel (remaining balance)
+        ekhniiUldegdelAmount = tulukhAvlagaRecords.reduce((sum, record) => {
+          return sum + Number(record.uldegdel || record.tulukhDun || 0);
+        }, 0);
+        console.log(`💰 [PREVIEW] Found ekhniiUldegdel in gereeniiTulukhAvlaga: ${ekhniiUldegdelAmount}₮`);
+      }
+    } catch (error) {
+      console.error("Error fetching ekhniiUldegdel from gereeniiTulukhAvlaga:", error.message);
+    }
+    
+    // Fallback to orshinSuugch.ekhniiUldegdel if no gereeniiTulukhAvlaga records found
+    if (ekhniiUldegdelAmount === 0 && geree.orshinSuugchId) {
       try {
         const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
           .findById(geree.orshinSuugchId)
@@ -1859,9 +1904,10 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
           .lean();
         if (orshinSuugch && orshinSuugch.ekhniiUldegdel) {
           ekhniiUldegdelAmount = orshinSuugch.ekhniiUldegdel;
+          console.log(`💰 [PREVIEW] Found ekhniiUldegdel in orshinSuugch: ${ekhniiUldegdelAmount}₮`);
         }
       } catch (error) {
-        console.error("Error fetching ekhniiUldegdel:", error.message);
+        console.error("Error fetching ekhniiUldegdel from orshinSuugch:", error.message);
       }
     }
 
