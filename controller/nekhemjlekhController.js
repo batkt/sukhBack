@@ -187,6 +187,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
         // Check if we need to update electricity data from latest ZaaltUnshlalt
         try {
           const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+          
+          console.log(`🔍 [INVOICE UPDATE] Checking for ZaaltUnshlalt for ${tempData.gereeniiDugaar}...`);
+          
           const latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
             .findOne({ 
               $or: [
@@ -196,6 +199,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
             })
             .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1 })
             .lean();
+
+          console.log(`🔍 [INVOICE UPDATE] ZaaltUnshlalt found:`, latestReading ? {
+            gereeniiDugaar: latestReading.gereeniiDugaar,
+            zaaltDun: latestReading.zaaltDun,
+            zoruu: latestReading.zoruu
+          } : 'NOT FOUND');
 
           if (latestReading && latestReading.zaaltDun > 0) {
             // Find existing electricity entry in the invoice
@@ -211,6 +220,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
             // Check if the electricity amount needs updating
             const currentZaaltDun = existingElectricity?.dun || existingElectricity?.tariff || 0;
             const newZaaltDun = latestReading.zaaltDun;
+            
+            console.log(`🔍 [INVOICE UPDATE] Electricity comparison for ${tempData.gereeniiDugaar}:`, {
+              existingElectricityIdx,
+              currentZaaltDun,
+              newZaaltDun,
+              needsUpdate: currentZaaltDun !== newZaaltDun
+            });
             
             if (currentZaaltDun !== newZaaltDun) {
               console.log(`🔄 [INVOICE] Updating electricity from ${currentZaaltDun} to ${newZaaltDun} for ${tempData.gereeniiDugaar}`);
