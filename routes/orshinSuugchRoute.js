@@ -591,12 +591,15 @@ router.post(
 
       // Create invoice - force creation by passing skipDuplicateCheck flag
       // This endpoint should always create a new invoice, ignoring duplicate checks
+      // NOTE: includeEkhniiUldegdel = false because manual invoice creation should NOT include ekhniiUldegdel
+      // ekhniiUldegdel should ONLY come from Excel import or TransactionModal
       const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
         geree,
         baiguullaga,
         kholbolt,
         "garan",
-        true // skipDuplicateCheck = true
+        true,  // skipDuplicateCheck = true
+        false  // includeEkhniiUldegdel = false
       );
 
       if (!invoiceResult.success) {

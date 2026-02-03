@@ -156,13 +156,15 @@ async function forceCreateInvoice(orshinSuugchId, baiguullagiinId) {
     }
 
     // Force create invoice - skipDuplicateCheck = true bypasses all duplicate checks
+    // includeEkhniiUldegdel = false because manual/force creation should NOT include ekhniiUldegdel
     console.log(`\n📝 Creating invoice (bypassing date restrictions)...`);
     const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
       gereeObj,
       baiguullaga,
       kholbolt,
       "garan",
-      true // skipDuplicateCheck = true - FORCE CREATE
+      true,  // skipDuplicateCheck = true - FORCE CREATE
+      false  // includeEkhniiUldegdel = false
     );
 
     if (!invoiceResult.success) {
