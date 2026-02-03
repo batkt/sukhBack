@@ -792,6 +792,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 const gereeniiId = tempData._id?.toString() || tempData.gereeniiId || tempData._id;
                 const gereeniiDugaar = tempData.gereeniiDugaar;
 
+                console.log("🔍 [INVOICE] Searching for ZaaltUnshlalt:", {
+                  gereeniiId: gereeniiId,
+                  gereeniiDugaar: gereeniiDugaar
+                });
+
                 let latestReading = null;
                 if (gereeniiId) {
                   latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
@@ -808,6 +813,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 }
 
                 if (latestReading) {
+                  console.log("✅ [INVOICE] Found ZaaltUnshlalt:", {
+                    gereeniiDugaar: latestReading.gereeniiDugaar,
+                    zoruu: latestReading.zoruu,
+                    zaaltDun: latestReading.zaaltDun,
+                    defaultDun: latestReading.defaultDun,
+                    tariff: latestReading.tariff
+                  });
                   // Get all calculation data from Excel reading
                   zaaltDefaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
                   
