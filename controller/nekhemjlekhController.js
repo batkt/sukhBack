@@ -675,8 +675,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
           hasReadings: !!(tempData.umnukhZaalt !== undefined || tempData.suuliinZaalt !== undefined)
         });
 
-        if (gereeZaaltZardluud.length > 0 || (zaaltZardluud.length > 0 && (tempData.umnukhZaalt !== undefined || tempData.suuliinZaalt !== undefined))) {
-          // Deduplicate by name to avoid duplicate electricity entries
+        if (gereeZaaltZardluud.length > 0 || zaaltZardluud.length > 0) {
+          // Process ALL zaalt entries - both fixed and calculated
           const rawZaaltZardluud = gereeZaaltZardluud.length > 0
             ? gereeZaaltZardluud
             : zaaltZardluud;
@@ -692,6 +692,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
             seenNames.add(key);
             return true;
           });
+          
           const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
             tempData.orshinSuugchId
           ).select("tsahilgaaniiZaalt").lean();
@@ -720,99 +721,91 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
           for (const gereeZaaltZardal of zaaltZardluudToProcess) {
             let zaaltDefaultDun = 0;
-
-            try {
-              const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
-              const gereeniiId = tempData._id?.toString() || tempData.gereeniiId || tempData._id;
-              const gereeniiDugaar = tempData.gereeniiDugaar;
-
-              let latestReading = null;
-              if (gereeniiId) {
-                latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
-                  .findOne({ gereeniiId: gereeniiId })
-                  .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1, unshlaltiinOgnoo: -1 })
-                  .lean();
-              }
-
-              if (!latestReading && gereeniiDugaar) {
-                latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
-                  .findOne({ gereeniiDugaar: gereeniiDugaar })
-                  .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1, unshlaltiinOgnoo: -1 })
-                  .lean();
-              }
-
-              if (latestReading) {
-                zaaltDefaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
-                console.log("💰 [INVOICE] Using defaultDun from Excel reading:", {
-                  gereeniiDugaar: tempData.gereeniiDugaar,
-                  defaultDun: zaaltDefaultDun,
-                  zaaltCalculation_defaultDun: latestReading.zaaltCalculation?.defaultDun,
-                  reading_defaultDun: latestReading.defaultDun,
-                  source: latestReading.zaaltCalculation?.defaultDun ? "zaaltCalculation (Excel)" : "defaultDun (Excel)"
-                });
-              } else {
-                console.warn("⚠️ [INVOICE] No reading found for defaultDun:", {
-                  gereeniiDugaar: tempData.gereeniiDugaar,
-                  gereeniiId: gereeniiId
-                });
-              }
-            } catch (error) {
-              console.error("❌ [INVOICE] Error fetching latest reading for defaultDun:", error.message);
-            }
-
-            if (!zaaltDefaultDun) {
-              zaaltDefaultDun = gereeZaaltZardal.zaaltDefaultDun || 0;
-              if (zaaltDefaultDun) {
-                console.log("💰 [INVOICE] Using defaultDun from geree.zardluud (fallback):", {
-                  gereeniiDugaar: tempData.gereeniiDugaar,
-                  defaultDun: zaaltDefaultDun
-                });
-              }
-            }
-
-            if (!zaaltDefaultDun || zaaltDefaultDun === 0) {
-              console.error("❌ [INVOICE] CRITICAL: defaultDun is 0! Base fee will NOT be added!", {
+            let zaaltDun = 0;
+            let isFixedCharge = false;
+            
+            // Check if this is a FIXED electricity charge (like "Дундын өмчлөл Цахилгаан")
+            // Fixed charges have: tariff > 0, and either zaaltTariff = 0 or no readings expected
+            // They should use the tariff value directly without calculation
+            const hasFixedTariff = (gereeZaaltZardal.tariff > 0) && 
+              (!gereeZaaltZardal.zaaltTariff || gereeZaaltZardal.zaaltTariff === 0);
+            
+            if (hasFixedTariff) {
+              // This is a FIXED electricity charge - use tariff directly
+              isFixedCharge = true;
+              zaaltDun = gereeZaaltZardal.tariff || gereeZaaltZardal.dun || 0;
+              
+              console.log("⚡ [INVOICE] Fixed electricity charge (no calculation):", {
                 gereeniiDugaar: tempData.gereeniiDugaar,
-                gereeniiId: tempData._id?.toString() || tempData.gereeniiId,
-                zaaltDefaultDun: zaaltDefaultDun,
-                gereeZaaltZardal_zaaltDefaultDun: gereeZaaltZardal.zaaltDefaultDun
+                ner: gereeZaaltZardal.ner,
+                fixedTariff: zaaltDun,
+                reason: "tariff > 0 and zaaltTariff = 0"
+              });
+            } else {
+              // This is a CALCULATED electricity charge - needs Excel reading
+              try {
+                const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+                const gereeniiId = tempData._id?.toString() || tempData.gereeniiId || tempData._id;
+                const gereeniiDugaar = tempData.gereeniiDugaar;
+
+                let latestReading = null;
+                if (gereeniiId) {
+                  latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+                    .findOne({ gereeniiId: gereeniiId })
+                    .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1, unshlaltiinOgnoo: -1 })
+                    .lean();
+                }
+
+                if (!latestReading && gereeniiDugaar) {
+                  latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+                    .findOne({ gereeniiDugaar: gereeniiDugaar })
+                    .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1, unshlaltiinOgnoo: -1 })
+                    .lean();
+                }
+
+                if (latestReading) {
+                  zaaltDefaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
+                  console.log("💰 [INVOICE] Using defaultDun from Excel reading:", {
+                    gereeniiDugaar: tempData.gereeniiDugaar,
+                    defaultDun: zaaltDefaultDun,
+                    source: "zaaltCalculation/Excel"
+                  });
+                } else {
+                  console.warn("⚠️ [INVOICE] No reading found for calculated electricity:", {
+                    gereeniiDugaar: tempData.gereeniiDugaar,
+                    ner: gereeZaaltZardal.ner
+                  });
+                }
+              } catch (error) {
+                console.error("❌ [INVOICE] Error fetching latest reading:", error.message);
+              }
+
+              if (!zaaltDefaultDun) {
+                zaaltDefaultDun = gereeZaaltZardal.zaaltDefaultDun || 0;
+              }
+
+              // Calculate: (usage * rate) + base fee
+              zaaltDun = (zoruu * zaaltTariff) + zaaltDefaultDun;
+              
+              console.log("⚡ [INVOICE] Calculated electricity charge:", {
+                gereeniiDugaar: tempData.gereeniiDugaar,
+                ner: gereeZaaltZardal.ner,
+                zoruu: zoruu,
+                zaaltTariff: zaaltTariff,
+                defaultDun: zaaltDefaultDun,
+                zaaltDun: zaaltDun,
+                formula: `(${zoruu} * ${zaaltTariff}) + ${zaaltDefaultDun} = ${zaaltDun}`
               });
             }
-
-            const zaaltDun = (zoruu * zaaltTariff) + zaaltDefaultDun;
+            
+            // Skip if no amount
+            if (zaaltDun === 0) {
+              console.warn("⚠️ [INVOICE] Skipping electricity entry with 0 amount:", gereeZaaltZardal.ner);
+              continue;
+            }
+            
             totalTsahilgaanNekhemjlekh += zaaltDun;
-
-            console.log("⚡ [INVOICE] Electricity calculation:", {
-              gereeniiDugaar: tempData.gereeniiDugaar,
-              ner: gereeZaaltZardal.ner,
-              zardliinTurul: gereeZaaltZardal.zardliinTurul,
-              orshinSuugchId: tempData.orshinSuugchId,
-              tariffFromOrshinSuugch: zaaltTariff,
-              zoruu: zoruu,
-              defaultDun: zaaltDefaultDun,
-              calculatedAmount: zaaltDun,
-              formula: `(${zoruu} * ${zaaltTariff}) + ${zaaltDefaultDun} = ${zaaltDun}`,
-              breakdown: {
-                usageCost: zoruu * zaaltTariff,
-                baseFee: zaaltDefaultDun,
-                total: zaaltDun
-              },
-              gereeTariff: gereeZaaltZardal.tariff,
-              gereeDun: gereeZaaltZardal.dun,
-              WARNING: "NEVER using geree.tariff or geree.dun - they are ignored"
-            });
             const finalZaaltTariff = zaaltDun;
-
-            if (finalZaaltTariff === 175 || finalZaaltTariff === gereeZaaltZardal.tariff) {
-              console.error("❌ [INVOICE] ERROR: finalZaaltTariff is using tariff rate instead of calculated amount!", {
-                finalZaaltTariff,
-                gereeTariff: gereeZaaltZardal.tariff,
-                calculatedZaaltDun: zaaltDun,
-                zoruu,
-                zaaltTariff,
-                zaaltDefaultDun
-              });
-            }
 
             const electricityZardalEntry = {
               ner: gereeZaaltZardal.ner || "Цахилгаан",
@@ -1897,59 +1890,95 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       return result;
     });
 
-    // Add electricity (zaalt) calculation for preview
-    let tsahilgaanDun = 0;
+    // Add electricity (zaalt) entries for preview - process ALL zaalt zardals
     try {
       const zaaltZardluud = ashiglaltiinZardluud.filter(z => z.zaalt === true);
-      if (zaaltZardluud.length > 0 && geree.orshinSuugchId) {
+      if (zaaltZardluud.length > 0) {
         const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
-        const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
-          .findById(geree.orshinSuugchId)
-          .select("tsahilgaaniiZaalt")
-          .lean();
+        let zaaltTariff = 0;
         
-        const zaaltTariff = Number(orshinSuugch?.tsahilgaaniiZaalt) || zaaltZardluud[0]?.zaaltTariff || 0;
+        // Try to get tariff from orshinSuugch first (for calculated electricity)
+        if (geree.orshinSuugchId) {
+          const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+            .findById(geree.orshinSuugchId)
+            .select("tsahilgaaniiZaalt")
+            .lean();
+          zaaltTariff = Number(orshinSuugch?.tsahilgaaniiZaalt) || 0;
+        }
         
-        // Get latest reading for this geree
-        let latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
-          .findOne({ 
-            $or: [
-              { gereeniiId: String(gereeId) },
-              { gereeniiDugaar: geree.gereeniiDugaar }
-            ]
-          })
-          .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1 })
-          .lean();
+        // Get latest reading for this geree (for calculated electricity)
+        let latestReading = null;
+        try {
+          latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+            .findOne({ 
+              $or: [
+                { gereeniiId: String(gereeId) },
+                { gereeniiDugaar: geree.gereeniiDugaar }
+              ]
+            })
+            .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1 })
+            .lean();
+        } catch (e) {
+          console.log("No zaalt readings found for preview");
+        }
         
-        if (latestReading) {
-          const zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
-          const defaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
-          tsahilgaanDun = (zoruu * zaaltTariff) + defaultDun;
+        // Process each electricity zardal
+        for (const zaaltZardal of zaaltZardluud) {
+          let electricityDun = 0;
+          let zoruu = 0;
+          let defaultDun = 0;
           
-          console.log("⚡ [PREVIEW] Electricity calculation:", {
-            gereeniiDugaar: geree.gereeniiDugaar,
-            zoruu,
-            zaaltTariff,
-            defaultDun,
-            tsahilgaanDun,
-            formula: `(${zoruu} * ${zaaltTariff}) + ${defaultDun} = ${tsahilgaanDun}`
-          });
+          // Check if this is a fixed electricity charge (like "Дундын өмчлөл Цахилгаан")
+          // Fixed charges have tariff > 0 and zaaltTariff = 0 (or no zaaltTariff set)
+          const isFixedCharge = (zaaltZardal.tariff > 0) && (!zaaltZardal.zaaltTariff || zaaltZardal.zaaltTariff === 0);
           
-          // Add electricity entry to zardluud
-          zardluudWithDun.push({
-            ner: zaaltZardluud[0].ner || "Цахилгаан",
-            turul: zaaltZardluud[0].turul || "Тогтмол",
-            bodokhArga: "тогтмол",
-            zardliinTurul: zaaltZardluud[0].zardliinTurul || "Цахилгаан",
-            tariff: tsahilgaanDun,
-            tariffUsgeer: zaaltZardluud[0].tariffUsgeer || "₮",
-            dun: tsahilgaanDun,
-            zaalt: true,
-            zaaltTariff: zaaltTariff,
-            zoruu: zoruu,
-            suuriKhuraamj: defaultDun,
-            ognoonuud: [],
-          });
+          if (isFixedCharge) {
+            // Use fixed tariff directly
+            electricityDun = zaaltZardal.tariff || zaaltZardal.dun || 0;
+            
+            console.log("⚡ [PREVIEW] Fixed electricity charge:", {
+              gereeniiDugaar: geree.gereeniiDugaar,
+              ner: zaaltZardal.ner,
+              fixedTariff: electricityDun
+            });
+          } else if (latestReading) {
+            // Calculate from zaalt reading
+            zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
+            defaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
+            const effectiveTariff = zaaltTariff || zaaltZardal.zaaltTariff || 0;
+            electricityDun = (zoruu * effectiveTariff) + defaultDun;
+            
+            console.log("⚡ [PREVIEW] Calculated electricity charge:", {
+              gereeniiDugaar: geree.gereeniiDugaar,
+              ner: zaaltZardal.ner,
+              zoruu,
+              zaaltTariff: effectiveTariff,
+              defaultDun,
+              electricityDun,
+              formula: `(${zoruu} * ${effectiveTariff}) + ${defaultDun} = ${electricityDun}`
+            });
+          } else {
+            // No reading - skip calculated charges or use fallback
+            console.log("⚠️ [PREVIEW] No reading for calculated electricity, skipping:", zaaltZardal.ner);
+            continue;
+          }
+          
+          if (electricityDun > 0) {
+            zardluudWithDun.push({
+              ner: zaaltZardal.ner || "Цахилгаан",
+              turul: zaaltZardal.turul || "Тогтмол",
+              bodokhArga: "тогтмол",
+              zardliinTurul: zaaltZardal.zardliinTurul || "Цахилгаан",
+              tariff: electricityDun,
+              tariffUsgeer: isFixedCharge ? (zaaltZardal.tariffUsgeer || "₮") : "₮",
+              dun: electricityDun,
+              zaalt: true,
+              zaaltTariff: isFixedCharge ? 0 : zaaltTariff,
+              zoruu: zoruu,
+              suuriKhuraamj: defaultDun,
+              ognoonuud: [],
+            });
+          }
         }
       }
     } catch (error) {
