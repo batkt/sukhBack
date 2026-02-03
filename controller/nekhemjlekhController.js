@@ -2048,6 +2048,11 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         // Get latest reading for this geree (for calculated electricity)
         let latestReading = null;
         try {
+          console.log("🔍 [PREVIEW] Searching for ZaaltUnshlalt:", {
+            gereeniiId: String(gereeId),
+            gereeniiDugaar: geree.gereeniiDugaar
+          });
+          
           latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
             .findOne({ 
               $or: [
@@ -2057,8 +2062,25 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
             })
             .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1 })
             .lean();
+          
+          if (latestReading) {
+            console.log("✅ [PREVIEW] Found ZaaltUnshlalt:", {
+              gereeniiDugaar: latestReading.gereeniiDugaar,
+              gereeniiId: latestReading.gereeniiId,
+              zoruu: latestReading.zoruu,
+              zaaltDun: latestReading.zaaltDun,
+              defaultDun: latestReading.defaultDun,
+              tariff: latestReading.tariff,
+              importOgnoo: latestReading.importOgnoo
+            });
+          } else {
+            console.log("❌ [PREVIEW] No ZaaltUnshlalt found for:", {
+              gereeniiId: String(gereeId),
+              gereeniiDugaar: geree.gereeniiDugaar
+            });
+          }
         } catch (e) {
-          console.log("No zaalt readings found for preview");
+          console.log("❌ [PREVIEW] Error finding zaalt readings:", e.message);
         }
         
         // Process each electricity zardal

@@ -1986,10 +1986,29 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
       throw new aldaa("Барилга олдсонгүй");
     }
 
-    // Find electricity zardal (zaalt = true)
-    // If multiple exist, prioritize exact "Цахилгаан" match (no trailing space)
+    // Find electricity zardal (zaalt = true AND is a VARIABLE electricity charge)
+    // "Дундын өмчлөл Цахилгаан" is FIXED and should NOT be used for zaalt import
+    // Only "Цахилгаан" (without "дундын" or "өмчлөл") should be used
     const zardluud = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
-    const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
+    
+    // Helper to check if this is a VARIABLE electricity (not fixed)
+    const isVariableElectricity = (z) => {
+      if (!z.zaalt) return false;
+      const nameLower = (z.ner || "").toLowerCase();
+      // Exclude fixed electricity charges
+      if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) {
+        return false;
+      }
+      return true;
+    };
+    
+    const zaaltZardluud = zardluud.filter(isVariableElectricity);
+    
+    console.log("⚡ [ZAALT IMPORT] Electricity zardluud found:", {
+      totalZardluud: zardluud.length,
+      zaaltZardluudCount: zaaltZardluud.length,
+      zaaltZardluud: zaaltZardluud.map(z => ({ ner: z.ner, zaalt: z.zaalt, tariffUsgeer: z.tariffUsgeer }))
+    });
     
     // Prioritize exact "Цахилгаан" match (no trailing space)
     let zaaltZardal = zaaltZardluud.find(
@@ -2005,7 +2024,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
     }
     
     if (!zaaltZardal) {
-      throw new aldaa("Цахилгааны зардал тохируулаагүй байна. Эхлээд зардлыг тохируулна уу.");
+      throw new aldaa("Цахилгааны зардал (Цахилгаан) тохируулаагүй байна. Хувьсах зардлуудаас 'Цахилгаан' нэмнэ үү. (Дундын өмчлөл Цахилгаан биш)");
     }
 
     const zaaltTariff = zaaltZardal.zaaltTariff || 0;
