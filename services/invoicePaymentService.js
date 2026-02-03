@@ -28,6 +28,7 @@ async function markInvoicesAsPaid(options) {
     markEkhniiUldegdel = false,
     tailbar = null,
     barilgiinId, // Optional: if provided, restrict to contracts/invoices in this building
+    ognoo, // Optional: payment date (YYYY-MM-DD or ISO string) - uses selected date instead of today
   } = options;
 
   if (!baiguullagiinId) {
@@ -214,10 +215,11 @@ async function markInvoicesAsPaid(options) {
       const isFullyPaid = amountToApply >= unpaidAmount;
 
       // Update invoice
+      const paymentDate = ognoo ? new Date(ognoo) : new Date();
       const updateData = {
         $push: {
           paymentHistory: {
-            ognoo: new Date(),
+            ognoo: paymentDate,
             dun: amountToApply,
             turul: "manual",
             guilgeeniiId: `payment_${Date.now()}_${invoice._id}`,
@@ -229,7 +231,7 @@ async function markInvoicesAsPaid(options) {
       if (isFullyPaid) {
         updateData.$set = {
           tuluv: "Төлсөн",
-          tulsunOgnoo: new Date(),
+          tulsunOgnoo: paymentDate,
         };
       } else {
         // Partial payment - update uldegdel (remaining balance)
@@ -277,7 +279,7 @@ async function markInvoicesAsPaid(options) {
           orshinSuugchId: updatedInvoice.orshinSuugchId || "",
           nekhemjlekhId: updatedInvoice._id.toString(),
 
-          ognoo: new Date(),
+          ognoo: paymentDate,
           tulsunDun: amountToApply,
           tulsunAldangi: 0, // can be split later if needed
 
