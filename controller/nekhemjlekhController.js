@@ -184,6 +184,99 @@ const gereeNeesNekhemjlekhUusgekh = async (
           existingInvoice._id
         );
 
+        // Check if we need to update electricity data from latest ZaaltUnshlalt
+        try {
+          const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+          const latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+            .findOne({ 
+              $or: [
+                { gereeniiId: String(tempData._id) },
+                { gereeniiDugaar: tempData.gereeniiDugaar }
+              ]
+            })
+            .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1 })
+            .lean();
+
+          if (latestReading && latestReading.zaaltDun > 0) {
+            // Find existing electricity entry in the invoice
+            const existingElectricityIdx = existingInvoice.medeelel?.zardluud?.findIndex(
+              z => z.zaalt === true && z.ner && z.ner.toLowerCase().includes("цахилгаан") && 
+                   !z.ner.toLowerCase().includes("дундын") && !z.ner.toLowerCase().includes("өмчлөл")
+            );
+            
+            const existingElectricity = existingElectricityIdx >= 0 
+              ? existingInvoice.medeelel.zardluud[existingElectricityIdx] 
+              : null;
+            
+            // Check if the electricity amount needs updating
+            const currentZaaltDun = existingElectricity?.dun || existingElectricity?.tariff || 0;
+            const newZaaltDun = latestReading.zaaltDun;
+            
+            if (currentZaaltDun !== newZaaltDun) {
+              console.log(`🔄 [INVOICE] Updating electricity from ${currentZaaltDun} to ${newZaaltDun} for ${tempData.gereeniiDugaar}`);
+              
+              const zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
+              const defaultDun = latestReading.defaultDun || latestReading.zaaltCalculation?.defaultDun || 0;
+              const tariff = latestReading.tariff || latestReading.zaaltCalculation?.tariff || 0;
+              
+              if (existingElectricityIdx >= 0) {
+                // Update existing electricity entry
+                existingInvoice.medeelel.zardluud[existingElectricityIdx] = {
+                  ...existingInvoice.medeelel.zardluud[existingElectricityIdx],
+                  tariff: newZaaltDun,
+                  dun: newZaaltDun,
+                  tariffUsgeer: "₮",
+                  zoruu: zoruu,
+                  zaaltDefaultDun: defaultDun,
+                  zaaltTariff: tariff,
+                  umnukhZaalt: latestReading.umnukhZaalt || 0,
+                  suuliinZaalt: latestReading.suuliinZaalt || 0,
+                  zaaltTog: latestReading.zaaltTog || 0,
+                  zaaltUs: latestReading.zaaltUs || 0,
+                };
+              }
+              
+              // Update zaalt metadata
+              if (existingInvoice.medeelel.zaalt) {
+                existingInvoice.medeelel.zaalt = {
+                  ...existingInvoice.medeelel.zaalt,
+                  umnukhZaalt: latestReading.umnukhZaalt || 0,
+                  suuliinZaalt: latestReading.suuliinZaalt || 0,
+                  zoruu: zoruu,
+                  tariff: tariff,
+                  defaultDun: defaultDun,
+                  zaaltDun: newZaaltDun,
+                };
+              }
+              
+              // Recalculate total
+              const newTotal = existingInvoice.medeelel.zardluud.reduce((sum, z) => {
+                return sum + (z.dun || z.tariff || 0);
+              }, 0);
+              
+              existingInvoice.niitTulbur = newTotal;
+              existingInvoice.tsahilgaanNekhemjlekh = newZaaltDun;
+              existingInvoice.uldegdel = newTotal;
+              
+              await existingInvoice.save();
+              
+              console.log(`✅ [INVOICE] Updated invoice ${existingInvoice.nekhemjlekhiinDugaar} with new electricity: ${newZaaltDun}, total: ${newTotal}`);
+              
+              return {
+                success: true,
+                nekhemjlekh: existingInvoice,
+                gereeniiId: tempData._id,
+                gereeniiDugaar: tempData.gereeniiDugaar,
+                tulbur: newTotal,
+                alreadyExists: true,
+                updated: true,
+              };
+            }
+          }
+        } catch (updateError) {
+          console.error(`⚠️ [INVOICE] Error checking for electricity update:`, updateError.message);
+        }
+
         return {
           success: true,
           nekhemjlekh: existingInvoice,
