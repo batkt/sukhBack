@@ -2569,6 +2569,20 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         // This preserves the existing invoice with its uldegdel intact
         if (Math.abs(zardluudOnlyTotal - oldZardluudOnlyTotal) < 0.5 && newZardluudCount === oldZardluudCount) {
           console.log(`✅ [MANUAL SEND] SKIPPED update: Invoice zardluud are identical. Preserving existing invoice.`);
+          
+          // Still delete any DUPLICATE unsent invoices for this month
+          if (existingUnsentInvoices.length > 1) {
+            for (let i = 1; i < existingUnsentInvoices.length; i++) {
+              const duplicateInvoice = existingUnsentInvoices[i];
+              const duplicateHasPayments = (duplicateInvoice.paymentHistory && duplicateInvoice.paymentHistory.length > 0) ||
+                                           (duplicateInvoice.uldegdel !== duplicateInvoice.niitTulbur && duplicateInvoice.uldegdel < duplicateInvoice.niitTulbur);
+              if (!duplicateHasPayments) {
+                await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: duplicateInvoice._id });
+                console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${duplicateInvoice.nekhemjlekhiinDugaar || duplicateInvoice._id}`);
+              }
+            }
+          }
+          
           return {
             success: true,
             message: "Нэхэмжлэх хэвийн байна. Өөрчлөлт ороогүй.",
@@ -2582,11 +2596,16 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
 
         console.log(`🔄 [MANUAL SEND] Detected zardluud change (Old: ${oldZardluudOnlyTotal}, New: ${zardluudOnlyTotal}). Updating invoice...`);
         
+        // Log the preview zardluud for debugging
+        console.log(`📋 [MANUAL SEND] Preview zardluud:`, previewZardluud.map(z => ({ ner: z.ner, dun: z.dun, tariff: z.tariff, zaalt: z.zaalt })));
+        
         // ALWAYS update in place to preserve uldegdel and payment history
         // Filter out ekhniiUldegdel from the new zardluud since we don't want to add it via manual send
         const newZardluudWithoutEkhniiUldegdel = previewZardluud.filter(
           z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл"))
         );
+        
+        console.log(`📋 [MANUAL SEND] New zardluud (without ekhniiUldegdel):`, newZardluudWithoutEkhniiUldegdel.map(z => ({ ner: z.ner, dun: z.dun, tariff: z.tariff, zaalt: z.zaalt })));
         
         // Preserve ekhniiUldegdel entries from the old invoice (if any)
         const oldEkhniiUldegdelEntries = oldZardluud.filter(
@@ -2629,6 +2648,22 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         await oldestUnsentInvoice.save();
         
         console.log(`✅ [MANUAL SEND] Updated invoice ${oldestUnsentInvoice.nekhemjlekhiinDugaar} in place, new total: ${newNiitTulbur}, uldegdel: ${oldestUnsentInvoice.uldegdel}`);
+        
+        // Delete any DUPLICATE unsent invoices for this month (keep only the one we just updated)
+        if (existingUnsentInvoices.length > 1) {
+          for (let i = 1; i < existingUnsentInvoices.length; i++) {
+            const duplicateInvoice = existingUnsentInvoices[i];
+            // Check if this duplicate has payments
+            const duplicateHasPayments = (duplicateInvoice.paymentHistory && duplicateInvoice.paymentHistory.length > 0) ||
+                                         (duplicateInvoice.uldegdel !== duplicateInvoice.niitTulbur && duplicateInvoice.uldegdel < duplicateInvoice.niitTulbur);
+            if (!duplicateHasPayments) {
+              await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: duplicateInvoice._id });
+              console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${duplicateInvoice.nekhemjlekhiinDugaar || duplicateInvoice._id}`);
+            } else {
+              console.log(`⚠️ [MANUAL SEND] Kept duplicate invoice with payments: ${duplicateInvoice.nekhemjlekhiinDugaar || duplicateInvoice._id}`);
+            }
+          }
+        }
         
         return {
           success: true,
