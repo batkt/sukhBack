@@ -651,6 +651,14 @@ const gereeNeesNekhemjlekhUusgekh = async (
     let electricityZardalEntry = null;
 
     // Electricity processing (zaalt-based charges)
+    console.log("⚡ [INVOICE] Pre-electricity check IDs:", {
+      gereeniiDugaar: tempData.gereeniiDugaar,
+      barilgiinId: tempData.barilgiinId,
+      baiguullagiinId: tempData.baiguullagiinId,
+      orshinSuugchId: tempData.orshinSuugchId,
+      willProcessElectricity: !!(tempData.barilgiinId && tempData.baiguullagiinId && tempData.orshinSuugchId)
+    });
+    
     if (tempData.barilgiinId && tempData.baiguullagiinId && tempData.orshinSuugchId) {
       try {
         const { db } = require("zevbackv2");
@@ -661,10 +669,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
         const targetBarilga = baiguullaga?.barilguud?.find(
           (b) => String(b._id) === String(tempData.barilgiinId)
         );
-        const gereeZaaltZardluud = (tempData.zardluud || []).filter((z) => z.zaalt === true);
+        // Helper to check if an expense is a VARIABLE electricity charge (meter-based)
+        // "Дундын өмчлөл Цахилгаан" is FIXED - should NOT be processed as zaalt
+        // Only "Цахилгаан" (without "дундын" or "өмчлөл") should be processed as zaalt
+        const isVariableElectricity = (z) => {
+          if (!z.zaalt) return false;
+          const nameLower = (z.ner || "").toLowerCase();
+          // Exclude fixed electricity charges from zaalt processing
+          if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) {
+            return false;
+          }
+          return true;
+        };
+        
+        const gereeZaaltZardluud = (tempData.zardluud || []).filter(isVariableElectricity);
 
         const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
-        const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
+        const zaaltZardluud = zardluud.filter(isVariableElectricity);
 
         console.log("⚡ [INVOICE] Electricity zardals check:", {
           gereeniiDugaar: tempData.gereeniiDugaar,
@@ -992,6 +1013,14 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     const normalizedZardluud = normalizeZardluudTurul(finalZardluud);
+    
+    // Log electricity entries in normalizedZardluud
+    const electricityInNormalized = normalizedZardluud.filter(z => z.zaalt === true);
+    console.log("⚡ [INVOICE] Electricity entries in normalizedZardluud:", {
+      gereeniiDugaar: tempData.gereeniiDugaar,
+      count: electricityInNormalized.length,
+      entries: electricityInNormalized.map(e => ({ ner: e.ner, dun: e.dun, tariff: e.tariff, zaalt: e.zaalt }))
+    });
 
     let zardluudWithDun = normalizedZardluud.map((zardal) => {
       if (zardal.zaalt === true) {
@@ -1140,6 +1169,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
         : "Гаран үүссэн нэхэмжлэх");
     tuukh.zagvariinNer = tempData.zagvariinNer || org.ner;
 
+    // Log electricity in final zardluud
+    const electricityInFinal = tuukh.medeelel.zardluud.filter(z => z.zaalt === true);
+    console.log("⚡ [INVOICE] FINAL - Electricity entries being saved:", {
+      gereeniiDugaar: tempData.gereeniiDugaar,
+      count: electricityInFinal.length,
+      entries: electricityInFinal.map(e => ({ ner: e.ner, dun: e.dun, tariff: e.tariff, zaalt: e.zaalt }))
+    });
     console.log(`💰 [LIFT] FINAL INVOICE - niitTulbur: ${tuukh.niitTulbur}, zardluud count: ${tuukh.medeelel.zardluud.length}, lift charges: ${tuukh.medeelel.zardluud.filter(z => z.zardliinTurul === "Лифт").length}`);
 
     const tailbarText =
@@ -1970,8 +2006,21 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
     // Add electricity (zaalt) entries for preview - process ALL zaalt zardals
     // Combine both contract-level and building-level electricity expenses
     try {
-      const gereeZaaltZardluud = (geree.zardluud || []).filter(z => z.zaalt === true);
-      const buildingZaaltZardluud = ashiglaltiinZardluud.filter(z => z.zaalt === true);
+      // Helper to check if an expense is a VARIABLE electricity charge (meter-based)
+      // "Дундын өмчлөл Цахилгаан" is FIXED - should NOT be processed as zaalt
+      // Only "Цахилгаан" (without "дундын" or "өмчлөл") should be processed as zaalt
+      const isVariableElectricity = (z) => {
+        if (!z.zaalt) return false;
+        const nameLower = (z.ner || "").toLowerCase();
+        // Exclude fixed electricity charges from zaalt processing
+        if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) {
+          return false;
+        }
+        return true;
+      };
+      
+      const gereeZaaltZardluud = (geree.zardluud || []).filter(isVariableElectricity);
+      const buildingZaaltZardluud = ashiglaltiinZardluud.filter(isVariableElectricity);
       
       // Combine both sources, then deduplicate by name (contract entries take priority)
       const combinedZaalt = [...gereeZaaltZardluud, ...buildingZaaltZardluud];
