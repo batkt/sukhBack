@@ -598,9 +598,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }).lean();
         
         if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
-          // Sum up all ekhniiUldegdel records and use uldegdel (remaining balance)
+          // Sum up all ekhniiUldegdel records and use undsenDun (original amount, not uldegdel which is after payments)
           ekhniiUldegdelFromOrshinSuugch = tulukhAvlagaRecords.reduce((sum, record) => {
-            return sum + Number(record.uldegdel || record.tulukhDun || 0);
+            return sum + Number(record.undsenDun || record.tulukhDun || 0);
           }, 0);
           console.log(`💰 [INVOICE] ekhniiUldegdel from gereeniiTulukhAvlaga: ${ekhniiUldegdelFromOrshinSuugch}₮`);
         }
@@ -1885,9 +1885,9 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       }).lean();
       
       if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
-        // Sum up all ekhniiUldegdel records and use uldegdel (remaining balance)
+        // Sum up all ekhniiUldegdel records and use undsenDun (original amount, not uldegdel which is after payments)
         ekhniiUldegdelAmount = tulukhAvlagaRecords.reduce((sum, record) => {
-          return sum + Number(record.uldegdel || record.tulukhDun || 0);
+          return sum + Number(record.undsenDun || record.tulukhDun || 0);
         }, 0);
         console.log(`💰 [PREVIEW] Found ekhniiUldegdel in gereeniiTulukhAvlaga: ${ekhniiUldegdelAmount}₮`);
       }
