@@ -1021,23 +1021,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     }
 
-    if (hasEkhniiUldegdel && ekhniiUldegdelAmount > 0) {
-      zardluudWithDun.push({
-        _id: ekhniiUldegdelId || `init-${Math.random()}`,
-        ner: "Эхний үлдэгдэл",
-        turul: "Тогтмол",
-        bodokhArga: "тогтмол",
-        zardliinTurul: "Энгийн",
-        tariff: ekhniiUldegdelAmount,
-        tariffUsgeer: tempData.ekhniiUldegdelUsgeer || "₮",
-        dun: ekhniiUldegdelAmount,
-        zaalt: false,
-        ognoonuud: [],
-        nuatNemekhEsekh: false,
-        nuatBodokhEsekh: false,
-      });
-      console.log(`💰 [INVOICE] Added ekhniiUldegdel to zardluud: ${ekhniiUldegdelAmount}₮`);
-    }
+    // Always add ekhniiUldegdel row (even when 0) for display purposes
+    zardluudWithDun.push({
+      _id: ekhniiUldegdelId || `init-${Math.random()}`,
+      ner: "Эхний үлдэгдэл",
+      turul: "Тогтмол",
+      bodokhArga: "тогтмол",
+      zardliinTurul: "Энгийн",
+      tariff: ekhniiUldegdelAmount,
+      tariffUsgeer: tempData.ekhniiUldegdelUsgeer || "₮",
+      dun: ekhniiUldegdelAmount,
+      zaalt: false,
+      ognoonuud: [],
+      nuatNemekhEsekh: false,
+      nuatBodokhEsekh: false,
+      isEkhniiUldegdel: true, // Flag to identify this row
+    });
+    console.log(`💰 [INVOICE] Added ekhniiUldegdel to zardluud: ${ekhniiUldegdelAmount}₮`);
 
     zardluudWithDun = zardluudWithDun.map(zardal => {
       if (zardal.zaalt === true) {
@@ -1878,30 +1878,30 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
     // Calculate zardluudTotal BEFORE adding ekhniiUldegdel to match gereeNeesNekhemjlekhUusgekh logic
     const zardluudTotal = zardluudWithDun.reduce((sum, zardal) => sum + (zardal.dun || 0), 0);
 
-    if (ekhniiUldegdelAmount > 0) {
-      zardluudWithDun.push({
-        ner: "Эхний үлдэгдэл",
-        turul: "Тогтмол",
-        bodokhArga: "тогтмол",
-        zardliinTurul: "Энгийн",
-        tariff: ekhniiUldegdelAmount,
-        tariffUsgeer: "₮",
-        dun: ekhniiUldegdelAmount,
-        zaalt: false,
-        ognoonuud: [],
-        nuatNemekhEsekh: false,
-        nuatBodokhEsekh: false,
-        tseverUsDun: 0,
-        bokhirUsDun: 0,
-        usKhalaasniiDun: 0,
-        tsakhilgaanUrjver: 1,
-        tsakhilgaanChadal: 0,
-        tsakhilgaanDemjikh: 0,
-        suuriKhuraamj: 0,
-        togtmolUtga: 0,
-        choloolugdsonDavkhar: false,
-      });
-    }
+    // Always add ekhniiUldegdel row (even when 0) for display purposes
+    zardluudWithDun.push({
+      ner: "Эхний үлдэгдэл",
+      turul: "Тогтмол",
+      bodokhArga: "тогтмол",
+      zardliinTurul: "Энгийн",
+      tariff: ekhniiUldegdelAmount,
+      tariffUsgeer: "₮",
+      dun: ekhniiUldegdelAmount,
+      zaalt: false,
+      ognoonuud: [],
+      nuatNemekhEsekh: false,
+      nuatBodokhEsekh: false,
+      tseverUsDun: 0,
+      bokhirUsDun: 0,
+      usKhalaasniiDun: 0,
+      tsakhilgaanUrjver: 1,
+      tsakhilgaanChadal: 0,
+      tsakhilgaanDemjikh: 0,
+      suuriKhuraamj: 0,
+      togtmolUtga: 0,
+      choloolugdsonDavkhar: false,
+      isEkhniiUldegdel: true, // Flag to identify this row
+    });
 
     const finalNiitTulbur = zardluudTotal + ekhniiUldegdelAmount;
 
