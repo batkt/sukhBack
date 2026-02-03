@@ -277,6 +277,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
 
     let orshinSuugchResult = null;
     let mashinResult = null;
+    let orshinSuugchMashinResult = null;
 
     // Харилцагчийн мэдээллийг хадгална/засварлана
     if (orshinSuugchMedeelel) {
@@ -315,8 +316,8 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
               zochinTurul: "Оршин суугч"
             };
           }
-
-          await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
+          
+          orshinSuugchMashinResult = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
             filter,
             {
                $set: {
@@ -423,6 +424,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       data: {
         orshinSuugch: orshinSuugchResult,
         mashin: mashinResult,
+        orshinSuugchMashin: orshinSuugchMashinResult,
         jagsaalt: mashiniiJagsaalt,
       },
     });
