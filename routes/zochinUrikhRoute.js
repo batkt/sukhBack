@@ -14,31 +14,25 @@ async function orshinSuugchKhadgalya(
   utas,
   tukhainBaaziinKholbolt
 ) {
+  const phoneString = Array.isArray(utas) ? utas[0] : String(utas || "").trim();
   if (!orshinSuugchMedeelel) return null;
-  // Remove silent try-catch to properly handle errors
   
-  // ID байгаа эсэхийг шалгана
   const orshinSuugchId = orshinSuugchMedeelel._id;
   if (orshinSuugchId) {
-    // ID байгаа бол засварлах - зөвхөн өөрчлөгдсөн талбарууд л шинэчлэгдэнэ
     const existingOrshinSuugch = await OrshinSuugch(
       tukhainBaaziinKholbolt
     ).findById(orshinSuugchId);
     if (existingOrshinSuugch) {
-      // Өөрчлөгдсөн талбарууд л шинэчлэх
       const updateFields = {};
-      // Талбарууд бүрийг шалгаж, өөрчлөгдсөн эсэхийг тодорхойлно
       Object.keys(orshinSuugchMedeelel).forEach((key) => {
         if (key !== "_id" && key !== "createdAt" && key !== "__v") {
           const newValue = orshinSuugchMedeelel[key];
           const oldValue = existingOrshinSuugch[key];
-          // Өөрчлөгдсөн талбаруудыг л нэмнэ
           if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
             updateFields[key] = newValue;
           }
         }
       });
-      // Өөрчлөлт байгаа бол л шинэчилнэ
       if (Object.keys(updateFields).length > 0) {
         updateFields.updatedAt = new Date();
         return await OrshinSuugch(tukhainBaaziinKholbolt).findByIdAndUpdate(
@@ -57,7 +51,7 @@ async function orshinSuugchKhadgalya(
     // Утасны дугаараар давхцах эсэхийг шалгана
     const existingByUtas = await OrshinSuugch(tukhainBaaziinKholbolt).findOne(
       {
-        utas: { $in: [utas] },
+        utas: phoneString,
         barilgiinId: orshinSuugchMedeelel.barilgiinId,
       }
     );
@@ -68,7 +62,7 @@ async function orshinSuugchKhadgalya(
     }
     const newOrshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
       ...orshinSuugchData,
-      utas: orshinSuugchData.utas || [utas],
+      utas: orshinSuugchData.utas || phoneString,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -218,6 +212,9 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       });
     }
 
+    // Sanitize ezemshigchiinUtas to be a string
+    const phoneString = Array.isArray(ezemshigchiinUtas) ? ezemshigchiinUtas[0] : String(ezemshigchiinUtas).trim();
+
     let inviterSettings = null;
     const inviterId = req.body.nevtersenAjiltniiToken?.id;
     const requesterRole = req.body.nevtersenAjiltniiToken?.erkh;
@@ -298,7 +295,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
 
         orshinSuugchResult = await orshinSuugchKhadgalya(
           residentData,
-          ezemshigchiinUtas,
+          phoneString,
           db.erunkhiiKholbolt
         );
 
@@ -379,7 +376,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       var existingMashin = await Mashin(tukhainBaaziinKholbolt).findOne({
         dugaar: mashiniiDugaar,
         baiguullagiinId: baiguullagiinId,
-        ezemshigchiinUtas: ezemshigchiinUtas,
+        ezemshigchiinUtas: phoneString,
       });
 
       if (existingMashin) {
@@ -393,14 +390,14 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
         baiguullagiinId: baiguullagiinId,
         barilgiinId: barilgiinId,
         dugaar: mashiniiDugaar,
-        ezemshigchiinUtas: ezemshigchiinUtas,
+        ezemshigchiinUtas: phoneString,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       var gereeObject = await Geree(tukhainBaaziinKholbolt, true).findOne({
         baiguullagiinId: baiguullagiinId,
-        utas: ezemshigchiinUtas,
+        utas: phoneString,
         tuluv: { $ne: -1 },
       });
       if (gereeObject) {
