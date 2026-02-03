@@ -145,6 +145,7 @@ async function markInvoicesAsPaid(options) {
       // NEW: Also create a history record for this prepayment so it's visible and counts 
       // towards the dashboard balance reduction.
       try {
+        const paymentDate = ognoo ? new Date(ognoo) : new Date();
         const prepayDoc = new GereeniiTulsunAvlagaModel({
           baiguullagiinId: String(baiguullagiinId),
           baiguullagiinNer: gereeToUpdate.baiguullagiinNer || "",
@@ -154,7 +155,7 @@ async function markInvoicesAsPaid(options) {
           orshinSuugchId: gereeToUpdate.orshinSuugchId || orshinSuugchId || "",
           nekhemjlekhId: null,
 
-          ognoo: new Date(),
+          ognoo: paymentDate,
           tulsunDun: dun,
           tulsunAldangi: 0,
 
@@ -268,45 +269,7 @@ async function markInvoicesAsPaid(options) {
         gereePaymentMap.set(key, prev + amountToApply);
       }
 
-      // NEW: persist paid portion as gereeniiTulsunAvlaga row
-      try {
-        const tulsunDoc = new GereeniiTulsunAvlagaModel({
-          baiguullagiinId: String(updatedInvoice.baiguullagiinId),
-          baiguullagiinNer: updatedInvoice.baiguullagiinNer || "",
-          barilgiinId: updatedInvoice.barilgiinId || "",
-          gereeniiId: updatedInvoice.gereeniiId,
-          gereeniiDugaar: updatedInvoice.gereeniiDugaar || "",
-          orshinSuugchId: updatedInvoice.orshinSuugchId || "",
-          nekhemjlekhId: updatedInvoice._id.toString(),
-
-          ognoo: paymentDate,
-          tulsunDun: amountToApply,
-          tulsunAldangi: 0, // can be split later if needed
-
-          turul: "invoice_payment",
-          zardliinTurul: "",
-          zardliinId: "",
-          zardliinNer: "",
-
-          tailbar:
-            tailbar ||
-            (isFullyPaid
-              ? "Нэхэмжлэх бүрэн төлөгдлөө"
-              : `Нэхэмжлэлийн хэсэгчилсэн төлбөр: ${amountToApply}₮`),
-
-          source: "nekhemjlekh",
-          guilgeeKhiisenAjiltniiNer: null,
-          guilgeeKhiisenAjiltniiId: null,
-        });
-
-        const savedTulsun = await tulsunDoc.save();
-        tulsunAvlagaDocs.push(savedTulsun);
-      } catch (tulsunError) {
-        console.error(
-          "❌ [INVOICE PAYMENT] Error creating gereeniiTulsunAvlaga:",
-          tulsunError.message
-        );
-      }
+      // NOTE: Do NOT create gereeniiTulsunAvlaga per invoice here - we create ONE consolidated record after the loop
 
       // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel and is fully paid
       if (isFullyPaid && updatedInvoice.ekhniiUldegdel && updatedInvoice.ekhniiUldegdel > 0) {
@@ -323,6 +286,48 @@ async function markInvoicesAsPaid(options) {
       }
     } catch (error) {
       console.error(`❌ [INVOICE PAYMENT] Error updating invoice ${invoice._id}:`, error.message);
+    }
+  }
+
+  // Create ONE consolidated gereeniiTulsunAvlaga record for the full payment amount (dun)
+  // so one user payment shows as one entry in HistoryModal, not split across invoices
+  if (dun > 0 && (updatedInvoices.length > 0 || invoices.length > 0)) {
+    const paymentDate = ognoo ? new Date(ognoo) : new Date();
+    const firstInvoice = updatedInvoices.length > 0 ? updatedInvoices[0].invoice : invoices[0];
+    try {
+      const tulsunDoc = new GereeniiTulsunAvlagaModel({
+        baiguullagiinId: String(firstInvoice.baiguullagiinId),
+        baiguullagiinNer: firstInvoice.baiguullagiinNer || "",
+        barilgiinId: firstInvoice.barilgiinId || "",
+        gereeniiId: firstInvoice.gereeniiId,
+        gereeniiDugaar: firstInvoice.gereeniiDugaar || "",
+        orshinSuugchId: firstInvoice.orshinSuugchId || "",
+        nekhemjlekhId: firstInvoice._id?.toString() || null,
+
+        ognoo: paymentDate,
+        tulsunDun: dun,
+        tulsunAldangi: 0,
+
+        turul: "invoice_payment",
+        zardliinTurul: "",
+        zardliinId: "",
+        zardliinNer: "",
+
+        tailbar: tailbar || "Төлөлт хийгдлээ",
+
+        source: "nekhemjlekh",
+        guilgeeKhiisenAjiltniiNer: null,
+        guilgeeKhiisenAjiltniiId: null,
+      });
+
+      const savedTulsun = await tulsunDoc.save();
+      tulsunAvlagaDocs.push(savedTulsun);
+      console.log(`✅ [INVOICE PAYMENT] Created single consolidated payment record: ${dun}₮`);
+    } catch (tulsunError) {
+      console.error(
+        "❌ [INVOICE PAYMENT] Error creating gereeniiTulsunAvlaga:",
+        tulsunError.message
+      );
     }
   }
 
@@ -371,43 +376,8 @@ async function markInvoicesAsPaid(options) {
             gereePositiveBalanceMap.set(gereeId, geree.positiveBalance);
             console.log(`💰 [INVOICE PAYMENT] Added ${balancePerGeree}₮ to positiveBalance for geree ${gereeId}`);
 
-            // NEW: persist positiveBalance as gereeniiTulsunAvlaga row (prepayment)
-            try {
-              const prepayDoc = new GereeniiTulsunAvlagaModel({
-                baiguullagiinId: String(baiguullagiinId),
-                baiguullagiinNer: geree.baiguullagiinNer || "",
-                barilgiinId: geree.barilgiinId || "",
-                gereeniiId: geree._id.toString(),
-                gereeniiDugaar: geree.gereeniiDugaar || "",
-                orshinSuugchId: geree.orshinSuugchId || "",
-                nekhemjlekhId: null,
-
-                ognoo: new Date(),
-                tulsunDun: balancePerGeree,
-                tulsunAldangi: 0,
-
-                turul: "prepayment",
-                zardliinTurul: "",
-                zardliinId: "",
-                zardliinNer: "",
-
-                tailbar:
-                  tailbar ||
-                  `Нэхэмжлэхгүй илүү төлөлт (positiveBalance): ${balancePerGeree}₮`,
-
-                source: "geree",
-                guilgeeKhiisenAjiltniiNer: null,
-                guilgeeKhiisenAjiltniiId: null,
-              });
-
-              const savedPrepay = await prepayDoc.save();
-              tulsunAvlagaDocs.push(savedPrepay);
-            } catch (prepayError) {
-              console.error(
-                "❌ [INVOICE PAYMENT] Error creating prepayment gereeniiTulsunAvlaga:",
-                prepayError.message
-              );
-            }
+            // Skip creating separate prepayment gereeniiTulsunAvlaga - the consolidated record above already has the full payment
+            // (Creating both would show 2 payment entries for one user payment)
 
             // PositiveBalance changes also affect globalUldegdel view, so recalc
             gereesNeedingRecalc.add(String(geree._id.toString()));
