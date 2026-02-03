@@ -723,14 +723,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
             let zaaltDefaultDun = 0;
             let zaaltDun = 0;
             let isFixedCharge = false;
+            let kwhTariff = zaaltTariff; // from orshinSuugch.tsahilgaaniiZaalt
             
-            // Check if this is a FIXED electricity charge (like "Дундын өмчлөл Цахилгаан")
-            // Fixed charges have: tariff > 0, and either zaaltTariff = 0 or no readings expected
-            // They should use the tariff value directly without calculation
-            const hasFixedTariff = (gereeZaaltZardal.tariff > 0) && 
-              (!gereeZaaltZardal.zaaltTariff || gereeZaaltZardal.zaaltTariff === 0);
+            // Determine if this is a FIXED or CALCULATED electricity charge:
+            // FIXED: turul = "Тогтмол" and tariffUsgeer = "₮" or "кВт" but meant as fixed amount
+            // CALCULATED: turul = "Дурын" or tariffUsgeer = "кВт" with calculation needed
+            // 
+            // Key distinction: 
+            // - "Дундын өмчлөл Цахилгаан": turul="Тогтмол", tariff=6883.44 -> FIXED (use tariff directly)
+            // - "Цахилгаан": turul="Дурын", tariff=2000 (кВт rate), tariffUsgeer="кВт" -> CALCULATED
             
-            if (hasFixedTariff) {
+            const isCalculatedType = gereeZaaltZardal.turul === "Дурын" || 
+              (gereeZaaltZardal.tariffUsgeer === "кВт" && gereeZaaltZardal.turul !== "Тогтмол");
+            
+            if (!isCalculatedType) {
               // This is a FIXED electricity charge - use tariff directly
               isFixedCharge = true;
               zaaltDun = gereeZaaltZardal.tariff || gereeZaaltZardal.dun || 0;
@@ -738,11 +744,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
               console.log("⚡ [INVOICE] Fixed electricity charge (no calculation):", {
                 gereeniiDugaar: tempData.gereeniiDugaar,
                 ner: gereeZaaltZardal.ner,
-                fixedTariff: zaaltDun,
-                reason: "tariff > 0 and zaaltTariff = 0"
+                turul: gereeZaaltZardal.turul,
+                fixedTariff: zaaltDun
               });
             } else {
               // This is a CALCULATED electricity charge - needs Excel reading
+              // For calculated: tariff = кВт rate, suuriKhuraamj = base fee
+              // If no kWh rate from orshinSuugch, use tariff from zardal as kWh rate
+              if (!kwhTariff || kwhTariff === 0) {
+                kwhTariff = gereeZaaltZardal.tariff || 0;
+              }
+              
               try {
                 const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
                 const gereeniiId = tempData._id?.toString() || tempData.gereeniiId || tempData._id;
@@ -764,6 +776,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 }
 
                 if (latestReading) {
+                  // Get defaultDun (base fee) from Excel reading
                   zaaltDefaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
                   console.log("💰 [INVOICE] Using defaultDun from Excel reading:", {
                     gereeniiDugaar: tempData.gereeniiDugaar,
@@ -780,21 +793,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 console.error("❌ [INVOICE] Error fetching latest reading:", error.message);
               }
 
+              // Fallback to zardal's suuriKhuraamj or zaaltDefaultDun
               if (!zaaltDefaultDun) {
-                zaaltDefaultDun = gereeZaaltZardal.zaaltDefaultDun || 0;
+                zaaltDefaultDun = Number(gereeZaaltZardal.suuriKhuraamj) || gereeZaaltZardal.zaaltDefaultDun || 0;
               }
 
-              // Calculate: (usage * rate) + base fee
-              zaaltDun = (zoruu * zaaltTariff) + zaaltDefaultDun;
+              // Calculate: (usage * kWh_rate) + base fee
+              zaaltDun = (zoruu * kwhTariff) + zaaltDefaultDun;
               
               console.log("⚡ [INVOICE] Calculated electricity charge:", {
                 gereeniiDugaar: tempData.gereeniiDugaar,
                 ner: gereeZaaltZardal.ner,
+                turul: gereeZaaltZardal.turul,
                 zoruu: zoruu,
-                zaaltTariff: zaaltTariff,
+                kwhTariff: kwhTariff,
                 defaultDun: zaaltDefaultDun,
                 zaaltDun: zaaltDun,
-                formula: `(${zoruu} * ${zaaltTariff}) + ${zaaltDefaultDun} = ${zaaltDun}`
+                formula: `(${zoruu} * ${kwhTariff}) + ${zaaltDefaultDun} = ${zaaltDun}`
               });
             }
             
@@ -1927,40 +1942,54 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
           let electricityDun = 0;
           let zoruu = 0;
           let defaultDun = 0;
+          let kwhTariff = zaaltTariff; // from orshinSuugch
           
-          // Check if this is a fixed electricity charge (like "Дундын өмчлөл Цахилгаан")
-          // Fixed charges have tariff > 0 and zaaltTariff = 0 (or no zaaltTariff set)
-          const isFixedCharge = (zaaltZardal.tariff > 0) && (!zaaltZardal.zaaltTariff || zaaltZardal.zaaltTariff === 0);
+          // Determine if this is a FIXED or CALCULATED electricity charge:
+          // FIXED: turul = "Тогтмол" -> use tariff directly
+          // CALCULATED: turul = "Дурын" or tariffUsgeer = "кВт" with calculation
+          const isCalculatedType = zaaltZardal.turul === "Дурын" || 
+            (zaaltZardal.tariffUsgeer === "кВт" && zaaltZardal.turul !== "Тогтмол");
           
-          if (isFixedCharge) {
-            // Use fixed tariff directly
+          if (!isCalculatedType) {
+            // FIXED electricity charge - use tariff directly
             electricityDun = zaaltZardal.tariff || zaaltZardal.dun || 0;
             
             console.log("⚡ [PREVIEW] Fixed electricity charge:", {
               gereeniiDugaar: geree.gereeniiDugaar,
               ner: zaaltZardal.ner,
+              turul: zaaltZardal.turul,
               fixedTariff: electricityDun
             });
-          } else if (latestReading) {
-            // Calculate from zaalt reading
-            zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
-            defaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
-            const effectiveTariff = zaaltTariff || zaaltZardal.zaaltTariff || 0;
-            electricityDun = (zoruu * effectiveTariff) + defaultDun;
+          } else {
+            // CALCULATED electricity charge
+            // For calculated: tariff = кВт rate, suuriKhuraamj = base fee
+            if (!kwhTariff || kwhTariff === 0) {
+              kwhTariff = zaaltZardal.tariff || 0;
+            }
+            
+            if (latestReading) {
+              // Calculate from zaalt reading
+              zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
+              defaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
+            }
+            
+            // Fallback to zardal's suuriKhuraamj
+            if (!defaultDun) {
+              defaultDun = Number(zaaltZardal.suuriKhuraamj) || zaaltZardal.zaaltDefaultDun || 0;
+            }
+            
+            electricityDun = (zoruu * kwhTariff) + defaultDun;
             
             console.log("⚡ [PREVIEW] Calculated electricity charge:", {
               gereeniiDugaar: geree.gereeniiDugaar,
               ner: zaaltZardal.ner,
+              turul: zaaltZardal.turul,
               zoruu,
-              zaaltTariff: effectiveTariff,
+              kwhTariff,
               defaultDun,
               electricityDun,
-              formula: `(${zoruu} * ${effectiveTariff}) + ${defaultDun} = ${electricityDun}`
+              formula: `(${zoruu} * ${kwhTariff}) + ${defaultDun} = ${electricityDun}`
             });
-          } else {
-            // No reading - skip calculated charges or use fallback
-            console.log("⚠️ [PREVIEW] No reading for calculated electricity, skipping:", zaaltZardal.ner);
-            continue;
           }
           
           if (electricityDun > 0) {
@@ -1970,10 +1999,10 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
               bodokhArga: "тогтмол",
               zardliinTurul: zaaltZardal.zardliinTurul || "Цахилгаан",
               tariff: electricityDun,
-              tariffUsgeer: isFixedCharge ? (zaaltZardal.tariffUsgeer || "₮") : "₮",
+              tariffUsgeer: !isCalculatedType ? (zaaltZardal.tariffUsgeer || "₮") : "₮",
               dun: electricityDun,
               zaalt: true,
-              zaaltTariff: isFixedCharge ? 0 : zaaltTariff,
+              zaaltTariff: isCalculatedType ? kwhTariff : 0,
               zoruu: zoruu,
               suuriKhuraamj: defaultDun,
               ognoonuud: [],
