@@ -3514,25 +3514,15 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                 customerId: billingInfo.customerId,
               };
 
-              // saveBilling requires phoneNumber, not walletUserId
-              console.log("🔍 [WALLET REGISTER] Using phoneNumber for saveBilling:", phoneNumber);
               const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
-              console.log("✅ [WALLET REGISTER] Billing auto-connected to Wallet API account");
-              console.log("✅ [WALLET REGISTER] Connection result:", JSON.stringify(connectResult));
             } catch (connectError) {
-              console.error("❌ [WALLET REGISTER] Error auto-connecting billing:", connectError.message);
               if (connectError.response) {
-                console.error("❌ [WALLET REGISTER] Error response status:", connectError.response.status);
-                console.error("❌ [WALLET REGISTER] Error response data:", JSON.stringify(connectError.response.data));
               }
-              // Don't throw - billing info is still saved locally
             }
           } else {
             // Try to connect billing without billingId using customerId
             if (billingInfo.customerId) {
               try {
-                console.log("🔗 [WALLET REGISTER] Attempting to connect billing without billingId...");
-                console.log("🔗 [WALLET REGISTER] Using customerId:", billingInfo.customerId);
                 
                 // Send only customerId - Wallet API will return full billing info including billingId
                 const billingData = {
@@ -3541,26 +3531,17 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
 
                 // Try to save without billingId - Wallet API might create it
                 // saveBilling requires phoneNumber, not walletUserId
-                console.log("🔍 [WALLET REGISTER] Using phoneNumber for saveBilling:", phoneNumber);
                 const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
-                console.log("✅ [WALLET REGISTER] Billing connected without billingId");
-                console.log("✅ [WALLET REGISTER] Connection result:", JSON.stringify(connectResult));
                 
                 // If successful, update billingInfo with returned billingId
                 if (connectResult && connectResult.billingId) {
                   billingInfo.billingId = connectResult.billingId;
-                  console.log("✅ [WALLET REGISTER] Got billingId from save response:", billingInfo.billingId);
                 }
               } catch (connectError) {
-                console.error("❌ [WALLET REGISTER] Error connecting billing without billingId:", connectError.message);
                 if (connectError.response) {
-                  console.error("❌ [WALLET REGISTER] Error response status:", connectError.response.status);
-                  console.error("❌ [WALLET REGISTER] Error response data:", JSON.stringify(connectError.response.data));
                 }
               }
             } else {
-              console.warn("⚠️ [WALLET REGISTER] Billing ID not found - cannot connect to Wallet API");
-              console.warn("⚠️ [WALLET REGISTER] Customer ID:", billingInfo.customerId);
               console.warn("⚠️ [WALLET REGISTER] Customer Code:", billingInfo.customerCode);
             }
           }

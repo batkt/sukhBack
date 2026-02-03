@@ -113,17 +113,49 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       ? Number(body.khuudasniiKhemjee) 
       : 1000;
     
-    // Add baiguullagiinId filter (required)
-    // Convert to string to ensure proper matching
-    body.query.baiguullagiinId = String(baiguullagiinId);
+    // Create filters for baiguullagiinId and barilgiinId
+    // We must check BOTH top-level fields AND the toots array (nested objects)
+    // This ensures we find residents even if they are primarily associated with another organization
     
-    // Add barilgiinId filter if provided
+    const filters = [];
+    
+    // 1. BaiguullagiinId filter (Required)
+    const baiguullagiinIdString = String(baiguullagiinId);
+    filters.push({
+      $or: [
+        { baiguullagiinId: baiguullagiinIdString },
+        { "toots.baiguullagiinId": baiguullagiinIdString }
+      ]
+    });
+    
+    // 2. BarilgiinId filter (Optional)
     if (barilgiinId) {
-      // Look for barilgiinId at top level OR inside the toots array
-      body.query.$or = [
-        { barilgiinId: String(barilgiinId) },
-        { "toots.barilgiinId": String(barilgiinId) }
-      ];
+      const barilgiinIdString = String(barilgiinId);
+      filters.push({
+        $or: [
+          { barilgiinId: barilgiinIdString },
+          { "toots.barilgiinId": barilgiinIdString }
+        ]
+      });
+    }
+
+    // 3. Combine with existing query params (search, etc.)
+    // If body.query is not empty, we need to preserve existing filters
+    if (Object.keys(body.query).length > 0) {
+      // Use $and to combine existing query with our new structural filters
+      body.query = {
+        $and: [
+          body.query, // Existing filters (e.g. from search inputs)
+          ...filters
+        ]
+      };
+    } else {
+      // If no existing query, just combine our filters
+      if (filters.length === 1) {
+        body.query = filters[0];
+      } else {
+        body.query = { $and: filters };
+      }
     }
     
     // Residents MUST be in erunkhiiKholbolt
@@ -145,7 +177,48 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       niitMur % khuudasniiKhemjee == 0
         ? Math.floor(niitMur / khuudasniiKhemjee)
         : Math.floor(niitMur / khuudasniiKhemjee) + 1;
-    if (jagsaalt != null) jagsaalt.forEach((mur) => (mur.key = mur._id));
+    if (jagsaalt != null) {
+      // Map tenant-specific data to top-level fields if found in toots array
+      const targetBaiguullagiinId = String(body.query.baiguullagiinId || baiguullagiinId);
+      
+      jagsaalt.forEach((mur) => {
+        mur.key = mur._id;
+        
+        // If query has baiguullagiinId, ensure the returned object reflects that organization's data
+        if (targetBaiguullagiinId && Array.isArray(mur.toots)) {
+          // Find the specific toot entry for this organization
+          let matchingToot = null;
+          
+          if (mur.toots && mur.toots.length > 0) {
+            matchingToot = mur.toots.find(t => 
+              String(t.baiguullagiinId) === targetBaiguullagiinId
+            );
+          }
+          
+          // If found and it's different from the main record (or if main record is just different org)
+          if (matchingToot) {
+            // We found a specific entry for this org.
+            // Check if we need to project it to top level (if top level is different org)
+            if (String(mur.baiguullagiinId) !== targetBaiguullagiinId) {
+              // Overwrite top-level fields with specific tenant data for display consistency
+              if (matchingToot.toot) mur.toot = matchingToot.toot;
+              if (matchingToot.davkhar) mur.davkhar = matchingToot.davkhar;
+              if (matchingToot.orts) mur.orts = matchingToot.orts;
+              if (matchingToot.duureg) mur.duureg = matchingToot.duureg;
+              if (matchingToot.horoo) mur.horoo = matchingToot.horoo;
+              if (matchingToot.soh) mur.soh = matchingToot.soh;
+              if (matchingToot.bairniiNer) mur.bairniiNer = matchingToot.bairniiNer;
+              // Also map IDs so deletions/updates work on the right context if relying on these
+              mur.baiguullagiinId = matchingToot.baiguullagiinId;
+              mur.barilgiinId = matchingToot.barilgiinId;
+              
+              // Add a flag to indicate this is a projected view from secondary record
+              mur._isSecondaryView = true;
+            }
+          }
+        }
+      });
+    }
     res.send({
       khuudasniiDugaar,
       khuudasniiKhemjee,
