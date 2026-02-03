@@ -222,14 +222,22 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
     const inviterId = req.body.nevtersenAjiltniiToken?.id;
     const requesterRole = req.body.nevtersenAjiltniiToken?.erkh;
 
-    // 1. PLATE CHANGE RESTRICTION: Resident primary car
-    if (inviterId && orshinSuugchMedeelel?.zochinTurul === "Оршин суугч") {
+    // Fetch inviter's master settings (Primary resident car info)
+    let existingPrimary = null;
+    if (inviterId) {
         const OrshinSuugchMashinModel = require("../models/orshinSuugchMashin");
-        const existingPrimary = await OrshinSuugchMashinModel(db.erunkhiiKholbolt).findOne({
+        existingPrimary = await OrshinSuugchMashinModel(db.erunkhiiKholbolt).findOne({
             orshinSuugchiinId: inviterId,
             zochinTurul: "Оршин суугч"
         });
+    }
 
+    // Determine if this is the Resident's own car or a Guest invitation
+    const isResidentCar = orshinSuugchMedeelel?.zochinTurul === "Оршин суугч" || 
+                         (existingPrimary && existingPrimary.mashiniiDugaar === mashiniiDugaar);
+
+    // 1. PLATE CHANGE RESTRICTION: Resident primary car
+    if (inviterId && isResidentCar) {
         if (existingPrimary && existingPrimary.mashiniiDugaar !== mashiniiDugaar) {
             // App side restriction
             if (requesterRole === "OrshinSuugch") {
@@ -238,18 +246,14 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
                     return res.status(403).json({ success: false, message: "Машины дугаарыг сард нэг удаа өөрчлөх боломжтой" });
                 }
                 // Mark update time for resident-side change
-                orshinSuugchMedeelel.dugaarUurchilsunOgnoo = new Date();
+                if (orshinSuugchMedeelel) orshinSuugchMedeelel.dugaarUurchilsunOgnoo = new Date();
             }
         }
     }
 
     // 2. QUOTA CHECK: If we are inviting a guest car
-    if (inviterId && orshinSuugchMedeelel?.zochinTurul !== "Оршин суугч") {
-        const OrshinSuugchMashinModel = require("../models/orshinSuugchMashin");
-        inviterSettings = await OrshinSuugchMashinModel(db.erunkhiiKholbolt).findOne({
-            orshinSuugchiinId: inviterId,
-            zochinTurul: "Оршин суугч"
-        });
+    if (inviterId && !isResidentCar) {
+        inviterSettings = existingPrimary; // Use the settings we already fetched
 
         if (inviterSettings) {
             if (!inviterSettings.zochinUrikhEsekh) {
