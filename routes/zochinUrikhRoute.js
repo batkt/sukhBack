@@ -220,8 +220,30 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
 
     let inviterSettings = null;
     const inviterId = req.body.nevtersenAjiltniiToken?.id;
+    const requesterRole = req.body.nevtersenAjiltniiToken?.erkh;
 
-    // QUOTA CHECK: If we are inviting a guest car
+    // 1. PLATE CHANGE RESTRICTION: Resident primary car
+    if (inviterId && orshinSuugchMedeelel?.zochinTurul === "Оршин суугч") {
+        const OrshinSuugchMashinModel = require("../models/orshinSuugchMashin");
+        const existingPrimary = await OrshinSuugchMashinModel(db.erunkhiiKholbolt).findOne({
+            orshinSuugchiinId: inviterId,
+            zochinTurul: "Оршин суугч"
+        });
+
+        if (existingPrimary && existingPrimary.mashiniiDugaar !== mashiniiDugaar) {
+            // App side restriction
+            if (requesterRole === "OrshinSuugch") {
+                const oneMonthAgo = moment().subtract(1, 'month');
+                if (existingPrimary.dugaarUurchilsunOgnoo && moment(existingPrimary.dugaarUurchilsunOgnoo).isAfter(oneMonthAgo)) {
+                    return res.status(403).json({ success: false, message: "Машины дугаарыг сард нэг удаа өөрчлөх боломжтой" });
+                }
+                // Mark update time for resident-side change
+                orshinSuugchMedeelel.dugaarUurchilsunOgnoo = new Date();
+            }
+        }
+    }
+
+    // 2. QUOTA CHECK: If we are inviting a guest car
     if (inviterId && orshinSuugchMedeelel?.zochinTurul !== "Оршин суугч") {
         const OrshinSuugchMashinModel = require("../models/orshinSuugchMashin");
         inviterSettings = await OrshinSuugchMashinModel(db.erunkhiiKholbolt).findOne({
@@ -280,13 +302,24 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
         if (orshinSuugchResult) {
           const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
           
+          let filter = { 
+            orshinSuugchiinId: orshinSuugchResult._id,
+            mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar 
+          };
+
+          // If updating primary resident car, match by ID and Type to allow number change
+          if (orshinSuugchMedeelel.zochinTurul === "Оршин суугч") {
+            filter = {
+              orshinSuugchiinId: orshinSuugchResult._id,
+              zochinTurul: "Оршин суугч"
+            };
+          }
+
           await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
-            { 
-               orshinSuugchiinId: orshinSuugchResult._id,
-               mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar 
-            },
+            filter,
             {
                $set: {
+                mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar,
                 zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh,
                 zochinTurul: orshinSuugchMedeelel.zochinTurul,
                 davtamjiinTurul: orshinSuugchMedeelel.davtamjiinTurul,
