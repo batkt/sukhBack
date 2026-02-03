@@ -2619,7 +2619,11 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         const newNiitTulbur = updatedZardluud.reduce((sum, z) => sum + (z.dun || z.tariff || 0), 0);
         
         // Update the existing invoice
-        oldestUnsentInvoice.medeelel.zardluud = updatedZardluud;
+        // IMPORTANT: Create a new medeelel object to ensure Mongoose detects the change
+        oldestUnsentInvoice.medeelel = {
+          ...oldestUnsentInvoice.medeelel.toObject ? oldestUnsentInvoice.medeelel.toObject() : oldestUnsentInvoice.medeelel,
+          zardluud: updatedZardluud
+        };
         oldestUnsentInvoice.niitTulbur = newNiitTulbur;
         
         // Recalculate uldegdel: preserve existing uldegdel ratio or recalculate based on payments
@@ -2634,16 +2638,20 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         
         // Update zaalt metadata if available
         const zaaltEntry = newZardluudWithoutEkhniiUldegdel.find(z => z.zaalt === true && z.ner?.toLowerCase().includes("цахилгаан") && !z.ner?.toLowerCase().includes("дундын"));
-        if (zaaltEntry && oldestUnsentInvoice.medeelel.zaalt) {
-          oldestUnsentInvoice.medeelel.zaalt = {
-            ...oldestUnsentInvoice.medeelel.zaalt,
-            zoruu: zaaltEntry.zoruu || 0,
-            zaaltDun: zaaltEntry.dun || zaaltEntry.tariff || 0,
-          };
-        }
         if (zaaltEntry) {
+          oldestUnsentInvoice.medeelel = {
+            ...oldestUnsentInvoice.medeelel.toObject ? oldestUnsentInvoice.medeelel.toObject() : oldestUnsentInvoice.medeelel,
+            zaalt: {
+              ...(oldestUnsentInvoice.medeelel.zaalt || {}),
+              zoruu: zaaltEntry.zoruu || 0,
+              zaaltDun: zaaltEntry.dun || zaaltEntry.tariff || 0,
+            }
+          };
           oldestUnsentInvoice.tsahilgaanNekhemjlekh = zaaltEntry.dun || zaaltEntry.tariff || oldestUnsentInvoice.tsahilgaanNekhemjlekh;
         }
+        
+        // Mark medeelel as modified to ensure Mongoose saves the changes
+        oldestUnsentInvoice.markModified('medeelel');
         
         await oldestUnsentInvoice.save();
         
