@@ -695,6 +695,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }, 0);
 
     let ekhniiUldegdelFromOrshinSuugch = 0;
+    let ekhniiUldegdelTailbar = ""; // Store the description from gereeniiTulukhAvlaga
+    let ekhniiUldegdelRecordId = null; // Store the ID for reference
+    
     // Only fetch and include ekhniiUldegdel if the flag is true (checkbox checked)
     if (includeEkhniiUldegdel) {
       // First check gereeniiTulukhAvlaga for ekhniiUldegdel records (primary source)
@@ -707,11 +710,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }).lean();
         
         if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
-          // Sum up all ekhniiUldegdel records and use undsenDun (original amount, not uldegdel which is after payments)
+          // Sum up all ekhniiUldegdel records and use uldegdel (remaining balance after payments)
+          // This ensures the invoice shows the correct remaining amount, not the original amount
           ekhniiUldegdelFromOrshinSuugch = tulukhAvlagaRecords.reduce((sum, record) => {
-            return sum + Number(record.undsenDun || record.tulukhDun || 0);
+            // Use uldegdel (remaining) if available, otherwise fall back to undsenDun/tulukhDun
+            const amount = Number(record.uldegdel ?? record.undsenDun ?? record.tulukhDun ?? 0);
+            return sum + amount;
           }, 0);
-          console.log(`💰 [INVOICE] ekhniiUldegdel from gereeniiTulukhAvlaga: ${ekhniiUldegdelFromOrshinSuugch}₮`);
+          
+          // Get the tailbar (description) from the first record
+          const firstRecord = tulukhAvlagaRecords[0];
+          ekhniiUldegdelTailbar = firstRecord.tailbar || firstRecord.temdeglel || "";
+          ekhniiUldegdelRecordId = firstRecord._id?.toString();
+          
+          console.log(`💰 [INVOICE] ekhniiUldegdel from gereeniiTulukhAvlaga (uldegdel): ${ekhniiUldegdelFromOrshinSuugch}₮, tailbar: ${ekhniiUldegdelTailbar}`);
         }
       } catch (error) {
         console.error(`❌ [INVOICE] Error fetching ekhniiUldegdel from gereeniiTulukhAvlaga:`, error.message);
@@ -1242,7 +1254,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // Always add ekhniiUldegdel row (even when 0) for display purposes
     zardluudWithDun.push({
-      _id: ekhniiUldegdelId || `init-${Math.random()}`,
+      _id: ekhniiUldegdelRecordId || ekhniiUldegdelId || `init-${Math.random()}`,
       ner: "Эхний үлдэгдэл",
       turul: "Тогтмол",
       bodokhArga: "тогтмол",
@@ -1255,8 +1267,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
       nuatNemekhEsekh: false,
       nuatBodokhEsekh: false,
       isEkhniiUldegdel: true, // Flag to identify this row
+      tailbar: ekhniiUldegdelTailbar || "", // Include the description from gereeniiTulukhAvlaga
     });
-    console.log(`💰 [INVOICE] Added ekhniiUldegdel to zardluud: ${ekhniiUldegdelAmount}₮`);
+    console.log(`💰 [INVOICE] Added ekhniiUldegdel to zardluud: ${ekhniiUldegdelAmount}₮, tailbar: ${ekhniiUldegdelTailbar}`);
 
     zardluudWithDun = zardluudWithDun.map(zardal => {
       if (zardal.zaalt === true) {
@@ -2077,6 +2090,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
     }
 
     let ekhniiUldegdelAmount = 0;
+    let ekhniiUldegdelTailbar = ""; // Store the description from gereeniiTulukhAvlaga
     
     // First check gereeniiTulukhAvlaga for ekhniiUldegdel records (primary source)
     try {
@@ -2088,11 +2102,19 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       }).lean();
       
       if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
-        // Sum up all ekhniiUldegdel records and use undsenDun (original amount, not uldegdel which is after payments)
+        // Sum up all ekhniiUldegdel records and use uldegdel (remaining balance after payments)
+        // This ensures the preview shows the correct remaining amount, not the original amount
         ekhniiUldegdelAmount = tulukhAvlagaRecords.reduce((sum, record) => {
-          return sum + Number(record.undsenDun || record.tulukhDun || 0);
+          // Use uldegdel (remaining) if available, otherwise fall back to undsenDun/tulukhDun
+          const amount = Number(record.uldegdel ?? record.undsenDun ?? record.tulukhDun ?? 0);
+          return sum + amount;
         }, 0);
-        console.log(`💰 [PREVIEW] Found ekhniiUldegdel in gereeniiTulukhAvlaga: ${ekhniiUldegdelAmount}₮`);
+        
+        // Get the tailbar (description) from the first record
+        const firstRecord = tulukhAvlagaRecords[0];
+        ekhniiUldegdelTailbar = firstRecord.tailbar || firstRecord.temdeglel || "";
+        
+        console.log(`💰 [PREVIEW] Found ekhniiUldegdel in gereeniiTulukhAvlaga (uldegdel): ${ekhniiUldegdelAmount}₮, tailbar: ${ekhniiUldegdelTailbar}`);
       }
     } catch (error) {
       console.error("Error fetching ekhniiUldegdel from gereeniiTulukhAvlaga:", error.message);
@@ -2356,6 +2378,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       togtmolUtga: 0,
       choloolugdsonDavkhar: false,
       isEkhniiUldegdel: true, // Flag to identify this row
+      tailbar: ekhniiUldegdelTailbar || "", // Include the description from gereeniiTulukhAvlaga
     });
 
     const finalNiitTulbur = zardluudTotal + ekhniiUldegdelAmount;
@@ -2514,6 +2537,10 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
     } else if (existingUnsentInvoices.length > 0) {
       // If override=false but there are unsent invoices, update the oldest one
       const oldestUnsentInvoice = existingUnsentInvoices[0];
+      
+      // Check if this invoice has any payments (paymentHistory or partial payment)
+      const hasPayments = (oldestUnsentInvoice.paymentHistory && oldestUnsentInvoice.paymentHistory.length > 0) ||
+                          (oldestUnsentInvoice.uldegdel !== oldestUnsentInvoice.niitTulbur && oldestUnsentInvoice.uldegdel < oldestUnsentInvoice.niitTulbur);
 
       // SMART UPDATE CHECK: Calculate what the new invoice WOULD look like
       const previewResult = await previewInvoice(gereeId, baiguullagiinId, targetMonth, targetYear);
@@ -2535,6 +2562,47 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         }
 
         console.log(`🔄 [MANUAL SEND] Detected change (Old: ${oldTotal}, New: ${newTotal}). Updating invoice...`);
+        
+        // If invoice has payments, update in place instead of deleting
+        if (hasPayments) {
+          console.log(`💰 [MANUAL SEND] Invoice has payments - updating in place to preserve payment history`);
+          
+          // Update the existing invoice's zardluud with new data
+          oldestUnsentInvoice.medeelel.zardluud = previewResult.preview.zardluud;
+          oldestUnsentInvoice.niitTulbur = newTotal;
+          
+          // Recalculate uldegdel based on payment history
+          const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
+          oldestUnsentInvoice.uldegdel = Math.max(0, newTotal - totalPaid);
+          
+          // Update zaalt metadata if available
+          if (previewResult.preview.zardluud) {
+            const zaaltEntry = previewResult.preview.zardluud.find(z => z.zaalt === true && z.ner?.toLowerCase().includes("цахилгаан") && !z.ner?.toLowerCase().includes("дундын"));
+            if (zaaltEntry && oldestUnsentInvoice.medeelel.zaalt) {
+              oldestUnsentInvoice.medeelel.zaalt = {
+                ...oldestUnsentInvoice.medeelel.zaalt,
+                zoruu: zaaltEntry.zoruu || 0,
+                zaaltDun: zaaltEntry.dun || zaaltEntry.tariff || 0,
+              };
+            }
+            oldestUnsentInvoice.tsahilgaanNekhemjlekh = zaaltEntry?.dun || zaaltEntry?.tariff || oldestUnsentInvoice.tsahilgaanNekhemjlekh;
+          }
+          
+          await oldestUnsentInvoice.save();
+          
+          console.log(`✅ [MANUAL SEND] Updated invoice ${oldestUnsentInvoice.nekhemjlekhiinDugaar} in place, new total: ${newTotal}, uldegdel: ${oldestUnsentInvoice.uldegdel}`);
+          
+          return {
+            success: true,
+            nekhemjlekh: oldestUnsentInvoice,
+            gereeniiId: geree._id,
+            gereeniiDugaar: geree.gereeniiDugaar,
+            tulbur: newTotal,
+            alreadyExists: true,
+            updated: true,
+            preservedPayments: true
+          };
+        }
       }
 
       console.log(`🔄 [MANUAL SEND] Found existing unsent invoice: ${oldestUnsentInvoice.nekhemjlekhiinDugaar || oldestUnsentInvoice._id}`);
@@ -2546,8 +2614,15 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
       if (existingUnsentInvoices.length > 1) {
         for (let i = 1; i < existingUnsentInvoices.length; i++) {
           const extraInvoice = existingUnsentInvoices[i];
-          await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: extraInvoice._id });
-          console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${extraInvoice.nekhemjlekhiinDugaar || extraInvoice._id}`);
+          // Don't delete invoices that have payments
+          const extraHasPayments = (extraInvoice.paymentHistory && extraInvoice.paymentHistory.length > 0) ||
+                                   (extraInvoice.uldegdel !== extraInvoice.niitTulbur && extraInvoice.uldegdel < extraInvoice.niitTulbur);
+          if (!extraHasPayments) {
+            await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: extraInvoice._id });
+            console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${extraInvoice.nekhemjlekhiinDugaar || extraInvoice._id}`);
+          } else {
+            console.log(`⚠️ [MANUAL SEND] Kept invoice with payments: ${extraInvoice.nekhemjlekhiinDugaar || extraInvoice._id}`);
+          }
         }
       }
     }
