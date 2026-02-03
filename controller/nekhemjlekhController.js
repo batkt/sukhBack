@@ -676,14 +676,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
         });
 
         if (gereeZaaltZardluud.length > 0 || zaaltZardluud.length > 0) {
-          // Process ALL zaalt entries - both fixed and calculated
-          const rawZaaltZardluud = gereeZaaltZardluud.length > 0
-            ? gereeZaaltZardluud
-            : zaaltZardluud;
+          // Process ALL zaalt entries from BOTH contract and building level
+          // Combine both sources, with contract entries taking priority for same name
+          const combinedZaaltZardluud = [...gereeZaaltZardluud, ...zaaltZardluud];
           
-          // Keep only unique zaalt entries by name (first occurrence wins)
+          // Keep only unique zaalt entries by name (first occurrence wins = contract priority)
           const seenNames = new Set();
-          const zaaltZardluudToProcess = rawZaaltZardluud.filter(z => {
+          const zaaltZardluudToProcess = combinedZaaltZardluud.filter(z => {
             const key = z.ner || z.zardliinTurul || 'Цахилгаан';
             if (seenNames.has(key)) {
               console.log(`⚠️ [INVOICE] Skipping duplicate electricity entry: ${key}`);
@@ -691,6 +690,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
             }
             seenNames.add(key);
             return true;
+          });
+          
+          console.log("⚡ [INVOICE] Electricity entries to process:", {
+            gereeniiDugaar: tempData.gereeniiDugaar,
+            combinedCount: combinedZaaltZardluud.length,
+            afterDeduplication: zaaltZardluudToProcess.length,
+            entries: zaaltZardluudToProcess.map(z => ({
+              ner: z.ner,
+              tariffUsgeer: z.tariffUsgeer,
+              tariff: z.tariff,
+              suuriKhuraamj: z.suuriKhuraamj
+            }))
           });
           
           const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
@@ -776,30 +787,81 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 }
 
                 if (latestReading) {
-                  // Get defaultDun (base fee) from Excel reading
+                  // Get all calculation data from Excel reading
                   zaaltDefaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
-                  console.log("💰 [INVOICE] Using defaultDun from Excel reading:", {
-                    gereeniiDugaar: tempData.gereeniiDugaar,
-                    defaultDun: zaaltDefaultDun,
-                    source: "zaaltCalculation/Excel"
-                  });
+                  
+                  // Get zoruu from Excel reading (this is the actual usage from import)
+                  const readingZoruu = latestReading.zaaltCalculation?.zoruu || latestReading.zoruu || 0;
+                  
+                  // Get tariff from Excel reading (kWh rate used during import)
+                  const readingTariff = latestReading.zaaltCalculation?.tariff || latestReading.tariff || 0;
+                  
+                  // Use the pre-calculated zaaltDun from Excel if available
+                  if (latestReading.zaaltDun > 0) {
+                    zaaltDun = latestReading.zaaltDun;
+                    console.log("💰 [INVOICE] Using pre-calculated zaaltDun from Excel:", {
+                      gereeniiDugaar: tempData.gereeniiDugaar,
+                      zaaltDun: zaaltDun,
+                      readingZoruu: readingZoruu,
+                      readingTariff: readingTariff,
+                      defaultDun: zaaltDefaultDun,
+                      source: "zaaltCalculation/Excel"
+                    });
+                  } else {
+                    // Recalculate if no zaaltDun stored
+                    // Use tariff from reading if available, otherwise from orshinSuugch
+                    if (readingTariff > 0) {
+                      kwhTariff = readingTariff;
+                    }
+                    zaaltDun = (readingZoruu * kwhTariff) + zaaltDefaultDun;
+                    console.log("💰 [INVOICE] Calculated from Excel reading data:", {
+                      gereeniiDugaar: tempData.gereeniiDugaar,
+                      zoruu: readingZoruu,
+                      kwhTariff: kwhTariff,
+                      defaultDun: zaaltDefaultDun,
+                      zaaltDun: zaaltDun,
+                      formula: `(${readingZoruu} * ${kwhTariff}) + ${zaaltDefaultDun} = ${zaaltDun}`
+                    });
+                  }
                 } else {
                   console.warn("⚠️ [INVOICE] No reading found for calculated electricity:", {
                     gereeniiDugaar: tempData.gereeniiDugaar,
                     ner: gereeZaaltZardal.ner
                   });
+                  
+                  // Fallback to zardal's suuriKhuraamj, zaaltDefaultDun, or tariff (for old data format)
+                  zaaltDefaultDun = Number(gereeZaaltZardal.suuriKhuraamj) || 
+                                    gereeZaaltZardal.zaaltDefaultDun || 
+                                    gereeZaaltZardal.tariff || 0;
+                  
+                  // Calculate with zoruu from tempData (if available)
+                  zaaltDun = (zoruu * kwhTariff) + zaaltDefaultDun;
                 }
               } catch (error) {
                 console.error("❌ [INVOICE] Error fetching latest reading:", error.message);
+                
+                // Fallback calculation
+                zaaltDefaultDun = Number(gereeZaaltZardal.suuriKhuraamj) || 
+                                  gereeZaaltZardal.zaaltDefaultDun || 
+                                  gereeZaaltZardal.tariff || 0;
+                zaaltDun = (zoruu * kwhTariff) + zaaltDefaultDun;
               }
-
-              // Fallback to zardal's suuriKhuraamj or zaaltDefaultDun
-              if (!zaaltDefaultDun) {
-                zaaltDefaultDun = Number(gereeZaaltZardal.suuriKhuraamj) || gereeZaaltZardal.zaaltDefaultDun || 0;
+              
+              // Final fallback: if zaaltDun is still 0 but zardal has suuriKhuraamj, use that
+              if (zaaltDun === 0) {
+                const fallbackDun = Number(gereeZaaltZardal.suuriKhuraamj) || 
+                                    gereeZaaltZardal.zaaltDefaultDun || 
+                                    gereeZaaltZardal.tariff || 0;
+                if (fallbackDun > 0) {
+                  zaaltDun = fallbackDun;
+                  zaaltDefaultDun = fallbackDun;
+                  console.log("💡 [INVOICE] Using fallback suuriKhuraamj as zaaltDun:", {
+                    gereeniiDugaar: tempData.gereeniiDugaar,
+                    ner: gereeZaaltZardal.ner,
+                    fallbackDun: fallbackDun
+                  });
+                }
               }
-
-              // Calculate: (usage * kWh_rate) + base fee
-              zaaltDun = (zoruu * kwhTariff) + zaaltDefaultDun;
               
               console.log("⚡ [INVOICE] Calculated electricity charge:", {
                 gereeniiDugaar: tempData.gereeniiDugaar,
@@ -1906,8 +1968,21 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
     });
 
     // Add electricity (zaalt) entries for preview - process ALL zaalt zardals
+    // Combine both contract-level and building-level electricity expenses
     try {
-      const zaaltZardluud = ashiglaltiinZardluud.filter(z => z.zaalt === true);
+      const gereeZaaltZardluud = (geree.zardluud || []).filter(z => z.zaalt === true);
+      const buildingZaaltZardluud = ashiglaltiinZardluud.filter(z => z.zaalt === true);
+      
+      // Combine both sources, then deduplicate by name (contract entries take priority)
+      const combinedZaalt = [...gereeZaaltZardluud, ...buildingZaaltZardluud];
+      const seenNames = new Set();
+      const zaaltZardluud = combinedZaalt.filter(z => {
+        const key = z.ner || z.zardliinTurul || 'Цахилгаан';
+        if (seenNames.has(key)) return false;
+        seenNames.add(key);
+        return true;
+      });
+      
       if (zaaltZardluud.length > 0) {
         const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
         let zaaltTariff = 0;
@@ -1973,28 +2048,72 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
             }
             
             if (latestReading) {
-              // Calculate from zaalt reading
-              zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
+              // Get all calculation data from Excel reading
               defaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
+              zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
+              
+              // Get tariff from Excel reading (kWh rate used during import)
+              const readingTariff = latestReading.zaaltCalculation?.tariff || latestReading.tariff || 0;
+              
+              // Use the pre-calculated zaaltDun from Excel if available
+              if (latestReading.zaaltDun > 0) {
+                electricityDun = latestReading.zaaltDun;
+                console.log("💰 [PREVIEW] Using pre-calculated zaaltDun from Excel:", {
+                  gereeniiDugaar: geree.gereeniiDugaar,
+                  zaaltDun: electricityDun,
+                  zoruu: zoruu,
+                  readingTariff: readingTariff,
+                  defaultDun: defaultDun,
+                  source: "zaaltCalculation/Excel"
+                });
+              } else {
+                // Recalculate if no zaaltDun stored
+                if (readingTariff > 0) {
+                  kwhTariff = readingTariff;
+                }
+                electricityDun = (zoruu * kwhTariff) + defaultDun;
+                console.log("💰 [PREVIEW] Calculated from Excel reading data:", {
+                  gereeniiDugaar: geree.gereeniiDugaar,
+                  zoruu: zoruu,
+                  kwhTariff: kwhTariff,
+                  defaultDun: defaultDun,
+                  electricityDun: electricityDun,
+                  formula: `(${zoruu} * ${kwhTariff}) + ${defaultDun} = ${electricityDun}`
+                });
+              }
+            } else {
+              // Fallback to zardal's suuriKhuraamj, zaaltDefaultDun, or tariff (for old data format)
+              defaultDun = Number(zaaltZardal.suuriKhuraamj) || 
+                          zaaltZardal.zaaltDefaultDun || 
+                          zaaltZardal.tariff || 0;
+              electricityDun = (zoruu * kwhTariff) + defaultDun;
+              
+              console.log("⚠️ [PREVIEW] No Excel reading, using fallback:", {
+                gereeniiDugaar: geree.gereeniiDugaar,
+                ner: zaaltZardal.ner,
+                zoruu,
+                kwhTariff,
+                defaultDun,
+                electricityDun,
+                formula: `(${zoruu} * ${kwhTariff}) + ${defaultDun} = ${electricityDun}`
+              });
             }
             
-            // Fallback to zardal's suuriKhuraamj
-            if (!defaultDun) {
-              defaultDun = Number(zaaltZardal.suuriKhuraamj) || zaaltZardal.zaaltDefaultDun || 0;
+            // Final fallback: if electricityDun is still 0 but zardal has suuriKhuraamj, use that
+            if (electricityDun === 0) {
+              const fallbackDun = Number(zaaltZardal.suuriKhuraamj) || 
+                                  zaaltZardal.zaaltDefaultDun || 
+                                  zaaltZardal.tariff || 0;
+              if (fallbackDun > 0) {
+                electricityDun = fallbackDun;
+                defaultDun = fallbackDun;
+                console.log("💡 [PREVIEW] Using fallback suuriKhuraamj as electricityDun:", {
+                  gereeniiDugaar: geree.gereeniiDugaar,
+                  ner: zaaltZardal.ner,
+                  fallbackDun: fallbackDun
+                });
+              }
             }
-            
-            electricityDun = (zoruu * kwhTariff) + defaultDun;
-            
-            console.log("⚡ [PREVIEW] Calculated electricity charge:", {
-              gereeniiDugaar: geree.gereeniiDugaar,
-              ner: zaaltZardal.ner,
-              turul: zaaltZardal.turul,
-              zoruu,
-              kwhTariff,
-              defaultDun,
-              electricityDun,
-              formula: `(${zoruu} * ${kwhTariff}) + ${defaultDun} = ${electricityDun}`
-            });
           }
           
           if (electricityDun > 0) {
