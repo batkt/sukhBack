@@ -2102,11 +2102,11 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       }).lean();
       
       if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
-        // Sum up all ekhniiUldegdel records and use uldegdel (remaining balance after payments)
-        // This ensures the preview shows the correct remaining amount, not the original amount
+        // Sum up all ekhniiUldegdel records using undsenDun (original amount before payments)
+        // The preview should show the original charged amount, not the remaining balance
         ekhniiUldegdelAmount = tulukhAvlagaRecords.reduce((sum, record) => {
-          // Use uldegdel (remaining) if available, otherwise fall back to undsenDun/tulukhDun
-          const amount = Number(record.uldegdel ?? record.undsenDun ?? record.tulukhDun ?? 0);
+          // Use undsenDun (original amount) - this shows what was originally charged
+          const amount = Number(record.undsenDun ?? record.tulukhDun ?? record.uldegdel ?? 0);
           return sum + amount;
         }, 0);
         
@@ -2114,7 +2114,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         const firstRecord = tulukhAvlagaRecords[0];
         ekhniiUldegdelTailbar = firstRecord.tailbar || firstRecord.temdeglel || "";
         
-        console.log(`💰 [PREVIEW] Found ekhniiUldegdel in gereeniiTulukhAvlaga (uldegdel): ${ekhniiUldegdelAmount}₮, tailbar: ${ekhniiUldegdelTailbar}`);
+        console.log(`💰 [PREVIEW] Found ekhniiUldegdel in gereeniiTulukhAvlaga (undsenDun): ${ekhniiUldegdelAmount}₮, tailbar: ${ekhniiUldegdelTailbar}`);
       }
     } catch (error) {
       console.error("Error fetching ekhniiUldegdel from gereeniiTulukhAvlaga:", error.message);
