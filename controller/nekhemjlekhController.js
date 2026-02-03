@@ -726,15 +726,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
             let kwhTariff = zaaltTariff; // from orshinSuugch.tsahilgaaniiZaalt
             
             // Determine if this is a FIXED or CALCULATED electricity charge:
-            // FIXED: turul = "Тогтмол" and tariffUsgeer = "₮" or "кВт" but meant as fixed amount
-            // CALCULATED: turul = "Дурын" or tariffUsgeer = "кВт" with calculation needed
+            // FIXED: tariffUsgeer = "₮" -> use tariff directly as the total amount
+            // CALCULATED: tariffUsgeer = "кВт" -> tariff is kWh rate, suuriKhuraamj is base fee from Excel
             // 
             // Key distinction: 
-            // - "Дундын өмчлөл Цахилгаан": turul="Тогтмол", tariff=6883.44 -> FIXED (use tariff directly)
-            // - "Цахилгаан": turul="Дурын", tariff=2000 (кВт rate), tariffUsgeer="кВт" -> CALCULATED
+            // - "Дундын өмчлөл Цахилгаан": tariffUsgeer="₮", tariff=6883.44 -> FIXED (use tariff directly)
+            // - "Цахилгаан": tariffUsgeer="кВт", tariff=2000 (кВт rate), suuriKhuraamj=Excel imported amount -> CALCULATED
             
-            const isCalculatedType = gereeZaaltZardal.turul === "Дурын" || 
-              (gereeZaaltZardal.tariffUsgeer === "кВт" && gereeZaaltZardal.turul !== "Тогтмол");
+            // If tariffUsgeer is "кВт", it's ALWAYS a calculated type (per-kWh billing)
+            const isCalculatedType = gereeZaaltZardal.tariffUsgeer === "кВт";
             
             if (!isCalculatedType) {
               // This is a FIXED electricity charge - use tariff directly
@@ -1945,10 +1945,15 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
           let kwhTariff = zaaltTariff; // from orshinSuugch
           
           // Determine if this is a FIXED or CALCULATED electricity charge:
-          // FIXED: turul = "Тогтмол" -> use tariff directly
-          // CALCULATED: turul = "Дурын" or tariffUsgeer = "кВт" with calculation
-          const isCalculatedType = zaaltZardal.turul === "Дурын" || 
-            (zaaltZardal.tariffUsgeer === "кВт" && zaaltZardal.turul !== "Тогтмол");
+          // FIXED: tariffUsgeer = "₮" -> use tariff directly as the total amount
+          // CALCULATED: tariffUsgeer = "кВт" -> tariff is kWh rate, suuriKhuraamj is base fee from Excel
+          // 
+          // Key distinction: 
+          // - "Дундын өмчлөл Цахилгаан": tariffUsgeer="₮", tariff=6883.44 -> FIXED
+          // - "Цахилгаан": tariffUsgeer="кВт", tariff=kWh rate, suuriKhuraamj=Excel imported -> CALCULATED
+          
+          // If tariffUsgeer is "кВт", it's ALWAYS a calculated type (per-kWh billing)
+          const isCalculatedType = zaaltZardal.tariffUsgeer === "кВт";
           
           if (!isCalculatedType) {
             // FIXED electricity charge - use tariff directly
