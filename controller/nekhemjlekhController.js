@@ -2559,8 +2559,8 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
           .filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл")))
           .reduce((sum, z) => sum + (z.dun || z.tariff || 0), 0);
         
-        const newZardluudCount = previewZardluud.filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл").length;
-        const oldZardluudCount = oldZardluud.filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл").length;
+        const newZardluudCount = previewZardluud.filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл"))).length;
+        const oldZardluudCount = oldZardluud.filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл"))).length;
 
         console.log(`📊 [MANUAL SEND] Comparison - Old zardluud total: ${oldZardluudOnlyTotal}, New zardluud total: ${zardluudOnlyTotal}`);
         console.log(`📊 [MANUAL SEND] Old zardluud count: ${oldZardluudCount}, New zardluud count: ${newZardluudCount}`);
