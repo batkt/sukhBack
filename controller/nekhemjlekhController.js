@@ -676,9 +676,22 @@ const gereeNeesNekhemjlekhUusgekh = async (
         });
 
         if (gereeZaaltZardluud.length > 0 || (zaaltZardluud.length > 0 && (tempData.umnukhZaalt !== undefined || tempData.suuliinZaalt !== undefined))) {
-          const zaaltZardluudToProcess = gereeZaaltZardluud.length > 0
+          // Deduplicate by name to avoid duplicate electricity entries
+          const rawZaaltZardluud = gereeZaaltZardluud.length > 0
             ? gereeZaaltZardluud
             : zaaltZardluud;
+          
+          // Keep only unique zaalt entries by name (first occurrence wins)
+          const seenNames = new Set();
+          const zaaltZardluudToProcess = rawZaaltZardluud.filter(z => {
+            const key = z.ner || z.zardliinTurul || 'Цахилгаан';
+            if (seenNames.has(key)) {
+              console.log(`⚠️ [INVOICE] Skipping duplicate electricity entry: ${key}`);
+              return false;
+            }
+            seenNames.add(key);
+            return true;
+          });
           const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
             tempData.orshinSuugchId
           ).select("tsahilgaaniiZaalt").lean();
@@ -834,45 +847,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
             electricityEntries.push(electricityZardalEntry);
           }
 
-          if (zaaltZardluud.length > 0) {
-            const ashiglaltiinZaaltZardal = zaaltZardluud[0];
-
-            const ashiglaltiinZaaltDun = ashiglaltiinZaaltZardal.dun || ashiglaltiinZaaltZardal.tariff || 0;
-            if (ashiglaltiinZaaltDun > 0) {
-              const ashiglaltiinZaaltEntry = {
-                ner: ashiglaltiinZaaltZardal.ner || "Цахилгаан",
-                turul: normalizeTurul(ashiglaltiinZaaltZardal.turul) || "Тогтмол",
-                tariff: ashiglaltiinZaaltDun,
-                tariffUsgeer: ashiglaltiinZaaltZardal.tariffUsgeer || "₮",
-                zardliinTurul: ashiglaltiinZaaltZardal.zardliinTurul || "Энгийн",
-                barilgiinId: tempData.barilgiinId,
-                dun: ashiglaltiinZaaltDun,
-                bodokhArga: ashiglaltiinZaaltZardal.bodokhArga || "тогтмол",
-                tseverUsDun: ashiglaltiinZaaltZardal.tseverUsDun || 0,
-                bokhirUsDun: ashiglaltiinZaaltZardal.bokhirUsDun || 0,
-                usKhalaasniiDun: ashiglaltiinZaaltZardal.usKhalaasniiDun || 0,
-                tsakhilgaanUrjver: ashiglaltiinZaaltZardal.tsakhilgaanUrjver || 1,
-                tsakhilgaanChadal: ashiglaltiinZaaltZardal.tsakhilgaanChadal || 0,
-                tsakhilgaanDemjikh: ashiglaltiinZaaltZardal.tsakhilgaanDemjikh || 0,
-                suuriKhuraamj: ashiglaltiinZaaltZardal.suuriKhuraamj || "0",
-                nuatNemekhEsekh: ashiglaltiinZaaltZardal.nuatNemekhEsekh || false,
-                ognoonuud: ashiglaltiinZaaltZardal.ognoonuud || [],
-                zaalt: false,
-              };
-
-              electricityEntries.push(ashiglaltiinZaaltEntry);
-              totalTsahilgaanNekhemjlekh += ashiglaltiinZaaltDun;
-
-              console.log("💰 [INVOICE] Added Цахилгаан charge from ashiglaltiinZardluud:", {
-                gereeniiDugaar: tempData.gereeniiDugaar,
-                ner: ashiglaltiinZaaltZardal.ner,
-                dun: ashiglaltiinZaaltDun,
-                originalDun: ashiglaltiinZaaltZardal.dun,
-                originalTariff: ashiglaltiinZaaltZardal.tariff,
-                source: "ashiglaltiinZardluud"
-              });
-            }
-          }
+          // NOTE: Removed duplicate ashiglaltiinZardluud entry - electricity is already calculated above
+          // from zaaltZardluudToProcess with proper zaalt calculation (zoruu * tariff + defaultDun)
 
           tsahilgaanNekhemjlekh = totalTsahilgaanNekhemjlekh;
           electricityZardalEntry = electricityEntries[0];
@@ -1920,6 +1896,65 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       }
       return result;
     });
+
+    // Add electricity (zaalt) calculation for preview
+    let tsahilgaanDun = 0;
+    try {
+      const zaaltZardluud = ashiglaltiinZardluud.filter(z => z.zaalt === true);
+      if (zaaltZardluud.length > 0 && geree.orshinSuugchId) {
+        const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+        const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+          .findById(geree.orshinSuugchId)
+          .select("tsahilgaaniiZaalt")
+          .lean();
+        
+        const zaaltTariff = Number(orshinSuugch?.tsahilgaaniiZaalt) || zaaltZardluud[0]?.zaaltTariff || 0;
+        
+        // Get latest reading for this geree
+        let latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+          .findOne({ 
+            $or: [
+              { gereeniiId: String(gereeId) },
+              { gereeniiDugaar: geree.gereeniiDugaar }
+            ]
+          })
+          .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1 })
+          .lean();
+        
+        if (latestReading) {
+          const zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
+          const defaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
+          tsahilgaanDun = (zoruu * zaaltTariff) + defaultDun;
+          
+          console.log("⚡ [PREVIEW] Electricity calculation:", {
+            gereeniiDugaar: geree.gereeniiDugaar,
+            zoruu,
+            zaaltTariff,
+            defaultDun,
+            tsahilgaanDun,
+            formula: `(${zoruu} * ${zaaltTariff}) + ${defaultDun} = ${tsahilgaanDun}`
+          });
+          
+          // Add electricity entry to zardluud
+          zardluudWithDun.push({
+            ner: zaaltZardluud[0].ner || "Цахилгаан",
+            turul: zaaltZardluud[0].turul || "Тогтмол",
+            bodokhArga: "тогтмол",
+            zardliinTurul: zaaltZardluud[0].zardliinTurul || "Цахилгаан",
+            tariff: tsahilgaanDun,
+            tariffUsgeer: zaaltZardluud[0].tariffUsgeer || "₮",
+            dun: tsahilgaanDun,
+            zaalt: true,
+            zaaltTariff: zaaltTariff,
+            zoruu: zoruu,
+            suuriKhuraamj: defaultDun,
+            ognoonuud: [],
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error calculating electricity for preview:", error.message);
+    }
 
     // Calculate zardluudTotal BEFORE adding ekhniiUldegdel to match gereeNeesNekhemjlekhUusgekh logic
     const zardluudTotal = zardluudWithDun.reduce((sum, zardal) => sum + (zardal.dun || 0), 0);
