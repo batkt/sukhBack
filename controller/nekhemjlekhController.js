@@ -2535,7 +2535,7 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         console.log(`🗑️ [MANUAL SEND] Deleted existing invoice: ${invoice.nekhemjlekhiinDugaar || invoice._id}`);
       }
     } else if (existingUnsentInvoices.length > 0) {
-      // If override=false but there are unsent invoices, update the oldest one
+      // If override=false but there are unsent invoices, check if we need to update
       const oldestUnsentInvoice = existingUnsentInvoices[0];
       
       // Check if this invoice has any payments (paymentHistory or partial payment)
@@ -2543,88 +2543,115 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
                           (oldestUnsentInvoice.uldegdel !== oldestUnsentInvoice.niitTulbur && oldestUnsentInvoice.uldegdel < oldestUnsentInvoice.niitTulbur);
 
       // SMART UPDATE CHECK: Calculate what the new invoice WOULD look like
-      const previewResult = await previewInvoice(gereeId, baiguullagiinId, targetMonth, targetYear);
+      // NOTE: previewInvoice includes ekhniiUldegdel, but we DON'T want to include it in manual send
+      const previewResult = await previewInvoice(gereeId, baiguullagiinId, null, targetMonth, targetYear);
 
       if (previewResult.success) {
-        const newTotal = Number(previewResult.preview.niitTulbur) || 0;
-        const oldTotal = Number(oldestUnsentInvoice.niitTulbur) || 0;
-        const newZardluudCount = previewResult.preview.zardluud?.length || 0;
-        const oldZardluudCount = oldestUnsentInvoice.medeelel?.zardluud?.length || 0;
+        // Calculate the "zardluud only" total (excluding ekhniiUldegdel) for comparison
+        const previewZardluud = previewResult.preview.zardluud || [];
+        const zardluudOnlyTotal = previewZardluud
+          .filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл")))
+          .reduce((sum, z) => sum + (z.dun || z.tariff || 0), 0);
+        
+        // Get the old invoice's zardluud total (excluding ekhniiUldegdel)
+        const oldZardluud = oldestUnsentInvoice.medeelel?.zardluud || [];
+        const oldZardluudOnlyTotal = oldZardluud
+          .filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл")))
+          .reduce((sum, z) => sum + (z.dun || z.tariff || 0), 0);
+        
+        const newZardluudCount = previewZardluud.filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл").length;
+        const oldZardluudCount = oldZardluud.filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл").length;
 
-        // If amounts are effectively equal and item counts match, skip update
-        if (Math.abs(newTotal - oldTotal) < 0.5 && newZardluudCount === oldZardluudCount) {
-          console.log(`✅ [MANUAL SEND] SKIPPED update: Invoice is identical (Amount: ${newTotal}).`);
+        console.log(`📊 [MANUAL SEND] Comparison - Old zardluud total: ${oldZardluudOnlyTotal}, New zardluud total: ${zardluudOnlyTotal}`);
+        console.log(`📊 [MANUAL SEND] Old zardluud count: ${oldZardluudCount}, New zardluud count: ${newZardluudCount}`);
+
+        // If zardluud amounts are effectively equal and item counts match, skip update entirely
+        // This preserves the existing invoice with its uldegdel intact
+        if (Math.abs(zardluudOnlyTotal - oldZardluudOnlyTotal) < 0.5 && newZardluudCount === oldZardluudCount) {
+          console.log(`✅ [MANUAL SEND] SKIPPED update: Invoice zardluud are identical. Preserving existing invoice.`);
           return {
             success: true,
             message: "Нэхэмжлэх хэвийн байна. Өөрчлөлт ороогүй.",
-            skipped: true
-          };
-        }
-
-        console.log(`🔄 [MANUAL SEND] Detected change (Old: ${oldTotal}, New: ${newTotal}). Updating invoice...`);
-        
-        // If invoice has payments, update in place instead of deleting
-        if (hasPayments) {
-          console.log(`💰 [MANUAL SEND] Invoice has payments - updating in place to preserve payment history`);
-          
-          // Update the existing invoice's zardluud with new data
-          oldestUnsentInvoice.medeelel.zardluud = previewResult.preview.zardluud;
-          oldestUnsentInvoice.niitTulbur = newTotal;
-          
-          // Recalculate uldegdel based on payment history
-          const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
-          oldestUnsentInvoice.uldegdel = Math.max(0, newTotal - totalPaid);
-          
-          // Update zaalt metadata if available
-          if (previewResult.preview.zardluud) {
-            const zaaltEntry = previewResult.preview.zardluud.find(z => z.zaalt === true && z.ner?.toLowerCase().includes("цахилгаан") && !z.ner?.toLowerCase().includes("дундын"));
-            if (zaaltEntry && oldestUnsentInvoice.medeelel.zaalt) {
-              oldestUnsentInvoice.medeelel.zaalt = {
-                ...oldestUnsentInvoice.medeelel.zaalt,
-                zoruu: zaaltEntry.zoruu || 0,
-                zaaltDun: zaaltEntry.dun || zaaltEntry.tariff || 0,
-              };
-            }
-            oldestUnsentInvoice.tsahilgaanNekhemjlekh = zaaltEntry?.dun || zaaltEntry?.tariff || oldestUnsentInvoice.tsahilgaanNekhemjlekh;
-          }
-          
-          await oldestUnsentInvoice.save();
-          
-          console.log(`✅ [MANUAL SEND] Updated invoice ${oldestUnsentInvoice.nekhemjlekhiinDugaar} in place, new total: ${newTotal}, uldegdel: ${oldestUnsentInvoice.uldegdel}`);
-          
-          return {
-            success: true,
+            skipped: true,
             nekhemjlekh: oldestUnsentInvoice,
             gereeniiId: geree._id,
             gereeniiDugaar: geree.gereeniiDugaar,
-            tulbur: newTotal,
-            alreadyExists: true,
-            updated: true,
-            preservedPayments: true
+            tulbur: oldestUnsentInvoice.niitTulbur
           };
         }
-      }
 
-      console.log(`🔄 [MANUAL SEND] Found existing unsent invoice: ${oldestUnsentInvoice.nekhemjlekhiinDugaar || oldestUnsentInvoice._id}`);
-      console.log(`🔄 [MANUAL SEND] Updating invoice instead of creating new one`);
-
-      await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: oldestUnsentInvoice._id });
-
-      // Delete any additional unsent invoices for this month (keep only one)
-      if (existingUnsentInvoices.length > 1) {
-        for (let i = 1; i < existingUnsentInvoices.length; i++) {
-          const extraInvoice = existingUnsentInvoices[i];
-          // Don't delete invoices that have payments
-          const extraHasPayments = (extraInvoice.paymentHistory && extraInvoice.paymentHistory.length > 0) ||
-                                   (extraInvoice.uldegdel !== extraInvoice.niitTulbur && extraInvoice.uldegdel < extraInvoice.niitTulbur);
-          if (!extraHasPayments) {
-            await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: extraInvoice._id });
-            console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${extraInvoice.nekhemjlekhiinDugaar || extraInvoice._id}`);
-          } else {
-            console.log(`⚠️ [MANUAL SEND] Kept invoice with payments: ${extraInvoice.nekhemjlekhiinDugaar || extraInvoice._id}`);
-          }
+        console.log(`🔄 [MANUAL SEND] Detected zardluud change (Old: ${oldZardluudOnlyTotal}, New: ${zardluudOnlyTotal}). Updating invoice...`);
+        
+        // ALWAYS update in place to preserve uldegdel and payment history
+        // Filter out ekhniiUldegdel from the new zardluud since we don't want to add it via manual send
+        const newZardluudWithoutEkhniiUldegdel = previewZardluud.filter(
+          z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл"))
+        );
+        
+        // Preserve ekhniiUldegdel entries from the old invoice (if any)
+        const oldEkhniiUldegdelEntries = oldZardluud.filter(
+          z => z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл" || (z.ner && z.ner.includes("Эхний үлдэгдэл"))
+        );
+        
+        // Combine: new zardluud (without ekhniiUldegdel) + preserved ekhniiUldegdel from old invoice
+        const updatedZardluud = [...newZardluudWithoutEkhniiUldegdel, ...oldEkhniiUldegdelEntries];
+        
+        // Calculate new total (zardluud only, ekhniiUldegdel stays separate)
+        const newNiitTulbur = updatedZardluud.reduce((sum, z) => sum + (z.dun || z.tariff || 0), 0);
+        
+        // Update the existing invoice
+        oldestUnsentInvoice.medeelel.zardluud = updatedZardluud;
+        oldestUnsentInvoice.niitTulbur = newNiitTulbur;
+        
+        // Recalculate uldegdel: preserve existing uldegdel ratio or recalculate based on payments
+        const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
+        if (totalPaid > 0) {
+          // If there were payments, recalculate uldegdel
+          oldestUnsentInvoice.uldegdel = Math.max(0, newNiitTulbur - totalPaid);
+        } else {
+          // No payments - keep uldegdel = niitTulbur (full amount due)
+          oldestUnsentInvoice.uldegdel = newNiitTulbur;
         }
+        
+        // Update zaalt metadata if available
+        const zaaltEntry = newZardluudWithoutEkhniiUldegdel.find(z => z.zaalt === true && z.ner?.toLowerCase().includes("цахилгаан") && !z.ner?.toLowerCase().includes("дундын"));
+        if (zaaltEntry && oldestUnsentInvoice.medeelel.zaalt) {
+          oldestUnsentInvoice.medeelel.zaalt = {
+            ...oldestUnsentInvoice.medeelel.zaalt,
+            zoruu: zaaltEntry.zoruu || 0,
+            zaaltDun: zaaltEntry.dun || zaaltEntry.tariff || 0,
+          };
+        }
+        if (zaaltEntry) {
+          oldestUnsentInvoice.tsahilgaanNekhemjlekh = zaaltEntry.dun || zaaltEntry.tariff || oldestUnsentInvoice.tsahilgaanNekhemjlekh;
+        }
+        
+        await oldestUnsentInvoice.save();
+        
+        console.log(`✅ [MANUAL SEND] Updated invoice ${oldestUnsentInvoice.nekhemjlekhiinDugaar} in place, new total: ${newNiitTulbur}, uldegdel: ${oldestUnsentInvoice.uldegdel}`);
+        
+        return {
+          success: true,
+          nekhemjlekh: oldestUnsentInvoice,
+          gereeniiId: geree._id,
+          gereeniiDugaar: geree.gereeniiDugaar,
+          tulbur: newNiitTulbur,
+          alreadyExists: true,
+          updated: true,
+          preservedPayments: hasPayments
+        };
       }
+
+      // If preview failed, just return the existing invoice without changes
+      console.log(`⚠️ [MANUAL SEND] Preview failed, preserving existing invoice`);
+      return {
+        success: true,
+        nekhemjlekh: oldestUnsentInvoice,
+        gereeniiId: geree._id,
+        gereeniiDugaar: geree.gereeniiDugaar,
+        tulbur: oldestUnsentInvoice.niitTulbur,
+        alreadyExists: true
+      };
     }
 
     const gereeObj = geree.toObject ? geree.toObject() : geree;
