@@ -27,6 +27,7 @@ async function markInvoicesAsPaid(options) {
     nekhemjlekhiinIds,
     markEkhniiUldegdel = false,
     tailbar = null,
+    barilgiinId, // Optional: if provided, restrict to contracts/invoices in this building
   } = options;
 
   if (!baiguullagiinId) {
@@ -62,6 +63,11 @@ async function markInvoicesAsPaid(options) {
     tuluv: { $ne: "Төлсөн" }, // Only unpaid invoices
   };
 
+  // Restrict to specific building if provided
+  if (barilgiinId) {
+    query.barilgiinId = String(barilgiinId);
+  }
+
   // If markEkhniiUldegdel is false, exclude invoices with ekhniiUldegdel
   if (!markEkhniiUldegdel) {
     query.$or = [
@@ -79,11 +85,18 @@ async function markInvoicesAsPaid(options) {
     query.gereeniiId = String(gereeniiId);
   } else if (orshinSuugchId) {
     // Mark all invoices for a user (all their active contracts)
-    const gerees = await GereeModel.find({
+    const gereeQuery = {
       orshinSuugchId: String(orshinSuugchId),
       baiguullagiinId: String(baiguullagiinId),
       tuluv: { $ne: "Цуцалсан" },
-    }).select("_id").lean();
+    };
+
+    // IMPORTANT: If barilgiinId is provided, ONLY find contracts in that building
+    if (barilgiinId) {
+      gereeQuery.barilgiinId = String(barilgiinId);
+    }
+
+    const gerees = await GereeModel.find(gereeQuery).select("_id").lean();
 
     if (gerees.length === 0) {
       return {
@@ -110,12 +123,16 @@ async function markInvoicesAsPaid(options) {
     if (gereeniiId) {
       gereeToUpdate = await GereeModel.findById(gereeniiId);
     } else if (orshinSuugchId) {
-      // Get the first active contract for this user
-      const firstGeree = await GereeModel.findOne({
+      // Get the first active contract for this user (respecting barilgiinId)
+      const gereeQuery = {
         orshinSuugchId: String(orshinSuugchId),
         baiguullagiinId: String(baiguullagiinId),
         tuluv: { $ne: "Цуцалсан" },
-      });
+      };
+      if (barilgiinId) {
+        gereeQuery.barilgiinId = String(barilgiinId);
+      }
+      const firstGeree = await GereeModel.findOne(gereeQuery);
       gereeToUpdate = firstGeree;
     }
 
@@ -315,12 +332,17 @@ async function markInvoicesAsPaid(options) {
     if (gereeniiId) {
       gereesToUpdate.add(gereeniiId);
     } else if (orshinSuugchId) {
-      const gerees = await GereeModel.find({
+      const gereeQuery = {
         orshinSuugchId: String(orshinSuugchId),
         baiguullagiinId: String(baiguullagiinId),
         tuluv: { $ne: "Цуцалсан" },
-      }).select("_id").lean();
+      };
+      // Respect barilgiinId filter when finding contracts to distribute positive balance
+      if (barilgiinId) {
+        gereeQuery.barilgiinId = String(barilgiinId);
+      }
 
+      const gerees = await GereeModel.find(gereeQuery).select("_id").lean();
       gerees.forEach(g => gereesToUpdate.add(g._id.toString()));
     } else if (nekhemjlekhiinIds && nekhemjlekhiinIds.length > 0) {
       // Get gerees from invoices

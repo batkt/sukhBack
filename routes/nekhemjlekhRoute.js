@@ -186,10 +186,25 @@ router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
 
 // Mark invoices as paid
 // markEkhniiUldegdel: true to include ekhniiUldegdel invoices, false (default) to only mark regular ashiglaltiinZardluud invoices
+// Mark invoices as paid
+// markEkhniiUldegdel: true to include ekhniiUldegdel invoices, false (default) to only mark regular ashiglaltiinZardluud invoices
 router.post(
   "/markInvoicesAsPaid",
   tokenShalgakh,
-  markInvoicesAsPaid
+  async (req, res, next) => {
+    try {
+      // Extract barilgiinId from body
+      const { barilgiinId } = req.body || {};
+
+      const result = await markInvoicesAsPaid({
+        ...req.body,
+        barilgiinId: barilgiinId // Pass barilgiinId to service
+      });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 );
 
 // Preview invoice before sending
