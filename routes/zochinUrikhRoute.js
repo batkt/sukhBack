@@ -1,4 +1,5 @@
 const express = require("express");
+const moment = require("moment");
 const { Mashin, Uilchluulegch, EzenUrisanMashin } = require("sukhParking-v1");
 const OrshinSuugch = require("../models/orshinSuugch");
 const Geree = require("../models/geree");
@@ -130,6 +131,66 @@ async function mashinHadgalya(mashinMedeelel, tukhainBaaziinKholbolt) {
   } catch (error) {}
 }
 
+/**
+ * GET Guest Settings for the current resident
+ */
+router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+    const residentId = req.body.nevtersenAjiltniiToken?.id;
+
+    if (!residentId) return res.status(401).send("Нэвтрэх шаардлагатай");
+
+    const settings = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOne({
+      orshinSuugchiinId: residentId,
+      zochinTurul: "Оршин суугч"
+    });
+
+    res.send(settings || {});
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET Quota Status for the current resident
+ */
+router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+    const residentId = req.body.nevtersenAjiltniiToken?.id;
+
+    if (!residentId) return res.status(401).send("Нэвтрэх шаардлагатай");
+
+    const masterSetting = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOne({
+      orshinSuugchiinId: residentId,
+      zochinTurul: "Оршин суугч"
+    });
+
+    if (!masterSetting) return res.send({ total: 0, used: 0, remaining: 0 });
+
+    const period = masterSetting.davtamjiinTurul === "saraar" ? "month" : "day";
+    const startOfPeriod = moment().startOf(period).toDate();
+
+    const usedCount = await EzenUrisanMashin(req.body.tukhainBaaziinKholbolt).countDocuments({
+      ezenId: residentId,
+      createdAt: { $gte: startOfPeriod }
+    });
+
+    res.send({
+      total: masterSetting.zochinErkhiinToo || 0,
+      used: usedCount,
+      remaining: Math.max(0, (masterSetting.zochinErkhiinToo || 0) - usedCount),
+      period: masterSetting.davtamjiinTurul,
+      freeMinutesPerGuest: masterSetting.zochinTusBurUneguiMinut || 0
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Үндсэн route функц
 router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
   try {
@@ -157,14 +218,46 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       });
     }
 
+    let inviterSettings = null;
+    const inviterId = req.body.nevtersenAjiltniiToken?.id;
+
+    // QUOTA CHECK: If we are inviting a guest car
+    if (inviterId && orshinSuugchMedeelel?.zochinTurul !== "Оршин суугч") {
+        const OrshinSuugchMashinModel = require("../models/orshinSuugchMashin");
+        inviterSettings = await OrshinSuugchMashinModel(db.erunkhiiKholbolt).findOne({
+            orshinSuugchiinId: inviterId,
+            zochinTurul: "Оршин суугч"
+        });
+
+        if (inviterSettings) {
+            if (!inviterSettings.zochinUrikhEsekh) {
+                return res.status(403).json({ success: false, message: "Танд зочин урих эрх байхгүй байна" });
+            }
+
+            const period = inviterSettings.davtamjiinTurul === "saraar" ? "month" : "day";
+            const startOfPeriod = moment().startOf(period).toDate();
+            const usedCount = await EzenUrisanMashin(tukhainBaaziinKholbolt).countDocuments({
+                ezenId: inviterId,
+                createdAt: { $gte: startOfPeriod }
+            });
+
+            if (usedCount >= (inviterSettings.zochinErkhiinToo || 0)) {
+                return res.status(403).json({ success: false, message: "Таны зочин урих лимит дууссан байна" });
+            }
+
+            // AFFECT MINUTE: Inherit free minutes from inviter to guest car
+            if (inviterSettings.zochinTusBurUneguiMinut) {
+                orshinSuugchMedeelel.zochinTusBurUneguiMinut = inviterSettings.zochinTusBurUneguiMinut;
+            }
+        }
+    }
+
     let orshinSuugchResult = null;
     let mashinResult = null;
 
     // Харилцагчийн мэдээллийг хадгална/засварлана
     if (orshinSuugchMedeelel) {
       try {
-        // Create a copy for resident data and remove visitor-specific fields
-        // This ensures visitor fields are ONLY saved to OrshinSuugchMashin schema as requested
         const residentData = { ...orshinSuugchMedeelel };
         delete residentData.zochinUrikhEsekh;
         delete residentData.zochinTurul;
@@ -187,11 +280,6 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
         if (orshinSuugchResult) {
           const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
           
-          // Check if record exists to update or create new
-          // We match by orshinSuugchiinId and mashiniiDugaar to avoid duplicates if preferred, 
-          // but strictly following "save into this", we will upsert or save.
-          // Given the fields track settings, we probably want to update the existing settings for this user/car.
-          
           await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
             { 
                orshinSuugchiinId: orshinSuugchResult._id,
@@ -212,6 +300,20 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             },
             { upsert: true, new: true }
           );
+
+          // TRACK USAGE: Create EzenUrisanMashin record if it was an invitation
+          if (inviterId && inviterSettings) {
+             const newInvitation = new EzenUrisanMashin(tukhainBaaziinKholbolt)({
+                baiguullagiinId: baiguullagiinId,
+                ezenId: inviterId,
+                urisanMashiniiDugaar: mashiniiDugaar,
+                tuluv: 0,
+                ognoo: new Date()
+             });
+             await newInvitation.save();
+             console.log("✅ [QUOTA] Invitation recorded for", inviterId);
+          }
+
           console.log("✅ [ZOCHIN_URI] Success. OrshinSuugchMashin saved/updated.");
         }
       } catch (error) {
