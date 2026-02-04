@@ -16,6 +16,25 @@ router.post(
   downloadNekhemjlekhiinTuukhExcel
 );
 
+// Emit tulburUpdated on delete of invoices so web clients refresh
+router.use((req, res, next) => {
+  const isInvoiceDelete =
+    (req.method === "DELETE" || (req.method === "POST" && req.path?.includes("delete"))) &&
+    req.path?.includes("nekhemjlekhiinTuukh");
+  if (!isInvoiceDelete) return next();
+  const originalJson = res.json.bind(res);
+  res.json = function (data) {
+    const baiguullagiinId = req.query?.baiguullagiinId || req.body?.baiguullagiinId;
+    if (baiguullagiinId && req.app) {
+      try {
+        req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
+      } catch (e) {}
+    }
+    return originalJson(data);
+  };
+  next();
+});
+
 crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
 router.get("/nekhemjlekhiinTuukh/:id", tokenShalgakh, async (req, res, next) => {
@@ -201,6 +220,11 @@ router.post(
         ...req.body,
         barilgiinId: barilgiinId // Pass barilgiinId to service
       });
+      const baiguullagiinId = req.body?.baiguullagiinId;
+      if (baiguullagiinId) {
+        const io = req.app.get("socketio");
+        if (io) io.emit(`tulburUpdated:${baiguullagiinId}`, {});
+      }
       res.json(result);
     } catch (err) {
       next(err);
@@ -298,6 +322,11 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
     );
 
     if (result.success) {
+      const baiguullagiinId = req.body?.baiguullagiinId;
+      if (baiguullagiinId) {
+        const io = req.app.get("socketio");
+        if (io) io.emit(`tulburUpdated:${baiguullagiinId}`, {});
+      }
       const message = result.created === 1
         ? "Нэхэмжлэх амжилттай үүсгэгдлээ"
         : `${result.created} нэхэмжлэх амжилттай үүсгэгдлээ`;
@@ -347,6 +376,11 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
     );
 
     if (result.success) {
+      const baiguullagiinId = req.body?.baiguullagiinId;
+      if (baiguullagiinId) {
+        const io = req.app.get("socketio");
+        if (io) io.emit(`tulburUpdated:${baiguullagiinId}`, {});
+      }
       res.json({
         success: true,
         message: `${result.created} нэхэмжлэх амжилттай үүсгэгдлээ`,

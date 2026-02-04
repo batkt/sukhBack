@@ -3091,6 +3091,11 @@ const deleteInvoiceZardal = asyncHandler(async (req, res, next) => {
     await updatedInvoice.save();
   }
 
+  const io = req.app?.get("socketio");
+  if (io && baiguullagiinId) {
+    io.emit(`tulburUpdated:${baiguullagiinId}`, {});
+  }
+
   res.json({
     success: true,
     message: "Зардал амжилттай устгагдлаа",
