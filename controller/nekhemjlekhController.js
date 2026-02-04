@@ -423,6 +423,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // Гэрээний мэдээллийг нэхэмжлэх рүү хуулах
     tuukh.baiguullagiinNer = tempData.baiguullagiinNer || org.ner;
+    const orgUtas = Array.isArray(org?.utas) ? org.utas[0] : (org?.utas || "");
+    tuukh.baiguullagiinUtas = (typeof orgUtas === "string" ? orgUtas : String(orgUtas || "")) || "";
+    tuukh.baiguullagiinKhayag = org?.khayag || "";
     tuukh.baiguullagiinId = tempData.baiguullagiinId;
 
     let barilgiinId = tempData.barilgiinId;
@@ -457,6 +460,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.gereeniiId = tempData._id;
     tuukh.gereeniiDugaar = tempData.gereeniiDugaar;
     tuukh.davkhar = tempData.davkhar;
+    tuukh.orts = tempData.orts || "";
     tuukh.uldegdel = tempData.globalUldegdel || tempData.baritsaaniiUldegdel || 0;
     tuukh.daraagiinTulukhOgnoo =
       tempData.daraagiinTulukhOgnoo || tempData.tulukhOgnoo;
