@@ -431,10 +431,6 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Серверийн алдаа гарлаа",
-    });
     if (next) next(error);
   }
 });
@@ -461,10 +457,6 @@ router.post("/ezenUrisanTuukh", tokenShalgakh, async (req, res, next) => {
     var ezenList = ezenJagsaalt?.filter((a) => a.tuluv == 0);
     res.send({ ezenList, jagsaalt });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "ezenUrisanTuukh алдаа гарлаа",
-    });
     if (next) next(error);
   }
 });
