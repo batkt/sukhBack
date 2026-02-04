@@ -209,6 +209,10 @@ exports.tailanSariinTulbur = asyncHandler(async (req, res, next) => {
       view = "huraangui", // "huraangui" (summary) or "delgerengui" (detailed)
       khuudasniiDugaar = 1,
       khuudasniiKhemjee = 20,
+      orshinSuugch,
+      toot,
+      davkhar,
+      gereeniiDugaar,
     } = source || {};
 
     if (!baiguullagiinId) {
@@ -231,6 +235,38 @@ exports.tailanSariinTulbur = asyncHandler(async (req, res, next) => {
     // Build base match filter
     const match = { baiguullagiinId: String(baiguullagiinId) };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
+
+    if (davkhar) {
+      const v = String(davkhar).trim();
+      if (v) match.davkhar = { $regex: escapeRegex(v), $options: "i" };
+    }
+    if (toot) {
+      const tootVal = String(toot).trim();
+      if (tootVal) {
+        const re = escapeRegex(tootVal);
+        match.$and = match.$and || [];
+        match.$and.push({
+          $or: [
+            { toot: { $regex: re, $options: "i" } },
+            { "medeelel.toot": { $regex: re, $options: "i" } },
+          ],
+        });
+      }
+    }
+    if (gereeniiDugaar) {
+      const v = String(gereeniiDugaar).trim();
+      if (v) match.gereeniiDugaar = { $regex: escapeRegex(v), $options: "i" };
+    }
+    if (orshinSuugch) {
+      const val = String(orshinSuugch).trim();
+      if (val) {
+        const re = escapeRegex(val);
+        match.$or = [
+          { ovog: { $regex: re, $options: "i" } },
+          { ner: { $regex: re, $options: "i" } },
+        ];
+      }
+    }
 
     // Date range filter
     if (ekhlekhOgnoo || duusakhOgnoo) {
@@ -658,6 +694,10 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       view = "huraangui", // "huraangui" (summary) or "delgerengui" (detailed)
       khuudasniiDugaar = 1,
       khuudasniiKhemjee = 20,
+      orshinSuugch,
+      toot,
+      davkhar,
+      gereeniiDugaar,
     } = source || {};
 
     if (!baiguullagiinId) {
@@ -685,6 +725,41 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
 
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
 
+    if (davkhar) {
+      const v = String(davkhar).trim();
+      if (v) match.davkhar = { $regex: escapeRegex(v), $options: "i" };
+    }
+    if (toot) {
+      const tootVal = String(toot).trim();
+      if (tootVal) {
+        const re = escapeRegex(tootVal);
+        match.$and = match.$and || [];
+        match.$and.push({
+          $or: [
+            { toot: { $regex: re, $options: "i" } },
+            { "medeelel.toot": { $regex: re, $options: "i" } },
+          ],
+        });
+      }
+    }
+    if (gereeniiDugaar) {
+      const v = String(gereeniiDugaar).trim();
+      if (v) match.gereeniiDugaar = { $regex: escapeRegex(v), $options: "i" };
+    }
+    if (orshinSuugch) {
+      const val = String(orshinSuugch).trim();
+      if (val) {
+        const re = escapeRegex(val);
+        match.$and = match.$and || [];
+        match.$and.push({
+          $or: [
+            { ovog: { $regex: re, $options: "i" } },
+            { ner: { $regex: re, $options: "i" } },
+          ],
+        });
+      }
+    }
+
     // Date range filter (based on invoice date or due date)
     if (ekhlekhOgnoo || duusakhOgnoo) {
       const start = ekhlekhOgnoo
@@ -693,10 +768,12 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       const end = duusakhOgnoo
         ? new Date(duusakhOgnoo)
         : new Date("2999-12-31");
-      match.$or = [
+      const dateOr = [
         { ognoo: { $gte: start, $lte: end } },
         { tulukhOgnoo: { $gte: start, $lte: end } },
       ];
+      match.$and = match.$and || [];
+      match.$and.push({ $or: dateOr });
     }
 
     const today = new Date();
