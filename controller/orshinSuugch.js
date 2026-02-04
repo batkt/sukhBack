@@ -491,15 +491,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       (req.body.barilgaId && req.body.barilgaId.toString().trim()) ||
       null;
 
-    console.log(`🔍 barilgiinId check:`, {
-      "req.body.barilgiinId": req.body.barilgiinId,
-      "req.body.barilgaId": req.body.barilgaId,
-      "req.body.bairniiNer": req.body.bairniiNer,
-      "final barilgiinId": barilgiinId,
-      type: typeof req.body.barilgiinId,
-      isTruthy: !!req.body.barilgiinId,
-    });
-
     // If barilgiinId is provided, use it directly - don't search!
     // Only validate if baiguullaga exists
     if (barilgiinId && baiguullaga) {

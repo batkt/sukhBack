@@ -46,6 +46,7 @@ const {
   downloadExcelList,
   downloadOrshinSuugchExcel,
 } = require("../controller/excelImportController");
+const { gereeNeesNekhemjlekhUusgekh } = require("../controller/nekhemjlekhController");
 
 // Configure multer for memory storage (Excel files)
 const upload = multer({
@@ -259,6 +260,140 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
     const result = new OrshinSuugch(db.erunkhiiKholbolt)(req.body);
     await result.save();
     if (result != null) result.key = result._id;
+
+    // --- AUTO CREATE CONTRACT & INVOICE (Like Excel Import) ---
+    try {
+      const { baiguullagiinId, barilgiinId } = req.body;
+      if (baiguullagiinId && barilgiinId && db.kholboltuud) {
+        const tukhainBaaziinKholbolt = db.kholboltuud.find(
+          (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+        );
+
+        if (tukhainBaaziinKholbolt) {
+          const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+          const targetBarilga = baiguullaga?.barilguud?.find(b => String(b._id) === String(barilgiinId));
+
+          if (baiguullaga && targetBarilga) {
+            const GereeModel = Geree(tukhainBaaziinKholbolt);
+            
+            // Check if active contract already exists for this unit/resident
+            let geree = await GereeModel.findOne({
+              orshinSuugchId: result._id.toString(),
+              barilgiinId: String(barilgiinId),
+              toot: result.toot || req.body.toot,
+              tuluv: { $ne: "Цуцалсан" }
+            });
+
+            if (!geree) {
+              console.log(`📋 [AUTO-GEREE] Creating contract for ${result.ner} (Toot: ${result.toot || req.body.toot})`);
+              
+              const ashiglaltiinZardluudData = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+              const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+              const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+
+              const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                ner: zardal.ner,
+                turul: zardal.turul,
+                zardliinTurul: zardal.zardliinTurul,
+                tariff: zardal.tariff,
+                tariffUsgeer: zardal.tariffUsgeer || "",
+                tulukhDun: 0,
+                dun: zardal.dun || 0,
+                bodokhArga: zardal.bodokhArga || "",
+                tseverUsDun: zardal.tseverUsDun || 0,
+                bokhirUsDun: zardal.bokhirUsDun || 0,
+                usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                ognoonuud: zardal.ognoonuud || [],
+                barilgiinId: zardal.barilgiinId || String(barilgiinId) || "",
+              }));
+
+              const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
+                const tariff = zardal.tariff || 0;
+                const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                if (isLiftItem && result.davkhar && choloolugdokhDavkhar.includes(result.davkhar)) {
+                  return total;
+                }
+                return total + tariff;
+              }, 0);
+
+              const contractData = {
+                gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+                gereeniiOgnoo: new Date(),
+                turul: "Үндсэн",
+                tuluv: "Идэвхтэй",
+                ovog: result.ovog || "",
+                ner: result.ner,
+                utas: Array.isArray(result.utas) ? result.utas : [result.utas],
+                mail: result.mail || "",
+                baiguullagiinId: baiguullaga._id,
+                baiguullagiinNer: baiguullaga.ner,
+                barilgiinId: String(barilgiinId),
+                tulukhOgnoo: new Date(),
+                ashiglaltiinZardal: niitTulbur,
+                niitTulbur: niitTulbur,
+                toot: result.toot || req.body.toot || "",
+                davkhar: result.davkhar || "",
+                bairNer: targetBarilga.ner || "",
+                sukhBairshil: `${targetBarilga.tokhirgoo?.duuregNer || ""}, ${targetBarilga.tokhirgoo?.horoo?.ner || ""}, ${targetBarilga.tokhirgoo?.sohNer || ""}`,
+                duureg: targetBarilga.tokhirgoo?.duuregNer || "",
+                horoo: targetBarilga.tokhirgoo?.horoo || {},
+                sohNer: targetBarilga.tokhirgoo?.sohNer || "",
+                orts: result.orts || "",
+                burtgesenAjiltan: req.body.nevtersenAjiltniiToken?.id,
+                orshinSuugchId: result._id.toString(),
+                temdeglel: "Вэбээс гар аргаар үүссэн гэрээ",
+                actOgnoo: new Date(),
+                baritsaaniiUldegdel: 0,
+                ekhniiUldegdel: result.ekhniiUldegdel || 0,
+                umnukhZaalt: result.tsahilgaaniiZaalt || 0,
+                suuliinZaalt: result.tsahilgaaniiZaalt || 0,
+                zardluud: zardluudArray,
+                segmentuud: [],
+                khungulultuud: [],
+              };
+
+              geree = new GereeModel(contractData);
+              await geree.save();
+              console.log(`✅ [AUTO-GEREE] Contract created: ${geree.gereeniiDugaar}`);
+
+              // Update davkhar with toot if provided (sync building config)
+              if (result.toot && result.davkhar) {
+                const { updateDavkharWithToot } = require("../controller/orshinSuugch");
+                await updateDavkharWithToot(
+                  baiguullaga,
+                  barilgiinId,
+                  result.davkhar,
+                  result.toot,
+                  tukhainBaaziinKholbolt
+                );
+              }
+            }
+
+            // Always attempt to create initial invoice
+            if (geree) {
+              const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+                geree,
+                baiguullaga,
+                tukhainBaaziinKholbolt,
+                "automataar"
+              );
+              if (invoiceResult.success) {
+                console.log(`✅ [AUTO-INVOICE] Initial invoice created for ${result.ner}`);
+              }
+            }
+          }
+        }
+      }
+    } catch (autoErr) {
+      console.error("❌ [AUTO-CONTRACT] Error:", autoErr.message);
+      // Don't fail the main request if auto-contract fails
+    }
+
     res.send(result);
   } catch (error) {
     next(error);
