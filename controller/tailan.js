@@ -88,7 +88,7 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
         ovog: d.ovog || "",
         ner: d.ner || "",
         utas: Array.isArray(d.utas) ? d.utas : d.utas || [],
-        toot: d.toot || "",
+        toot: d.medeelel?.toot || d.toot || "",
         davkhar: d.davkhar || "",
         bairNer: d.bairNer || "",
         orts: d.orts || "",
