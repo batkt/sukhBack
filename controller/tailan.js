@@ -1,5 +1,9 @@
 const asyncHandler = require("express-async-handler");
 
+function escapeRegex(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // Өр, авлагын тайлан (оршин суугчдийн) - Байр, орц, давхар, тоогоор хайж хэн төлбөрөө төлсөн, хэн төлөөгүйг хянах
 exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
   try {
@@ -19,6 +23,10 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
       orts, // Орц
       davkhar, // Давхар
       toot, // Тоот
+      gereeniiDugaar, // Гэрээний дугаар
+      ovog,
+      ner,
+      orshinSuugch, // Оршин суугч - searches ovog or ner
       ekhlekhOgnoo,
       duusakhOgnoo,
     } = source || {};
@@ -46,8 +54,46 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
     if (bairNer) match.bairNer = bairNer;
     if (orts) match.orts = orts;
-    if (davkhar) match.davkhar = String(davkhar);
-    if (toot) match.toot = String(toot);
+    if (davkhar) {
+      const v = String(davkhar).trim();
+      if (v) match.davkhar = { $regex: escapeRegex(v), $options: "i" };
+    }
+    if (toot) {
+      const tootVal = String(toot).trim();
+      if (tootVal) {
+        const re = escapeRegex(tootVal);
+        match.$and = match.$and || [];
+        match.$and.push({
+          $or: [
+            { toot: { $regex: re, $options: "i" } },
+            { "medeelel.toot": { $regex: re, $options: "i" } },
+          ],
+        });
+      }
+    }
+    if (gereeniiDugaar) {
+      const v = String(gereeniiDugaar).trim();
+      if (v) match.gereeniiDugaar = { $regex: escapeRegex(v), $options: "i" };
+    }
+    if (orshinSuugch) {
+      const val = String(orshinSuugch).trim();
+      if (val) {
+        const re = escapeRegex(val);
+        match.$or = [
+          { ovog: { $regex: re, $options: "i" } },
+          { ner: { $regex: re, $options: "i" } },
+        ];
+      }
+    } else {
+      if (ovog) {
+        const v = String(ovog).trim();
+        if (v) match.ovog = { $regex: escapeRegex(v), $options: "i" };
+      }
+      if (ner) {
+        const v = String(ner).trim();
+        if (v) match.ner = { $regex: escapeRegex(v), $options: "i" };
+      }
+    }
 
     // Date range filter
     if (ekhlekhOgnoo || duusakhOgnoo) {
@@ -120,6 +166,8 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
         orts: orts || null,
         davkhar: davkhar || null,
         toot: toot || null,
+        gereeniiDugaar: gereeniiDugaar || null,
+        orshinSuugch: orshinSuugch || null,
         ekhlekhOgnoo: ekhlekhOgnoo || null,
         duusakhOgnoo: duusakhOgnoo || null,
       },
@@ -533,6 +581,7 @@ exports.tailanNekhemjlekhiinTuukh = asyncHandler(async (req, res, next) => {
         tulukhOgnoo: invoice.tulukhOgnoo || null,
         tulsunOgnoo: invoice.tulsunOgnoo || null,
         niitTulbur: invoice.niitTulbur || 0,
+        ekhniiUldegdel: invoice.ekhniiUldegdel,
         tuluv: invoice.tuluv || "Төлөөгүй",
         dugaalaltDugaar: invoice.dugaalaltDugaar || null,
         zagvariinNer: invoice.zagvariinNer || "",
