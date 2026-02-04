@@ -2491,6 +2491,10 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       ]
     }).lean();
 
+    const sohNer = targetBarilga?.tokhirgoo?.sohNer || "";
+    const orgUtas = Array.isArray(baiguullaga?.utas) ? baiguullaga.utas[0] : (baiguullaga?.utas || "");
+    const dansInfo = [baiguullaga?.bankniiNer, baiguullaga?.dans].filter(Boolean).join(" ") || "";
+
     return {
       success: true,
       preview: {
@@ -2501,6 +2505,12 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         utas: geree.utas,
         davkhar: geree.davkhar,
         toot: geree.toot,
+        orts: geree.orts,
+        sohNer: sohNer || baiguullaga?.ner,
+        baiguullagiinNer: baiguullaga?.ner,
+        baiguullagiinUtas: orgUtas,
+        baiguullagiinKhayag: baiguullaga?.khayag,
+        dansniiMedeelel: dansInfo,
         zardluud: zardluudWithDun,
         zardluudTotal: zardluudTotal,
         ekhniiUldegdel: ekhniiUldegdelAmount,
