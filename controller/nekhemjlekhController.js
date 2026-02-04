@@ -2830,9 +2830,11 @@ const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, overr
         if (invoiceResult.success) {
           results.created++;
           results.invoices.push({
+            gereeniiId: geree._id,
             gereeniiDugaar: geree.gereeniiDugaar,
             nekhemjlekhiinId: invoiceResult.nekhemjlekh?._id || invoiceResult.nekhemjlekh,
             tulbur: invoiceResult.tulbur,
+            orshinSuugchId: geree.orshinSuugchId || null,
           });
         } else {
           results.errors++;
@@ -2927,6 +2929,7 @@ const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = 
             gereeniiDugaar: geree.gereeniiDugaar,
             nekhemjlekhiinId: invoiceResult.nekhemjlekh?._id || invoiceResult.nekhemjlekh,
             tulbur: invoiceResult.tulbur,
+            orshinSuugchId: geree.orshinSuugchId || null,
           });
           console.log(`✅ [${i + 1}/${gerees.length}] Invoice created for ${geree.gereeniiDugaar || geree._id}`);
         } else {
