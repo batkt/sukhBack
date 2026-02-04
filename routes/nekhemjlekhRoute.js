@@ -9,7 +9,6 @@ const { markInvoicesAsPaid } = require("../services/invoicePaymentService");
 const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const { db } = require("zevbackv2");
-const Medegdel = require("../models/medegdel");
 
 router.post(
   "/nekhemjlekhiinTuukhExcelDownload",
@@ -302,44 +301,6 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
         ? "Нэхэмжлэх амжилттай үүсгэгдлээ"
         : `${result.created} нэхэмжлэх амжилттай үүсгэгдлээ`;
 
-      // Emit socket notifications so the mobile app refreshes invoice list in real-time
-      try {
-        const io = req.app.get("socketio");
-        const kholbolt = db.kholboltuud.find(
-          (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-        );
-        if (io && kholbolt && result.invoices && result.invoices.length > 0) {
-          const orshinSuugchIds = [...new Set(
-            result.invoices
-              .map((inv) => inv.orshinSuugchId)
-              .filter((id) => id)
-          )];
-          for (const orshinSuugchId of orshinSuugchIds) {
-            const invoicesForUser = result.invoices.filter(
-              (inv) => String(inv.orshinSuugchId) === String(orshinSuugchId)
-            );
-            const firstInv = invoicesForUser[0];
-            const tulburSum = invoicesForUser.reduce((sum, inv) => sum + (inv.tulbur || 0), 0);
-            const medegdel = new Medegdel(kholbolt)();
-            medegdel.orshinSuugchId = orshinSuugchId;
-            medegdel.baiguullagiinId = baiguullagiinId;
-            medegdel.barilgiinId = "";
-            medegdel.title = "Шинэ нэхэмжлэх үүссэн";
-            medegdel.message = invoicesForUser.length === 1
-              ? `Гэрээний дугаар: ${firstInv.gereeniiDugaar || "N/A"}, Нийт төлбөр: ${tulburSum}₮`
-              : `${invoicesForUser.length} нэхэмжлэх үүсгэгдлээ. Нийт: ${tulburSum}₮`;
-            medegdel.kharsanEsekh = false;
-            medegdel.turul = "мэдэгдэл";
-            medegdel.ognoo = new Date();
-            await medegdel.save();
-            const medegdelObj = medegdel.toObject ? medegdel.toObject() : medegdel;
-            io.emit("orshinSuugch" + orshinSuugchId, medegdelObj);
-          }
-        }
-      } catch (notifErr) {
-        console.error("Manual send socket notification error:", notifErr);
-      }
-
       res.json({
         success: true,
         message: message,
@@ -384,44 +345,6 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
     );
 
     if (result.success) {
-      // Emit socket notifications so the mobile app refreshes invoice list in real-time
-      try {
-        const io = req.app.get("socketio");
-        const kholbolt = db.kholboltuud.find(
-          (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-        );
-        if (io && kholbolt && result.invoices && result.invoices.length > 0) {
-          const orshinSuugchIds = [...new Set(
-            result.invoices
-              .map((inv) => inv.orshinSuugchId)
-              .filter((id) => id)
-          )];
-          for (const orshinSuugchId of orshinSuugchIds) {
-            const invoicesForUser = result.invoices.filter(
-              (inv) => String(inv.orshinSuugchId) === String(orshinSuugchId)
-            );
-            const firstInv = invoicesForUser[0];
-            const tulburSum = invoicesForUser.reduce((sum, inv) => sum + (inv.tulbur || 0), 0);
-            const medegdel = new Medegdel(kholbolt)();
-            medegdel.orshinSuugchId = orshinSuugchId;
-            medegdel.baiguullagiinId = baiguullagiinId;
-            medegdel.barilgiinId = "";
-            medegdel.title = "Шинэ нэхэмжлэх үүссэн";
-            medegdel.message = invoicesForUser.length === 1
-              ? `Гэрээний дугаар: ${firstInv.gereeniiDugaar || "N/A"}, Нийт төлбөр: ${tulburSum}₮`
-              : `${invoicesForUser.length} нэхэмжлэх үүсгэгдлээ. Нийт: ${tulburSum}₮`;
-            medegdel.kharsanEsekh = false;
-            medegdel.turul = "мэдэгдэл";
-            medegdel.ognoo = new Date();
-            await medegdel.save();
-            const medegdelObj = medegdel.toObject ? medegdel.toObject() : medegdel;
-            io.emit("orshinSuugch" + orshinSuugchId, medegdelObj);
-          }
-        }
-      } catch (notifErr) {
-        console.error("Manual send mass socket notification error:", notifErr);
-      }
-
       res.json({
         success: true,
         message: `${result.created} нэхэмжлэх амжилттай үүсгэгдлээ`,

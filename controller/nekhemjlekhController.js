@@ -2755,14 +2755,15 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
     }
 
     const gereeObj = geree.toObject ? geree.toObject() : geree;
-    // Include ekhniiUldegdel so invoices show full amount (from orshinSuugch / gereeniiTulukhAvlaga)
+    // IMPORTANT: Pass includeEkhniiUldegdel = false to prevent manual send from adding ekhniiUldegdel
+    // ekhniiUldegdel should ONLY come from Excel import or TransactionModal
     const result = await gereeNeesNekhemjlekhUusgekh(
       gereeObj,
       baiguullaga,
       tukhainBaaziinKholbolt,
       "manual",
       true,  // skipDuplicateCheck
-      true   // includeEkhniiUldegdel = true - include so app displays correct total
+      false  // includeEkhniiUldegdel = false - DON'T include ekhniiUldegdel on manual send
     );
 
     if (result.success && existingUnsentInvoices.length > 0 && !override) {
@@ -2829,11 +2830,9 @@ const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, overr
         if (invoiceResult.success) {
           results.created++;
           results.invoices.push({
-            gereeniiId: geree._id,
             gereeniiDugaar: geree.gereeniiDugaar,
             nekhemjlekhiinId: invoiceResult.nekhemjlekh?._id || invoiceResult.nekhemjlekh,
             tulbur: invoiceResult.tulbur,
-            orshinSuugchId: geree.orshinSuugchId || null,
           });
         } else {
           results.errors++;
@@ -2928,7 +2927,6 @@ const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = 
             gereeniiDugaar: geree.gereeniiDugaar,
             nekhemjlekhiinId: invoiceResult.nekhemjlekh?._id || invoiceResult.nekhemjlekh,
             tulbur: invoiceResult.tulbur,
-            orshinSuugchId: geree.orshinSuugchId || null,
           });
           console.log(`✅ [${i + 1}/${gerees.length}] Invoice created for ${geree.gereeniiDugaar || geree._id}`);
         } else {
