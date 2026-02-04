@@ -367,23 +367,32 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
              }
           }
           
+          // Fetch defaults from Baiguullaga/Barilga if not provided
+          const Baiguullaga = require("../models/baiguullaga");
+          const baiguullagaObj = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+          let defaults = baiguullagaObj?.tokhirgoo?.zochinTokhirgoo || {};
+          if (barilgiinId && baiguullagaObj?.barilguud) {
+            const barilga = baiguullagaObj.barilguud.find(b => String(b._id) === String(barilgiinId));
+            if (barilga?.tokhirgoo?.zochinTokhirgoo) {
+                defaults = barilga.tokhirgoo.zochinTokhirgoo;
+            }
+          }
+          
           const updateData = {
             mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar || mashiniiDugaar,
-            zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh,
-            zochinTurul: orshinSuugchMedeelel.zochinTurul,
-            davtamjiinTurul: orshinSuugchMedeelel.davtamjiinTurul,
+            zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh !== undefined ? orshinSuugchMedeelel.zochinUrikhEsekh : defaults.zochinUrikhEsekh,
+            zochinTurul: orshinSuugchMedeelel.zochinTurul || defaults.zochinTurul || "Оршин суугч",
+            davtamjiinTurul: orshinSuugchMedeelel.davtamjiinTurul || defaults.davtamjiinTurul || "saraar",
             dugaarUurchilsunOgnoo: orshinSuugchMedeelel.dugaarUurchilsunOgnoo,
             ezenToot: orshinSuugchMedeelel.ezenToot,
-            zochinTailbar: orshinSuugchMedeelel.zochinTailbar,
-            davtamjUtga: orshinSuugchMedeelel.davtamjUtga, // Allow saving initially if not protected below
+            zochinTailbar: orshinSuugchMedeelel.zochinTailbar || defaults.zochinTailbar,
+            davtamjUtga: orshinSuugchMedeelel.davtamjUtga !== undefined ? orshinSuugchMedeelel.davtamjUtga : defaults.davtamjUtga,
           };
           
           if (requesterRole !== 'OrshinSuugch') {
-            updateData.zochinErkhiinToo = orshinSuugchMedeelel.zochinErkhiinToo;
-            updateData.zochinTusBurUneguiMinut = orshinSuugchMedeelel.zochinTusBurUneguiMinut;
-            updateData.zochinNiitUneguiMinut = orshinSuugchMedeelel.zochinNiitUneguiMinut;
-            // Also protect frequency settings
-            updateData.davtamjUtga = orshinSuugchMedeelel.davtamjUtga;
+            updateData.zochinErkhiinToo = orshinSuugchMedeelel.zochinErkhiinToo !== undefined ? orshinSuugchMedeelel.zochinErkhiinToo : defaults.zochinErkhiinToo;
+            updateData.zochinTusBurUneguiMinut = orshinSuugchMedeelel.zochinTusBurUneguiMinut !== undefined ? orshinSuugchMedeelel.zochinTusBurUneguiMinut : defaults.zochinTusBurUneguiMinut;
+            updateData.zochinNiitUneguiMinut = orshinSuugchMedeelel.zochinNiitUneguiMinut !== undefined ? orshinSuugchMedeelel.zochinNiitUneguiMinut : defaults.zochinNiitUneguiMinut;
           }
 
           Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);

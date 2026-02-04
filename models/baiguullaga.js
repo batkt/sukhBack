@@ -77,6 +77,16 @@ const baiguullagaSchema = new Schema(
             Boolean /** гэрээ дуусах үед талбайн төлбөр нэмэх эсэх */,
           gereeDuusakhTulbur: Number,
           zochinUrikhUneguiMinut: Number,
+          zochinTokhirgoo: {
+            zochinUrikhEsekh: Boolean,
+            zochinTurul: String,
+            zochinErkhiinToo: Number,
+            zochinTusBurUneguiMinut: Number,
+            zochinNiitUneguiMinut: Number,
+            zochinTailbar: String,
+            davtamjiinTurul: String,
+            davtamjUtga: Number
+          },
           /** Ашиглалтын зардлууд - барилга тус бүрт тусдаа */
           ashiglaltiinZardluud: [
             {
@@ -203,6 +213,16 @@ const baiguullagaSchema = new Schema(
       gadaaStickerAshiglakhEsekh: Boolean /** gadaa sticker ashiglakh esekh */,
       togloomiinTuvDavkhardsanShalgakh: Boolean,
       dotorGadnaTsagEsekh: Boolean,
+      zochinTokhirgoo: {
+        zochinUrikhEsekh: Boolean,
+        zochinTurul: String,
+        zochinErkhiinToo: Number,
+        zochinTusBurUneguiMinut: Number,
+        zochinNiitUneguiMinut: Number,
+        zochinTailbar: String,
+        davtamjiinTurul: String,
+        davtamjUtga: Number
+      },
     },
     erkhuud: [
       {
