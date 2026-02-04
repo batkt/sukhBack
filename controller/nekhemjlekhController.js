@@ -480,7 +480,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Only fetch and set ekhniiUldegdel if the flag is true
     if (includeEkhniiUldegdel && tempData.orshinSuugchId) {
       try {
-        
+
         const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
           .findById(tempData.orshinSuugchId)
           .select("ekhniiUldegdel")
@@ -2715,6 +2715,22 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         oldestUnsentInvoice.markModified('medeelel');
         
         await oldestUnsentInvoice.save();
+
+        // Update Geree.globalUldegdel by delta (new - old) so home/nekhemjlekh show correct total
+        const oldNiitTulbur = (oldZardluud || []).reduce((s, z) => s + (z.dun || z.tariff || 0), 0);
+        const delta = newNiitTulbur - oldNiitTulbur;
+        if (Math.abs(delta) > 0.01) {
+          try {
+            await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
+              gereeId,
+              { $inc: { globalUldegdel: delta } },
+              { runValidators: false }
+            );
+            console.log(`✅ [MANUAL SEND] Updated geree.globalUldegdel by ${delta}₮ (old: ${oldNiitTulbur}, new: ${newNiitTulbur})`);
+          } catch (gereeErr) {
+            console.error("❌ [MANUAL SEND] Error updating geree.globalUldegdel:", gereeErr.message);
+          }
+        }
         
         console.log(`✅ [MANUAL SEND] Updated invoice ${oldestUnsentInvoice.nekhemjlekhiinDugaar} in place, new total: ${newNiitTulbur}, uldegdel: ${oldestUnsentInvoice.uldegdel}`);
         
