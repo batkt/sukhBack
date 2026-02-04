@@ -91,7 +91,7 @@ async function mashinHadgalya(mashinMedeelel, tukhainBaaziinKholbolt) {
             }
           }
         });
-        if (Object.keys(updateFields).length > 0) {
+        if (Object.keys(updateFields).length > 0) { 
           updateFields.updatedAt = new Date();
           return await Mashin(tukhainBaaziinKholbolt).findByIdAndUpdate(
             mashinId,
@@ -317,22 +317,24 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             };
           }
           
+          // Construct the update object, ensuring we don't overwrite with undefined/null
+          const updateData = {
+            mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar || mashiniiDugaar,
+            zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh,
+            zochinTurul: orshinSuugchMedeelel.zochinTurul,
+            davtamjiinTurul: orshinSuugchMedeelel.davtamjiinTurul,
+            dugaarUurchilsunOgnoo: orshinSuugchMedeelel.dugaarUurchilsunOgnoo,
+            ezenToot: orshinSuugchMedeelel.ezenToot,
+            zochinTailbar: orshinSuugchMedeelel.zochinTailbar,
+            zochinErkhiinToo: orshinSuugchMedeelel.zochinErkhiinToo,
+            zochinTusBurUneguiMinut: orshinSuugchMedeelel.zochinTusBurUneguiMinut,
+            zochinNiitUneguiMinut: orshinSuugchMedeelel.zochinNiitUneguiMinut,
+          };
+          Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+
           orshinSuugchMashinResult = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
             filter,
-            {
-               $set: {
-                mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar,
-                zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh,
-                zochinTurul: orshinSuugchMedeelel.zochinTurul,
-                davtamjiinTurul: orshinSuugchMedeelel.davtamjiinTurul,
-                dugaarUurchilsunOgnoo: orshinSuugchMedeelel.dugaarUurchilsunOgnoo,
-                ezenToot: orshinSuugchMedeelel.ezenToot,
-                zochinTailbar: orshinSuugchMedeelel.zochinTailbar,
-                zochinErkhiinToo: orshinSuugchMedeelel.zochinErkhiinToo,
-                zochinTusBurUneguiMinut: orshinSuugchMedeelel.zochinTusBurUneguiMinut,
-                zochinNiitUneguiMinut: orshinSuugchMedeelel.zochinNiitUneguiMinut,
-               }
-            },
+            { $set: updateData },
             { upsert: true, new: true }
           );
 
