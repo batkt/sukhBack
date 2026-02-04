@@ -469,8 +469,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.mailKhayagTo = tempData.mail;
     tuukh.maililgeesenAjiltniiId =
       tempData.maililgeesenAjiltniiId || tempData.burtgesenAjiltan;
+    // When auto-sent by system (creating resident, cron), show "Систем" not resident name
     tuukh.maililgeesenAjiltniiNer =
-      tempData.maililgeesenAjiltniiNer || tempData.ner;
+      (uusgegsenEsekh === "automataar" || uusgegsenEsekh === "cron")
+        ? "Систем"
+        : (tempData.maililgeesenAjiltniiNer || tempData.ner);
     tuukh.nekhemjlekhiinZagvarId = tempData.nekhemjlekhiinZagvarId || "";
 
     let ekhniiUldegdelForInvoice = 0;
