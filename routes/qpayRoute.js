@@ -1859,14 +1859,14 @@ router.get(
         }
       } catch (ebarimtError) {}
 
-      req.app
-        .get("socketio")
-        .emit(`nekhemjlekhPayment/${baiguullagiinId}/${nekhemjlekhiinId}`, {
-          status: "success",
-          tuluv: "Төлсөн",
-          tulsunOgnoo: nekhemjlekh.tulsunOgnoo,
-          paymentId: nekhemjlekh.qpayPaymentId,
-        });
+      const io = req.app.get("socketio");
+      io.emit(`nekhemjlekhPayment/${baiguullagiinId}/${nekhemjlekhiinId}`, {
+        status: "success",
+        tuluv: "Төлсөн",
+        tulsunOgnoo: nekhemjlekh.tulsunOgnoo,
+        paymentId: nekhemjlekh.qpayPaymentId,
+      });
+      io.emit(`tulburUpdated:${baiguullagiinId}`, {});
 
       res.sendStatus(200);
     } catch (err) {
@@ -2304,17 +2304,16 @@ router.get(
           }
 
           // Emit socket event for each invoice
-          req.app
-            .get("socketio")
-            .emit(
-              `nekhemjlekhPayment/${baiguullagiinId}/${updatedInvoice._id}`,
-              {
-                status: "success",
-                tuluv: "Төлсөн",
-                tulsunOgnoo: updatedInvoice.tulsunOgnoo,
-                paymentId: updatedInvoice.qpayPaymentId,
-              }
-            );
+          const io = req.app.get("socketio");
+          io.emit(
+            `nekhemjlekhPayment/${baiguullagiinId}/${updatedInvoice._id}`,
+            {
+              status: "success",
+              tuluv: "Төлсөн",
+              tulsunOgnoo: updatedInvoice.tulsunOgnoo,
+              paymentId: updatedInvoice.qpayPaymentId,
+            }
+          );
         } catch (invoiceErr) {
           console.error(
             `❌ Error updating invoice ${nekhemjlekh._id}:`,
@@ -2328,6 +2327,8 @@ router.get(
       console.log(
         `✅ Successfully processed payment for ${invoices.length} invoices`
       );
+
+      req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
 
       res.sendStatus(200);
     } catch (err) {

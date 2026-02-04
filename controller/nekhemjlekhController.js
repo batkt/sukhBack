@@ -423,6 +423,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // Гэрээний мэдээллийг нэхэмжлэх рүү хуулах
     tuukh.baiguullagiinNer = tempData.baiguullagiinNer || org.ner;
+    const orgUtas = Array.isArray(org?.utas) ? org.utas[0] : (org?.utas || "");
+    tuukh.baiguullagiinUtas = (typeof orgUtas === "string" ? orgUtas : String(orgUtas || "")) || "";
+    tuukh.baiguullagiinKhayag = org?.khayag || "";
     tuukh.baiguullagiinId = tempData.baiguullagiinId;
 
     let barilgiinId = tempData.barilgiinId;
@@ -457,6 +460,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.gereeniiId = tempData._id;
     tuukh.gereeniiDugaar = tempData.gereeniiDugaar;
     tuukh.davkhar = tempData.davkhar;
+    tuukh.orts = tempData.orts || "";
     tuukh.uldegdel = tempData.globalUldegdel || tempData.baritsaaniiUldegdel || 0;
     tuukh.daraagiinTulukhOgnoo =
       tempData.daraagiinTulukhOgnoo || tempData.tulukhOgnoo;
@@ -480,7 +484,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Only fetch and set ekhniiUldegdel if the flag is true
     if (includeEkhniiUldegdel && tempData.orshinSuugchId) {
       try {
-        
+
         const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
           .findById(tempData.orshinSuugchId)
           .select("ekhniiUldegdel")
@@ -2491,6 +2495,10 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
       ]
     }).lean();
 
+    const sohNer = targetBarilga?.tokhirgoo?.sohNer || "";
+    const orgUtas = Array.isArray(baiguullaga?.utas) ? baiguullaga.utas[0] : (baiguullaga?.utas || "");
+    const dansInfo = [baiguullaga?.bankniiNer, baiguullaga?.dans].filter(Boolean).join(" ") || "";
+
     return {
       success: true,
       preview: {
@@ -2501,6 +2509,12 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         utas: geree.utas,
         davkhar: geree.davkhar,
         toot: geree.toot,
+        orts: geree.orts,
+        sohNer: sohNer || baiguullaga?.ner,
+        baiguullagiinNer: baiguullaga?.ner,
+        baiguullagiinUtas: orgUtas,
+        baiguullagiinKhayag: baiguullaga?.khayag,
+        dansniiMedeelel: dansInfo,
         zardluud: zardluudWithDun,
         zardluudTotal: zardluudTotal,
         ekhniiUldegdel: ekhniiUldegdelAmount,
@@ -2521,7 +2535,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
   }
 };
 
-const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, targetMonth = null, targetYear = null) => {
+const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, targetMonth = null, targetYear = null, app = null) => {
   try {
     const { db } = require("zevbackv2");
     const Geree = require("../models/geree");
@@ -2715,6 +2729,22 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         oldestUnsentInvoice.markModified('medeelel');
         
         await oldestUnsentInvoice.save();
+
+        // Update Geree.globalUldegdel by delta (new - old) so home/nekhemjlekh show correct total
+        const oldNiitTulbur = (oldZardluud || []).reduce((s, z) => s + (z.dun || z.tariff || 0), 0);
+        const delta = newNiitTulbur - oldNiitTulbur;
+        if (Math.abs(delta) > 0.01) {
+          try {
+            await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
+              gereeId,
+              { $inc: { globalUldegdel: delta } },
+              { runValidators: false }
+            );
+            console.log(`✅ [MANUAL SEND] Updated geree.globalUldegdel by ${delta}₮ (old: ${oldNiitTulbur}, new: ${newNiitTulbur})`);
+          } catch (gereeErr) {
+            console.error("❌ [MANUAL SEND] Error updating geree.globalUldegdel:", gereeErr.message);
+          }
+        }
         
         console.log(`✅ [MANUAL SEND] Updated invoice ${oldestUnsentInvoice.nekhemjlekhiinDugaar} in place, new total: ${newNiitTulbur}, uldegdel: ${oldestUnsentInvoice.uldegdel}`);
         
@@ -2734,6 +2764,29 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
           }
         }
         
+        // Send socket notification so home header refreshes balance
+        if (app && geree.orshinSuugchId) {
+          try {
+            const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
+            if (kholbolt) {
+              const medegdel = new Medegdel(kholbolt)();
+              medegdel.orshinSuugchId = geree.orshinSuugchId;
+              medegdel.baiguullagiinId = baiguullagiinId;
+              medegdel.barilgiinId = geree.barilgiinId || "";
+              medegdel.title = "Шинэ авлага нэмэгдлээ";
+              medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Нийт төлбөр: ${newNiitTulbur}₮`;
+              medegdel.kharsanEsekh = false;
+              medegdel.turul = "мэдэгдэл";
+              medegdel.ognoo = new Date();
+              await medegdel.save();
+              const io = app.get("socketio");
+              if (io) io.emit("orshinSuugch" + geree.orshinSuugchId, medegdel.toObject ? medegdel.toObject() : medegdel);
+            }
+          } catch (notifErr) {
+            console.error("❌ [MANUAL SEND] Error sending socket notification:", notifErr.message);
+          }
+        }
+
         return {
           success: true,
           nekhemjlekh: oldestUnsentInvoice,
@@ -2780,7 +2833,7 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
   }
 };
 
-const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, override = false, targetMonth = null, targetYear = null) => {
+const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, override = false, targetMonth = null, targetYear = null, app = null) => {
   try {
     const { db } = require("zevbackv2");
     const Geree = require("../models/geree");
@@ -2828,7 +2881,8 @@ const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, overr
           baiguullagiinId,
           override,
           targetMonth,
-          targetYear
+          targetYear,
+          app
         );
 
         if (invoiceResult.success) {
@@ -2862,7 +2916,7 @@ const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, overr
 
 // Manual send invoices for selected/checked contracts
 // Accepts array of gereeIds (can be one or many)
-const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = false, targetMonth = null, targetYear = null) => {
+const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = false, targetMonth = null, targetYear = null, app = null) => {
   try {
     const { db } = require("zevbackv2");
     const Geree = require("../models/geree");
@@ -2921,7 +2975,8 @@ const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = 
           baiguullagiinId,
           override,
           targetMonth,
-          targetYear
+          targetYear,
+          app
         );
 
         if (invoiceResult.success) {
@@ -3034,6 +3089,11 @@ const deleteInvoiceZardal = asyncHandler(async (req, res, next) => {
   if (updatedInvoice && updatedInvoice.niitTulbur <= 0) {
     updatedInvoice.tuluv = "Төлсөн";
     await updatedInvoice.save();
+  }
+
+  const io = req.app?.get("socketio");
+  if (io && baiguullagiinId) {
+    io.emit(`tulburUpdated:${baiguullagiinId}`, {});
   }
 
   res.json({

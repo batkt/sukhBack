@@ -140,6 +140,26 @@ crud(router, "liftShalgaya", LiftShalgaya, UstsanBarimt);
 
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+
+// Emit tulburUpdated on delete of avlaga records so web clients refresh
+router.use((req, res, next) => {
+  const isAvlagaDelete =
+    (req.method === "DELETE" || (req.method === "POST" && req.path?.includes("delete"))) &&
+    (req.path?.includes("gereeniiTulsunAvlaga") || req.path?.includes("gereeniiTulukhAvlaga"));
+  if (!isAvlagaDelete) return next();
+  const originalJson = res.json.bind(res);
+  res.json = function (data) {
+    const baiguullagiinId = req.query?.baiguullagiinId || req.body?.baiguullagiinId;
+    if (baiguullagiinId && req.app) {
+      try {
+        req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
+      } catch (e) {}
+    }
+    return originalJson(data);
+  };
+  next();
+});
+
 crud(router, "gereeniiTulsunAvlaga", GereeniiTulsunAvlaga, UstsanBarimt);
 crud(router, "gereeniiTulukhAvlaga", GereeniiTulukhAvlaga, UstsanBarimt);
 crud(

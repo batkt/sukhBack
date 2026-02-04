@@ -5,6 +5,8 @@ mongoose.pluralize(null);
 const nekhemjlekhiinTuukhSchema = new Schema(
   {
     baiguullagiinNer: String,
+    baiguullagiinUtas: String,
+    baiguullagiinKhayag: String,
     baiguullagiinId: String,
     barilgiinId: String,
     ovog: String,
