@@ -2755,15 +2755,14 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
     }
 
     const gereeObj = geree.toObject ? geree.toObject() : geree;
-    // IMPORTANT: Pass includeEkhniiUldegdel = false to prevent manual send from adding ekhniiUldegdel
-    // ekhniiUldegdel should ONLY come from Excel import or TransactionModal
+    // Include ekhniiUldegdel so invoices show full amount (from orshinSuugch / gereeniiTulukhAvlaga)
     const result = await gereeNeesNekhemjlekhUusgekh(
       gereeObj,
       baiguullaga,
       tukhainBaaziinKholbolt,
       "manual",
       true,  // skipDuplicateCheck
-      false  // includeEkhniiUldegdel = false - DON'T include ekhniiUldegdel on manual send
+      true   // includeEkhniiUldegdel = true - include so app displays correct total
     );
 
     if (result.success && existingUnsentInvoices.length > 0 && !override) {
