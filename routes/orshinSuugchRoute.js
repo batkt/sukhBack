@@ -372,6 +372,46 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                   tukhainBaaziinKholbolt
                 );
               }
+              
+              // --- AUTO CREATE GUEST SETTINGS (OrshinSuugchMashin) ---
+              // PRIORITIZE Building Settings -> Organization Settings
+              const buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
+              const orgSettings = baiguullaga?.zochinTokhirgoo;
+              
+              const defaultSettings = buildingSettings && buildingSettings.zochinUrikhEsekh !== undefined
+                 ? buildingSettings 
+                 : orgSettings;
+
+              if (defaultSettings) {
+                 const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+                 
+                 // Check if settings already exist
+                 const existingSettings = await OrshinSuugchMashin(tukhainBaaziinKholbolt).findOne({
+                    orshinSuugchiinId: result._id.toString(),
+                    zochinTurul: "Оршин суугч"
+                 });
+                 
+                 if (!existingSettings) {
+                    console.log(`📋 [AUTO-ZOCHIN] Creating default guest settings for ${result.ner}`);
+                    
+                    const newSettings = new OrshinSuugchMashin(tukhainBaaziinKholbolt)({
+                        orshinSuugchiinId: result._id.toString(),
+                        ezenToot: result.toot || req.body.toot || "",
+                        // Default values
+                        zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
+                        zochinTurul: "Оршин суугч", 
+                        zochinErkhiinToo: defaultSettings.zochinErkhiinToo || 0,
+                        zochinTusBurUneguiMinut: defaultSettings.zochinTusBurUneguiMinut || 0,
+                        zochinNiitUneguiMinut: defaultSettings.zochinNiitUneguiMinut || 0,
+                        zochinTailbar: defaultSettings.zochinTailbar || "",
+                        davtamjiinTurul: defaultSettings.davtamjiinTurul || "saraar",
+                        davtamjUtga: defaultSettings.davtamjUtga
+                    });
+                    
+                    await newSettings.save();
+                    console.log(`✅ [AUTO-ZOCHIN] Settings created.`);
+                 }
+              }
             }
 
             // Always attempt to create initial invoice

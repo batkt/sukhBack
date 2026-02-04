@@ -16,7 +16,8 @@ const orshinSuugchMashinSchema = new Schema(
     zochinTailbar: String,
     zochinErkhiinToo: Number,
     zochinTusBurUneguiMinut: Number,
-    zochinNiitUneguiMinut: Number
+    zochinNiitUneguiMinut: Number,
+    davtamjUtga: Number
     },
     {timestamps: true}
 )

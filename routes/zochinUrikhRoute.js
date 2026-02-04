@@ -165,8 +165,36 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
 
     if (!masterSetting) return res.send({ total: 0, used: 0, remaining: 0 });
 
-    const period = masterSetting.davtamjiinTurul === "saraar" ? "month" : "day";
-    const startOfPeriod = moment().startOf(period).toDate();
+
+    let startOfPeriod;
+
+    if (masterSetting.davtamjiinTurul === "udruur") {
+      startOfPeriod = moment().startOf("day").toDate();
+    } 
+    else if (masterSetting.davtamjiinTurul === "7khonogoor") {
+      startOfPeriod = moment().startOf("week").toDate(); 
+    }
+    else if (masterSetting.davtamjiinTurul === "saraar") {
+      const targetDay = masterSetting.davtamjUtga || 1;
+      let candidate = moment().date(targetDay).startOf('day');
+      if (moment().isBefore(candidate)) {
+        candidate.subtract(1, 'month');
+      }
+      startOfPeriod = candidate.toDate();
+    }
+    else if (masterSetting.davtamjiinTurul === "jileer") {
+      const targetMonth = (masterSetting.davtamjUtga || 1) - 1; 
+      
+      let candidate = moment().month(targetMonth).date(1).startOf('day');
+      
+      if (moment().isBefore(candidate)) {
+        candidate.subtract(1, 'year');
+      }
+      startOfPeriod = candidate.toDate();
+    } 
+    else {
+      startOfPeriod = moment().startOf("month").toDate();
+    }
 
     const usedCount = await EzenUrisanMashin(req.body.tukhainBaaziinKholbolt).countDocuments({
       ezenId: residentId,
@@ -257,8 +285,24 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
                 return res.status(403).json({ success: false, message: "Танд зочин урих эрх байхгүй байна" });
             }
 
-            const period = inviterSettings.davtamjiinTurul === "saraar" ? "month" : "day";
-            const startOfPeriod = moment().startOf(period).toDate();
+            let startOfPeriod;
+            if (inviterSettings.davtamjiinTurul === "udruur") {
+                startOfPeriod = moment().startOf("day").toDate();
+            } else if (inviterSettings.davtamjiinTurul === "7khonogoor") {
+                startOfPeriod = moment().startOf("week").toDate();
+            } else if (inviterSettings.davtamjiinTurul === "saraar") {
+                const targetDay = inviterSettings.davtamjUtga || 1; 
+                let candidate = moment().date(targetDay).startOf('day');
+                if (moment().isBefore(candidate)) candidate.subtract(1, 'month');
+                startOfPeriod = candidate.toDate();
+            } else if (inviterSettings.davtamjiinTurul === "jileer") {
+                const targetMonth = (inviterSettings.davtamjUtga || 1) - 1;
+                let candidate = moment().month(targetMonth).date(1).startOf('day');
+                if (moment().isBefore(candidate)) candidate.subtract(1, 'year');
+                startOfPeriod = candidate.toDate();
+            } else {
+                startOfPeriod = moment().startOf("month").toDate();
+            }
             const usedCount = await EzenUrisanMashin(tukhainBaaziinKholbolt).countDocuments({
                 ezenId: inviterId,
                 createdAt: { $gte: startOfPeriod }
@@ -317,7 +361,6 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             };
           }
           
-          // Construct the update object, ensuring we don't overwrite with undefined/null
           const updateData = {
             mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar || mashiniiDugaar,
             zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh,
@@ -326,10 +369,17 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             dugaarUurchilsunOgnoo: orshinSuugchMedeelel.dugaarUurchilsunOgnoo,
             ezenToot: orshinSuugchMedeelel.ezenToot,
             zochinTailbar: orshinSuugchMedeelel.zochinTailbar,
-            zochinErkhiinToo: orshinSuugchMedeelel.zochinErkhiinToo,
-            zochinTusBurUneguiMinut: orshinSuugchMedeelel.zochinTusBurUneguiMinut,
-            zochinNiitUneguiMinut: orshinSuugchMedeelel.zochinNiitUneguiMinut,
+            davtamjUtga: orshinSuugchMedeelel.davtamjUtga, // Allow saving initially if not protected below
           };
+          
+          if (requesterRole !== 'OrshinSuugch') {
+            updateData.zochinErkhiinToo = orshinSuugchMedeelel.zochinErkhiinToo;
+            updateData.zochinTusBurUneguiMinut = orshinSuugchMedeelel.zochinTusBurUneguiMinut;
+            updateData.zochinNiitUneguiMinut = orshinSuugchMedeelel.zochinNiitUneguiMinut;
+            // Also protect frequency settings
+            updateData.davtamjUtga = orshinSuugchMedeelel.davtamjUtga;
+          }
+
           Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
           orshinSuugchMashinResult = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
