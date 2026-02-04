@@ -1211,6 +1211,22 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           console.log(`✅ [REGISTER] Geree created successfully for toot ${tootEntry.toot}:`, geree._id);
           console.log(`✅ [REGISTER] Geree number: ${geree.gereeniiDugaar}`);
 
+          // Create invoice immediately (Like Excel Import)
+          try {
+            const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
+            const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
+              geree,
+              baiguullaga,
+              tukhainBaaziinKholbolt,
+              "automataar"
+            );
+            if (invoiceResult.success) {
+              console.log(`✅ [REGISTER] Initial invoice created for toot ${tootEntry.toot}`);
+            }
+          } catch (invErr) {
+            console.error(`❌ [REGISTER] Invoice creation error for toot ${tootEntry.toot}:`, invErr.message);
+          }
+
           // Update davkhar with toot if provided
           if (tootEntry.toot && tootEntry.davkhar) {
             await exports.updateDavkharWithToot(
@@ -1225,71 +1241,26 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         }
         
         console.log(`✅ [REGISTER] Processed ${tootsToProcess.length} toot(s) for geree creation`);
-        
-        // Invoice will be created by cron job on scheduled date
-        // Do not create invoice immediately for new users
       } else {
         console.log(`ℹ️ [REGISTER] Skipping geree creation (reactivating existing geree)`);
-      }
-
-      // If reactivating, check if today is the scheduled invoice creation date
-      // Only create invoice if today matches nekhemjlekhCron date
-      // Otherwise, let the cron job handle invoice creation on the scheduled date
-      // This ensures invoices are created according to the schedule, not immediately on reactivation
-      if (isReactivating && existingCancelledGeree && tukhainBaaziinKholbolt) {
-        const GereeModel = Geree(tukhainBaaziinKholbolt);
-        const reactivatedGeree = await GereeModel.findById(
-          existingCancelledGeree._id
-        );
-
-        if (reactivatedGeree) {
-          try {
-            // Check if today matches the nekhemjlekhCron scheduled date
-            const NekhemjlekhCron = require("../models/cronSchedule");
-            const cronSchedule = await NekhemjlekhCron(
-              tukhainBaaziinKholbolt
-            ).findOne({
-              baiguullagiinId: baiguullaga._id.toString(),
-              idevkhitei: true,
-            });
-
-            const today = new Date();
-            const todayDate = today.getDate();
-            const shouldCreateInvoice =
-              cronSchedule &&
-              cronSchedule.nekhemjlekhUusgekhOgnoo === todayDate;
-
-            if (shouldCreateInvoice) {
-              // Today is the scheduled date, create invoice (or return existing unpaid)
-              const {
-                gereeNeesNekhemjlekhUusgekh,
-              } = require("./nekhemjlekhController");
-
-              // This will check for existing unpaid invoices in current month
-              // If found, it returns the existing invoice (preserving payment status)
-              // If not found, it creates a new invoice
+        
+        // If reactivating, we should also try to create/ensure invoice exists
+        if (existingCancelledGeree && tukhainBaaziinKholbolt) {
+          const GereeModel = Geree(tukhainBaaziinKholbolt);
+          const reactivatedGeree = await GereeModel.findById(existingCancelledGeree._id);
+          if (reactivatedGeree) {
+            try {
+              const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
               const invoiceResult = await gereeNeesNekhemjlekhUusgekh(
                 reactivatedGeree,
                 baiguullaga,
                 tukhainBaaziinKholbolt,
                 "automataar"
               );
-
-              if (!invoiceResult.success) {
-                console.log("orshinSuugch service");
-              } else if (invoiceResult.alreadyExists) {
-                console.log("orshinSuugch service");
-              } else {
-                console.log("orshinSuugch service");
-              }
-            } else {
-              // Not the scheduled date, skip invoice creation
-              // The cron job will create invoices on the scheduled date
-              // Geree already has current month's ashiglaltiinZardluud updated
-              console.log("orshinSuugch service");
+              console.log(`✅ [REGISTER] Invoice status for reactivated geree: ${invoiceResult.success ? 'Success' : 'Failed'}`);
+            } catch (invErr) {
+              console.error("❌ [REGISTER] Reactivation invoice error:", invErr.message);
             }
-          } catch (invoiceError) {
-            console.log("orshinSuugch service");
           }
         }
       }
