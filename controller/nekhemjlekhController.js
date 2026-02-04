@@ -480,6 +480,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Only fetch and set ekhniiUldegdel if the flag is true
     if (includeEkhniiUldegdel && tempData.orshinSuugchId) {
       try {
+        
         const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
           .findById(tempData.orshinSuugchId)
           .select("ekhniiUldegdel")
