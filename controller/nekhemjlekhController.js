@@ -878,6 +878,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
             let isFixedCharge = false;
             let kwhTariff = zaaltTariff; // from orshinSuugch.tsahilgaaniiZaalt
             
+            // Variable electricity = zaalt + цахилгаан (not дундын өмчлөл) - needs Excel, don't show suuriKhuraamj alone
+            const nameLower = (gereeZaaltZardal.ner || "").toLowerCase();
+            const isVariableElectricityZardal = gereeZaaltZardal.zaalt &&
+              nameLower.includes("цахилгаан") &&
+              !nameLower.includes("дундын") &&
+              !nameLower.includes("өмчлөл");
+            
+            // For variable цахилгаан: when no Excel (zoruu=0), skip - match Excel behavior (don't show suuriKhuraamj/tariff)
+            if (isVariableElectricityZardal && zoruu === 0) {
+              console.log("⏭️ [INVOICE] Skipping variable цахилгаан - no Excel reading, zoruu=0 (not showing suuriKhuraamj/tariff)");
+              continue;
+            }
+            
             // Determine if this is a FIXED or CALCULATED electricity charge:
             // FIXED: tariffUsgeer = "₮" -> use tariff directly as the total amount
             // CALCULATED: tariffUsgeer = "кВт" -> tariff is kWh rate, suuriKhuraamj is base fee from Excel
@@ -983,6 +996,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
                     ner: gereeZaaltZardal.ner
                   });
                   
+                  // For цахилгаан (кВт): do NOT show suuriKhuraamj when no Excel - match Excel behavior
+                  if (zoruu === 0) {
+                    console.log("⏭️ [INVOICE] Skipping цахилгаан - no Excel reading, zoruu=0 (not showing suuriKhuraamj alone)");
+                    continue;
+                  }
+                  
                   // Fallback to zardal's suuriKhuraamj, zaaltDefaultDun, or tariff (for old data format)
                   zaaltDefaultDun = Number(gereeZaaltZardal.suuriKhuraamj) || 
                                     gereeZaaltZardal.zaaltDefaultDun || 
@@ -1001,7 +1020,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 zaaltDun = (zoruu * kwhTariff) + zaaltDefaultDun;
               }
               
+              // For calculated цахилгаан (tariffUsgeer="кВт"): do NOT show suuriKhuraamj alone when no Excel
+              // Excel does not add a цахилгаан row when there's no import - match that behavior
+              if (zaaltDun === 0 && zoruu === 0) {
+                const wouldUseSuuriKhuraamj = Number(gereeZaaltZardal.suuriKhuraamj) || 
+                  gereeZaaltZardal.zaaltDefaultDun || gereeZaaltZardal.tariff || 0;
+                if (wouldUseSuuriKhuraamj > 0) {
+                  console.log("⏭️ [INVOICE] Skipping цахилгаан - no Excel reading, not showing suuriKhuraamj alone (match Excel behavior)");
+                  continue;
+                }
+              }
               // Final fallback: if zaaltDun is still 0 but zardal has suuriKhuraamj, use that
+              // (Only for non-calculated or when zoruu > 0 - already handled above)
               if (zaaltDun === 0) {
                 const fallbackDun = Number(gereeZaaltZardal.suuriKhuraamj) || 
                                     gereeZaaltZardal.zaaltDefaultDun || 
@@ -2233,6 +2263,19 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
           let defaultDun = 0;
           let kwhTariff = zaaltTariff; // from orshinSuugch
           
+          // Variable electricity = zaalt + цахилгаан (not дундын өмчлөл) - needs Excel, don't show suuriKhuraamj alone
+          const pvNameLower = (zaaltZardal.ner || "").toLowerCase();
+          const pvIsVariableElectricity = zaaltZardal.zaalt &&
+            pvNameLower.includes("цахилгаан") &&
+            !pvNameLower.includes("дундын") &&
+            !pvNameLower.includes("өмчлөл");
+          
+          // For variable цахилгаан: when no Excel reading, skip - match Excel behavior
+          if (pvIsVariableElectricity && !latestReading) {
+            console.log("⏭️ [PREVIEW] Skipping variable цахилгаан - no Excel reading (not showing suuriKhuraamj/tariff)");
+            continue;
+          }
+          
           // Determine if this is a FIXED or CALCULATED electricity charge:
           // FIXED: tariffUsgeer = "₮" -> use tariff directly as the total amount
           // CALCULATED: tariffUsgeer = "кВт" -> tariff is kWh rate, suuriKhuraamj is base fee from Excel
@@ -2296,6 +2339,11 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
                 });
               }
             } else {
+              // For цахилгаан (кВт): do NOT show suuriKhuraamj when no Excel - match Excel behavior
+              if (zoruu === 0) {
+                console.log("⏭️ [PREVIEW] Skipping цахилгаан - no Excel reading, zoruu=0 (not showing suuriKhuraamj alone)");
+                continue;
+              }
               // Fallback to zardal's suuriKhuraamj, zaaltDefaultDun, or tariff (for old data format)
               defaultDun = Number(zaaltZardal.suuriKhuraamj) || 
                           zaaltZardal.zaaltDefaultDun || 
@@ -2313,6 +2361,15 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
               });
             }
             
+            // For calculated цахилгаан: do NOT show suuriKhuraamj alone when no Excel
+            if (electricityDun === 0 && zoruu === 0) {
+              const wouldUseSuuriKhuraamj = Number(zaaltZardal.suuriKhuraamj) || 
+                zaaltZardal.zaaltDefaultDun || zaaltZardal.tariff || 0;
+              if (wouldUseSuuriKhuraamj > 0) {
+                console.log("⏭️ [PREVIEW] Skipping цахилгаан - no Excel reading, not showing suuriKhuraamj alone");
+                continue;
+              }
+            }
             // Final fallback: if electricityDun is still 0 but zardal has suuriKhuraamj, use that
             if (electricityDun === 0) {
               const fallbackDun = Number(zaaltZardal.suuriKhuraamj) || 
