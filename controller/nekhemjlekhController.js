@@ -2521,7 +2521,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
   }
 };
 
-const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, targetMonth = null, targetYear = null) => {
+const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, targetMonth = null, targetYear = null, app = null) => {
   try {
     const { db } = require("zevbackv2");
     const Geree = require("../models/geree");
@@ -2750,6 +2750,29 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
           }
         }
         
+        // Send socket notification so home header refreshes balance
+        if (app && geree.orshinSuugchId) {
+          try {
+            const kholbolt = db.kholboltuud.find((k) => String(k.baiguullagiinId) === String(baiguullagiinId));
+            if (kholbolt) {
+              const medegdel = new Medegdel(kholbolt)();
+              medegdel.orshinSuugchId = geree.orshinSuugchId;
+              medegdel.baiguullagiinId = baiguullagiinId;
+              medegdel.barilgiinId = geree.barilgiinId || "";
+              medegdel.title = "Шинэ авлага нэмэгдлээ";
+              medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Нийт төлбөр: ${newNiitTulbur}₮`;
+              medegdel.kharsanEsekh = false;
+              medegdel.turul = "мэдэгдэл";
+              medegdel.ognoo = new Date();
+              await medegdel.save();
+              const io = app.get("socketio");
+              if (io) io.emit("orshinSuugch" + geree.orshinSuugchId, medegdel.toObject ? medegdel.toObject() : medegdel);
+            }
+          } catch (notifErr) {
+            console.error("❌ [MANUAL SEND] Error sending socket notification:", notifErr.message);
+          }
+        }
+
         return {
           success: true,
           nekhemjlekh: oldestUnsentInvoice,
@@ -2796,7 +2819,7 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
   }
 };
 
-const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, override = false, targetMonth = null, targetYear = null) => {
+const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, override = false, targetMonth = null, targetYear = null, app = null) => {
   try {
     const { db } = require("zevbackv2");
     const Geree = require("../models/geree");
@@ -2844,7 +2867,8 @@ const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, overr
           baiguullagiinId,
           override,
           targetMonth,
-          targetYear
+          targetYear,
+          app
         );
 
         if (invoiceResult.success) {
@@ -2878,7 +2902,7 @@ const manualSendMassInvoices = async (baiguullagiinId, barilgiinId = null, overr
 
 // Manual send invoices for selected/checked contracts
 // Accepts array of gereeIds (can be one or many)
-const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = false, targetMonth = null, targetYear = null) => {
+const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = false, targetMonth = null, targetYear = null, app = null) => {
   try {
     const { db } = require("zevbackv2");
     const Geree = require("../models/geree");
@@ -2937,7 +2961,8 @@ const manualSendSelectedInvoices = async (gereeIds, baiguullagiinId, override = 
           baiguullagiinId,
           override,
           targetMonth,
-          targetYear
+          targetYear,
+          app
         );
 
         if (invoiceResult.success) {

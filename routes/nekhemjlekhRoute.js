@@ -293,7 +293,8 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
       baiguullagiinId,
       override === true || override === "true",
       month,
-      year
+      year,
+      req.app
     );
 
     if (result.success) {
@@ -341,7 +342,8 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
       barilgiinId || null,
       override === true || override === "true",
       month,
-      year
+      year,
+      req.app
     );
 
     if (result.success) {
