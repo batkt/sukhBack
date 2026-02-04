@@ -233,10 +233,10 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       orshinSuugchMedeelel = khariltsagchMedeelel;
     }
 
-    if (!mashiniiDugaar || !baiguullagiinId || !ezemshigchiinUtas) {
+    if (!baiguullagiinId || !ezemshigchiinUtas) {
       return res.status(400).json({
         success: false,
-        message: "Шаардлагатай талбарууд дутуу байна",
+        message: "Шаардлагатай талбарууд дутуу байна (Байгууллага, Утас)",
       });
     }
 
@@ -359,6 +359,12 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
               orshinSuugchiinId: orshinSuugchResult._id,
               zochinTurul: "Оршин суугч"
             };
+          } else if (!orshinSuugchMedeelel.mashiniiDugaar) {
+             // If no plate, just match by person and type
+             filter = {
+                orshinSuugchiinId: orshinSuugchResult._id,
+                zochinTurul: orshinSuugchMedeelel.zochinTurul
+             }
           }
           
           const updateData = {
@@ -412,7 +418,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
     }
 
     // Машины мэдээллийг хадгална/засварлана
-    if (mashinMedeelel) {
+    if (mashinMedeelel && mashiniiDugaar && mashiniiDugaar !== "БҮРТГЭЛГҮЙ") {
       try {
         mashinResult = await mashinHadgalya(
           mashinMedeelel,
@@ -424,7 +430,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
           message: `Машин хадгалахад алдаа: ${error.message}`,
         });
       }
-    } else {
+    } else if (mashiniiDugaar && mashiniiDugaar !== "БҮРТГЭЛГҮЙ") {
       // Машины мэдээлэл байхгүй бол анхны логикоор шинээр үүсгэнэ
       var existingMashin = await Mashin(tukhainBaaziinKholbolt).findOne({
         dugaar: mashiniiDugaar,
