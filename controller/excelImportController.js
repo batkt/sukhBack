@@ -7,7 +7,28 @@ const aldaa = require("../components/aldaa");
 const { gereeNeesNekhemjlekhUusgekh } = require("./nekhemjlekhController");
 const walletApiService = require("../services/walletApiService");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+const { Dans } = require("zevbackv2");
 
+/**
+ * Helper to parse numbers from Excel, supporting accounting format like (22) for -22
+ * @param {any} val - Value from Excel cell
+ * @returns {number} - Parsed number
+ */
+function parseExcelNumber(val) {
+  if (val === undefined || val === null || val === "") return 0;
+  if (typeof val === "number") return val;
+
+  let str = val.toString().trim().replace(/,/g, "");
+
+  // Handle accounting format: (22) -> -22
+  if (str.startsWith("(") && str.endsWith(")")) {
+    // Extract contents, trim any internal spaces, and add negative sign
+    str = "-" + str.substring(1, str.length - 1).trim();
+  }
+
+  const parsed = parseFloat(str);
+  return isNaN(parsed) ? 0 : parsed;
+}
 /**
  *
  * @param {Array} data - Array of objects to export (REQUIRED)
@@ -2017,7 +2038,7 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
         const utas = row["Утас"]?.toString().trim();
         const gereeniiDugaar = row["Гэрээний дугаар"]?.toString().trim();
         const toot = row["Тоот"]?.toString().trim();
-        const amount = parseFloat(row["Эхний үлдэгдэл"]?.toString().replace(/,/g, "") || 0);
+        const amount = parseExcelNumber(row["Эхний үлдэгдэл"]);
 
         if (isNaN(amount) || amount === 0) {
           results.failed.push({
@@ -2072,7 +2093,7 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
           zardliinNer: "Эхний үлдэгдэл",
           ekhniiUldegdelEsekh: true,
           source: "gar",
-          tailbar: "Excel-рээр оруулсан эхний үлдэгдэл",
+          tailbar: "Excel-ээр оруулсан эхний үлдэгдэл",
           guilgeeKhiisenAjiltniiNer: req.body.nevtersenAjiltniiToken?.ner || "System",
           guilgeeKhiisenAjiltniiId: req.body.nevtersenAjiltniiToken?.id || null,
         });
