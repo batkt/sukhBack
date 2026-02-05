@@ -364,19 +364,20 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                 );
               }
               
-              // --- AUTO CREATE GUEST SETTINGS (OrshinSuugchMashin) ---
-              // PRIORITIZE Building Settings -> Organization Settings
+            }
+
+            // --- AUTO CREATE GUEST SETTINGS (OrshinSuugchMashin) ---
+            // Moved OUTSIDE if(!geree) to ensure all new residents get settings
+            try {
               const buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
-              const orgSettings = baiguullaga?.zochinTokhirgoo;
+              const orgSettings = baiguullaga?.tokhirgoo?.zochinTokhirgoo;
               
               const defaultSettings = buildingSettings && buildingSettings.zochinUrikhEsekh !== undefined
                  ? buildingSettings 
                  : orgSettings;
 
-              console.log("🔍 [AUTO-ZOCHIN] Checking defaults for orshinSuugch registration:", result.ner);
-              console.log("🔍 [AUTO-ZOCHIN] Building Settings found:", !!buildingSettings);
-              console.log("🔍 [AUTO-ZOCHIN] Org Settings found:", !!orgSettings);
-              console.log("🔍 [AUTO-ZOCHIN] Final Default Settings selected:", !!defaultSettings);
+              console.log("🔍 [AUTO-ZOCHIN] Checking defaults for:", result.ner);
+              console.log("🔍 [AUTO-ZOCHIN] Final Defaults Found:", !!defaultSettings);
 
               if (defaultSettings) {
                  const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
@@ -387,14 +388,13 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                     zochinTurul: "Оршин суугч"
                  });
                  
-                  if (!existingSettings) {
-                     console.log(`📋 [AUTO-ZOCHIN] Creating default guest settings for ${result.ner}. Quota: ${defaultSettings.zochinErkhiinToo}`);
-                     
-                     const OrshinSuugchMashinModel = OrshinSuugchMashin(db.erunkhiiKholbolt);
-                     const newSettings = new OrshinSuugchMashinModel({
+                 if (!existingSettings) {
+                    console.log(`📋 [AUTO-ZOCHIN] Creating settings for ${result.ner}. Quota: ${defaultSettings.zochinErkhiinToo}`);
+                    
+                    const OrshinSuugchMashinModel = OrshinSuugchMashin(db.erunkhiiKholbolt);
+                    const newSettings = new OrshinSuugchMashinModel({
                         orshinSuugchiinId: result._id.toString(),
                         ezenToot: result.toot || req.body.toot || "",
-                        // Default values
                         zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                         zochinTurul: "Оршин суугч", 
                         zochinErkhiinToo: defaultSettings.zochinErkhiinToo || 0,
@@ -403,12 +403,14 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                         zochinTailbar: defaultSettings.zochinTailbar || "",
                         davtamjiinTurul: defaultSettings.davtamjiinTurul || "saraar",
                         davtamjUtga: defaultSettings.davtamjUtga
-                     });
-                     
-                     await newSettings.save();
+                    });
+                    
+                    await newSettings.save();
                     console.log(`✅ [AUTO-ZOCHIN] Settings created.`);
                  }
               }
+            } catch (zochinErr) {
+              console.error("❌ [AUTO-ZOCHIN] Error:", zochinErr.message);
             }
 
             // Always attempt to create initial invoice
