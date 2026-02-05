@@ -247,8 +247,9 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
       }
     }
     
-    // Update other fields
-    Object.assign(baiguullaga, req.body);
+    // Use .set() to ensure Mongoose detects changes in nested objects like tokhirgoo.zochinTokhirgoo
+    // This replaces manual Object.assign and individual field updates
+    baiguullaga.set(req.body);
     
     // Save the updated baiguullaga
     await baiguullaga.save();
