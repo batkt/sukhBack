@@ -12,7 +12,9 @@ crud(router, "ezenUrisanMashin", EzenUrisanMashin, UstsanBarimt);
 async function orshinSuugchKhadgalya(
   orshinSuugchMedeelel,
   utas,
-  tukhainBaaziinKholbolt
+  tukhainBaaziinKholbolt,
+  baiguullagiinId,
+  barilgiinId
 ) {
   const phoneString = Array.isArray(utas) ? utas[0] : String(utas || "").trim();
   if (!orshinSuugchMedeelel) return null;
@@ -47,15 +49,17 @@ async function orshinSuugchKhadgalya(
       throw new Error(`ID: ${orshinSuugchId} харилцагч олдсонгүй`);
     }
   } else {
-    // ID байхгүй бол шинээр хадгална
+    // ID байхгүй бол утасны дугаар + барилгаар хайна
     const { _id, ...orshinSuugchData } = orshinSuugchMedeelel;
-    // Утасны дугаараар давхцах эсэхийг шалгана
-    const existingByUtas = await OrshinSuugch(db.erunkhiiKholbolt).findOne(
-      {
-        utas: phoneString,
-        barilgiinId: orshinSuugchMedeelel.barilgiinId,
-      }
-    );
+    const query = { utas: phoneString };
+    if (barilgiinId) {
+      query.$or = [
+        { barilgiinId: String(barilgiinId) },
+        { "toots.barilgiinId": String(barilgiinId) }
+      ];
+    }
+    
+    const existingByUtas = await OrshinSuugch(db.erunkhiiKholbolt).findOne(query);
     if (existingByUtas) {
       console.log(`ℹ️ [ZOCHIN_URI] User exists with phone ${phoneString}, using existing record.`);
       return existingByUtas;
@@ -63,6 +67,8 @@ async function orshinSuugchKhadgalya(
     const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
     const newOrshinSuugch = new OrshinSuugchModel({
       ...orshinSuugchData,
+      baiguullagiinId: baiguullagiinId ? String(baiguullagiinId) : undefined,
+      barilgiinId: barilgiinId ? String(barilgiinId) : undefined,
       utas: orshinSuugchData.utas || phoneString,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -224,6 +230,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       baiguullagiinId,
       barilgiinId,
       ezemshigchiinUtas,
+      ezemshigchiinId,
       tukhainBaaziinKholbolt,
       orshinSuugchMedeelel,
       khariltsagchMedeelel,
@@ -235,15 +242,21 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       orshinSuugchMedeelel = khariltsagchMedeelel;
     }
 
-    if (!baiguullagiinId || !ezemshigchiinUtas) {
-      return res.status(400).json({
-        success: false,
-        message: "Шаардлагатай талбарууд дутуу байна (Байгууллага, Утас)",
-      });
-    }
-
     // Sanitize ezemshigchiinUtas to be a string
     const phoneString = Array.isArray(ezemshigchiinUtas) ? ezemshigchiinUtas[0] : String(ezemshigchiinUtas).trim();
+
+    // Map root-level fields to orshinSuugchMedeelel if missing (Support various App payloads)
+    if (orshinSuugchMedeelel) {
+      if (!orshinSuugchMedeelel.ner && req.body.ezemshigchiinNer) {
+        orshinSuugchMedeelel.ner = req.body.ezemshigchiinNer;
+      }
+      if (!orshinSuugchMedeelel.utas) {
+        orshinSuugchMedeelel.utas = phoneString;
+      }
+      if (!orshinSuugchMedeelel.register && req.body.ezemshigchiinRegister) {
+        orshinSuugchMedeelel.register = req.body.ezemshigchiinRegister;
+      }
+    }
 
     let inviterSettings = null;
     const inviterId = req.body.nevtersenAjiltniiToken?.id;
@@ -340,11 +353,20 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
         delete residentData.zochinTusBurUneguiMinut;
         delete residentData.zochinNiitUneguiMinut;
 
+        // If ezemshigchiinId provided in root body, use it for lookup
+        if (ezemshigchiinId && !residentData._id) {
+          residentData._id = ezemshigchiinId;
+        }
+
         orshinSuugchResult = await orshinSuugchKhadgalya(
           residentData,
           phoneString,
-          db.erunkhiiKholbolt
+          db.erunkhiiKholbolt,
+          baiguullagiinId,
+          barilgiinId
         );
+
+        console.log(`🔍 [ZOCHIN_HADGALYA] orshinSuugchResult:`, orshinSuugchResult ? { id: orshinSuugchResult._id, ner: orshinSuugchResult.ner, toot: orshinSuugchResult.toot } : "NULL");
 
         // Also save to OrshinSuugchMashin (Visitor Vehicle History)
         if (orshinSuugchResult) {
@@ -400,6 +422,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             ezenToot: orshinSuugchMedeelel.ezenToot,
             zochinTailbar: orshinSuugchMedeelel.zochinTailbar || defaults.zochinTailbar,
             davtamjUtga: orshinSuugchMedeelel.davtamjUtga !== undefined ? orshinSuugchMedeelel.davtamjUtga : defaults.davtamjUtga,
+            utas: phoneString,
           };
           
           if (requesterRole !== 'OrshinSuugch') {
@@ -410,11 +433,13 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
 
           Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
 
+          console.log(`🔍 [ZOCHIN_HADGALYA] Upserting OrshinSuugchMashin with filter:`, filter);
           orshinSuugchMashinResult = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
             filter,
             { $set: updateData },
             { upsert: true, new: true }
           );
+          console.log(`✅ [ZOCHIN_HADGALYA] OrshinSuugchMashin saved, ID:`, orshinSuugchMashinResult?._id);
 
           // TRACK USAGE: Create EzenUrisanMashin record if it was an invitation
           if (inviterId && inviterSettings) {
@@ -630,17 +655,23 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
     const total = result[0].metadata[0] ? result[0].metadata[0].total : 0;
 
     // Reshape data for table
-    const formattedData = data.map(item => ({
-        _id: item._id,
-        createdAt: item.createdAt,
-        ner: item.resident?.ner || "БҮРТГЭЛГҮЙ",
-        utas: item.resident?.utas || "",
-        mashiniiDugaar: item.mashiniiDugaar,
-        zochinTurul: item.zochinTurul,
-        zochinTailbar: item.zochinTailbar,
-        ezenToot: item.ezenToot || item.resident?.toot || "", 
-        davtamjiinTurul: item.davtamjiinTurul
-    }));
+    const formattedData = data.map(item => {
+        if (!item.resident) {
+          console.log(`⚠️ [ZOCHIN_JAGSAALT] Resident NOT FOUND for OrshinSuugchMashin ${item._id} (ID: ${item.orshinSuugchiinId})`);
+        }
+        return {
+          _id: item._id,
+          createdAt: item.createdAt,
+          orshinSuugchiinId: item.orshinSuugchiinId, // Added for debugging
+          ner: item.resident?.ner || "БҮРТГЭЛГҮЙ",
+          utas: item.resident?.utas || item.ezemshigchiinUtas || "", // Fallback to guest's phone
+          mashiniiDugaar: item.mashiniiDugaar,
+          zochinTurul: item.zochinTurul,
+          zochinTailbar: item.zochinTailbar,
+          ezenToot: item.ezenToot || item.resident?.toot || "", 
+          davtamjiinTurul: item.davtamjiinTurul
+        };
+    });
 
      res.send({
       jagsaalt: formattedData,
