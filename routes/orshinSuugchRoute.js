@@ -394,7 +394,7 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                  if (!existingSettings) {
                     console.log(`📋 [AUTO-ZOCHIN] Creating default guest settings for ${result.ner}`);
                     
-                    const newSettings = new OrshinSuugchMashin(tukhainBaaziinKholbolt)({
+                    const newSettings = new OrshinSuugchMashin(db.erunkhiiKholbolt)({
                         orshinSuugchiinId: result._id.toString(),
                         ezenToot: result.toot || req.body.toot || "",
                         // Default values
