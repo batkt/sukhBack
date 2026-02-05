@@ -558,40 +558,31 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
     const baiguullagiinId = req.query.baiguullagiinId;
 
     if (!baiguullagiinId) {
-        return res.status(400).send("baiguullagiinId required");
+      return res.status(400).send("baiguullagiinId required");
     }
 
-    // Aggregation pipeline
+    // Aggregation pipeline: Join Guest Settings with Resident Info
     const pipeline = [
-      // 1. Initial Match: Filter by baiguullagiinId if present on root (NEW records)
-      // or allow documents where it's missing to be filtered after lookup (OLD records)
-      {
-        $match: {
-          $or: [
-            { baiguullagiinId: baiguullagiinId },
-            { baiguullagiinId: String(baiguullagiinId) },
-            { baiguullagiinId: { $exists: false } }
-          ]
-        }
-      },
-      // 2. Convert string ID for lookup
-      {
-        $addFields: {
-           orshinSuugchObjId: { $toObjectId: "$orshinSuugchiinId" }
-        }
-      },
-      // 3. Lookup OrshinSuugch
+      // 1. Lookup OrshinSuugch with robust ID matching (String-to-String comparison)
       {
         $lookup: {
           from: "orshinSuugch", 
-          localField: "orshinSuugchObjId",
-          foreignField: "_id",
+          let: { suugchId: "$orshinSuugchiinId" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [{ $toString: "$_id" }, { $toString: "$$suugchId" }]
+                }
+              }
+            }
+          ],
           as: "resident"
         }
       },
-      // 4. Unwind (Preserve null so records don't DISAPPEAR if lookup fails)
+      // 2. Unwind (Preserve null so records don't DISAPPEAR even if lookup fails)
       { $unwind: { path: "$resident", preserveNullAndEmptyArrays: true } },
-      // 5. Final Filter: Ensure it matches the requested baiguullagiinId
+      // 3. Final Filter: Match by baiguullagiinId from either the guest record OR the resident record
       {
         $match: {
           $or: [
