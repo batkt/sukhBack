@@ -85,7 +85,8 @@ const baiguullagaSchema = new Schema(
             zochinNiitUneguiMinut: Number,
             zochinTailbar: String,
             davtamjiinTurul: String,
-            davtamjUtga: Number
+            davtamjUtga: Number,
+            orshinSuugchMashiniiLimit: Number
           },
           /** Ашиглалтын зардлууд - барилга тус бүрт тусдаа */
           ashiglaltiinZardluud: [
@@ -221,7 +222,8 @@ const baiguullagaSchema = new Schema(
         zochinNiitUneguiMinut: Number,
         zochinTailbar: String,
         davtamjiinTurul: String,
-        davtamjUtga: Number
+        davtamjUtga: Number,
+        orshinSuugchMashiniiLimit: Number
       },
     },
     erkhuud: [

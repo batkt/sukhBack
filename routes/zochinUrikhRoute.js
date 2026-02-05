@@ -372,25 +372,6 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
         if (orshinSuugchResult) {
           const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
           
-          let filter = { 
-            orshinSuugchiinId: orshinSuugchResult._id,
-            mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar 
-          };
-
-          // If updating primary resident car, match by ID and Type to allow number change
-          if (orshinSuugchMedeelel.zochinTurul === "Оршин суугч") {
-            filter = {
-              orshinSuugchiinId: orshinSuugchResult._id,
-              zochinTurul: "Оршин суугч"
-            };
-          } else if (!orshinSuugchMedeelel.mashiniiDugaar) {
-             // If no plate, just match by person and type
-             filter = {
-                orshinSuugchiinId: orshinSuugchResult._id,
-                zochinTurul: orshinSuugchMedeelel.zochinTurul
-             }
-          }
-          
           // Fetch defaults from Baiguullaga/Barilga if not provided
           const Baiguullaga = require("../models/baiguullaga");
           const baiguullagaObj = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
@@ -432,6 +413,43 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
           }
 
           Object.keys(updateData).forEach(key => updateData[key] === undefined && delete updateData[key]);
+
+          // Define filter for upsert
+          let filter = { 
+            orshinSuugchiinId: orshinSuugchResult._id.toString(),
+            mashiniiDugaar: updateData.mashiniiDugaar 
+          };
+
+          // If updating primary resident car, match by ID, Plate and Type to support multiple cars per unit
+          if (updateData.zochinTurul === "Оршин суугч") {
+            filter = {
+              orshinSuugchiinId: orshinSuugchResult._id.toString(),
+              mashiniiDugaar: updateData.mashiniiDugaar,
+              zochinTurul: "Оршин суугч"
+            };
+
+            // Limit check for primary resident cars
+            const limit = defaults.orshinSuugchMashiniiLimit || 1; // Default to 1 if not specified
+            const currentCount = await OrshinSuugchMashin(db.erunkhiiKholbolt).countDocuments({
+              orshinSuugchiinId: orshinSuugchResult._id.toString(),
+              zochinTurul: "Оршин суугч"
+            });
+
+            const exists = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOne(filter);
+            
+            if (!exists && currentCount >= limit) {
+              return res.status(403).json({
+                success: false,
+                message: `Таны машины бүртгэлийн лимит (${limit}) хэтэрсэн байна.`,
+              });
+            }
+          } else if (!updateData.mashiniiDugaar) {
+             // If guest with no plate
+             filter = {
+                orshinSuugchiinId: orshinSuugchResult._id.toString(),
+                zochinTurul: updateData.zochinTurul
+             }
+          }
 
           console.log(`🔍 [ZOCHIN_HADGALYA] Upserting OrshinSuugchMashin with filter:`, filter);
           orshinSuugchMashinResult = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
