@@ -4,6 +4,257 @@ function escapeRegex(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Зогсоолын тайлан - Оршин суугчдын урьсан зочдын машин бүртгэл
+exports.tailanZogsool = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { Uilchluulegch } = require("sukhParking-v1");
+    const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+
+    const source = req.method === "GET" ? req.query : req.body;
+    const {
+      baiguullagiinId,
+      barilgiinId,
+      ekhlekhOgnoo,
+      duusakhOgnoo,
+      orshinSuugch,
+      toot,
+    } = source || {};
+
+    if (!baiguullagiinId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    }
+
+    const startDate = ekhlekhOgnoo
+      ? new Date(ekhlekhOgnoo)
+      : new Date(new Date().setHours(0, 0, 0, 0));
+    const endDate = duusakhOgnoo
+      ? new Date(duusakhOgnoo)
+      : new Date(new Date().setHours(23, 59, 59, 999));
+
+    // 1. Get guest car registrations (OrshinSuugchMashin) - zochinTurul != "Оршин суугч"
+    const osmPipeline = [
+      { $match: { orshinSuugchiinId: { $exists: true, $ne: "" } } },
+      { $addFields: { orshinSuugchObjId: { $toObjectId: "$orshinSuugchiinId" } } },
+      {
+        $lookup: {
+          from: "orshinSuugch",
+          localField: "orshinSuugchObjId",
+          foreignField: "_id",
+          as: "resident",
+        },
+      },
+      { $unwind: "$resident" },
+      {
+        $match: {
+          zochinTurul: { $ne: "Оршин суугч" },
+          $or: [
+            { "resident.baiguullagiinId": String(baiguullagiinId) },
+            { "resident.baiguullagiinId": baiguullagiinId },
+          ],
+        },
+      },
+    ];
+    const lastMatch = osmPipeline[osmPipeline.length - 1].$match;
+    if (barilgiinId) lastMatch["resident.barilgiinId"] = String(barilgiinId);
+    if (orshinSuugch) {
+      const re = new RegExp(escapeRegex(String(orshinSuugch).trim()), "i");
+      osmPipeline.push({
+        $match: {
+          $or: [
+            { "resident.ner": re },
+            { "resident.ovog": re },
+          ],
+        },
+      });
+    }
+    if (toot) {
+      const tootRe = new RegExp(escapeRegex(String(toot).trim()), "i");
+      osmPipeline.push({
+        $match: {
+          $or: [
+            { "resident.toot": tootRe },
+            { ezenToot: tootRe },
+          ],
+        },
+      });
+    }
+
+    const guestRegistrations = await OrshinSuugchMashin(db.erunkhiiKholbolt).aggregate(osmPipeline);
+
+    // Build plate -> resident map
+    const plateToResident = {};
+    for (const r of guestRegistrations) {
+      const plate = (r.mashiniiDugaar || "").trim().toUpperCase();
+      if (!plate) continue;
+      const residentId = String(r.orshinSuugchiinId || r.resident?._id);
+      if (!plateToResident[plate]) {
+        plateToResident[plate] = {
+          orshinSuugchiinId: residentId,
+          ner: r.resident?.ner || "",
+          ovog: r.resident?.ovog || "",
+          toot: r.resident?.toot || r.ezenToot || "",
+          davkhar: r.resident?.davkhar || "",
+          utas: Array.isArray(r.resident?.utas) ? (r.resident.utas[0] || "") : (r.resident?.utas || ""),
+        };
+      }
+    }
+
+    // 2. Get Uilchluulegch (parking records) for date range
+    const ulMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      createdAt: { $gte: startDate, $lte: endDate },
+    };
+    if (barilgiinId) ulMatch.barilgiinId = String(barilgiinId);
+
+    const uilchluulegchuud = await Uilchluulegch(kholbolt, true)
+      .find(ulMatch)
+      .lean();
+
+    // 3. Aggregate by resident
+    const residentMap = {};
+    const guestCarList = [];
+    const guestCarSeen = new Set();
+
+    for (const u of uilchluulegchuud) {
+      const plate = (u.mashiniiDugaar || "").trim().toUpperCase();
+      const resident = plateToResident[plate];
+      if (!resident) continue; // Not a guest car, skip
+
+      const mur = u.tuukh?.[0];
+      const tsag = mur?.tsagiinTuukh?.[0];
+      const orsonTsag = tsag?.orsonTsag ? new Date(tsag.orsonTsag) : null;
+      const garsanTsag = tsag?.garsanTsag ? new Date(tsag.garsanTsag) : null;
+      const zogssonMinut = orsonTsag && garsanTsag
+        ? Math.round((garsanTsag - orsonTsag) / 60000)
+        : orsonTsag
+        ? Math.round((new Date() - orsonTsag) / 60000)
+        : 0;
+      const khungulsunMinut = Number(mur?.khungulult || 0) || 0;
+      const tulbur = Number(u.niitDun || 0) || 0;
+      const tulsunDun = mur?.tulbur?.reduce((s, t) => s + (Number(t?.dun) || 0), 0) || 0;
+      const tuluv = mur?.tuluv;
+      const tuluvLabel = tuluv === 1 || tuluv === 2 ? "Төлбөртэй" : tulbur <= 0 ? "Үнэгүй" : "Төлөөгүй";
+
+      const detailRow = {
+        mashiniiDugaar: u.mashiniiDugaar,
+        zogssonMinut,
+        khungulsunMinut,
+        tulbur,
+        tuluv: tuluvLabel,
+        orshinSuugchiinId: resident.orshinSuugchiinId,
+        ner: resident.ner,
+        toot: resident.toot,
+        davkhar: resident.davkhar,
+        utas: resident.utas,
+      };
+      const rid = resident.orshinSuugchiinId;
+      if (!residentMap[rid]) {
+        residentMap[rid] = {
+          ner: resident.ner,
+          toot: resident.toot,
+          davkhar: resident.davkhar,
+          utas: resident.utas,
+          urisanMachinToo: 0,
+          uniquePlates: new Set(),
+          niitTulbur: 0,
+          khungulultMinut: 0,
+          tulsunDun: 0,
+          uldegdelTulbur: 0,
+          details: [],
+        };
+      }
+      residentMap[rid].uniquePlates.add(plate);
+      residentMap[rid].urisanMachinToo = residentMap[rid].uniquePlates.size;
+      residentMap[rid].niitTulbur += tulbur;
+      residentMap[rid].khungulultMinut += khungulsunMinut;
+      residentMap[rid].tulsunDun += tulsunDun;
+      residentMap[rid].details.push(detailRow);
+
+      const carKey = `${plate}|${resident.orshinSuugchiinId}`;
+      if (!guestCarSeen.has(carKey)) {
+        guestCarSeen.add(carKey);
+        guestCarList.push({
+          mashiniiDugaar: u.mashiniiDugaar,
+          orshinSuugchiinNer: resident.ner,
+          davkhar: resident.davkhar,
+          toot: resident.toot,
+          utas: typeof resident.utas === "string" ? resident.utas : (Array.isArray(resident.utas) ? resident.utas[0] : resident.utas) || "",
+        });
+      }
+    }
+
+    // Calculate uldegdel per resident
+    for (const rid of Object.keys(residentMap)) {
+      const r = residentMap[rid];
+      r.uldegdelTulbur = Math.max(0, r.niitTulbur - r.tulsunDun);
+    }
+
+    const residentSummary = Object.entries(residentMap).map(([id, r]) => ({
+      orshinSuugchiinId: id,
+      ner: r.ner,
+      toot: r.toot,
+      urisanMachinToo: r.urisanMachinToo,
+      niitTulbur: r.niitTulbur,
+      khungulultMinut: r.khungulultMinut,
+      tulsunDun: r.tulsunDun,
+      uldegdelTulbur: r.uldegdelTulbur,
+    }));
+
+    const niit = Object.values(residentMap).reduce(
+      (a, r) => ({
+        urisanMachinToo: a.urisanMachinToo + (r.urisanMachinToo || 0),
+        niitTulbur: a.niitTulbur + (r.niitTulbur || 0),
+        khungulultMinut: a.khungulultMinut + (r.khungulultMinut || 0),
+        tulsunDun: a.tulsunDun + (r.tulsunDun || 0),
+        uldegdelTulbur: a.uldegdelTulbur + (r.uldegdelTulbur || 0),
+      }),
+      { urisanMachinToo: 0, niitTulbur: 0, khungulultMinut: 0, tulsunDun: 0, uldegdelTulbur: 0 }
+    );
+
+    let selectedDetail = null;
+    if (orshinSuugch || toot) {
+      const matchResident = residentSummary.find(
+        (r) =>
+          (orshinSuugch && (r.ner || "").toLowerCase().includes(String(orshinSuugch).toLowerCase())) ||
+          (toot && String(r.toot || "").includes(String(toot)))
+      );
+      if (matchResident) {
+        selectedDetail = residentMap[matchResident.orshinSuugchiinId]?.details || [];
+      }
+    }
+
+    res.json({
+      success: true,
+      filter: {
+        baiguullagiinId,
+        barilgiinId: barilgiinId || null,
+        ekhlekhOgnoo: ekhlekhOgnoo || null,
+        duusakhOgnoo: duusakhOgnoo || null,
+        orshinSuugch: orshinSuugch || null,
+        toot: toot || null,
+      },
+      residentSummary,
+      niit,
+      guestCarList,
+      selectedDetail,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Өр, авлагын тайлан (оршин суугчдийн) - Байр, орц, давхар, тоогоор хайж хэн төлбөрөө төлсөн, хэн төлөөгүйг хянах
 exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
   try {

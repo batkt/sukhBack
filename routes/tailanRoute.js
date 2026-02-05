@@ -10,6 +10,7 @@ const {
   tailanUdsanAvlaga,
   tailanTsutslasanGereeniiAvlaga,
   tailanExport,
+  tailanZogsool,
 } = require("../controller/tailan");
 
 // Өр, авлагын тайлан (оршин суугчдийн) - Байр, орц, давхар, тоогоор хайж хэн төлбөрөө төлсөн, хэн төлөөгүйг хянах
@@ -35,5 +36,8 @@ router.all("/tailan/tsutslasan-gereenii-avlaga", tokenShalgakh, tailanTsutslasan
 
 // Тайланг excel/pdf-р татаж авах боломж
 router.all("/tailan/export", tokenShalgakh, tailanExport);
+
+// Зогсоолын тайлан - Оршин суугчдын урьсан зочдын машин
+router.all("/tailan/zogsool", tokenShalgakh, tailanZogsool);
 
 module.exports = router;
