@@ -394,6 +394,8 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                     const OrshinSuugchMashinModel = OrshinSuugchMashin(db.erunkhiiKholbolt);
                     const newSettings = new OrshinSuugchMashinModel({
                         orshinSuugchiinId: result._id.toString(),
+                        baiguullagiinId: baiguullagiinId.toString(),
+                        barilgiinId: barilgiinId.toString(),
                         ezenToot: result.toot || req.body.toot || "",
                         zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                         zochinTurul: "Оршин суугч", 

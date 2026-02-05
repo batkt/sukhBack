@@ -1258,6 +1258,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
              if (!existingSettings) {
                 const newSettings = new OrshinSuugchMashinModel({
                     orshinSuugchiinId: orshinSuugch._id.toString(),
+                    baiguullagiinId: baiguullaga._id.toString(),
+                    barilgiinId: finalBarilgiinId,
                     ezenToot: orshinSuugch.toot || userData.toot || "",
                     zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                     zochinTurul: "Оршин суугч", 

@@ -390,6 +390,8 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
           }
           
           const updateData = {
+            baiguullagiinId: baiguullagiinId.toString(),
+            barilgiinId: barilgiinId.toString(),
             mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar || mashiniiDugaar,
             zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh !== undefined ? orshinSuugchMedeelel.zochinUrikhEsekh : defaults.zochinUrikhEsekh,
             zochinTurul: orshinSuugchMedeelel.zochinTurul || defaults.zochinTurul || "Оршин суугч",
@@ -561,13 +563,24 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
 
     // Aggregation pipeline
     const pipeline = [
-      // 1. Convert string ID to ObjectId for lookup if necessary
+      // 1. Initial Match: Filter by baiguullagiinId if present on root (NEW records)
+      // or allow documents where it's missing to be filtered after lookup (OLD records)
+      {
+        $match: {
+          $or: [
+            { baiguullagiinId: baiguullagiinId },
+            { baiguullagiinId: String(baiguullagiinId) },
+            { baiguullagiinId: { $exists: false } }
+          ]
+        }
+      },
+      // 2. Convert string ID for lookup
       {
         $addFields: {
            orshinSuugchObjId: { $toObjectId: "$orshinSuugchiinId" }
         }
       },
-      // 2. Lookup OrshinSuugch
+      // 3. Lookup OrshinSuugch
       {
         $lookup: {
           from: "orshinSuugch", 
@@ -576,16 +589,16 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
           as: "resident"
         }
       },
-      // 3. Unwind
-      { $unwind: "$resident" },
-      // 4. Match by baiguullagiinId (from resident)
-      // Robust matching: Check String, ObjectId, and handle potential type mismatches
+      // 4. Unwind (Preserve null so records don't DISAPPEAR if lookup fails)
+      { $unwind: { path: "$resident", preserveNullAndEmptyArrays: true } },
+      // 5. Final Filter: Ensure it matches the requested baiguullagiinId
       {
         $match: {
           $or: [
+            { "baiguullagiinId": baiguullagiinId },
+            { "baiguullagiinId": String(baiguullagiinId) },
             { "resident.baiguullagiinId": baiguullagiinId },
-            { "resident.baiguullagiinId": String(baiguullagiinId) },
-            { "resident.baiguullagiinId": { $eq: baiguullagiinId } }
+            { "resident.baiguullagiinId": String(baiguullagiinId) }
           ]
         }
       }
@@ -598,7 +611,6 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
            $match: {
                $or: [
                    { "resident.ner": regex },
-                   // Handle utas array or string
                    { "resident.utas": regex }, 
                    { "mashiniiDugaar": regex },
                    { "resident.toot": regex },
@@ -630,12 +642,12 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
     const formattedData = data.map(item => ({
         _id: item._id,
         createdAt: item.createdAt,
-        ner: item.resident.ner,
-        utas: item.resident.utas,
+        ner: item.resident?.ner || "БҮРТГЭЛГҮЙ",
+        utas: item.resident?.utas || "",
         mashiniiDugaar: item.mashiniiDugaar,
         zochinTurul: item.zochinTurul,
         zochinTailbar: item.zochinTailbar,
-        ezenToot: item.ezenToot || item.resident.toot, // Use visitor's ezenToot or resident's toot
+        ezenToot: item.ezenToot || item.resident?.toot || "", 
         davtamjiinTurul: item.davtamjiinTurul
     }));
 

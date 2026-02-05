@@ -7,6 +7,8 @@ mongoose.pluralize(null);
 const orshinSuugchMashinSchema = new Schema(
     {
     orshinSuugchiinId: String,
+    baiguullagiinId: String,
+    barilgiinId: String,
     zochinUrikhEsekh: Boolean,
     zochinTurul: String,
     davtamjiinTurul: String,

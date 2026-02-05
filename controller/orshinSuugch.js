@@ -970,6 +970,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
          if (!existingSettings) {
             const newSettings = new OrshinSuugchMashinModel({
                 orshinSuugchiinId: orshinSuugch._id.toString(),
+                baiguullagiinId: baiguullaga._id.toString(),
+                barilgiinId: barilgiinId,
                 ezenToot: orshinSuugch.toot || req.body.toot || "",
                 zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                 zochinTurul: "Оршин суугч", 
