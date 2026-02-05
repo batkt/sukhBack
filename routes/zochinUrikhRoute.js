@@ -17,10 +17,11 @@ async function orshinSuugchKhadgalya(
   const phoneString = Array.isArray(utas) ? utas[0] : String(utas || "").trim();
   if (!orshinSuugchMedeelel) return null;
   
+  const { db } = require("zevbackv2");
   const orshinSuugchId = orshinSuugchMedeelel._id;
   if (orshinSuugchId) {
     const existingOrshinSuugch = await OrshinSuugch(
-      tukhainBaaziinKholbolt
+      db.erunkhiiKholbolt
     ).findById(orshinSuugchId);
     if (existingOrshinSuugch) {
       const updateFields = {};
@@ -35,7 +36,7 @@ async function orshinSuugchKhadgalya(
       });
       if (Object.keys(updateFields).length > 0) {
         updateFields.updatedAt = new Date();
-        return await OrshinSuugch(tukhainBaaziinKholbolt).findByIdAndUpdate(
+        return await OrshinSuugch(db.erunkhiiKholbolt).findByIdAndUpdate(
           orshinSuugchId,
           { $set: updateFields },
           { new: true }
@@ -46,21 +47,21 @@ async function orshinSuugchKhadgalya(
       throw new Error(`ID: ${orshinSuugchId} харилцагч олдсонгүй`);
     }
   } else {
-    // ID байхгүй бол шинээр хадгална (save ашиглана)
+    // ID байхгүй бол шинээр хадгална
     const { _id, ...orshinSuugchData } = orshinSuugchMedeelel;
     // Утасны дугаараар давхцах эсэхийг шалгана
-    const existingByUtas = await OrshinSuugch(tukhainBaaziinKholbolt).findOne(
+    const existingByUtas = await OrshinSuugch(db.erunkhiiKholbolt).findOne(
       {
         utas: phoneString,
         barilgiinId: orshinSuugchMedeelel.barilgiinId,
       }
     );
     if (existingByUtas) {
-      // If user exists, return them instead of erroring
-      console.log(`ℹ️ [ZOCHIN_URI] User exists with phone ${utas}, using existing record.`);
+      console.log(`ℹ️ [ZOCHIN_URI] User exists with phone ${phoneString}, using existing record.`);
       return existingByUtas;
     }
-    const newOrshinSuugch = new OrshinSuugch(tukhainBaaziinKholbolt)({
+    const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+    const newOrshinSuugch = new OrshinSuugchModel({
       ...orshinSuugchData,
       utas: orshinSuugchData.utas || phoneString,
       createdAt: new Date(),
@@ -115,7 +116,8 @@ async function mashinHadgalya(mashinMedeelel, tukhainBaaziinKholbolt) {
       if (existingMashin) {
         throw new Error("Энэ дугаартай машин аль хэдийн бүртгэгдсэн байна");
       }
-      const newMashin = new Mashin(tukhainBaaziinKholbolt)({
+      const MashinModel = Mashin(tukhainBaaziinKholbolt);
+      const newMashin = new MashinModel({
         ...mashinData,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -374,7 +376,16 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
           if (barilgiinId && baiguullagaObj?.barilguud) {
             const barilga = baiguullagaObj.barilguud.find(b => String(b._id) === String(barilgiinId));
             if (barilga?.tokhirgoo?.zochinTokhirgoo) {
-                defaults = barilga.tokhirgoo.zochinTokhirgoo;
+               const buildingSettings = barilga.tokhirgoo.zochinTokhirgoo;
+               const orgSettings = baiguullagaObj?.tokhirgoo?.zochinTokhirgoo || {};
+               const defaultSettings = buildingSettings && buildingSettings.zochinUrikhEsekh !== undefined
+                 ? buildingSettings 
+                 : orgSettings;
+
+              console.log("🔍 [AUTO-ZOCHIN] Default Settings selected:", !!defaultSettings);
+              if (defaultSettings) {
+                defaults = defaultSettings;
+              }
             }
           }
           

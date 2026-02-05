@@ -236,8 +236,8 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
               delete updatedBarilga._id;
               delete updatedBarilga.baiguullagiinId;
               
-              // Merge the updated data
-              Object.assign(baiguullaga.barilguud[index], updatedBarilga);
+              // Use .set() to ensure Mongoose tracks changes in nested objects like tokhirgoo.zochinTokhirgoo
+              baiguullaga.barilguud[index].set(updatedBarilga);
             }
           });
         }
@@ -269,7 +269,8 @@ crud(router, "baiguullaga", Baiguullaga, UstsanBarimt);
 router.post("/baiguullagaBurtgekh", async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const baiguullaga = new Baiguullaga(db.erunkhiiKholbolt)(req.body);
+    const BaiguullagaModel = Baiguullaga(db.erunkhiiKholbolt);
+    const baiguullaga = new BaiguullagaModel(req.body);
     console.log("------------->" + JSON.stringify(baiguullaga));
     baiguullaga.isNew = !baiguullaga.zasakhEsekh;
     // Don't create default barilga - only create when explicitly requested from frontend
@@ -428,6 +429,8 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
         "barilguud.tokhirgoo.horoo": 1,
         "barilguud.tokhirgoo.davkhar": 1,
         "barilguud.tokhirgoo.davkhariinToonuud": 1,
+        "barilguud.tokhirgoo.zochinTokhirgoo": 1,
+        "tokhirgoo.zochinTokhirgoo": 1,
       },
     )
     .then((result) => {
@@ -437,7 +440,7 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
           const tokhirgoo = barilga?.tokhirgoo;
           return {
             barilgiinId: barilga._id?.toString() || "",
-            bairniiNer: barilga?.ner || "", // Барилгын нэр from barilguud[].ner
+            bairniiNer: barilga?.ner || "", 
             duuregNer: tokhirgoo?.duuregNer || "",
             districtCode: tokhirgoo?.districtCode || "",
             sohNer: tokhirgoo?.sohNer || "",
@@ -447,7 +450,8 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
               : tokhirgoo?.davkhar
                 ? [tokhirgoo.davkhar]
                 : [],
-            davkhariinToonuud: tokhirgoo?.davkhariinToonuud || {}, // Include davkhariinToonuud structure
+            davkhariinToonuud: tokhirgoo?.davkhariinToonuud || {}, 
+            zochinTokhirgoo: tokhirgoo?.zochinTokhirgoo || {},
           };
         });
 
@@ -457,7 +461,8 @@ router.get("/baiguullagaBairshilaarAvya", (req, res, next) => {
           dotoodNer: item.dotoodNer || "",
           register: item.register || "",
           khayag: item.khayag || "",
-          barilguud: barilguud, // Array of all buildings
+          tokhirgoo: item.tokhirgoo || {},
+          barilguud: barilguud, 
         };
       });
 

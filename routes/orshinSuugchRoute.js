@@ -234,18 +234,8 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
 
 router.get("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
   try {
-    const baiguullagiinId = req.query.baiguullagiinId;
-    
-    // If baiguullagiinId is provided, use tenant-specific database
+    // Residents MUST be in erunkhiiKholbolt
     let kholbolt = db.erunkhiiKholbolt;
-    if (baiguullagiinId && db && db.kholboltuud && Array.isArray(db.kholboltuud)) {
-      const tukhainBaaziinKholbolt = db.kholboltuud.find(
-        (k) => k && String(k.baiguullagiinId) === String(baiguullagiinId)
-      );
-      if (tukhainBaaziinKholbolt) {
-        kholbolt = tukhainBaaziinKholbolt;
-      }
-    }
     
     const result = await OrshinSuugch(kholbolt).findById(req.params.id);
     if (result != null) result.key = result._id;
@@ -257,7 +247,8 @@ router.get("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
 
 router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
   try {
-    const result = new OrshinSuugch(db.erunkhiiKholbolt)(req.body);
+    const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+    const result = new OrshinSuugchModel(req.body);
     await result.save();
     if (result != null) result.key = result._id;
 
@@ -382,19 +373,25 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                  ? buildingSettings 
                  : orgSettings;
 
+              console.log("🔍 [AUTO-ZOCHIN] Checking defaults for orshinSuugch registration:", result.ner);
+              console.log("🔍 [AUTO-ZOCHIN] Building Settings found:", !!buildingSettings);
+              console.log("🔍 [AUTO-ZOCHIN] Org Settings found:", !!orgSettings);
+              console.log("🔍 [AUTO-ZOCHIN] Final Default Settings selected:", !!defaultSettings);
+
               if (defaultSettings) {
                  const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
                  
-                 // Check if settings already exist
-                 const existingSettings = await OrshinSuugchMashin(tukhainBaaziinKholbolt).findOne({
+                 // Check if settings already exist in central database
+                 const existingSettings = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOne({
                     orshinSuugchiinId: result._id.toString(),
                     zochinTurul: "Оршин суугч"
                  });
                  
-                 if (!existingSettings) {
-                    console.log(`📋 [AUTO-ZOCHIN] Creating default guest settings for ${result.ner}`);
-                    
-                    const newSettings = new OrshinSuugchMashin(db.erunkhiiKholbolt)({
+                  if (!existingSettings) {
+                     console.log(`📋 [AUTO-ZOCHIN] Creating default guest settings for ${result.ner}. Quota: ${defaultSettings.zochinErkhiinToo}`);
+                     
+                     const OrshinSuugchMashinModel = OrshinSuugchMashin(db.erunkhiiKholbolt);
+                     const newSettings = new OrshinSuugchMashinModel({
                         orshinSuugchiinId: result._id.toString(),
                         ezenToot: result.toot || req.body.toot || "",
                         // Default values
@@ -406,9 +403,9 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                         zochinTailbar: defaultSettings.zochinTailbar || "",
                         davtamjiinTurul: defaultSettings.davtamjiinTurul || "saraar",
                         davtamjUtga: defaultSettings.davtamjUtga
-                    });
-                    
-                    await newSettings.save();
+                     });
+                     
+                     await newSettings.save();
                     console.log(`✅ [AUTO-ZOCHIN] Settings created.`);
                  }
               }
