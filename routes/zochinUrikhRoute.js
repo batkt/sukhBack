@@ -138,14 +138,14 @@ async function mashinHadgalya(mashinMedeelel, tukhainBaaziinKholbolt) {
  */
 router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
   try {
-    const { db } = require("zevbackv2");
-    const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+    const Mashin = require("../models/mashin");
     const residentId = req.body.nevtersenAjiltniiToken?.id;
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
     if (!residentId) return res.status(401).send("Нэвтрэх шаардлагатай");
 
-    const settings = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOne({
-      orshinSuugchiinId: residentId,
+    const settings = await Mashin(tukhainBaaziinKholbolt).findOne({
+      ezemshigchiinId: residentId,
       zochinTurul: "Оршин суугч"
     });
 
@@ -160,14 +160,15 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
  */
 router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
   try {
-    const { db } = require("zevbackv2");
-    const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+    const Mashin = require("../models/mashin");
+    const EzenUrisanMashin = require("../models/ezenUrisanMashin");
     const residentId = req.body.nevtersenAjiltniiToken?.id;
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
     if (!residentId) return res.status(401).send("Нэвтрэх шаардлагатай");
 
-    const masterSetting = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOne({
-      orshinSuugchiinId: residentId,
+    const masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne({
+      ezemshigchiinId: residentId,
       zochinTurul: "Оршин суугч"
     });
 
@@ -265,16 +266,16 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
     // Fetch inviter's master settings (Primary resident car info)
     let existingPrimary = null;
     if (inviterId) {
-        const OrshinSuugchMashinModel = require("../models/orshinSuugchMashin");
-        existingPrimary = await OrshinSuugchMashinModel(db.erunkhiiKholbolt).findOne({
-            orshinSuugchiinId: inviterId,
+        const Mashin = require("../models/mashin");
+        existingPrimary = await Mashin(tukhainBaaziinKholbolt).findOne({
+            ezemshigchiinId: inviterId,
             zochinTurul: "Оршин суугч"
         });
     }
 
     // Determine if this is the Resident's own car or a Guest invitation
     const isResidentCar = orshinSuugchMedeelel?.zochinTurul === "Оршин суугч" || 
-                         (existingPrimary && existingPrimary.mashiniiDugaar === mashiniiDugaar);
+                         (existingPrimary && existingPrimary.dugaar === mashiniiDugaar);
 
     // 1. PLATE CHANGE RESTRICTION: Resident primary car
     if (inviterId && isResidentCar) {
@@ -368,12 +369,13 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
 
         console.log(`🔍 [ZOCHIN_HADGALYA] orshinSuugchResult:`, orshinSuugchResult ? { id: orshinSuugchResult._id, ner: orshinSuugchResult.ner, toot: orshinSuugchResult.toot } : "NULL");
 
-        // Also save to OrshinSuugchMashin (Visitor Vehicle History)
+        // Also save to Mashin (Vehicle with Guest/Resident Settings)
         if (orshinSuugchResult) {
-          const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+          const Mashin = require("../models/mashin");
           
           // Fetch defaults from Baiguullaga/Barilga if not provided
           const Baiguullaga = require("../models/baiguullaga");
+          const { db } = require("zevbackv2");
           const baiguullagaObj = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
           let defaults = baiguullagaObj?.tokhirgoo?.zochinTokhirgoo || {};
           if (barilgiinId && baiguullagaObj?.barilguud) {
@@ -395,7 +397,10 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
           const updateData = {
             baiguullagiinId: baiguullagiinId.toString(),
             barilgiinId: barilgiinId.toString(),
-            mashiniiDugaar: orshinSuugchMedeelel.mashiniiDugaar || mashiniiDugaar,
+            dugaar: orshinSuugchMedeelel.mashiniiDugaar || mashiniiDugaar,
+            ezemshigchiinId: orshinSuugchResult._id.toString(),
+            ezemshigchiinNer: orshinSuugchResult.ner,
+            ezemshigchiinUtas: phoneString,
             zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh !== undefined ? orshinSuugchMedeelel.zochinUrikhEsekh : defaults.zochinUrikhEsekh,
             zochinTurul: orshinSuugchMedeelel.zochinTurul || defaults.zochinTurul || "Оршин суугч",
             davtamjiinTurul: orshinSuugchMedeelel.davtamjiinTurul || defaults.davtamjiinTurul || "saraar",
@@ -416,26 +421,26 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
 
           // Define filter for upsert
           let filter = { 
-            orshinSuugchiinId: orshinSuugchResult._id.toString(),
-            mashiniiDugaar: updateData.mashiniiDugaar 
+            ezemshigchiinId: orshinSuugchResult._id.toString(),
+            dugaar: updateData.dugaar 
           };
 
           // If updating primary resident car, match by ID, Plate and Type to support multiple cars per unit
           if (updateData.zochinTurul === "Оршин суугч") {
             filter = {
-              orshinSuugchiinId: orshinSuugchResult._id.toString(),
-              mashiniiDugaar: updateData.mashiniiDugaar,
+              ezemshigchiinId: orshinSuugchResult._id.toString(),
+              dugaar: updateData.dugaar,
               zochinTurul: "Оршин суугч"
             };
 
             // Limit check for primary resident cars
             const limit = defaults.orshinSuugchMashiniiLimit || 1; // Default to 1 if not specified
-            const currentCount = await OrshinSuugchMashin(db.erunkhiiKholbolt).countDocuments({
-              orshinSuugchiinId: orshinSuugchResult._id.toString(),
+            const currentCount = await Mashin(tukhainBaaziinKholbolt).countDocuments({
+              ezemshigchiinId: orshinSuugchResult._id.toString(),
               zochinTurul: "Оршин суугч"
             });
 
-            const exists = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOne(filter);
+            const exists = await Mashin(tukhainBaaziinKholbolt).findOne(filter);
             
             if (!exists && currentCount >= limit) {
               return res.status(403).json({
@@ -443,21 +448,21 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
                 message: `Таны машины бүртгэлийн лимит (${limit}) хэтэрсэн байна.`,
               });
             }
-          } else if (!updateData.mashiniiDugaar) {
+          } else if (!updateData.dugaar) {
              // If guest with no plate
              filter = {
-                orshinSuugchiinId: orshinSuugchResult._id.toString(),
+                ezemshigchiinId: orshinSuugchResult._id.toString(),
                 zochinTurul: updateData.zochinTurul
              }
           }
 
-          console.log(`🔍 [ZOCHIN_HADGALYA] Upserting OrshinSuugchMashin with filter:`, filter);
-          orshinSuugchMashinResult = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOneAndUpdate(
+          console.log(`🔍 [ZOCHIN_HADGALYA] Upserting Mashin with filter:`, filter);
+          mashinResult = await Mashin(tukhainBaaziinKholbolt).findOneAndUpdate(
             filter,
             { $set: updateData },
             { upsert: true, new: true }
           );
-          console.log(`✅ [ZOCHIN_HADGALYA] OrshinSuugchMashin saved, ID:`, orshinSuugchMashinResult?._id);
+          console.log(`✅ [ZOCHIN_HADGALYA] Mashin saved, ID:`, mashinResult?._id);
 
           // TRACK USAGE: Create EzenUrisanMashin record if it was an invitation
           if (inviterId && inviterSettings) {
@@ -547,7 +552,6 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       data: {
         orshinSuugch: orshinSuugchResult,
         mashin: mashinResult,
-        orshinSuugchMashin: orshinSuugchMashinResult,
         jagsaalt: mashiniiJagsaalt,
       },
     });
@@ -592,11 +596,11 @@ router.post("/ezenUrisanTuukh", tokenShalgakh, async (req, res, next) => {
 
 router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
   try {
-    const { db } = require("zevbackv2");
-    const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+    const Mashin = require("../models/mashin");
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
     
     const page = parseInt(req.query.khuudasniiDugaar) || 1;
-    const limit = parseInt(req.query.khuudasniiKhemjee) || 10;
+    const limit = parseInt(req.query.khuudasniiKhemjee) || 50;
     const skip = (page - 1) * limit;
     const baiguullagiinId = req.query.baiguullagiinId;
 
@@ -604,89 +608,49 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
       return res.status(400).send("baiguullagiinId required");
     }
 
-    // Aggregation pipeline: Join Guest Settings with Resident Info
-    const pipeline = [
-      // 1. Lookup OrshinSuugch with robust ID matching (String-to-String comparison)
-      {
-        $lookup: {
-          from: "orshinSuugch", 
-          let: { suugchId: "$orshinSuugchiinId" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: [{ $toString: "$_id" }, { $toString: "$$suugchId" }]
-                }
-              }
-            }
-          ],
-          as: "resident"
-        }
-      },
-      // 2. Unwind (Preserve null so records don't DISAPPEAR even if lookup fails)
-      { $unwind: { path: "$resident", preserveNullAndEmptyArrays: true } },
-      // 3. Final Filter: Match by baiguullagiinId from either the guest record OR the resident record
-      {
-        $match: {
-          $or: [
-            { "baiguullagiinId": baiguullagiinId },
-            { "baiguullagiinId": String(baiguullagiinId) },
-            { "resident.baiguullagiinId": baiguullagiinId },
-            { "resident.baiguullagiinId": String(baiguullagiinId) }
-          ]
-        }
-      }
-    ];
+    // Build match query
+    const matchQuery = {
+      baiguullagiinId: String(baiguullagiinId),
+      zochinTurul: { $exists: true } // Only vehicles with guest/resident settings
+    };
 
     // Add search if provided
     if (req.query.search) {
        const regex = new RegExp(req.query.search, 'i');
-       pipeline.push({
-           $match: {
-               $or: [
-                   { "resident.ner": regex },
-                   { "resident.utas": regex }, 
-                   { "mashiniiDugaar": regex },
-                   { "resident.toot": regex },
-                   { "ezenToot": regex }
-               ]
-           }
-       });
+       matchQuery.$or = [
+           { ezemshigchiinNer: regex },
+           { ezemshigchiinUtas: regex },
+           { dugaar: regex },
+           { ezenToot: regex }
+       ];
     }
 
-    // Sort by most recent
-    pipeline.push({ $sort: { createdAt: -1 } });
-
-    // Facet for pagination
-    pipeline.push({
-        $facet: {
-            metadata: [{ $count: "total" }],
-            data: [{ $skip: skip }, { $limit: limit }]
-        }
-    });
-
     console.log(`🔍 [ZOCHIN_JAGSAALT] Fetching for baiguullagiinId: ${baiguullagiinId}, Search: ${req.query.search || 'None'}`);
-    const result = await OrshinSuugchMashin(db.erunkhiiKholbolt).aggregate(pipeline);
-    console.log(`🔍 [ZOCHIN_JAGSAALT] Found ${result[0]?.metadata[0]?.total || 0} total matching records.`);
     
-    const data = result[0].data;
-    const total = result[0].metadata[0] ? result[0].metadata[0].total : 0;
+    // Execute query with pagination
+    const data = await Mashin(tukhainBaaziinKholbolt)
+      .find(matchQuery)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const total = await Mashin(tukhainBaaziinKholbolt).countDocuments(matchQuery);
+    
+    console.log(`🔍 [ZOCHIN_JAGSAALT] Found ${total} total matching records.`);
 
     // Reshape data for table
     const formattedData = data.map(item => {
-        if (!item.resident) {
-          console.log(`⚠️ [ZOCHIN_JAGSAALT] Resident NOT FOUND for OrshinSuugchMashin ${item._id} (ID: ${item.orshinSuugchiinId})`);
-        }
         return {
           _id: item._id,
           createdAt: item.createdAt,
-          orshinSuugchiinId: item.orshinSuugchiinId, // Added for debugging
-          ner: item.resident?.ner || "БҮРТГЭЛГҮЙ",
-          utas: item.resident?.utas || item.ezemshigchiinUtas || "", // Fallback to guest's phone
-          mashiniiDugaar: item.mashiniiDugaar,
+          ezemshigchiinId: item.ezemshigchiinId,
+          ner: item.ezemshigchiinNer || "БҮРТГЭЛГҮЙ",
+          utas: item.ezemshigchiinUtas || item.utas || "",
+          mashiniiDugaar: item.dugaar,
           zochinTurul: item.zochinTurul,
           zochinTailbar: item.zochinTailbar,
-          ezenToot: item.ezenToot || item.resident?.toot || "", 
+          ezenToot: item.ezenToot || "", 
           davtamjiinTurul: item.davtamjiinTurul
         };
     });

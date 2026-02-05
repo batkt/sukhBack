@@ -31,6 +31,18 @@ const mashinSchema = new Schema(
     gereeniiId: String,
     orshinSuugchiinNer: String,
     cameraIP: String,
+    // Guest/Resident Vehicle Settings
+    zochinUrikhEsekh: Boolean,
+    zochinTurul: String, // "Оршин суугч", "Зочин", etc
+    zochinErkhiinToo: Number,
+    zochinTusBurUneguiMinut: Number,
+    zochinNiitUneguiMinut: Number,
+    zochinTailbar: String,
+    davtamjiinTurul: String,
+    davtamjUtga: Number,
+    dugaarUurchilsunOgnoo: Date,
+    ezenToot: String,
+    utas: String,
   },
   {
     timestamps: true,
