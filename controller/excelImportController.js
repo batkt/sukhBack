@@ -1235,6 +1235,47 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
         await orshinSuugch.save();
 
+        // --- AUTO CREATE GUEST SETTINGS (OrshinSuugchMashin) ---
+        try {
+          const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+          const rowBuilding = baiguullaga.barilguud?.find(b => String(b._id) === String(finalBarilgiinId));
+          const buildingSettings = rowBuilding?.tokhirgoo?.zochinTokhirgoo;
+          const orgSettings = baiguullaga.tokhirgoo?.zochinTokhirgoo;
+          
+          const defaultSettings = buildingSettings && buildingSettings.zochinUrikhEsekh !== undefined
+             ? buildingSettings 
+             : orgSettings;
+
+          if (defaultSettings) {
+             const OrshinSuugchMashinModel = OrshinSuugchMashin(db.erunkhiiKholbolt);
+             
+             // Check if settings already exist in central database
+             const existingSettings = await OrshinSuugchMashinModel.findOne({
+                orshinSuugchiinId: orshinSuugch._id.toString(),
+                zochinTurul: "Оршин суугч"
+             });
+             
+             if (!existingSettings) {
+                const newSettings = new OrshinSuugchMashinModel({
+                    orshinSuugchiinId: orshinSuugch._id.toString(),
+                    ezenToot: orshinSuugch.toot || userData.toot || "",
+                    zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
+                    zochinTurul: "Оршин суугч", 
+                    zochinErkhiinToo: defaultSettings.zochinErkhiinToo || 0,
+                    zochinTusBurUneguiMinut: defaultSettings.zochinTusBurUneguiMinut || 0,
+                    zochinNiitUneguiMinut: defaultSettings.zochinNiitUneguiMinut || 0,
+                    zochinTailbar: defaultSettings.zochinTailbar || "",
+                    davtamjiinTurul: defaultSettings.davtamjiinTurul || "saraar",
+                    davtamjUtga: defaultSettings.davtamjUtga
+                });
+                
+                await newSettings.save();
+             }
+          }
+        } catch (zochinErr) {
+          console.error("❌ [IMPORT-ZOCHIN] Error:", zochinErr.message);
+        }
+
         // Create gerees for all OWN_ORG toots that don't have gerees yet
         if (orshinSuugch.toots && Array.isArray(orshinSuugch.toots) && orshinSuugch.toots.length > 0) {
           const ownOrgToots = orshinSuugch.toots.filter(t => t.source === "OWN_ORG" && t.baiguullagiinId && t.barilgiinId);

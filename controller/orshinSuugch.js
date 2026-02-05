@@ -946,6 +946,52 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     
     await orshinSuugch.save();
     console.log("✅ [REGISTER] orshinSuugch saved successfully:", orshinSuugch._id);
+
+    // --- AUTO CREATE GUEST SETTINGS (OrshinSuugchMashin) ---
+    try {
+      const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+      const targetBarilga = baiguullaga?.barilguud?.find(b => String(b._id) === String(barilgiinId));
+      const buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
+      const orgSettings = baiguullaga?.tokhirgoo?.zochinTokhirgoo;
+      
+      const defaultSettings = buildingSettings && buildingSettings.zochinUrikhEsekh !== undefined
+         ? buildingSettings 
+         : orgSettings;
+
+      if (defaultSettings) {
+         console.log(`🔍 [AUTO-ZOCHIN] Found defaults for ${orshinSuugch.ner}. Quota: ${defaultSettings.zochinErkhiinToo}`);
+         const OrshinSuugchMashinModel = OrshinSuugchMashin(db.erunkhiiKholbolt);
+         
+         const existingSettings = await OrshinSuugchMashinModel.findOne({
+            orshinSuugchiinId: orshinSuugch._id.toString(),
+            zochinTurul: "Оршин суугч"
+         });
+         
+         if (!existingSettings) {
+            const newSettings = new OrshinSuugchMashinModel({
+                orshinSuugchiinId: orshinSuugch._id.toString(),
+                ezenToot: orshinSuugch.toot || req.body.toot || "",
+                zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
+                zochinTurul: "Оршин суугч", 
+                zochinErkhiinToo: defaultSettings.zochinErkhiinToo || 0,
+                zochinTusBurUneguiMinut: defaultSettings.zochinTusBurUneguiMinut || 0,
+                zochinNiitUneguiMinut: defaultSettings.zochinNiitUneguiMinut || 0,
+                zochinTailbar: defaultSettings.zochinTailbar || "",
+                davtamjiinTurul: defaultSettings.davtamjiinTurul || "saraar",
+                davtamjUtga: defaultSettings.davtamjUtga
+            });
+            
+            await newSettings.save();
+            console.log(`✅ [AUTO-ZOCHIN] Settings created for ${orshinSuugch.ner}`);
+         } else {
+            console.log(`ℹ️ [AUTO-ZOCHIN] Settings already exist for ${orshinSuugch.ner}`);
+         }
+      } else {
+         console.log(`⚠️ [AUTO-ZOCHIN] No default guest settings found for building or organization`);
+      }
+    } catch (zochinErr) {
+      console.error("❌ [AUTO-ZOCHIN] Error:", zochinErr.message);
+    }
     
     // Verify tsahilgaaniiZaalt was saved
     const savedOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("tsahilgaaniiZaalt");
