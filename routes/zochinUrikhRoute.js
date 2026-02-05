@@ -466,7 +466,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
       }
 
       const newVehicleData = {
-        baiguullagiinId: baiguullagiinId,
+        baiguullagiinId: baiguullagiinId.toString(),
         barilgiinId: barilgiinId,
         dugaar: mashiniiDugaar,
         ezemshigchiinUtas: phoneString,
@@ -579,9 +579,14 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
       // 3. Unwind
       { $unwind: "$resident" },
       // 4. Match by baiguullagiinId (from resident)
+      // Robust matching: Check String, ObjectId, and handle potential type mismatches
       {
         $match: {
-          "resident.baiguullagiinId": baiguullagiinId
+          $or: [
+            { "resident.baiguullagiinId": baiguullagiinId },
+            { "resident.baiguullagiinId": String(baiguullagiinId) },
+            { "resident.baiguullagiinId": { $eq: baiguullagiinId } }
+          ]
         }
       }
     ];
@@ -614,7 +619,9 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
         }
     });
 
+    console.log(`🔍 [ZOCHIN_JAGSAALT] Fetching for baiguullagiinId: ${baiguullagiinId}, Search: ${req.query.search || 'None'}`);
     const result = await OrshinSuugchMashin(db.erunkhiiKholbolt).aggregate(pipeline);
+    console.log(`🔍 [ZOCHIN_JAGSAALT] Found ${result[0]?.metadata[0]?.total || 0} total matching records.`);
     
     const data = result[0].data;
     const total = result[0].metadata[0] ? result[0].metadata[0].total : 0;

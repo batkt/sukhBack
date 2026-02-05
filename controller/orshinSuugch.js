@@ -824,7 +824,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       
       // Only set baiguullaga fields if baiguullaga exists (OWN_ORG registration)
       if (baiguullaga) {
-        userData.baiguullagiinId = baiguullaga._id;
+        userData.baiguullagiinId = baiguullaga._id.toString();
         userData.baiguullagiinNer = baiguullaga.ner;
       }
       

@@ -1188,7 +1188,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         } else {
           orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
           // For new users, set the top-level fields
-          orshinSuugch.baiguullagiinId = baiguullaga._id;
+          orshinSuugch.baiguullagiinId = baiguullaga._id.toString();
           orshinSuugch.baiguullagiinNer = baiguullaga.ner;
           orshinSuugch.barilgiinId = finalBarilgiinId;
         }
