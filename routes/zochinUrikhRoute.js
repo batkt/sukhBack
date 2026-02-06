@@ -412,7 +412,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             ezemshigchiinNer: orshinSuugchResult.ner,
             ezemshigchiinUtas: phoneString,
             zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh !== undefined ? orshinSuugchMedeelel.zochinUrikhEsekh : defaults.zochinUrikhEsekh,
-            zochinTurul: orshinSuugchMedeelel.zochinTurul || defaults.zochinTurul || "Оршин суугч",
+            zochinTurul: orshinSuugchMedeelel.turul || orshinSuugchMedeelel.zochinTurul || defaults.zochinTurul || "Оршин суугч",
             davtamjiinTurul: orshinSuugchMedeelel.davtamjiinTurul || defaults.davtamjiinTurul || "saraar",
             dugaarUurchilsunOgnoo: orshinSuugchMedeelel.dugaarUurchilsunOgnoo,
             ezenToot: orshinSuugchMedeelel.ezenToot,
