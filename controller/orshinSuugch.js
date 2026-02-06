@@ -989,6 +989,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
                 ezenToot: orshinSuugch.toot || req.body.toot || "",
                 zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                 zochinTurul: "Оршин суугч", 
+                turul: "Оршин суугч", 
                 zochinErkhiinToo: defaultSettings.zochinErkhiinToo || 0,
                 zochinTusBurUneguiMinut: defaultSettings.zochinTusBurUneguiMinut || 0,
                 zochinNiitUneguiMinut: defaultSettings.zochinNiitUneguiMinut || 0,
