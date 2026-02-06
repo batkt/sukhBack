@@ -174,10 +174,14 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
 
     if (!residentId) return res.status(401).send("Нэвтрэх шаардлагатай");
 
+    console.log("🔍 [QUOTA] Looking for resident car with ID:", residentId);
+
     const masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne({
       ezemshigchiinId: residentId,
       zochinTurul: "Оршин суугч"
     });
+
+    console.log("🔍 [QUOTA] masterSetting found:", masterSetting ? { id: masterSetting._id, quota: masterSetting.zochinErkhiinToo } : "NULL");
 
     if (!masterSetting) return res.send({ total: 0, used: 0, remaining: 0 });
 
