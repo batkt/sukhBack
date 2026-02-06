@@ -1,6 +1,13 @@
 const express = require("express");
 const moment = require("moment");
-const { Mashin, Uilchluulegch, EzenUrisanMashin } = require("sukhParking-v1");
+const {
+  Mashin: ParkingMashin,
+  Parking,
+  Uilchluulegch,
+  zogsooliinDunAvya,
+  sdkData,
+  EzenUrisanMashin
+} = require("sukhParking-v1");
 const OrshinSuugch = require("../models/orshinSuugch");
 const Geree = require("../models/geree");
 const router = express.Router();
@@ -84,7 +91,7 @@ async function mashinHadgalya(mashinMedeelel, tukhainBaaziinKholbolt) {
     const mashinId = mashinMedeelel._id;
     if (mashinId) {
       // ID байгаа бол засварлах - зөвхөн өөрчлөгдсөн талбарууд л шинэчлэгдэнэ
-      const existingMashin = await Mashin(tukhainBaaziinKholbolt).findById(
+      const existingMashin = await ParkingMashin(tukhainBaaziinKholbolt).findById(
         mashinId
       );
       if (existingMashin) {
@@ -100,7 +107,7 @@ async function mashinHadgalya(mashinMedeelel, tukhainBaaziinKholbolt) {
         });
         if (Object.keys(updateFields).length > 0) { 
           updateFields.updatedAt = new Date();
-          return await Mashin(tukhainBaaziinKholbolt).findByIdAndUpdate(
+          return await ParkingMashin(tukhainBaaziinKholbolt).findByIdAndUpdate(
             mashinId,
             { $set: updateFields },
             { new: true }
@@ -114,7 +121,7 @@ async function mashinHadgalya(mashinMedeelel, tukhainBaaziinKholbolt) {
       // ID байхгүй бол шинээр хадгална (save ашиглана)
       const { _id, ...mashinData } = mashinMedeelel;
       // Давхцах эсэхийг шалгана
-      const existingMashin = await Mashin(tukhainBaaziinKholbolt).findOne({
+      const existingMashin = await ParkingMashin(tukhainBaaziinKholbolt).findOne({
         dugaar: mashinData.dugaar,
         barilgiinId: mashinData.barilgiinId,
         baiguullagiinId: mashinData.baiguullagiinId,
@@ -122,7 +129,7 @@ async function mashinHadgalya(mashinMedeelel, tukhainBaaziinKholbolt) {
       if (existingMashin) {
         throw new Error("Энэ дугаартай машин аль хэдийн бүртгэгдсэн байна");
       }
-      const MashinModel = Mashin(tukhainBaaziinKholbolt);
+      const MashinModel = ParkingMashin(tukhainBaaziinKholbolt);
       const newMashin = new MashinModel({
         ...mashinData,
         createdAt: new Date(),
