@@ -971,6 +971,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
          if (!existingSettings) {
             const newMashin = new MashinModel({
                 ezemshigchiinId: orshinSuugch._id.toString(),
+                orshinSuugchiinId: orshinSuugch._id.toString(),
                 ezemshigchiinNer: orshinSuugch.ner,
                 ezemshigchiinUtas: orshinSuugch.utas,
                 baiguullagiinId: baiguullaga._id.toString(),
