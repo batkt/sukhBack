@@ -398,7 +398,7 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                         ezemshigchiinUtas: result.utas,
                         baiguullagiinId: baiguullagiinId.toString(),
                         barilgiinId: barilgiinId.toString(),
-                        dugaar: "БҮРТГЭЛГҮЙ", // Will be updated when user adds car
+                        dugaar: req.body.mashiniiDugaar || req.body.dugaar || "БҮРТГЭЛГҮЙ",
                         ezenToot: result.toot || req.body.toot || "",
                         zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                         zochinTurul: "Оршин суугч", 
