@@ -443,23 +443,16 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             dugaar: updateData.dugaar 
           };
 
-          // If updating primary resident car, match by ID, Plate and Type to support multiple cars per unit
-          if (updateData.zochinTurul === "Оршин суугч") {
-            filter = {
-              ezemshigchiinId: orshinSuugchResult._id.toString(),
-              dugaar: updateData.dugaar,
-              zochinTurul: "Оршин суугч"
-            };
+           // 1. Identify TARGET document to update (Resident Car Strategy)
+           // We try to find if we are updating an existing resident car, regardless of what 'turul' the frontend sent
+           let targetCarId = null;
 
-            // 1. Identify TARGET document to update
-            let targetCarId = null;
-
-            // A: Explicit ID provided
-            if (mashinMedeelel && mashinMedeelel._id) {
+           // A: Explicit ID provided
+           if (mashinMedeelel && mashinMedeelel._id) {
                console.log("ℹ️ [ZOCHIN_HADGALYA] Target by ID:", mashinMedeelel._id);
                targetCarId = mashinMedeelel._id;
-            } 
-            else {
+           } 
+           else {
                 // B: Check for Placeholder "БҮРТГЭЛГҮЙ"
                 const placeholderCar = await Mashin(tukhainBaaziinKholbolt).findOne({
                    ezemshigchiinId: orshinSuugchResult._id.toString(),
@@ -473,62 +466,77 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
                 }
                 else {
                    // C: Check for Single Resident Car (Implicit Edit)
-                   // If user has exactly one resident car, and we are sending an update (even with new plate/type), assume update.
                    const residentCars = await Mashin(tukhainBaaziinKholbolt).find({
                       ezemshigchiinId: orshinSuugchResult._id.toString(),
                       zochinTurul: "Оршин суугч"
                    });
 
-                   // Check if the input plate already exists (e.g. just saving again without changing plate)
+                   // Check exact match (saving same plate)
                    const exactMatch = await Mashin(tukhainBaaziinKholbolt).findOne({
                       ezemshigchiinId: orshinSuugchResult._id.toString(),
                       dugaar: updateData.dugaar
                    });
                    
                    if (exactMatch) {
+                      // If exact match found, update that one
                       targetCarId = exactMatch._id;
                    } 
                    else if (residentCars.length === 1) {
+                       // If no exact match but user has exactly one resident car, update it (rename)
                        console.log("ℹ️ [ZOCHIN_HADGALYA] Target by Single Car strategy:", residentCars[0]._id);
                        targetCarId = residentCars[0]._id;
                    }
                 }
             }
 
-            // Apply Target Filter
+            // 2. Logic Branching
             if (targetCarId) {
+                // UPDATE EXISTING RESIDENT CAR
                 filter = { _id: targetCarId };
                 
-                // If we are updating an existing "Оршин суугч" car, preserve the type if input is generic/wrong
-                // fix: If input says "Иргэн" but we are updating a "Оршин суугч" slot, force it back unless explicitly intended?
-                // For now, if we found it via "Single Resident Car" or "Placeholder", we likely want to keep it as Resident car
-                if (!updateData.zochinTurul || updateData.zochinTurul === 'Иргэн') {
-                    updateData.zochinTurul = "Оршин суугч";
-                    updateData.turul = "Оршин суугч";
+                // FORCE "Оршин суугч" type if we are updating a resident owner's primary car
+                // This fixes the issue where frontend sends "Иргэн" or other types by mistake when editing
+                if (!updateData.zochinTurul || updateData.zochinTurul !== 'Оршин суугч') {
+                     console.log("ℹ️ [ZOCHIN_HADGALYA] Forcing type to 'Оршин суугч' for resident vehicle update.");
+                     updateData.zochinTurul = "Оршин суугч";
+                     updateData.turul = "Оршин суугч";
                 }
             } else {
-                 // New Car Creation Logic
-                 // Limit check only applies if we are CREATING a NEW car
-                 const limit = defaults.orshinSuugchMashiniiLimit || 1; 
-                 const currentCount = await Mashin(tukhainBaaziinKholbolt).countDocuments({
-                    ezemshigchiinId: orshinSuugchResult._id.toString(),
-                    zochinTurul: "Оршин суугч"
-                 });
+                 // CREATE NEW / UPDATE GUEST CAR
+                 // If not targeting an existing resident car, strictly follow the input data
+                 
+                 // If plate is not provided, treat as generic update
+                 if (!updateData.dugaar) {
+                    filter = {
+                        ezemshigchiinId: orshinSuugchResult._id.toString(),
+                        zochinTurul: updateData.zochinTurul
+                    };
+                 } else {
+                    // Updating/Creating by Plate Number
+                    filter = {
+                        ezemshigchiinId: orshinSuugchResult._id.toString(),
+                        dugaar: updateData.dugaar
+                    };
+                    
+                    // Only apply Resident Car Limit if we are trying to add a NEW "Оршин суугч" car
+                    if (updateData.zochinTurul === "Оршин суугч") {
+                         filter.zochinTurul = "Оршин суугч";
+                         
+                         const limit = defaults.orshinSuugchMashiniiLimit || 1; 
+                         const currentCount = await Mashin(tukhainBaaziinKholbolt).countDocuments({
+                            ezemshigchiinId: orshinSuugchResult._id.toString(),
+                            zochinTurul: "Оршин суугч"
+                         });
 
-                 if (currentCount >= limit) {
-                   return res.status(403).json({
-                     success: false,
-                     message: `Таны машины бүртгэлийн лимит (${limit}) хэтэрсэн байна.`,
-                   });
+                         if (currentCount >= limit) {
+                           return res.status(403).json({
+                             success: false,
+                             message: `Таны машины бүртгэлийн лимит (${limit}) хэтэрсэн байна.`,
+                           });
+                         }
+                    }
                  }
-            }   
-          } else if (!updateData.dugaar) {
-             // If guest with no plate
-             filter = {
-                ezemshigchiinId: orshinSuugchResult._id.toString(),
-                zochinTurul: updateData.zochinTurul
-             }
-          }
+            }
 
           console.log(`🔍 [ZOCHIN_HADGALYA] Upserting Mashin with filter:`, filter);
           mashinResult = await Mashin(tukhainBaaziinKholbolt).findOneAndUpdate(
