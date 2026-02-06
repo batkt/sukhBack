@@ -311,6 +311,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       sohNer: req.body.sohNer,
       bairniiNer: req.body.bairniiNer,
     });
+    console.log("FULL BODY DEBUG:", JSON.stringify(req.body, null, 2));
     const { db } = require("zevbackv2");
 
     // Note: duureg, horoo, and soh are optional - can be retrieved from baiguullaga if not provided
