@@ -985,6 +985,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
                   }
                   return "БҮРТГЭЛГҮЙ";
                 })(),
+                mashiniiDugaar: (() => {
+                  if (req.body.mashiniiDugaar) return req.body.mashiniiDugaar;
+                  if (req.body.dugaar) return req.body.dugaar;
+                  if (req.body.mashin && req.body.mashin.dugaar) return req.body.mashin.dugaar;
+                  if (Array.isArray(req.body.mashinuud) && req.body.mashinuud.length > 0) {
+                    const m = req.body.mashinuud[0];
+                    return typeof m === 'object' ? (m.dugaar || m.mashiniiDugaar || "БҮРТГЭЛГҮЙ") : m;
+                  }
+                  return "БҮРТГЭЛГҮЙ";
+                })(),
                 ezenToot: orshinSuugch.toot || req.body.toot || "",
                 zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                 zochinTurul: "Оршин суугч", 
