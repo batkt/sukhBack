@@ -79,10 +79,13 @@ router.post(
 // Payment summary for a single geree (from gereeniiTulsunAvlaga)
 router.post("/tulsunSummary", tokenShalgakh, async (req, res, next) => {
   try {
-    const { baiguullagiinId, gereeniiId } = req.body || {};
+    const { baiguullagiinId, gereeniiId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = req.body || {};
     const result = await getGereeniiTulsunSummary({
       baiguullagiinId,
       gereeniiId,
+      barilgiinId,
+      ekhlekhOgnoo,
+      duusakhOgnoo
     });
     res.json(result);
   } catch (err) {
