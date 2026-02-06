@@ -443,38 +443,52 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
               zochinTurul: "Оршин суугч"
             };
 
-            // Limit check for primary resident cars
-            const limit = defaults.orshinSuugchMashiniiLimit || 1; // Default to 1 if not specified
-            
-            // Check if we are updating an existing "БҮРТГЭЛГҮЙ" record
-            // If the user has a record with "БҮРТГЭЛГҮЙ", we should update IT rather than enforcing limit
-            const placeholderCar = await Mashin(tukhainBaaziinKholbolt).findOne({
-               ezemshigchiinId: orshinSuugchResult._id.toString(),
-               zochinTurul: "Оршин суугч",
-               dugaar: "БҮРТГЭЛГҮЙ"
-            });
+            // 1. Try ID from request (Prioritize explicit ID)
+            if (mashinMedeelel && mashinMedeelel._id) {
+               console.log("ℹ️ [ZOCHIN_HADGALYA] Updating specific car by ID:", mashinMedeelel._id);
+               filter = { _id: mashinMedeelel._id };
+            } else {
+                // 2. Check for placeholder
+                // Check if we are updating an existing "БҮРТГЭЛГҮЙ" record
+                const placeholderCar = await Mashin(tukhainBaaziinKholbolt).findOne({
+                   ezemshigchiinId: orshinSuugchResult._id.toString(),
+                   zochinTurul: "Оршин суугч",
+                   dugaar: "БҮРТГЭЛГҮЙ"
+                });
 
-            const exactMatch = await Mashin(tukhainBaaziinKholbolt).findOne(filter);
+                const exactMatch = await Mashin(tukhainBaaziinKholbolt).findOne(filter);
 
-            if (placeholderCar && !exactMatch) {
-               console.log("ℹ️ [ZOCHIN_HADGALYA] Found placeholder car, updating it instead of creating new.");
-               filter = { _id: placeholderCar._id }; // Update the placeholder by ID
-            } else if (!exactMatch) {
-               // Only check limit if we are NOT updating an existing record (placeholder or exact match)
-               const currentCount = await Mashin(tukhainBaaziinKholbolt).countDocuments({
-                 ezemshigchiinId: orshinSuugchResult._id.toString(),
-                 zochinTurul: "Оршин суугч"
-               });
+                if (placeholderCar && !exactMatch) {
+                   console.log("ℹ️ [ZOCHIN_HADGALYA] Found placeholder car, updating it instead of creating new.");
+                   filter = { _id: placeholderCar._id };
+                } 
+                // 3. Check for Single Existing Resident Car (Implicit Update)
+                else if (!exactMatch) {
+                   // If matches exact dugaar, the filter is already correct (update by dugaar)
+                   // If NO exact match, check if user has exactly ONE resident car.
+                   // If so, assume we are renaming that car.
+                   const residentCars = await Mashin(tukhainBaaziinKholbolt).find({
+                      ezemshigchiinId: orshinSuugchResult._id.toString(),
+                      zochinTurul: "Оршин суугч"
+                   });
 
-               /*
-               if (currentCount >= limit) {
-                 return res.status(403).json({
-                   success: false,
-                   message: `Таны машины бүртгэлийн лимит (${limit}) хэтэрсэн байна.`,
-                 });
-               }
-               */
-            }
+                   if (residentCars.length === 1) {
+                       console.log("ℹ️ [ZOCHIN_HADGALYA] Single resident car found, updating it (renaming plate).");
+                       filter = { _id: residentCars[0]._id };
+                   } else {
+                       // Ambiguous or new car. Check limit.
+                       const limit = defaults.orshinSuugchMashiniiLimit || 1; 
+                       const currentCount = residentCars.length;
+
+                       if (currentCount >= limit) {
+                         return res.status(403).json({
+                           success: false,
+                           message: `Таны машины бүртгэлийн лимит (${limit}) хэтэрсэн байна.`,
+                         });
+                       }
+                   }
+                }
+            }   
           } else if (!updateData.dugaar) {
              // If guest with no plate
              filter = {
