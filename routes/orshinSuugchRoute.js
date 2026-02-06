@@ -247,7 +247,6 @@ router.get("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
 
 router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
   try {
-    console.log("POST /orshinSuugch body:", JSON.stringify(req.body, null, 2));
     const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
     const result = new OrshinSuugchModel(req.body);
     await result.save();
@@ -399,16 +398,7 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                         ezemshigchiinUtas: result.utas,
                         baiguullagiinId: baiguullagiinId.toString(),
                         barilgiinId: barilgiinId.toString(),
-                        dugaar: (() => {
-                          if (req.body.mashiniiDugaar) return req.body.mashiniiDugaar;
-                          if (req.body.dugaar) return req.body.dugaar;
-                          if (req.body.mashin && req.body.mashin.dugaar) return req.body.mashin.dugaar;
-                          if (Array.isArray(req.body.mashinuud) && req.body.mashinuud.length > 0) {
-                            const m = req.body.mashinuud[0];
-                            return typeof m === 'object' ? (m.dugaar || m.mashiniiDugaar || "БҮРТГЭЛГҮЙ") : m;
-                          }
-                          return "БҮРТГЭЛГҮЙ";
-                        })(),
+                        dugaar: req.body.mashiniiDugaar || req.body.dugaar || "БҮРТГЭЛГҮЙ",
                         ezenToot: result.toot || req.body.toot || "",
                         zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                         zochinTurul: "Оршин суугч", 
