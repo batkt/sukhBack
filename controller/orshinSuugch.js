@@ -947,7 +947,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     await orshinSuugch.save();
     console.log("✅ [REGISTER] orshinSuugch saved successfully:", orshinSuugch._id);
 
-    // --- AUTO CREATE GUEST SETTINGS (Mashin) ---
+     // --- AUTO CREATE GUEST SETTINGS (Mashin) ---
     try {
       const Mashin = require("../models/mashin");
       const targetBarilga = baiguullaga?.barilguud?.find(b => String(b._id) === String(barilgiinId));
@@ -974,7 +974,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
                 ezemshigchiinUtas: orshinSuugch.utas,
                 baiguullagiinId: baiguullaga._id.toString(),
                 barilgiinId: barilgiinId,
-                dugaar: "БҮРТГЭЛГҮЙ",
+                dugaar: (() => {
+                  if (req.body.mashiniiDugaar) return req.body.mashiniiDugaar;
+                  if (req.body.dugaar) return req.body.dugaar;
+                  if (req.body.mashin && req.body.mashin.dugaar) return req.body.mashin.dugaar;
+                  if (Array.isArray(req.body.mashinuud) && req.body.mashinuud.length > 0) {
+                    const m = req.body.mashinuud[0];
+                    return typeof m === 'object' ? (m.dugaar || m.mashiniiDugaar || "БҮРТГЭЛГҮЙ") : m;
+                  }
+                  return "БҮРТГЭЛГҮЙ";
+                })(),
                 ezenToot: orshinSuugch.toot || req.body.toot || "",
                 zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                 zochinTurul: "Оршин суугч", 
