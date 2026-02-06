@@ -359,6 +359,15 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
           residentData._id = ezemshigchiinId;
         }
 
+        // Fix: Verify if ID exists before calling helper to avoid "Not Found" error
+        if (residentData._id) {
+            const exists = await OrshinSuugch(db.erunkhiiKholbolt).findById(residentData._id);
+            if (!exists) {
+                console.warn(`⚠️ [ZOCHIN_HADGALYA] User ID ${residentData._id} not found. Treating as new user.`);
+                delete residentData._id;
+            }
+        }
+
         orshinSuugchResult = await orshinSuugchKhadgalya(
           residentData,
           phoneString,
@@ -399,6 +408,7 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             barilgiinId: barilgiinId.toString(),
             dugaar: orshinSuugchMedeelel.mashiniiDugaar || mashiniiDugaar,
             ezemshigchiinId: orshinSuugchResult._id.toString(),
+            orshinSuugchiinId: orshinSuugchResult._id.toString(),
             ezemshigchiinNer: orshinSuugchResult.ner,
             ezemshigchiinUtas: phoneString,
             zochinUrikhEsekh: orshinSuugchMedeelel.zochinUrikhEsekh !== undefined ? orshinSuugchMedeelel.zochinUrikhEsekh : defaults.zochinUrikhEsekh,
