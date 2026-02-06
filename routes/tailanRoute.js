@@ -29,10 +29,10 @@ router.all("/tailan/avlagiin-nasjilt", tokenShalgakh, tailanAvlagiinNasjilt);
 router.all("/tailan/guitsetgel", tokenShalgakh, tailanGuitsetgel);
 
 // Төлөгдөөгүй удсан авлага 2+ сар
-router.all(["/tailan/udsan-avlaga/:baiguullagiinId?", "/api/tailan/udsan-avlaga/:baiguullagiinId?"], tokenShalgakh, tailanUdsanAvlaga);
+router.all("/tailan/udsan-avlaga", tokenShalgakh, tailanUdsanAvlaga);
 
 // Цуцлагдсан гэрээний авлага
-router.all(["/tailan/tsutslasan-gereenii-avlaga/:baiguullagiinId?", "/api/tailan/tsutslasan-gereenii-avlaga/:baiguullagiinId?"], tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
+router.all("/tailan/tsutslasan-gereenii-avlaga", tokenShalgakh, tailanTsutslasanGereeniiAvlaga);
 
 // Тайланг excel/pdf-р татаж авах боломж
 router.all("/tailan/export", tokenShalgakh, tailanExport);
