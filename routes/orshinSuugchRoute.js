@@ -380,22 +380,25 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
               console.log("🔍 [AUTO-ZOCHIN] Final Defaults Found:", !!defaultSettings);
 
               if (defaultSettings) {
-                 const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+                 const Mashin = require("../models/mashin");
                  
-                 // Check if settings already exist in central database
-                 const existingSettings = await OrshinSuugchMashin(db.erunkhiiKholbolt).findOne({
-                    orshinSuugchiinId: result._id.toString(),
+                 // Check if settings already exist in organization database
+                 const existingSettings = await Mashin(tukhainBaaziinKholbolt).findOne({
+                    ezemshigchiinId: result._id.toString(),
                     zochinTurul: "Оршин суугч"
                  });
                  
                  if (!existingSettings) {
-                    console.log(`📋 [AUTO-ZOCHIN] Creating settings for ${result.ner}. Quota: ${defaultSettings.zochinErkhiinToo}`);
+                    console.log(`📋 [AUTO-ZOCHIN] Creating Mashin record for ${result.ner}. Quota: ${defaultSettings.zochinErkhiinToo}`);
                     
-                    const OrshinSuugchMashinModel = OrshinSuugchMashin(db.erunkhiiKholbolt);
-                    const newSettings = new OrshinSuugchMashinModel({
-                        orshinSuugchiinId: result._id.toString(),
+                    const MashinModel = Mashin(tukhainBaaziinKholbolt);
+                    const newMashin = new MashinModel({
+                        ezemshigchiinId: result._id.toString(),
+                        ezemshigchiinNer: result.ner,
+                        ezemshigchiinUtas: result.utas,
                         baiguullagiinId: baiguullagiinId.toString(),
                         barilgiinId: barilgiinId.toString(),
+                        dugaar: "БҮРТГЭЛГҮЙ", // Will be updated when user adds car
                         ezenToot: result.toot || req.body.toot || "",
                         zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                         zochinTurul: "Оршин суугч", 
@@ -407,8 +410,8 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                         davtamjUtga: defaultSettings.davtamjUtga
                     });
                     
-                    await newSettings.save();
-                    console.log(`✅ [AUTO-ZOCHIN] Settings created.`);
+                    await newMashin.save();
+                    console.log(`✅ [AUTO-ZOCHIN] Mashin record created.`);
                  }
               }
             } catch (zochinErr) {

@@ -947,9 +947,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     await orshinSuugch.save();
     console.log("✅ [REGISTER] orshinSuugch saved successfully:", orshinSuugch._id);
 
-    // --- AUTO CREATE GUEST SETTINGS (OrshinSuugchMashin) ---
+    // --- AUTO CREATE GUEST SETTINGS (Mashin) ---
     try {
-      const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
+      const Mashin = require("../models/mashin");
       const targetBarilga = baiguullaga?.barilguud?.find(b => String(b._id) === String(barilgiinId));
       const buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
       const orgSettings = baiguullaga?.tokhirgoo?.zochinTokhirgoo;
@@ -960,18 +960,21 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       if (defaultSettings) {
          console.log(`🔍 [AUTO-ZOCHIN] Found defaults for ${orshinSuugch.ner}. Quota: ${defaultSettings.zochinErkhiinToo}`);
-         const OrshinSuugchMashinModel = OrshinSuugchMashin(db.erunkhiiKholbolt);
+         const MashinModel = Mashin(tukhainBaaziinKholbolt);
          
-         const existingSettings = await OrshinSuugchMashinModel.findOne({
-            orshinSuugchiinId: orshinSuugch._id.toString(),
+         const existingSettings = await MashinModel.findOne({
+            ezemshigchiinId: orshinSuugch._id.toString(),
             zochinTurul: "Оршин суугч"
          });
          
          if (!existingSettings) {
-            const newSettings = new OrshinSuugchMashinModel({
-                orshinSuugchiinId: orshinSuugch._id.toString(),
+            const newMashin = new MashinModel({
+                ezemshigchiinId: orshinSuugch._id.toString(),
+                ezemshigchiinNer: orshinSuugch.ner,
+                ezemshigchiinUtas: orshinSuugch.utas,
                 baiguullagiinId: baiguullaga._id.toString(),
                 barilgiinId: barilgiinId,
+                dugaar: "БҮРТГЭЛГҮЙ",
                 ezenToot: orshinSuugch.toot || req.body.toot || "",
                 zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
                 zochinTurul: "Оршин суугч", 
@@ -983,10 +986,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
                 davtamjUtga: defaultSettings.davtamjUtga
             });
             
-            await newSettings.save();
-            console.log(`✅ [AUTO-ZOCHIN] Settings created for ${orshinSuugch.ner}`);
+            await newMashin.save();
+            console.log(`✅ [AUTO-ZOCHIN] Mashin record created for ${orshinSuugch.ner}`);
          } else {
-            console.log(`ℹ️ [AUTO-ZOCHIN] Settings already exist for ${orshinSuugch.ner}`);
+            console.log(`ℹ️ [AUTO-ZOCHIN] Mashin record already exists for ${orshinSuugch.ner}`);
          }
       } else {
          console.log(`⚠️ [AUTO-ZOCHIN] No default guest settings found for building or organization`);
