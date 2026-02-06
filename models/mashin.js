@@ -43,6 +43,8 @@ const mashinSchema = new Schema(
     dugaarUurchilsunOgnoo: Date,
     ezenToot: String,
     utas: String,
+    orshinSuugchiinId: String, // Alias/Reference for ezemshigchiinId
+    mashiniiDugaar: String, // Alias for dugaar for backward compatibility
   },
   {
     timestamps: true,
