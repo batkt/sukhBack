@@ -445,18 +445,35 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
 
             // Limit check for primary resident cars
             const limit = defaults.orshinSuugchMashiniiLimit || 1; // Default to 1 if not specified
-            const currentCount = await Mashin(tukhainBaaziinKholbolt).countDocuments({
-              ezemshigchiinId: orshinSuugchResult._id.toString(),
-              zochinTurul: "Оршин суугч"
+            
+            // Check if we are updating an existing "БҮРТГЭЛГҮЙ" record
+            // If the user has a record with "БҮРТГЭЛГҮЙ", we should update IT rather than enforcing limit
+            const placeholderCar = await Mashin(tukhainBaaziinKholbolt).findOne({
+               ezemshigchiinId: orshinSuugchResult._id.toString(),
+               zochinTurul: "Оршин суугч",
+               dugaar: "БҮРТГЭЛГҮЙ"
             });
 
-            const exists = await Mashin(tukhainBaaziinKholbolt).findOne(filter);
-            
-            if (!exists && currentCount >= limit) {
-              return res.status(403).json({
-                success: false,
-                message: `Таны машины бүртгэлийн лимит (${limit}) хэтэрсэн байна.`,
-              });
+            const exactMatch = await Mashin(tukhainBaaziinKholbolt).findOne(filter);
+
+            if (placeholderCar && !exactMatch) {
+               console.log("ℹ️ [ZOCHIN_HADGALYA] Found placeholder car, updating it instead of creating new.");
+               filter = { _id: placeholderCar._id }; // Update the placeholder by ID
+            } else if (!exactMatch) {
+               // Only check limit if we are NOT updating an existing record (placeholder or exact match)
+               const currentCount = await Mashin(tukhainBaaziinKholbolt).countDocuments({
+                 ezemshigchiinId: orshinSuugchResult._id.toString(),
+                 zochinTurul: "Оршин суугч"
+               });
+
+               /*
+               if (currentCount >= limit) {
+                 return res.status(403).json({
+                   success: false,
+                   message: `Таны машины бүртгэлийн лимит (${limit}) хэтэрсэн байна.`,
+                 });
+               }
+               */
             }
           } else if (!updateData.dugaar) {
              // If guest with no plate
