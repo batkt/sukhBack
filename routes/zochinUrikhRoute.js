@@ -168,7 +168,7 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
 router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
   try {
     const Mashin = require("../models/mashin");
-    const EzenUrisanMashin = require("../models/ezenUrisanMashin");
+    // const EzenUrisanMashin = require("../models/ezenUrisanMashin"); // Using sdk version instead
     const residentId = req.body.nevtersenAjiltniiToken?.id;
     const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
