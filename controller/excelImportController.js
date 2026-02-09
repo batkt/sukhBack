@@ -1069,17 +1069,24 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           ]
         });
 
-        // Prevent duplicate: one toot can have only one resident per building
+        // Prevent duplicate: one toot (optionally + davkhar) can have only one resident per building
         const tootRaw = userData.toot.trim();
+        const davkharToCheck = userData.davkhar ? String(userData.davkhar).trim() : "";
         const tootListToCheck = tootRaw
           .split(",")
           .map((t) => t.trim())
           .filter((t) => t && t.length > 0);
         for (const tootToCheck of tootListToCheck) {
+          const baseMatch = { toot: tootToCheck, barilgiinId: finalBarilgiinId };
+          const baseTootMatch = { toot: tootToCheck, barilgiinId: finalBarilgiinId };
+          if (davkharToCheck) {
+            baseMatch.davkhar = davkharToCheck;
+            baseTootMatch.davkhar = davkharToCheck;
+          }
           const duplicateQuery = {
             $or: [
-              { toot: tootToCheck, barilgiinId: finalBarilgiinId },
-              { toots: { $elemMatch: { toot: tootToCheck, barilgiinId: finalBarilgiinId } } },
+              baseMatch,
+              { toots: { $elemMatch: baseTootMatch } },
             ],
           };
           if (existingUser) {

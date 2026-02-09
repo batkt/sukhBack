@@ -249,18 +249,25 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
   try {
     const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
     const toot = req.body.toot ? String(req.body.toot).trim() : "";
+    const davkhar = req.body.davkhar ? String(req.body.davkhar).trim() : "";
     const barilgiinId = req.body.barilgiinId ? String(req.body.barilgiinId) : "";
     const baiguullagiinId = req.body.baiguullagiinId ? String(req.body.baiguullagiinId) : "";
 
-    // Prevent duplicate: one toot can have only one resident per building
+    // Prevent duplicate: one toot (optionally + davkhar) can have only one resident per building
     if (toot && (barilgiinId || baiguullagiinId)) {
       const orConditions = [];
+      const baseMatch = { toot };
+      const baseTootMatch = { toot };
+      if (davkhar) {
+        baseMatch.davkhar = davkhar;
+        baseTootMatch.davkhar = davkhar;
+      }
       if (barilgiinId) {
-        orConditions.push({ toot, barilgiinId });
-        orConditions.push({ toots: { $elemMatch: { toot, barilgiinId } } });
+        orConditions.push({ ...baseMatch, barilgiinId });
+        orConditions.push({ toots: { $elemMatch: { ...baseTootMatch, barilgiinId } } });
       } else if (baiguullagiinId) {
-        orConditions.push({ toot, baiguullagiinId });
-        orConditions.push({ toots: { $elemMatch: { toot, baiguullagiinId } } });
+        orConditions.push({ ...baseMatch, baiguullagiinId });
+        orConditions.push({ toots: { $elemMatch: { ...baseTootMatch, baiguullagiinId } } });
       }
       if (orConditions.length > 0) {
         const existing = await OrshinSuugchModel.findOne({ $or: orConditions });
@@ -477,17 +484,24 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
 
     // Prevent duplicate toot when updating: check if new toot+barilgiinId is already taken by another resident
     const updateToot = req.body.toot ? String(req.body.toot).trim() : null;
+    const updateDavkhar = req.body.davkhar ? String(req.body.davkhar).trim() : null;
     const updateBarilgiinId = req.body.barilgiinId ? String(req.body.barilgiinId) : null;
     const updateBaiguullagiinId = req.body.baiguullagiinId ? String(req.body.baiguullagiinId) : null;
     if (updateToot && (updateBarilgiinId || updateBaiguullagiinId)) {
       const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
       const orConditions = [];
+      const baseMatch = { toot: updateToot };
+      const baseTootMatch = { toot: updateToot };
+      if (updateDavkhar) {
+        baseMatch.davkhar = updateDavkhar;
+        baseTootMatch.davkhar = updateDavkhar;
+      }
       if (updateBarilgiinId) {
-        orConditions.push({ toot: updateToot, barilgiinId: updateBarilgiinId });
-        orConditions.push({ toots: { $elemMatch: { toot: updateToot, barilgiinId: updateBarilgiinId } } });
+        orConditions.push({ ...baseMatch, barilgiinId: updateBarilgiinId });
+        orConditions.push({ toots: { $elemMatch: { ...baseTootMatch, barilgiinId: updateBarilgiinId } } });
       } else if (updateBaiguullagiinId) {
-        orConditions.push({ toot: updateToot, baiguullagiinId: updateBaiguullagiinId });
-        orConditions.push({ toots: { $elemMatch: { toot: updateToot, baiguullagiinId: updateBaiguullagiinId } } });
+        orConditions.push({ ...baseMatch, baiguullagiinId: updateBaiguullagiinId });
+        orConditions.push({ toots: { $elemMatch: { ...baseTootMatch, baiguullagiinId: updateBaiguullagiinId } } });
       }
       if (orConditions.length > 0) {
         const existing = await OrshinSuugchModel.findOne({

@@ -136,13 +136,65 @@ orshinSuugchSchema.methods.zochinTokenUusgye = function (
   return token;
 };
 
-orshinSuugchSchema.pre("save", async function () {
+orshinSuugchSchema.pre("save", async function (next) {
   this.indexTalbar = this.nevtrekhNer;
 
   if (this.nuutsUg && !this.nuutsUg.startsWith("$2b$")) {
     const salt = await bcrypt.genSalt(12);
     this.nuutsUg = await bcrypt.hash(this.nuutsUg, salt);
   }
+
+  // Prevent duplicate: one toot (optionally + davkhar) can have only one resident per building
+  const OrshinSuugchModel = this.constructor;
+  const toCheck = [];
+
+  // Top-level toot
+  const toot = this.toot ? String(this.toot).trim() : "";
+  const davkhar = this.davkhar ? String(this.davkhar).trim() : "";
+  const barilgiinId = this.barilgiinId ? String(this.barilgiinId) : "";
+  const baiguullagiinId = this.baiguullagiinId ? String(this.baiguullagiinId) : "";
+  if (toot && (barilgiinId || baiguullagiinId)) {
+    toCheck.push({ toot, davkhar, barilgiinId, baiguullagiinId });
+  }
+
+  // Each toot in toots array
+  if (Array.isArray(this.toots)) {
+    for (const t of this.toots) {
+      const tToot = t?.toot ? String(t.toot).trim() : "";
+      const tDavkhar = t?.davkhar ? String(t.davkhar).trim() : "";
+      const tBarilgiinId = t?.barilgiinId ? String(t.barilgiinId) : "";
+      const tBaiguullagiinId = t?.baiguullagiinId ? String(t.baiguullagiinId) : "";
+      if (tToot && (tBarilgiinId || tBaiguullagiinId)) {
+        toCheck.push({ toot: tToot, davkhar: tDavkhar, barilgiinId: tBarilgiinId, baiguullagiinId: tBaiguullagiinId });
+      }
+    }
+  }
+
+  for (const { toot: t, davkhar: d, barilgiinId: bId, baiguullagiinId: baId } of toCheck) {
+    const orConditions = [];
+    const baseMatch = { toot: t };
+    const baseTootMatch = { toot: t };
+    if (d) {
+      baseMatch.davkhar = d;
+      baseTootMatch.davkhar = d;
+    }
+    if (bId) {
+      orConditions.push({ ...baseMatch, barilgiinId: bId });
+      orConditions.push({ toots: { $elemMatch: { ...baseTootMatch, barilgiinId: bId } } });
+    } else if (baId) {
+      orConditions.push({ ...baseMatch, baiguullagiinId: baId });
+      orConditions.push({ toots: { $elemMatch: { ...baseTootMatch, baiguullagiinId: baId } } });
+    }
+    if (orConditions.length > 0) {
+      const query = { $or: orConditions };
+      if (this._id) query._id = { $ne: this._id };
+      const existing = await OrshinSuugchModel.findOne(query);
+      if (existing) {
+        return next(new Error("Энэ тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна."));
+      }
+    }
+  }
+  next();
 });
 
 orshinSuugchSchema.pre("updateOne", async function () {
