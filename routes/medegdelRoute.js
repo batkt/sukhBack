@@ -35,7 +35,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB for phone photos (was 5MB - caused 413)
 });
 
 router.route("/medegdelIlgeeye").post(tokenShalgakh, upload.single("zurag"), medegdelIlgeeye);
