@@ -232,9 +232,8 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
     const orgId = baiguullagiinId;
     const shouldUseTest = orgId && String(orgId) === "697723dc3e77b46e52ccf577";
     
-    const baseUrl = shouldUseTest 
-      ? process.env.EBARIMTSHINE_TEST 
-      : process.env.EBARIMTSHINE_IP;
+    const baseUrl = process.env.EBARIMTSHINE_EASY_REGISTER_URL || 
+      (shouldUseTest ? process.env.EBARIMTSHINE_TEST : process.env.EBARIMTSHINE_IP);
     
     // Fetch token from DB or Auth API
     let token;
