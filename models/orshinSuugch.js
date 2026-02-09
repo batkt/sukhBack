@@ -145,6 +145,10 @@ orshinSuugchSchema.pre("save", async function (next) {
   }
 
   // Prevent duplicate: one toot (optionally + davkhar) can have only one resident per building
+  // Skip check when updating existing document (e.g. during login) - routes do their own check
+  // for create/update; login uses save() and would wrongly block if another resident has same address
+  if (!this.isNew) return next();
+
   const OrshinSuugchModel = this.constructor;
   const toCheck = [];
 
