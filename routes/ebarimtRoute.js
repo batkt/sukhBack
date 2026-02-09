@@ -508,28 +508,28 @@ router.post(
 // Get consumer info by identity (regNo or loginName)
 router.get("/easyRegister/info/consumer/:identity", tokenShalgakh, async (req, res, next) => {
   const { identity } = req.params;
-  const path = `api/easy-register/api/info/consumer/${identity}`;
+  const path = `api/easy-register/api/info/consumer/${encodeURIComponent(identity)}`;
   easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
 });
 
 // Get foreigner info by identity (passportNo or F-register)
 router.get("/easyRegister/info/foreigner/:identity", tokenShalgakh, async (req, res, next) => {
   const { identity } = req.params;
-  const path = `api/easy-register/api/info/foreigner/${identity}`;
+  const path = `api/easy-register/api/info/foreigner/${encodeURIComponent(identity)}`;
   easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
 });
 
 // Get foreigner info by loginName
 router.get("/easyRegister/info/foreigner/customerNo/:loginName", tokenShalgakh, async (req, res, next) => {
   const { loginName } = req.params;
-  const path = `api/easy-register/api/info/foreigner/customerNo/${loginName}`;
+  const path = `api/easy-register/api/info/foreigner/customerNo/${encodeURIComponent(loginName)}`;
   easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
 });
 
 // Register foreigner in e-barimt system
 router.post("/easyRegister/info/foreigner/:passportNo", tokenShalgakh, async (req, res, next) => {
   const { passportNo } = req.params;
-  const path = `api/easy-register/api/info/foreigner/${passportNo}`;
+  const path = `api/easy-register/api/info/foreigner/${encodeURIComponent(passportNo)}`;
   easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
 });
 
