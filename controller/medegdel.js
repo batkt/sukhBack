@@ -27,6 +27,7 @@ exports.medegdelUnreadCount = asyncHandler(async (req, res, next) => {
       baiguullagiinId: String(baiguullagiinId),
       status: "pending",
       turul: { $in: ["sanal", "санал", "gomdol", "гомдол"] },
+      kharsanEsekh: { $ne: true },
     };
     if (barilgiinId) query.barilgiinId = String(barilgiinId);
 
@@ -66,6 +67,7 @@ exports.medegdelUnreadList = asyncHandler(async (req, res, next) => {
       baiguullagiinId: String(baiguullagiinId),
       status: "pending",
       turul: { $in: ["sanal", "санал", "gomdol", "гомдол"] },
+      kharsanEsekh: { $ne: true },
     };
     if (barilgiinId) query.barilgiinId = String(barilgiinId);
 
