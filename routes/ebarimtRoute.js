@@ -7,6 +7,7 @@ const {
   crud,
   khuudaslalt,
   UstsanBarimt,
+  Token,
 } = require("zevbackv2");
 const Baiguullaga = require("../models/baiguullaga");
 const EbarimtShine = require("../models/ebarimtShine");
@@ -145,6 +146,145 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
   } catch (aldaa) {
     console.error("EbarimtDuudya error:", aldaa.message);
     if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
+  }
+}
+
+async function ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt) {
+  return new Promise((resolve, reject) => {
+    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://st.auth.itc.gov.mn/auth/realms/Staging/protocol/openid-connect/token';
+    const clientId = process.env.EBARIMTSHINE_CLIENT_ID || 'vatps';
+    const username = process.env.EBARIMTSHINE_USERNAME || 'easy-register-test';
+    const password = process.env.EBARIMTSHINE_PASSWORD || '99119911';
+
+    console.log(`🔑 [EBARIMT] Requesting new token from ${authUrl}`);
+
+    request.post({
+      url: authUrl,
+      form: {
+        grant_type: 'password',
+        client_id: clientId,
+        username: username,
+        password: password,
+        scope: 'profile email'
+      },
+      json: true
+    }, (err, res, body) => {
+      if (err) {
+        console.error("❌ [EBARIMT] Auth request error:", err.message);
+        return reject(err);
+      }
+
+      if (body && (body.error || body.error_description)) {
+        console.error("❌ [EBARIMT] Auth API returned error:", body.error_description || body.error);
+        return reject(new Error(body.error_description || body.error));
+      }
+
+      if (!body.access_token) {
+        return reject(new Error("Access token not received from Ebarimt Auth"));
+      }
+
+      // Store in database
+      Token(tukhainBaaziinKholbolt).updateOne(
+        { turul: 'ebarimt', baiguullagiinId: baiguullagiinId },
+        {
+          ognoo: new Date(),
+          token: body.access_token,
+          refreshToken: body.refresh_token,
+          expires_in: new Date(Date.now() + (body.expires_in || 28800) * 1000)
+        },
+        { upsert: true }
+      ).then(() => {
+        console.log("✅ [EBARIMT] New token saved to database");
+        resolve(body.access_token);
+      }).catch(dbErr => {
+        console.error("❌ [EBARIMT] DB save error:", dbErr.message);
+        // Still resolve with the token even if DB save fails
+        resolve(body.access_token);
+      });
+    });
+  });
+}
+
+async function getEbarimtToken(baiguullagiinId, tukhainBaaziinKholbolt) {
+  try {
+    // Check if token exists and is valid (not expiring in the next 5 minutes)
+    const tokenObject = await Token(tukhainBaaziinKholbolt).findOne({
+      turul: 'ebarimt',
+      baiguullagiinId: baiguullagiinId,
+      expires_in: { $gt: new Date(Date.now() + 5 * 60000) }
+    }).lean();
+
+    if (tokenObject && tokenObject.token) {
+      console.log("✅ [EBARIMT] Using existing valid token from database");
+      return tokenObject.token;
+    }
+
+    // Otherwise fetch new one
+    return await ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt);
+  } catch (error) {
+    console.error("getEbarimtToken error:", error.message);
+    throw error;
+  }
+}
+
+async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullagiinId = null, tukhainBaaziinKholbolt = null) {
+  try {
+    const orgId = baiguullagiinId;
+    const shouldUseTest = orgId && String(orgId) === "697723dc3e77b46e52ccf577";
+    
+    const baseUrl = shouldUseTest 
+      ? process.env.EBARIMTSHINE_TEST 
+      : process.env.EBARIMTSHINE_IP;
+    
+    // Fetch token from DB or Auth API
+    let token;
+    if (tukhainBaaziinKholbolt && orgId) {
+      token = await getEbarimtToken(orgId, tukhainBaaziinKholbolt);
+    } else {
+      token = process.env.EBARIMTSHINE_TOKEN;
+    }
+    
+    const url = baseUrl + path;
+    console.log(`📧 [EASY-REGISTER] ${method} to ${url} for baiguullaga: ${orgId}`);
+
+    const options = {
+      method: method,
+      url: url,
+      json: true,
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    };
+
+    if (path.includes('setReturnReceipt')) {
+      options.headers['X-API-KEY'] = process.env.EBARIMTSHINE_X_API_KEY || 'eaab09fdb83c4affc210b8fb96f9977db7978e8a';
+    }
+
+    if (body) options.body = body;
+
+    request(options, (err, res, resBody) => {
+      if (err) {
+        console.error("❌ [EASY-REGISTER] Request error:", err.message);
+        if (next) next(err);
+        return;
+      }
+      
+      console.log("📧 [EASY-REGISTER] API Response status code:", res?.statusCode);
+      
+      if (resBody && (resBody.error || (res?.statusCode >= 400 && resBody.msg))) {
+        console.error("❌ [EASY-REGISTER] API returned error:", resBody.msg || resBody.error);
+        if (next)
+          next(new Error(resBody.msg || resBody.error || "Easy Register API error"));
+        return;
+      }
+      
+      onFinish(resBody);
+    });
+  } catch (error) {
+    console.error("easyRegisterDuudya error:", error.message);
+    if (next) next(error);
   }
 }
 
@@ -362,6 +502,54 @@ router.post(
   tokenShalgakh,
   downloadEbarimtExcel
 );
+
+// --- Easy Register API Routes ---
+
+// Get consumer info by identity (regNo or loginName)
+router.get("/easyRegister/info/consumer/:identity", tokenShalgakh, async (req, res, next) => {
+  const { identity } = req.params;
+  const path = `api/easy-register/api/info/consumer/${identity}`;
+  easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
+});
+
+// Get foreigner info by identity (passportNo or F-register)
+router.get("/easyRegister/info/foreigner/:identity", tokenShalgakh, async (req, res, next) => {
+  const { identity } = req.params;
+  const path = `api/easy-register/api/info/foreigner/${identity}`;
+  easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
+});
+
+// Get foreigner info by loginName
+router.get("/easyRegister/info/foreigner/customerNo/:loginName", tokenShalgakh, async (req, res, next) => {
+  const { loginName } = req.params;
+  const path = `api/easy-register/api/info/foreigner/customerNo/${loginName}`;
+  easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
+});
+
+// Register foreigner in e-barimt system
+router.post("/easyRegister/info/foreigner/:passportNo", tokenShalgakh, async (req, res, next) => {
+  const { passportNo } = req.params;
+  const path = `api/easy-register/api/info/foreigner/${passportNo}`;
+  easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
+});
+
+// Get profile by phone number or customer number
+router.post("/easyRegister/getProfile", tokenShalgakh, async (req, res, next) => {
+  const path = "api/easy-register/rest/v1/getProfile";
+  easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
+});
+
+// Approve QR data directly for a consumer
+router.post("/easyRegister/approveQr", tokenShalgakh, async (req, res, next) => {
+  const path = "api/easy-register/rest/v1/approveQr";
+  easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
+});
+
+// Set return receipt (validate cancellation)
+router.post("/easyRegister/setReturnReceipt", tokenShalgakh, async (req, res, next) => {
+  const path = "api/easy-register/rest/v1/setReturnReceipt";
+  easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
+});
 
 module.exports = router;
 module.exports.nekhemjlekheesEbarimtShineUusgye =
