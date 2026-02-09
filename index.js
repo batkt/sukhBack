@@ -1,6 +1,8 @@
 const express = require("express");
 const app = express();
 const http = require("http");
+const path = require("path");
+const fs = require("fs");
 const cors = require("cors");
 const server = http.Server(app);
 const io = require("socket.io")(server, {
@@ -75,8 +77,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// High priority image serving route
-app.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
+// Serve medegdel images – both /medegdel/... and /api/medegdel/... (nginx may pass /api prefix)
+const serveMedegdelImage = (req, res, next) => {
   const fileName = req.params.ner;
   const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
   const filePath = path.join(directoryPath, fileName);
@@ -99,7 +101,10 @@ app.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
       next();
     }
   }
-});
+};
+
+app.get("/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
+app.get("/api/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
 
 app.use(baiguullagaRoute);
 app.use(ajiltanRoute);

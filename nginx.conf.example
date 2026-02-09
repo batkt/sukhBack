@@ -1,4 +1,4 @@
-# Add this inside your server { } block to fix 413 Request Entity Too Large
+R# Add this inside your server { } block to fix 413 Request Entity Too Large
 # when uploading images (gomdol/sanal) from the app:
 #
 #   client_max_body_size 20M;
