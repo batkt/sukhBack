@@ -237,9 +237,9 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
 
     
     let baseUrl;
-    // Use domain as requested
+    // Updated domain provided by user
     if (shouldUseTest) {
-      baseUrl = 'https://st.auth.itc.gov.mn';
+      baseUrl = 'https://st-service.itc.gov.mn';
     } else {
       baseUrl = process.env.EBARIMTSHINE_IP;
     }
