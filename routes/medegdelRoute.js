@@ -8,6 +8,8 @@ const {
   medegdelNegAvya,
   medegdelZasah,
   medegdelUstgakh,
+  medegdelUnreadCount,
+  medegdelUnreadList,
 } = require("../controller/medegdel");
 const multer = require("multer");
 const path = require("path");
@@ -33,7 +35,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB for phone photos (was 5MB - caused 413)
 });
 
 router.route("/medegdelIlgeeye").post(tokenShalgakh, upload.single("zurag"), medegdelIlgeeye);
@@ -83,6 +85,8 @@ router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
   }
 });
 
+router.get("/medegdel/unreadCount", tokenShalgakh, medegdelUnreadCount);
+router.get("/medegdel/unreadList", tokenShalgakh, medegdelUnreadList);
 router.get("/medegdel", tokenShalgakh, medegdelAvya);
 router.get("/medegdel/:id", tokenShalgakh, medegdelNegAvya);
 router.put("/medegdel/:id", tokenShalgakh, medegdelZasah);
