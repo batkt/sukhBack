@@ -193,6 +193,42 @@ exports.medegdelNegAvya = asyncHandler(async (req, res, next) => {
   }
 });
 
+// Mark a single medegdel as seen (kharsanEsekh: true). Only updates the document with the given id.
+exports.medegdelKharsanEsekh = asyncHandler(async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const baiguullagiinId = req.query.baiguullagiinId || req.body?.baiguullagiinId;
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: "id is required" });
+    }
+    if (!baiguullagiinId) {
+      return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    }
+
+    const result = await Medegdel(kholbolt).findByIdAndUpdate(
+      id,
+      { $set: { kharsanEsekh: true, updatedAt: new Date() } },
+      { new: true }
+    );
+
+    if (!result) {
+      return res.status(404).json({ success: false, message: "Мэдэгдэл олдсонгүй" });
+    }
+
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
 exports.medegdelZasah = asyncHandler(async (req, res, next) => {
   try {
     const { id } = req.params;
