@@ -652,21 +652,42 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
 
 router.post("/ezenUrisanTuukh", tokenShalgakh, async (req, res, next) => {
   try {
+    const searchId = req.body.ezenId || req.body.nevtersenAjiltniiToken?.id;
+    if (!searchId) {
+      return res.send({ ezenList: [], jagsaalt: [] });
+    }
+
     var ezenJagsaalt = await EzenUrisanMashin(
       req.body.tukhainBaaziinKholbolt
     ).find({
       baiguullagiinId: req.body.baiguullagiinId,
-      ezenId: req.body.ezenId,
+      $or: [{ ezenId: searchId }, { ezemshigchiinId: searchId }],
     });
+
     var jagsaalt = [];
     if (ezenJagsaalt?.length > 0) {
+      const invitationIds = ezenJagsaalt.map((e) => String(e._id));
+      const plateNumbers = ezenJagsaalt.map((e) => e.urisanMashiniiDugaar);
+
       jagsaalt = await Uilchluulegch(
         req.body.tukhainBaaziinKholbolt,
         true
       ).find({
-        mashiniiDugaar: {
-          $in: ezenJagsaalt?.map((e) => e.urisanMashiniiDugaar),
-        },
+        baiguullagiinId: req.body.baiguullagiinId,
+        $or: [
+          { "urisanMashin._id": { $in: invitationIds } },
+          {
+            $and: [
+              { mashiniiDugaar: { $in: plateNumbers } },
+              {
+                $or: [
+                  { "urisanMashin.ezenId": searchId },
+                  { "urisanMashin.ezemshigchiinId": searchId },
+                ],
+              },
+            ],
+          },
+        ],
       });
     }
     var ezenList = ezenJagsaalt?.filter((a) => a.tuluv == 0);
