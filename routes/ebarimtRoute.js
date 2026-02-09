@@ -258,7 +258,8 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
       token = process.env.EBARIMTSHINE_TOKEN;
     }
     
-    const url = baseUrl + path;
+    // Ensure proper slash between base URL and path
+    const url = baseUrl + (path.startsWith('/') ? '' : '/') + path;
     console.log(`📧 [EASY-REGISTER] ${method} to ${url} for baiguullaga: ${orgId}`);
 
     const options = {
