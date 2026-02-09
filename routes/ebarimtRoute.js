@@ -232,8 +232,23 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
     const orgId = baiguullagiinId;
     const shouldUseTest = orgId && String(orgId) === "697723dc3e77b46e52ccf577";
     
-    const baseUrl = process.env.EBARIMTSHINE_EASY_REGISTER_URL || 
-      (shouldUseTest ? process.env.EBARIMTSHINE_TEST : process.env.EBARIMTSHINE_IP);
+    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://st.auth.itc.gov.mn/auth/realms/Staging/protocol/openid-connect/token';
+    // Use the origin of the Auth URL as the base URL for Easy Register API
+    // This handles the case where the API is on the same domain as the Auth server (e.g. st.auth.itc.gov.mn)
+    // and avoids using the incorrect IP address.
+    let baseUrl;
+    try {
+      const urlObj = new URL(authUrl);
+      baseUrl = urlObj.origin;
+    } catch (e) {
+      // Fallback if URL parsing fails (though unlikely with default)
+      baseUrl = shouldUseTest ? process.env.EBARIMTSHINE_TEST : process.env.EBARIMTSHINE_IP;
+    }
+    
+    // Allow explicit override if needed
+    if (process.env.EBARIMTSHINE_EASY_REGISTER_URL) {
+      baseUrl = process.env.EBARIMTSHINE_EASY_REGISTER_URL;
+    }
     
     // Fetch token from DB or Auth API
     let token;
