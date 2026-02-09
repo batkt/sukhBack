@@ -2,6 +2,88 @@ const asyncHandler = require("express-async-handler");
 const { db } = require("zevbackv2");
 const Medegdel = require("../models/medegdel");
 
+exports.medegdelUnreadCount = asyncHandler(async (req, res, next) => {
+  try {
+    const source = req.method === "GET" ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId } = source || {};
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: true,
+        count: 0,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.json({ success: true, count: 0 });
+    }
+
+    const query = {
+      baiguullagiinId: String(baiguullagiinId),
+      status: "pending",
+      turul: { $in: ["sanal", "санал", "gomdol", "гомдол"] },
+    };
+    if (barilgiinId) query.barilgiinId = String(barilgiinId);
+
+    const count = await Medegdel(kholbolt).countDocuments(query);
+
+    res.json({
+      success: true,
+      count,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+exports.medegdelUnreadList = asyncHandler(async (req, res, next) => {
+  try {
+    const source = req.method === "GET" ? req.query : req.body;
+    const { baiguullagiinId, barilgiinId } = source || {};
+
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: true,
+        data: [],
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!kholbolt) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const query = {
+      baiguullagiinId: String(baiguullagiinId),
+      status: "pending",
+      turul: { $in: ["sanal", "санал", "gomdol", "гомдол"] },
+    };
+    if (barilgiinId) query.barilgiinId = String(barilgiinId);
+
+    const list = await Medegdel(kholbolt)
+      .find(query)
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    res.json({
+      success: true,
+      data: list,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 exports.medegdelAvya = asyncHandler(async (req, res, next) => {
   try {
     const source = req.params.baiguullagiinId
