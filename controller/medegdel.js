@@ -63,16 +63,15 @@ exports.medegdelUnreadList = asyncHandler(async (req, res, next) => {
       return res.json({ success: true, data: [] });
     }
 
-    const query = {
+    const baseQuery = {
       baiguullagiinId: String(baiguullagiinId),
-      status: "pending",
       turul: { $in: ["sanal", "санал", "gomdol", "гомдол"] },
-      kharsanEsekh: { $ne: true },
     };
-    if (barilgiinId) query.barilgiinId = String(barilgiinId);
+    if (barilgiinId) baseQuery.barilgiinId = String(barilgiinId);
 
+    // Return last 10 items (read + unread) as history; unread badge count stays separate
     const list = await Medegdel(kholbolt)
-      .find(query)
+      .find(baseQuery)
       .sort({ createdAt: -1 })
       .limit(10)
       .lean();
