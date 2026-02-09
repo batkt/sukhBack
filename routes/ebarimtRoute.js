@@ -286,6 +286,9 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
       }
       
       console.log("📧 [EASY-REGISTER] API Response status code:", res?.statusCode);
+      if (res?.statusCode === 404) {
+        console.log("📧 [EASY-REGISTER] 404 Response Body:", JSON.stringify(resBody, null, 2));
+      }
       
       if (resBody && (resBody.error || (res?.statusCode >= 400 && resBody.msg))) {
         console.error("❌ [EASY-REGISTER] API returned error:", resBody.msg || resBody.error);
