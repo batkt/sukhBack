@@ -248,6 +248,31 @@ router.get("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
 router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
   try {
     const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+    const toot = req.body.toot ? String(req.body.toot).trim() : "";
+    const barilgiinId = req.body.barilgiinId ? String(req.body.barilgiinId) : "";
+    const baiguullagiinId = req.body.baiguullagiinId ? String(req.body.baiguullagiinId) : "";
+
+    // Prevent duplicate: one toot can have only one resident per building
+    if (toot && (barilgiinId || baiguullagiinId)) {
+      const orConditions = [];
+      if (barilgiinId) {
+        orConditions.push({ toot, barilgiinId });
+        orConditions.push({ toots: { $elemMatch: { toot, barilgiinId } } });
+      } else if (baiguullagiinId) {
+        orConditions.push({ toot, baiguullagiinId });
+        orConditions.push({ toots: { $elemMatch: { toot, baiguullagiinId } } });
+      }
+      if (orConditions.length > 0) {
+        const existing = await OrshinSuugchModel.findOne({ $or: orConditions });
+        if (existing) {
+          return res.status(400).json({
+            success: false,
+            aldaa: "Энэ тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна.",
+          });
+        }
+      }
+    }
+
     const result = new OrshinSuugchModel(req.body);
     await result.save();
     if (result != null) result.key = result._id;
@@ -449,6 +474,34 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
     delete req.body.nevtersenAjiltniiToken;
     delete req.body.erunkhiiKholbolt;
     delete req.body.tukhainBaaziinKholbolt;
+
+    // Prevent duplicate toot when updating: check if new toot+barilgiinId is already taken by another resident
+    const updateToot = req.body.toot ? String(req.body.toot).trim() : null;
+    const updateBarilgiinId = req.body.barilgiinId ? String(req.body.barilgiinId) : null;
+    const updateBaiguullagiinId = req.body.baiguullagiinId ? String(req.body.baiguullagiinId) : null;
+    if (updateToot && (updateBarilgiinId || updateBaiguullagiinId)) {
+      const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+      const orConditions = [];
+      if (updateBarilgiinId) {
+        orConditions.push({ toot: updateToot, barilgiinId: updateBarilgiinId });
+        orConditions.push({ toots: { $elemMatch: { toot: updateToot, barilgiinId: updateBarilgiinId } } });
+      } else if (updateBaiguullagiinId) {
+        orConditions.push({ toot: updateToot, baiguullagiinId: updateBaiguullagiinId });
+        orConditions.push({ toots: { $elemMatch: { toot: updateToot, baiguullagiinId: updateBaiguullagiinId } } });
+      }
+      if (orConditions.length > 0) {
+        const existing = await OrshinSuugchModel.findOne({
+          _id: { $ne: req.params.id },
+          $or: orConditions,
+        });
+        if (existing) {
+          return res.status(400).json({
+            success: false,
+            aldaa: "Энэ тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна.",
+          });
+        }
+      }
+    }
 
     const result = await OrshinSuugch(db.erunkhiiKholbolt).findByIdAndUpdate(
       req.params.id,

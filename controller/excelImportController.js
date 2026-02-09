@@ -1069,8 +1069,27 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           ]
         });
 
-        // Multiple users can have the same toot, so no unique toot check needed
-        // Toot validation will be done when adding to toots array
+        // Prevent duplicate: one toot can have only one resident per building
+        const tootRaw = userData.toot.trim();
+        const tootListToCheck = tootRaw
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t && t.length > 0);
+        for (const tootToCheck of tootListToCheck) {
+          const duplicateQuery = {
+            $or: [
+              { toot: tootToCheck, barilgiinId: finalBarilgiinId },
+              { toots: { $elemMatch: { toot: tootToCheck, barilgiinId: finalBarilgiinId } } },
+            ],
+          };
+          if (existingUser) {
+            duplicateQuery._id = { $ne: existingUser._id };
+          }
+          const duplicateResident = await OrshinSuugch(db.erunkhiiKholbolt).findOne(duplicateQuery);
+          if (duplicateResident) {
+            throw new Error(`"${tootToCheck}" тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна (мөр ${rowNumber}).`);
+          }
+        }
 
         const targetBarilga = baiguullaga.barilguud?.find(
           (b) => String(b._id) === String(finalBarilgiinId)

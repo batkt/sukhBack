@@ -71,7 +71,20 @@ async function orshinSuugchKhadgalya(
       console.log(`ℹ️ [ZOCHIN_URI] User exists with phone ${phoneString}, using existing record.`);
       return existingByUtas;
     }
+    // Prevent duplicate: one toot can have only one resident per building
+    const toot = orshinSuugchData.toot ? String(orshinSuugchData.toot).trim() : "";
     const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+    if (toot && barilgiinId) {
+      const existingToot = await OrshinSuugchModel.findOne({
+        $or: [
+          { toot, barilgiinId: String(barilgiinId) },
+          { toots: { $elemMatch: { toot, barilgiinId: String(barilgiinId) } } },
+        ],
+      });
+      if (existingToot) {
+        throw new Error("Энэ тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна.");
+      }
+    }
     const newOrshinSuugch = new OrshinSuugchModel({
       ...orshinSuugchData,
       baiguullagiinId: baiguullagiinId ? String(baiguullagiinId) : undefined,
