@@ -78,20 +78,30 @@ app.use((req, res, next) => {
 });
 
 // Serve medegdel images – both /medegdel/... and /api/medegdel/... (nginx may pass /api prefix)
+// Prefer app root (__dirname) so it works when process.cwd() differs (e.g. pm2); fallback to cwd for old uploads
+const MEDEGDEL_PUBLIC_ROOT = path.join(__dirname, "public", "medegdel");
 const serveMedegdelImage = (req, res, next) => {
   const fileName = req.params.ner;
-  const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
-  const filePath = path.join(directoryPath, fileName);
+  const roots = [
+    MEDEGDEL_PUBLIC_ROOT,
+    path.join(process.cwd(), "public", "medegdel"),
+  ];
+  let filePath = null;
+  for (const root of roots) {
+    const candidate = path.join(root, req.params.baiguullagiinId, fileName);
+    if (fs.existsSync(candidate)) {
+      filePath = path.resolve(candidate);
+      break;
+    }
+  }
   
   console.log(`🔍 [INDEX DEBUG] URL: ${req.url}`);
-  console.log(`🔍 [INDEX DEBUG] Looking for file at: ${filePath}`);
-  console.log(`🔍 [INDEX DEBUG] Exists: ${fs.existsSync(filePath)}`);
+  console.log(`🔍 [INDEX DEBUG] Resolved file: ${filePath || "not found"}`);
   
-  if (fs.existsSync(filePath)) {
-    res.sendFile(path.resolve(filePath));
+  if (filePath) {
+    res.sendFile(filePath);
   } else {
-    // Check if it looks like an image/file request
-    if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp)$/i)) {
+    if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp|webm|m4a)$/i)) {
        console.log(`❌ [INDEX DEBUG] File not found, returning 404`);
        res.status(404).json({
         success: false,

@@ -43,11 +43,12 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB for phone photos (was 5MB - caused 413)
 });
 
-// Chat file upload: same folder, filename chat-* (image or voice)
+// Chat file upload: save under app root public/medegdel (same as serveMedegdelImage in index.js)
+const MEDEGDEL_PUBLIC_ROOT = path.join(__dirname, "..", "public", "medegdel");
 const chatStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     const baiguullagiinId = req.body.baiguullagiinId;
-    const dir = baiguullagiinId ? `public/medegdel/${baiguullagiinId}/` : "public/medegdel/";
+    const dir = baiguullagiinId ? path.join(MEDEGDEL_PUBLIC_ROOT, baiguullagiinId) : MEDEGDEL_PUBLIC_ROOT;
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -64,11 +65,11 @@ router.post("/medegdel/uploadChatFile", tokenShalgakh, uploadChatFile.single("fi
 
 router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
   const fileName = req.params.ner;
-  const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
+  const directoryPath = path.join(MEDEGDEL_PUBLIC_ROOT, req.params.baiguullagiinId);
   const filePath = path.join(directoryPath, fileName);
   
   if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
+    res.sendFile(path.resolve(filePath));
   } else {
     res.status(404).json({
       success: false,
@@ -92,8 +93,7 @@ router.delete("/medegdel/:id", tokenShalgakh, medegdelUstgakh);
 // Route matching the URL structure user provided: /medegdel/:baiguullagiinId/:ner (must be last so it doesn't catch /medegdel/thread/:id)
 router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
   const fileName = req.params.ner;
-  // Use process.cwd() to reliably find the public folder from the project root
-  const directoryPath = path.join(process.cwd(), "public", "medegdel", req.params.baiguullagiinId);
+  const directoryPath = path.join(MEDEGDEL_PUBLIC_ROOT, req.params.baiguullagiinId);
   const filePath = path.join(directoryPath, fileName);
   
   console.log(`🔍 [IMAGE DEBUG] URL: ${req.originalUrl}`);
@@ -102,7 +102,7 @@ router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
   console.log(`🔍 [IMAGE DEBUG] Exists: ${fs.existsSync(filePath)}`);
   
   if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
+    res.sendFile(path.resolve(filePath));
   } else {
     // If it's not a file (e.g. API call), pass to next router/middleware
     // This is important because this route pattern might conflict with /medegdel/:id API route
