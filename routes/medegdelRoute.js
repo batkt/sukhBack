@@ -11,6 +11,8 @@ const {
   medegdelUnreadCount,
   medegdelUnreadList,
   medegdelKharsanEsekh,
+  medegdelThread,
+  medegdelUserReply,
 } = require("../controller/medegdel");
 const multer = require("multer");
 const path = require("path");
@@ -88,6 +90,8 @@ router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
 
 router.get("/medegdel/unreadCount", tokenShalgakh, medegdelUnreadCount);
 router.get("/medegdel/unreadList", tokenShalgakh, medegdelUnreadList);
+router.get("/medegdel/thread/:id", tokenShalgakh, medegdelThread);
+router.post("/medegdel/reply", tokenShalgakh, medegdelUserReply);
 router.patch("/medegdel/:id/kharsanEsekh", tokenShalgakh, medegdelKharsanEsekh);
 router.get("/medegdel", tokenShalgakh, medegdelAvya);
 router.get("/medegdel/:id", tokenShalgakh, medegdelNegAvya);

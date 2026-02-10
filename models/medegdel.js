@@ -7,6 +7,7 @@ mongoose.pluralize(null);
 const medegdelSchema = new Schema(
   {
     id: String,
+    parentId: { type: Schema.Types.ObjectId, ref: "medegdel", default: null }, // Thread root for chat replies
     baiguullagiinId: String,
     barilgiinId: String,
     ognoo: Date,
@@ -18,7 +19,7 @@ const medegdelSchema = new Schema(
     orshinSuugchNer: String,
     orshinSuugchUtas: String,
     kharsanEsekh: Boolean,
-    turul: String, // гомдол, санал, мэдэгдэл, хүсэлт, etc.
+    turul: String, // гомдол, санал, мэдэгдэл, хүсэлт, хариу, user_reply, etc.
     status: {
       type: String,
       enum: ["pending", "in_progress", "done", "cancelled", "rejected"],

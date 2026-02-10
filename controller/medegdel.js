@@ -342,6 +342,7 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
         console.log("📤 [REPLY] tailbar:", updateFields.tailbar || medegdel.tailbar);
         
         const replyMedegdel = new Medegdel(kholbolt)();
+        replyMedegdel.parentId = medegdel._id; // Thread: link reply to root for chat
         replyMedegdel.orshinSuugchId = medegdel.orshinSuugchId;
         replyMedegdel.baiguullagiinId = medegdel.baiguullagiinId;
         replyMedegdel.barilgiinId = medegdel.barilgiinId || "";
@@ -529,6 +530,144 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       data: medegdelList.length === 1 ? medegdelList[0] : medegdelList,
       count: medegdelList.length,
       message: "Мэдэгдэл амжилттай илгээгдлээ",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get full thread (root + all replies) for chat-like view. id can be root or any reply in thread.
+exports.medegdelThread = asyncHandler(async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { baiguullagiinId, tukhainBaaziinKholbolt } = req.query || req.body || {};
+
+    if (!id || !baiguullagiinId || !tukhainBaaziinKholbolt) {
+      return res.status(400).json({
+        success: false,
+        message: "id, baiguullagiinId and tukhainBaaziinKholbolt are required",
+      });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй",
+      });
+    }
+
+    const doc = await Medegdel(kholbolt).findById(id).lean();
+    if (!doc) {
+      return res.status(404).json({
+        success: false,
+        message: "Мэдэгдэл олдсонгүй",
+      });
+    }
+
+    const rootId = doc.parentId || doc._id;
+    const thread = await Medegdel(kholbolt)
+      .find({
+        $or: [{ _id: rootId }, { parentId: rootId }],
+      })
+      .sort({ createdAt: 1 })
+      .lean();
+
+    const mongolianOffset = 8 * 60 * 60 * 1000;
+    const normalized = thread.map((t) => {
+      const o = { ...t };
+      if (o.createdAt) o.createdAt = new Date(o.createdAt.getTime ? o.createdAt.getTime() + mongolianOffset : new Date(o.createdAt).getTime() + mongolianOffset).toISOString();
+      if (o.updatedAt) o.updatedAt = new Date(o.updatedAt.getTime ? o.updatedAt.getTime() + mongolianOffset : new Date(o.updatedAt).getTime() + mongolianOffset).toISOString();
+      if (o.ognoo) o.ognoo = new Date(o.ognoo.getTime ? o.ognoo.getTime() + mongolianOffset : new Date(o.ognoo).getTime() + mongolianOffset).toISOString();
+      return o;
+    });
+
+    res.json({
+      success: true,
+      data: normalized,
+      count: normalized.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// User reply back (chat): create a new medegdel in the thread.
+exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
+  try {
+    const { parentId, message, orshinSuugchId } = req.body;
+
+    if (!parentId || !message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "parentId and message are required",
+      });
+    }
+
+    const baiguullagiinId = req.body.baiguullagiinId;
+    if (!baiguullagiinId) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй",
+      });
+    }
+
+    const root = await Medegdel(kholbolt).findById(parentId).lean();
+    if (!root) {
+      return res.status(404).json({
+        success: false,
+        message: "Эх мэдэгдэл олдсонгүй",
+      });
+    }
+
+    const userId = orshinSuugchId || root.orshinSuugchId;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "orshinSuugchId is required",
+      });
+    }
+
+    const reply = new Medegdel(kholbolt)();
+    reply.parentId = root._id;
+    reply.orshinSuugchId = String(userId);
+    reply.baiguullagiinId = root.baiguullagiinId;
+    reply.barilgiinId = root.barilgiinId || "";
+    reply.title = "Хариу: " + (root.title || "Чат");
+    reply.message = message.trim();
+    reply.kharsanEsekh = false;
+    reply.turul = "user_reply";
+    reply.ognoo = new Date();
+
+    await reply.save();
+
+    const replyObj = reply.toObject ? reply.toObject() : reply;
+    const mongolianOffset = 8 * 60 * 60 * 1000;
+    if (replyObj.createdAt) replyObj.createdAt = new Date(replyObj.createdAt.getTime ? replyObj.createdAt.getTime() + mongolianOffset : new Date(replyObj.createdAt).getTime() + mongolianOffset).toISOString();
+    if (replyObj.updatedAt) replyObj.updatedAt = new Date(replyObj.updatedAt.getTime ? replyObj.updatedAt.getTime() + mongolianOffset : new Date(replyObj.updatedAt).getTime() + mongolianOffset).toISOString();
+    if (replyObj.ognoo) replyObj.ognoo = new Date(replyObj.ognoo.getTime ? replyObj.ognoo.getTime() + mongolianOffset : new Date(replyObj.ognoo).getTime() + mongolianOffset).toISOString();
+
+    const io = req.app.get("socketio");
+    if (io && userId) {
+      io.emit("orshinSuugch" + userId, replyObj);
+    }
+
+    res.json({
+      success: true,
+      data: replyObj,
+      message: "Хариу илгээгдлээ",
     });
   } catch (error) {
     next(error);
