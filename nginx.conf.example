@@ -1,5 +1,5 @@
-# Add this inside your server { } block to fix 413 Request Entity Too Large
-# when uploading images (gomdol/sanal from app, or chat image/voice from web/app):
+# 413 Request Entity Too Large = NGINX rejecting the body before it reaches Node.
+# Fix: set client_max_body_size in the server block (or in location /api).
 #
 #   client_max_body_size 20M;
 #
@@ -8,7 +8,7 @@
 # server {
 #     listen 80;
 #     server_name amarhome.mn;
-#     client_max_body_size 20M;   # <-- Add this line
+#     client_max_body_size 20M;   # required for medegdel/chat image uploads (~2–20MB)
 #
 #     location /api {
 #         proxy_pass http://127.0.0.1:8084;

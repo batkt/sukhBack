@@ -21,16 +21,13 @@ const path = require("path");
 const fs = require("fs");
 const { getMedegdelPublicRoot } = require("../config/medegdelPaths");
 
-// Configure multer for image storage
+// Same root as chat uploads so both medegdel- and chat- files are served from one place
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const { baiguullagiinId } = req.body;
-    const dir = `public/medegdel/${baiguullagiinId}/`;
-    
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    const root = getMedegdelPublicRoot();
+    const dir = baiguullagiinId ? path.join(root, baiguullagiinId) : root;
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
   filename: function (req, file, cb) {
@@ -58,8 +55,8 @@ const chatStorage = multer.diskStorage({
     cb(null, "chat-" + Date.now() + "-" + Math.round(Math.random() * 1e9) + ext);
   },
 });
-// 10MB – ensure Nginx client_max_body_size is at least 10m (or 20m) or you get 413
-const uploadChatFile = multer({ storage: chatStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+// 20MB – nginx must have client_max_body_size 20M or uploads get 413 (see nginx.conf.example)
+const uploadChatFile = multer({ storage: chatStorage, limits: { fileSize: 20 * 1024 * 1024 } });
 
 router.route("/medegdelIlgeeye").post(tokenShalgakh, upload.single("zurag"), medegdelIlgeeye);
 router.post("/medegdel/uploadChatFile", tokenShalgakh, uploadChatFile.single("file"), medegdelUploadChatFile);
