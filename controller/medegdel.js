@@ -702,10 +702,10 @@ exports.medegdelAdminReply = asyncHandler(async (req, res, next) => {
         message: "parentId and message are required",
       });
     }
-    if (!baiguullagiinId || !tukhainBaaziinKholbolt) {
+    if (!baiguullagiinId) {
       return res.status(400).json({
         success: false,
-        message: "baiguullagiinId and tukhainBaaziinKholbolt are required",
+        message: "baiguullagiinId is required",
       });
     }
 
