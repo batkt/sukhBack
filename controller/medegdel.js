@@ -543,10 +543,10 @@ exports.medegdelThread = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
     const { baiguullagiinId, tukhainBaaziinKholbolt } = req.query || req.body || {};
 
-    if (!id || !baiguullagiinId || !tukhainBaaziinKholbolt) {
+    if (!id || !baiguullagiinId) {
       return res.status(400).json({
         success: false,
-        message: "id, baiguullagiinId and tukhainBaaziinKholbolt are required",
+        message: "id and baiguullagiinId are required",
       });
     }
 
