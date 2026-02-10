@@ -289,11 +289,11 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
 
     if (isReplyableType) {
       if (req.body.status !== undefined) {
-        const allowedStatuses = ["pending", "in_progress", "done", "cancelled"];
+        const allowedStatuses = ["pending", "in_progress", "done", "cancelled", "rejected"];
         if (allowedStatuses.includes(req.body.status)) {
           updateFields.status = req.body.status;
           
-          if (req.body.status === "done") {
+          if (req.body.status === "done" || req.body.status === "rejected") {
             updateFields.repliedAt = new Date();
             
             if (req.body.repliedBy) {
@@ -328,13 +328,14 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
     }
 
     const statusWasSetToDone = updateFields.status === "done";
+    const statusWasSetToRejected = updateFields.status === "rejected";
+    const shouldSendReplyToApp = statusWasSetToDone || statusWasSetToRejected;
     const hasTailbar = updateFields.tailbar || medegdel.tailbar;  
     console.log("🔍 [REPLY CHECK] isReplyableType:", isReplyableType);
-    console.log("🔍 [REPLY CHECK] statusWasSetToDone:", statusWasSetToDone);
+    console.log("🔍 [REPLY CHECK] shouldSendReplyToApp:", shouldSendReplyToApp);
     console.log("🔍 [REPLY CHECK] hasTailbar:", hasTailbar);
-    console.log("🔍 [REPLY CHECK] updateFields:", updateFields);
     
-    if (isReplyableType && statusWasSetToDone && hasTailbar) {
+    if (isReplyableType && shouldSendReplyToApp && hasTailbar) {
       try {
         console.log("📤 [REPLY] Creating reply notification...");
         console.log("📤 [REPLY] orshinSuugchId:", medegdel.orshinSuugchId);
@@ -344,7 +345,8 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
         replyMedegdel.orshinSuugchId = medegdel.orshinSuugchId;
         replyMedegdel.baiguullagiinId = medegdel.baiguullagiinId;
         replyMedegdel.barilgiinId = medegdel.barilgiinId || "";
-        replyMedegdel.title = `Хариу: ${medegdel.title || existingMedegdel.title || "Хариу"}`;
+        const prefix = statusWasSetToRejected ? "Татгалзсан: " : "Хариу: ";
+        replyMedegdel.title = `${prefix}${medegdel.title || existingMedegdel.title || "Хариу"}`;
         replyMedegdel.message = updateFields.tailbar || medegdel.tailbar;
         replyMedegdel.kharsanEsekh = false;
         replyMedegdel.turul = "khariu";

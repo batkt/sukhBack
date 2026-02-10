@@ -21,7 +21,7 @@ const medegdelSchema = new Schema(
     turul: String, // гомдол, санал, мэдэгдэл, хүсэлт, etc.
     status: {
       type: String,
-      enum: ["pending", "in_progress", "done", "cancelled"],
+      enum: ["pending", "in_progress", "done", "cancelled", "rejected"],
       default: "pending"
     },
     tailbar: String, // Reply/notes from web admin
