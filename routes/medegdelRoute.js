@@ -19,6 +19,7 @@ const {
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const { getMedegdelPublicRoot } = require("../config/medegdelPaths");
 
 // Configure multer for image storage
 const storage = multer.diskStorage({
@@ -43,14 +44,7 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB for phone photos (was 5MB - caused 413)
 });
 
-// Chat file upload: save under same root as serveMedegdelImage (use entry script dir so prod cwd/__dirname match)
-function getMedegdelPublicRoot() {
-  if (require.main && require.main.filename) {
-    const root = path.join(path.dirname(require.main.filename), "public", "medegdel");
-    if (fs.existsSync(path.join(path.dirname(require.main.filename), "public"))) return root;
-  }
-  return path.join(__dirname, "..", "public", "medegdel");
-}
+// Chat file upload: same root as serve (config/medegdelPaths.js); set MEDEGDEL_UPLOAD_ROOT in production
 const chatStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     const baiguullagiinId = req.body.baiguullagiinId;

@@ -78,16 +78,7 @@ app.use((req, res, next) => {
 });
 
 // Serve medegdel images – both /medegdel/... and /api/medegdel/... (nginx may pass /api prefix)
-// Use same roots as upload: entry script dir, then __dirname, then cwd (so upload and serve always match)
-function getMedegdelRoots() {
-  const roots = [];
-  if (require.main && require.main.filename) {
-    roots.push(path.join(path.dirname(require.main.filename), "public", "medegdel"));
-  }
-  roots.push(path.join(__dirname, "public", "medegdel"));
-  roots.push(path.join(process.cwd(), "public", "medegdel"));
-  return roots;
-}
+const { getMedegdelRoots } = require("./config/medegdelPaths");
 const serveMedegdelImage = (req, res, next) => {
   const fileName = req.params.ner;
   const roots = getMedegdelRoots();
@@ -107,7 +98,8 @@ const serveMedegdelImage = (req, res, next) => {
     res.sendFile(filePath);
   } else {
     if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp|webm|m4a)$/i)) {
-       console.log(`❌ [INDEX DEBUG] File not found, returning 404`);
+       const tried = roots.map((r) => path.join(r, req.params.baiguullagiinId, fileName));
+       console.log(`❌ [INDEX DEBUG] File not found (404). Tried: ${tried.join("; ")}`);
        res.status(404).json({
         success: false,
         message: "Зураг олдсонгүй"
