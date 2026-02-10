@@ -78,32 +78,43 @@ app.use((req, res, next) => {
 });
 
 // Serve medegdel images – both /medegdel/... and /api/medegdel/... (nginx may pass /api prefix)
-const { getMedegdelRoots } = require("./config/medegdelPaths");
+const { getMedegdelRoots, getMedegdelPublicRoot } = require("./config/medegdelPaths");
 const serveMedegdelImage = (req, res, next) => {
-  const fileName = req.params.ner;
+  const fileName = (req.params.ner || "").replace(/\.\./g, "");
+  const baiguullagiinId = (req.params.baiguullagiinId || "").replace(/\.\./g, "");
+  if (!fileName || !baiguullagiinId) {
+    return res.status(404).json({ success: false, message: "Зураг олдсонгүй" });
+  }
   const roots = getMedegdelRoots();
   let filePath = null;
   for (const root of roots) {
-    const candidate = path.join(root, req.params.baiguullagiinId, fileName);
+    const candidate = path.join(root, baiguullagiinId, fileName);
     if (fs.existsSync(candidate)) {
       filePath = path.resolve(candidate);
       break;
     }
+    // Fallback: multer sometimes saves to root when baiguullagiinId isn't parsed yet (form field order)
+    const fallback = path.join(root, fileName);
+    if (fs.existsSync(fallback)) {
+      filePath = path.resolve(fallback);
+      break;
+    }
   }
-  
-  console.log(`🔍 [INDEX DEBUG] URL: ${req.url}`);
-  console.log(`🔍 [INDEX DEBUG] Resolved file: ${filePath || "not found"}`);
-  
+
+  console.log(`🔍 [INDEX DEBUG] URL: ${req.url} -> file: ${filePath || "not found"}`);
+
   if (filePath) {
     res.sendFile(filePath);
   } else {
     if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp|webm|m4a)$/i)) {
-       const tried = roots.map((r) => path.join(r, req.params.baiguullagiinId, fileName));
-       console.log(`❌ [INDEX DEBUG] File not found (404). Tried: ${tried.join("; ")}`);
-       res.status(404).json({
-        success: false,
-        message: "Зураг олдсонгүй"
-      });
+      const tried = roots.map((r) => path.join(r, baiguullagiinId, fileName));
+      console.log(`❌ [INDEX DEBUG] File not found (404). Tried: ${tried.join("; ")}`);
+      const body = { success: false, message: "Зураг олдсонгүй" };
+      if (req.query.debug === "1") {
+        body.tried = tried;
+        body.uploadRoot = getMedegdelPublicRoot();
+      }
+      res.status(404).json(body);
     } else {
       next();
     }

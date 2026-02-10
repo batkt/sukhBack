@@ -4,10 +4,11 @@
 # 20M is required for medegdel/chat image uploads (phone photos can be ~2–20MB).
 #
 # IMPORTANT for medegdel images (404 on sent images):
-# - Do NOT serve /api/medegdel/ as static files. Proxy all /api to Node so the app
-#   can serve uploaded files from the same place they are saved.
-# - In production, set MEDEGDEL_UPLOAD_ROOT to an absolute path so upload and serve
-#   use the same directory even if process.cwd() differs (e.g. when run via systemd/pm2).
+# - Do NOT add a separate location /api/medegdel/ that serves static files. Proxy ALL
+#   /api (including /api/medegdel/*) to Node so GET /api/medegdel/:id/:file is handled
+#   by the backend (same server that saved the file).
+# - If you run multiple Node instances, set MEDEGDEL_UPLOAD_ROOT to a shared absolute
+#   path (e.g. NFS or same host path) so every instance reads/writes the same files.
 #
 # Example full server block:
 #
