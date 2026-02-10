@@ -14,6 +14,7 @@ const {
   medegdelThread,
   medegdelUserReply,
   medegdelAdminReply,
+  medegdelUploadChatFile,
 } = require("../controller/medegdel");
 const multer = require("multer");
 const path = require("path");
@@ -42,7 +43,23 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB for phone photos (was 5MB - caused 413)
 });
 
+// Chat file upload: same folder, filename chat-* (image or voice)
+const chatStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const baiguullagiinId = req.body.baiguullagiinId;
+    const dir = baiguullagiinId ? `public/medegdel/${baiguullagiinId}/` : "public/medegdel/";
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname) || (file.mimetype && file.mimetype.includes("audio") ? ".webm" : ".jpg");
+    cb(null, "chat-" + Date.now() + "-" + Math.round(Math.random() * 1e9) + ext);
+  },
+});
+const uploadChatFile = multer({ storage: chatStorage, limits: { fileSize: 15 * 1024 * 1024 } });
+
 router.route("/medegdelIlgeeye").post(tokenShalgakh, upload.single("zurag"), medegdelIlgeeye);
+router.post("/medegdel/uploadChatFile", tokenShalgakh, uploadChatFile.single("file"), medegdelUploadChatFile);
 
 router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
   const fileName = req.params.ner;

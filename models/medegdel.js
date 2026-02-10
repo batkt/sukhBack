@@ -28,7 +28,8 @@ const medegdelSchema = new Schema(
     tailbar: String, // Reply/notes from web admin
     repliedAt: Date, // When the reply was sent
     repliedBy: String, // Admin/employee ID who replied
-    zurag: String, // Path to attached image
+    zurag: String, // Path to attached image (e.g. baiguullagiinId/chat-xxx.jpg)
+    duu: String, // Voice message path (e.g. baiguullagiinId/chat-xxx.webm)
   },
   {
     timestamps: true,

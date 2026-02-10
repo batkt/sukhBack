@@ -224,6 +224,15 @@ exports.medegdelKharsanEsekh = asyncHandler(async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Мэдэгдэл олдсонгүй" });
     }
 
+    // If this is a root (no parentId), mark all replies in the thread as seen so "seen" indicator shows
+    const rootId = result.parentId || result._id;
+    if (!rootId || String(rootId) === String(result._id)) {
+      await Medegdel(kholbolt).updateMany(
+        { parentId: result._id },
+        { $set: { kharsanEsekh: true, updatedAt: new Date() } }
+      );
+    }
+
     res.json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -537,6 +546,23 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
   }
 });
 
+// Upload chat file (image or voice) for reply. Returns path like "baiguullagiinId/chat-xxx.ext".
+exports.medegdelUploadChatFile = asyncHandler(async (req, res, next) => {
+  try {
+    const baiguullagiinId = req.body.baiguullagiinId;
+    if (!baiguullagiinId) {
+      return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
+    }
+    if (!req.file || !req.file.filename) {
+      return res.status(400).json({ success: false, message: "file is required" });
+    }
+    const relativePath = `${baiguullagiinId}/${req.file.filename}`;
+    res.json({ success: true, path: relativePath });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Get full thread (root + all replies) for chat-like view. id can be root or any reply in thread.
 exports.medegdelThread = asyncHandler(async (req, res, next) => {
   try {
@@ -597,15 +623,24 @@ exports.medegdelThread = asyncHandler(async (req, res, next) => {
   }
 });
 
-// User reply back (chat): create a new medegdel in the thread.
+// User reply back (chat): create a new medegdel in the thread. At least one of message, zurag, or voiceUrl required.
 exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
   try {
-    const { parentId, message, orshinSuugchId } = req.body;
+    const { parentId, message, orshinSuugchId, zurag, voiceUrl } = req.body;
+    const hasMessage = typeof message === "string" && message.trim().length > 0;
+    const hasZurag = zurag && String(zurag).trim();
+    const hasVoice = voiceUrl && String(voiceUrl).trim();
 
-    if (!parentId || !message || typeof message !== "string" || !message.trim()) {
+    if (!parentId) {
       return res.status(400).json({
         success: false,
-        message: "parentId and message are required",
+        message: "parentId is required",
+      });
+    }
+    if (!hasMessage && !hasZurag && !hasVoice) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one of message, zurag, or voiceUrl is required",
       });
     }
 
@@ -649,7 +684,9 @@ exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
     reply.baiguullagiinId = root.baiguullagiinId;
     reply.barilgiinId = root.barilgiinId || "";
     reply.title = "Хариу: " + (root.title || "Чат");
-    reply.message = message.trim();
+    reply.message = hasMessage ? message.trim() : "";
+    if (hasZurag) reply.zurag = String(zurag).trim();
+    if (hasVoice) reply.duu = String(voiceUrl).trim();
     reply.kharsanEsekh = false;
     reply.turul = "user_reply";
     reply.ognoo = new Date();
@@ -689,17 +726,26 @@ exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Admin reply (web): create a reply in the thread and notify user (like app chat).
+// Admin reply (web): create a reply in the thread and notify user (like app chat). At least one of message, zurag, or voiceUrl required.
 exports.medegdelAdminReply = asyncHandler(async (req, res, next) => {
   try {
-    const { parentId, message } = req.body;
+    const { parentId, message, zurag, voiceUrl } = req.body;
     const baiguullagiinId = req.body.baiguullagiinId;
     const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+    const hasMessage = typeof message === "string" && message.trim().length > 0;
+    const hasZurag = zurag && String(zurag).trim();
+    const hasVoice = voiceUrl && String(voiceUrl).trim();
 
-    if (!parentId || !message || typeof message !== "string" || !message.trim()) {
+    if (!parentId) {
       return res.status(400).json({
         success: false,
-        message: "parentId and message are required",
+        message: "parentId is required",
+      });
+    }
+    if (!hasMessage && !hasZurag && !hasVoice) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one of message, zurag, or voiceUrl is required",
       });
     }
     if (!baiguullagiinId) {
@@ -740,7 +786,9 @@ exports.medegdelAdminReply = asyncHandler(async (req, res, next) => {
     reply.baiguullagiinId = root.baiguullagiinId;
     reply.barilgiinId = root.barilgiinId || "";
     reply.title = "Хариу: " + (root.title || "Чат");
-    reply.message = message.trim();
+    reply.message = hasMessage ? message.trim() : "";
+    if (hasZurag) reply.zurag = String(zurag).trim();
+    if (hasVoice) reply.duu = String(voiceUrl).trim();
     reply.kharsanEsekh = false;
     reply.turul = "khariu";
     reply.ognoo = new Date();
@@ -749,14 +797,16 @@ exports.medegdelAdminReply = asyncHandler(async (req, res, next) => {
     await Medegdel(kholbolt).findByIdAndUpdate(root._id, { updatedAt: new Date() });
 
     const replyObj = reply.toObject ? reply.toObject() : reply;
+    if (replyObj._id != null) replyObj._id = (replyObj._id && replyObj._id.toString) ? replyObj._id.toString() : String(replyObj._id);
     if (replyObj.createdAt) replyObj.createdAt = (replyObj.createdAt && replyObj.createdAt.toISOString) ? replyObj.createdAt.toISOString() : new Date(replyObj.createdAt).toISOString();
     if (replyObj.updatedAt) replyObj.updatedAt = (replyObj.updatedAt && replyObj.updatedAt.toISOString) ? replyObj.updatedAt.toISOString() : new Date(replyObj.updatedAt).toISOString();
     if (replyObj.ognoo) replyObj.ognoo = (replyObj.ognoo && replyObj.ognoo.toISOString) ? replyObj.ognoo.toISOString() : new Date(replyObj.ognoo).toISOString();
     if (replyObj.parentId != null) replyObj.parentId = (replyObj.parentId && replyObj.parentId.toString) ? replyObj.parentId.toString() : String(replyObj.parentId);
 
     const io = req.app.get("socketio");
-    if (io && userId) {
-      io.emit("orshinSuugch" + userId, replyObj);
+    const userIdStr = userId != null ? String(userId) : null;
+    if (io && userIdStr) {
+      io.emit("orshinSuugch" + userIdStr, replyObj);
     }
     if (io && root.baiguullagiinId) {
       io.emit("baiguullagiin" + root.baiguullagiinId, { type: "medegdelAdminReply", data: replyObj });
