@@ -58,7 +58,18 @@ router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
   }
 });
 
-// Route matching the URL structure user provided: /medegdel/:baiguullagiinId/:ner
+// IMPORTANT: These must be before /medegdel/:baiguullagiinId/:ner so /medegdel/thread/:id is not matched as image
+router.get("/medegdel/unreadCount", tokenShalgakh, medegdelUnreadCount);
+router.get("/medegdel/unreadList", tokenShalgakh, medegdelUnreadList);
+router.get("/medegdel/thread/:id", tokenShalgakh, medegdelThread);
+router.post("/medegdel/reply", tokenShalgakh, medegdelUserReply);
+router.patch("/medegdel/:id/kharsanEsekh", tokenShalgakh, medegdelKharsanEsekh);
+router.get("/medegdel", tokenShalgakh, medegdelAvya);
+router.get("/medegdel/:id", tokenShalgakh, medegdelNegAvya);
+router.put("/medegdel/:id", tokenShalgakh, medegdelZasah);
+router.delete("/medegdel/:id", tokenShalgakh, medegdelUstgakh);
+
+// Route matching the URL structure user provided: /medegdel/:baiguullagiinId/:ner (must be last so it doesn't catch /medegdel/thread/:id)
 router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
   const fileName = req.params.ner;
   // Use process.cwd() to reliably find the public folder from the project root
@@ -87,15 +98,5 @@ router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
     }
   }
 });
-
-router.get("/medegdel/unreadCount", tokenShalgakh, medegdelUnreadCount);
-router.get("/medegdel/unreadList", tokenShalgakh, medegdelUnreadList);
-router.get("/medegdel/thread/:id", tokenShalgakh, medegdelThread);
-router.post("/medegdel/reply", tokenShalgakh, medegdelUserReply);
-router.patch("/medegdel/:id/kharsanEsekh", tokenShalgakh, medegdelKharsanEsekh);
-router.get("/medegdel", tokenShalgakh, medegdelAvya);
-router.get("/medegdel/:id", tokenShalgakh, medegdelNegAvya);
-router.put("/medegdel/:id", tokenShalgakh, medegdelZasah);
-router.delete("/medegdel/:id", tokenShalgakh, medegdelUstgakh);
 
 module.exports = router;

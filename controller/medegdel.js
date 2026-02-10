@@ -575,12 +575,12 @@ exports.medegdelThread = asyncHandler(async (req, res, next) => {
       .sort({ createdAt: 1 })
       .lean();
 
-    const mongolianOffset = 8 * 60 * 60 * 1000;
+    // Return UTC ISO strings so app/web can display in user's local time
     const normalized = thread.map((t) => {
       const o = { ...t };
-      if (o.createdAt) o.createdAt = new Date(o.createdAt.getTime ? o.createdAt.getTime() + mongolianOffset : new Date(o.createdAt).getTime() + mongolianOffset).toISOString();
-      if (o.updatedAt) o.updatedAt = new Date(o.updatedAt.getTime ? o.updatedAt.getTime() + mongolianOffset : new Date(o.updatedAt).getTime() + mongolianOffset).toISOString();
-      if (o.ognoo) o.ognoo = new Date(o.ognoo.getTime ? o.ognoo.getTime() + mongolianOffset : new Date(o.ognoo).getTime() + mongolianOffset).toISOString();
+      if (o.createdAt) o.createdAt = (o.createdAt && o.createdAt.toISOString) ? o.createdAt.toISOString() : new Date(o.createdAt).toISOString();
+      if (o.updatedAt) o.updatedAt = (o.updatedAt && o.updatedAt.toISOString) ? o.updatedAt.toISOString() : new Date(o.updatedAt).toISOString();
+      if (o.ognoo) o.ognoo = (o.ognoo && o.ognoo.toISOString) ? o.ognoo.toISOString() : new Date(o.ognoo).toISOString();
       return o;
     });
 
@@ -654,14 +654,19 @@ exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
     await reply.save();
 
     const replyObj = reply.toObject ? reply.toObject() : reply;
-    const mongolianOffset = 8 * 60 * 60 * 1000;
-    if (replyObj.createdAt) replyObj.createdAt = new Date(replyObj.createdAt.getTime ? replyObj.createdAt.getTime() + mongolianOffset : new Date(replyObj.createdAt).getTime() + mongolianOffset).toISOString();
-    if (replyObj.updatedAt) replyObj.updatedAt = new Date(replyObj.updatedAt.getTime ? replyObj.updatedAt.getTime() + mongolianOffset : new Date(replyObj.updatedAt).getTime() + mongolianOffset).toISOString();
-    if (replyObj.ognoo) replyObj.ognoo = new Date(replyObj.ognoo.getTime ? replyObj.ognoo.getTime() + mongolianOffset : new Date(replyObj.ognoo).getTime() + mongolianOffset).toISOString();
+    // Return UTC ISO so app/web show correct local time
+    if (replyObj.createdAt) replyObj.createdAt = (replyObj.createdAt && replyObj.createdAt.toISOString) ? replyObj.createdAt.toISOString() : new Date(replyObj.createdAt).toISOString();
+    if (replyObj.updatedAt) replyObj.updatedAt = (replyObj.updatedAt && replyObj.updatedAt.toISOString) ? replyObj.updatedAt.toISOString() : new Date(replyObj.updatedAt).toISOString();
+    if (replyObj.ognoo) replyObj.ognoo = (replyObj.ognoo && replyObj.ognoo.toISOString) ? replyObj.ognoo.toISOString() : new Date(replyObj.ognoo).toISOString();
 
     const io = req.app.get("socketio");
     if (io && userId) {
       io.emit("orshinSuugch" + userId, replyObj);
+    }
+    // Notify web (admin) so reply shows in sanalKhuselt / medegdel list
+    if (io && root.baiguullagiinId) {
+      const adminEvent = "baiguullagiin" + root.baiguullagiinId;
+      io.emit(adminEvent, { type: "medegdelUserReply", data: replyObj });
     }
 
     res.json({
