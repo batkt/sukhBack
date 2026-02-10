@@ -43,12 +43,19 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB for phone photos (was 5MB - caused 413)
 });
 
-// Chat file upload: save under app root public/medegdel (same as serveMedegdelImage in index.js)
-const MEDEGDEL_PUBLIC_ROOT = path.join(__dirname, "..", "public", "medegdel");
+// Chat file upload: save under same root as serveMedegdelImage (use entry script dir so prod cwd/__dirname match)
+function getMedegdelPublicRoot() {
+  if (require.main && require.main.filename) {
+    const root = path.join(path.dirname(require.main.filename), "public", "medegdel");
+    if (fs.existsSync(path.join(path.dirname(require.main.filename), "public"))) return root;
+  }
+  return path.join(__dirname, "..", "public", "medegdel");
+}
 const chatStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     const baiguullagiinId = req.body.baiguullagiinId;
-    const dir = baiguullagiinId ? path.join(MEDEGDEL_PUBLIC_ROOT, baiguullagiinId) : MEDEGDEL_PUBLIC_ROOT;
+    const root = getMedegdelPublicRoot();
+    const dir = baiguullagiinId ? path.join(root, baiguullagiinId) : root;
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -65,8 +72,8 @@ router.post("/medegdel/uploadChatFile", tokenShalgakh, uploadChatFile.single("fi
 
 router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
   const fileName = req.params.ner;
-  const directoryPath = path.join(MEDEGDEL_PUBLIC_ROOT, req.params.baiguullagiinId);
-  const filePath = path.join(directoryPath, fileName);
+  const root = getMedegdelPublicRoot();
+  const filePath = path.join(root, req.params.baiguullagiinId, fileName);
   
   if (fs.existsSync(filePath)) {
     res.sendFile(path.resolve(filePath));
@@ -93,8 +100,8 @@ router.delete("/medegdel/:id", tokenShalgakh, medegdelUstgakh);
 // Route matching the URL structure user provided: /medegdel/:baiguullagiinId/:ner (must be last so it doesn't catch /medegdel/thread/:id)
 router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
   const fileName = req.params.ner;
-  const directoryPath = path.join(MEDEGDEL_PUBLIC_ROOT, req.params.baiguullagiinId);
-  const filePath = path.join(directoryPath, fileName);
+  const root = getMedegdelPublicRoot();
+  const filePath = path.join(root, req.params.baiguullagiinId, fileName);
   
   console.log(`🔍 [IMAGE DEBUG] URL: ${req.originalUrl}`);
   console.log(`🔍 [IMAGE DEBUG] Params: ID=${req.params.baiguullagiinId}, File=${fileName}`);

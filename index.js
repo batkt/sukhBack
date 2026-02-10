@@ -78,14 +78,19 @@ app.use((req, res, next) => {
 });
 
 // Serve medegdel images – both /medegdel/... and /api/medegdel/... (nginx may pass /api prefix)
-// Prefer app root (__dirname) so it works when process.cwd() differs (e.g. pm2); fallback to cwd for old uploads
-const MEDEGDEL_PUBLIC_ROOT = path.join(__dirname, "public", "medegdel");
+// Use same roots as upload: entry script dir, then __dirname, then cwd (so upload and serve always match)
+function getMedegdelRoots() {
+  const roots = [];
+  if (require.main && require.main.filename) {
+    roots.push(path.join(path.dirname(require.main.filename), "public", "medegdel"));
+  }
+  roots.push(path.join(__dirname, "public", "medegdel"));
+  roots.push(path.join(process.cwd(), "public", "medegdel"));
+  return roots;
+}
 const serveMedegdelImage = (req, res, next) => {
   const fileName = req.params.ner;
-  const roots = [
-    MEDEGDEL_PUBLIC_ROOT,
-    path.join(process.cwd(), "public", "medegdel"),
-  ];
+  const roots = getMedegdelRoots();
   let filePath = null;
   for (const root of roots) {
     const candidate = path.join(root, req.params.baiguullagiinId, fileName);
