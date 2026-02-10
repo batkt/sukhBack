@@ -122,10 +122,11 @@ exports.medegdelAvya = asyncHandler(async (req, res, next) => {
     if (barilgiinId) query.barilgiinId = String(barilgiinId);
     if (orshinSuugchId) query.orshinSuugchId = String(orshinSuugchId);
     if (turul) query.turul = String(turul);
+    else query.turul = { $ne: "user_reply" }; // Exclude user_reply from list (show in thread only)
 
     const medegdeluud = await Medegdel(kholbolt)
       .find(query)
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1 })
       .lean();
 
     res.json({
@@ -653,6 +654,9 @@ exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
 
     await reply.save();
 
+    // Bump root's updatedAt so thread sorts to top (last replied first)
+    await Medegdel(kholbolt).findByIdAndUpdate(root._id, { updatedAt: new Date() });
+
     const replyObj = reply.toObject ? reply.toObject() : reply;
     // Return UTC ISO so app/web show correct local time
     if (replyObj.createdAt) replyObj.createdAt = (replyObj.createdAt && replyObj.createdAt.toISOString) ? replyObj.createdAt.toISOString() : new Date(replyObj.createdAt).toISOString();
@@ -663,11 +667,13 @@ exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
 
     const io = req.app.get("socketio");
     if (io && userId) {
-      io.emit("orshinSuugch" + userId, replyObj);
+      const userEvent = "orshinSuugch" + userId;
+      console.log("[medegdelUserReply] SEND orshinSuugch: event=" + userEvent + " parentId=" + (replyObj.parentId || "") + " message=" + (replyObj.message || "").slice(0, 40));
+      io.emit(userEvent, replyObj);
     }
-    // Notify web (admin) so reply shows in sanalKhuselt / medegdel list
     if (io && root.baiguullagiinId) {
       const adminEvent = "baiguullagiin" + root.baiguullagiinId;
+      console.log("[medegdelUserReply] SEND baiguullagiin: event=" + adminEvent + " type=medegdelUserReply parentId=" + (replyObj.parentId || ""));
       io.emit(adminEvent, { type: "medegdelUserReply", data: replyObj });
     }
 
