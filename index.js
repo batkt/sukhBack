@@ -88,7 +88,7 @@ const serveMedegdelImage = (req, res, next) => {
   console.log(`🔍 [INDEX DEBUG] Exists: ${fs.existsSync(filePath)}`);
   
   if (fs.existsSync(filePath)) {
-    res.sendFile(filePath);
+    res.sendFile(path.resolve(filePath));
   } else {
     // Check if it looks like an image/file request
     if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp)$/i)) {
