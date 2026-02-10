@@ -532,6 +532,9 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       if (io) {
         const eventName = "orshinSuugch" + id;
         io.emit(eventName, medegdelObj);
+        // Notify web admin (Санал хүсэлт) in real time so new notification appears without refresh
+        const adminEvent = "baiguullagiin" + baiguullagiinId;
+        io.emit(adminEvent, { type: "medegdelNew", data: medegdelObj });
       }
     }
 
