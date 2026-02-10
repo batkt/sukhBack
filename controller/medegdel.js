@@ -658,6 +658,8 @@ exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
     if (replyObj.createdAt) replyObj.createdAt = (replyObj.createdAt && replyObj.createdAt.toISOString) ? replyObj.createdAt.toISOString() : new Date(replyObj.createdAt).toISOString();
     if (replyObj.updatedAt) replyObj.updatedAt = (replyObj.updatedAt && replyObj.updatedAt.toISOString) ? replyObj.updatedAt.toISOString() : new Date(replyObj.updatedAt).toISOString();
     if (replyObj.ognoo) replyObj.ognoo = (replyObj.ognoo && replyObj.ognoo.toISOString) ? replyObj.ognoo.toISOString() : new Date(replyObj.ognoo).toISOString();
+    // Ensure parentId is string for socket clients (web/app)
+    if (replyObj.parentId != null) replyObj.parentId = (replyObj.parentId && replyObj.parentId.toString) ? replyObj.parentId.toString() : String(replyObj.parentId);
 
     const io = req.app.get("socketio");
     if (io && userId) {
