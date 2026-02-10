@@ -226,11 +226,25 @@ exports.medegdelKharsanEsekh = asyncHandler(async (req, res, next) => {
 
     // If this is a root (no parentId), mark all replies in the thread as seen so "seen" indicator shows
     const rootId = result.parentId || result._id;
+    const rootIdStr = String(rootId);
     if (!rootId || String(rootId) === String(result._id)) {
       await Medegdel(kholbolt).updateMany(
         { parentId: result._id },
         { $set: { kharsanEsekh: true, updatedAt: new Date() } }
       );
+    }
+
+    // Real-time: notify all clients (other tabs, other admins) so list/thread show seen state
+    try {
+      const io = req.app.get("socketio");
+      if (io && baiguullagiinId) {
+        io.emit("baiguullagiin" + String(baiguullagiinId), {
+          type: "medegdelSeen",
+          data: { rootId: rootIdStr },
+        });
+      }
+    } catch (e) {
+      // ignore socket errors
     }
 
     res.json({ success: true, data: result });
