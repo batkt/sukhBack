@@ -506,9 +506,9 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       medegdel.ognoo = new Date();
       if (turul) medegdel.turul = String(turul);
 
-      // Add image path if file was uploaded
-      if (req.file) {
-        medegdel.zurag = req.file.path.replace(/\\/g, "/");
+      // Add image path if file was uploaded (store relative path for API: baiguullagiinId/filename)
+      if (req.file && req.file.filename) {
+        medegdel.zurag = `${baiguullagiinId}/${req.file.filename}`;
       }
 
       await medegdel.save();
