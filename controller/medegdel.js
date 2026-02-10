@@ -576,9 +576,11 @@ exports.medegdelThread = asyncHandler(async (req, res, next) => {
       .sort({ createdAt: 1 })
       .lean();
 
-    // Return UTC ISO strings so app/web can display in user's local time
+    // Return UTC ISO strings and string ids so app/web display and comparison work after refresh
     const normalized = thread.map((t) => {
       const o = { ...t };
+      if (o._id != null) o._id = (o._id && o._id.toString) ? o._id.toString() : String(o._id);
+      if (o.parentId != null) o.parentId = (o.parentId && o.parentId.toString) ? o.parentId.toString() : String(o.parentId);
       if (o.createdAt) o.createdAt = (o.createdAt && o.createdAt.toISOString) ? o.createdAt.toISOString() : new Date(o.createdAt).toISOString();
       if (o.updatedAt) o.updatedAt = (o.updatedAt && o.updatedAt.toISOString) ? o.updatedAt.toISOString() : new Date(o.updatedAt).toISOString();
       if (o.ognoo) o.ognoo = (o.ognoo && o.ognoo.toISOString) ? o.ognoo.toISOString() : new Date(o.ognoo).toISOString();
@@ -675,6 +677,89 @@ exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
       const adminEvent = "baiguullagiin" + root.baiguullagiinId;
       console.log("[medegdelUserReply] SEND baiguullagiin: event=" + adminEvent + " type=medegdelUserReply parentId=" + (replyObj.parentId || ""));
       io.emit(adminEvent, { type: "medegdelUserReply", data: replyObj });
+    }
+
+    res.json({
+      success: true,
+      data: replyObj,
+      message: "Хариу илгээгдлээ",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin reply (web): create a reply in the thread and notify user (like app chat).
+exports.medegdelAdminReply = asyncHandler(async (req, res, next) => {
+  try {
+    const { parentId, message } = req.body;
+    const baiguullagiinId = req.body.baiguullagiinId;
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+
+    if (!parentId || !message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "parentId and message are required",
+      });
+    }
+    if (!baiguullagiinId || !tukhainBaaziinKholbolt) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId and tukhainBaaziinKholbolt are required",
+      });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res.status(404).json({
+        success: false,
+        message: "Холболтын мэдээлэл олдсонгүй",
+      });
+    }
+
+    const root = await Medegdel(kholbolt).findById(parentId).lean();
+    if (!root) {
+      return res.status(404).json({
+        success: false,
+        message: "Эх мэдэгдэл олдсонгүй",
+      });
+    }
+    const userId = root.orshinSuugchId;
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "Эх мэдэгдэлд orshinSuugchId байхгүй байна",
+      });
+    }
+
+    const reply = new Medegdel(kholbolt)();
+    reply.parentId = root._id;
+    reply.orshinSuugchId = String(userId);
+    reply.baiguullagiinId = root.baiguullagiinId;
+    reply.barilgiinId = root.barilgiinId || "";
+    reply.title = "Хариу: " + (root.title || "Чат");
+    reply.message = message.trim();
+    reply.kharsanEsekh = false;
+    reply.turul = "khariu";
+    reply.ognoo = new Date();
+
+    await reply.save();
+    await Medegdel(kholbolt).findByIdAndUpdate(root._id, { updatedAt: new Date() });
+
+    const replyObj = reply.toObject ? reply.toObject() : reply;
+    if (replyObj.createdAt) replyObj.createdAt = (replyObj.createdAt && replyObj.createdAt.toISOString) ? replyObj.createdAt.toISOString() : new Date(replyObj.createdAt).toISOString();
+    if (replyObj.updatedAt) replyObj.updatedAt = (replyObj.updatedAt && replyObj.updatedAt.toISOString) ? replyObj.updatedAt.toISOString() : new Date(replyObj.updatedAt).toISOString();
+    if (replyObj.ognoo) replyObj.ognoo = (replyObj.ognoo && replyObj.ognoo.toISOString) ? replyObj.ognoo.toISOString() : new Date(replyObj.ognoo).toISOString();
+    if (replyObj.parentId != null) replyObj.parentId = (replyObj.parentId && replyObj.parentId.toString) ? replyObj.parentId.toString() : String(replyObj.parentId);
+
+    const io = req.app.get("socketio");
+    if (io && userId) {
+      io.emit("orshinSuugch" + userId, replyObj);
+    }
+    if (io && root.baiguullagiinId) {
+      io.emit("baiguullagiin" + root.baiguullagiinId, { type: "medegdelAdminReply", data: replyObj });
     }
 
     res.json({

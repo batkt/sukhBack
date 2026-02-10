@@ -13,6 +13,7 @@ const {
   medegdelKharsanEsekh,
   medegdelThread,
   medegdelUserReply,
+  medegdelAdminReply,
 } = require("../controller/medegdel");
 const multer = require("multer");
 const path = require("path");
@@ -63,6 +64,7 @@ router.get("/medegdel/unreadCount", tokenShalgakh, medegdelUnreadCount);
 router.get("/medegdel/unreadList", tokenShalgakh, medegdelUnreadList);
 router.get("/medegdel/thread/:id", tokenShalgakh, medegdelThread);
 router.post("/medegdel/reply", tokenShalgakh, medegdelUserReply);
+router.post("/medegdel/adminReply", tokenShalgakh, medegdelAdminReply);
 router.patch("/medegdel/:id/kharsanEsekh", tokenShalgakh, medegdelKharsanEsekh);
 router.get("/medegdel", tokenShalgakh, medegdelAvya);
 router.get("/medegdel/:id", tokenShalgakh, medegdelNegAvya);
