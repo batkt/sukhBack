@@ -1,7 +1,13 @@
 # 413 Request Entity Too Large = NGINX rejecting the body before it reaches Node.
 # Fix: set client_max_body_size in the server block (or in location /api).
 #
-#   client_max_body_size 20M;
+# 20M is required for medegdel/chat image uploads (phone photos can be ~2–20MB).
+#
+# IMPORTANT for medegdel images (404 on sent images):
+# - Do NOT serve /api/medegdel/ as static files. Proxy all /api to Node so the app
+#   can serve uploaded files from the same place they are saved.
+# - In production, set MEDEGDEL_UPLOAD_ROOT to an absolute path so upload and serve
+#   use the same directory even if process.cwd() differs (e.g. when run via systemd/pm2).
 #
 # Example full server block:
 #
@@ -17,6 +23,7 @@
 #         proxy_set_header X-Real-IP $remote_addr;
 #         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 #         proxy_set_header X-Forwarded-Proto $scheme;
+#         client_max_body_size 20M;   # optional: limit only for /api
 #     }
 # }
 #

@@ -14,16 +14,20 @@ function getMedegdelPublicRoot() {
 }
 
 /**
- * Ordered list of directory roots for serving. Try upload root first, then fallbacks.
+ * Ordered list of directory roots for serving. Upload root (getMedegdelPublicRoot) is always first
+ * so files saved by upload are found when serving. Fallbacks for different run contexts.
  */
 function getMedegdelRoots() {
-  if (ENV_ROOT) return [ENV_ROOT];
-  const roots = [];
-  roots.push(path.join(process.cwd(), "public", "medegdel"));
-  if (require.main && require.main.filename) {
-    roots.push(path.join(path.dirname(require.main.filename), "public", "medegdel"));
+  const uploadRoot = getMedegdelPublicRoot();
+  const roots = [uploadRoot];
+  if (!ENV_ROOT) {
+    if (require.main && require.main.filename) {
+      const alt = path.join(path.dirname(require.main.filename), "public", "medegdel");
+      if (alt !== uploadRoot) roots.push(alt);
+    }
+    const relRoot = path.join(__dirname, "..", "public", "medegdel");
+    if (relRoot !== uploadRoot && !roots.includes(relRoot)) roots.push(relRoot);
   }
-  roots.push(path.join(__dirname, "..", "public", "medegdel"));
   return roots;
 }
 

@@ -557,7 +557,10 @@ exports.medegdelUploadChatFile = asyncHandler(async (req, res, next) => {
       return res.status(400).json({ success: false, message: "file is required" });
     }
     const relativePath = `${baiguullagiinId}/${req.file.filename}`;
-    if (req.file.path) console.log(`🔍 [UPLOAD] Saved chat file to: ${req.file.path}`);
+    if (req.file.path) {
+      console.log(`🔍 [UPLOAD] Saved chat file to: ${req.file.path}`);
+      console.log(`🔍 [UPLOAD] Image URL path: /medegdel/${relativePath} (or /api/medegdel/${relativePath})`);
+    }
     res.json({ success: true, path: relativePath });
   } catch (error) {
     next(error);
