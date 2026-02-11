@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
 const ashiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
+const Baiguullaga = require("../models/baiguullaga");
 
 // CRUD routes
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
@@ -99,6 +100,124 @@ router.post("/ashiglaltiinZardluudNemekh", async (req, res, next) => {
       success: true,
       message: "Ашиглалтын зардал амжилттай нэмэгдлээ",
       data: newZardal,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /tsakhilgaanTootsool – calculate electricity (цахилгаан) amount from meter readings.
+ * Same formula as gereeRoute zaaltOlnoorOruulya / turees: zoruu * urjver * guidliinKoeff, chadal, tsekh, sekhDemjikh.
+ * Body: baiguullagiinId, barilgiinId (optional), umnukhZaalt, suuliinZaalt, guidliinKoeff.
+ */
+router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const {
+      baiguullagiinId,
+      barilgiinId,
+      umnukhZaalt,
+      suuliinZaalt,
+      guidliinKoeff,
+    } = req.body;
+
+    if (!baiguullagiinId) {
+      return res.status(400).send({
+        success: false,
+        message: "baiguullagiinId is required",
+      });
+    }
+
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+      baiguullagiinId
+    );
+    if (!baiguullaga || !baiguullaga.barilguud || !baiguullaga.barilguud.length) {
+      return res.status(404).send({
+        success: false,
+        message: "Baiguullaga or barilguud not found",
+      });
+    }
+
+    const targetBarilga = barilgiinId
+      ? baiguullaga.barilguud.find(
+          (b) => String(b._id) === String(barilgiinId)
+        )
+      : baiguullaga.barilguud[0];
+    if (!targetBarilga || !targetBarilga.tokhirgoo) {
+      return res.status(404).send({
+        success: false,
+        message: "Barilga or tokhirgoo not found",
+      });
+    }
+
+    const zardluud = targetBarilga.tokhirgoo.ashiglaltiinZardluud || [];
+    const ashiglaltiinZardal = zardluud.find(
+      (z) =>
+        z.turul === "кВт" ||
+        (z.turul && z.turul.trim().toLowerCase() === "квт") ||
+        z.zaalt === true
+    );
+    if (!ashiglaltiinZardal) {
+      return res.status(400).send({
+        success: false,
+        message: "Цахилгаан (кВт) ашиглалтын зардал олдсонгүй",
+      });
+    }
+
+    const umnukhZaaltNum = parseFloat(String(umnukhZaalt).replace(/,/g, "")) || 0;
+    const suuliinZaaltNum = parseFloat(String(suuliinZaalt).replace(/,/g, "")) || 0;
+    const guidliinKoeffNum = parseFloat(String(guidliinKoeff).replace(/,/g, "")) || 1;
+
+    const zoruuDun = suuliinZaaltNum - umnukhZaaltNum;
+    let tsakhilgaanDun = 0;
+    let tsakhilgaanKBTST = 0;
+    let chadalDun = 0;
+    let tsekhDun = 0;
+    let sekhDemjikhTulburDun = 0;
+    const tokhirgoo = baiguullaga.tokhirgoo || {};
+    const guidelBuchiltKhonogEsekh = tokhirgoo.guidelBuchiltKhonogEsekh === true;
+    const bichiltKhonog = tokhirgoo.bichiltKhonog || 0;
+    const sekhDemjikhTulburAvakhEsekh = tokhirgoo.sekhDemjikhTulburAvakhEsekh === true;
+
+    if (guidelBuchiltKhonogEsekh) {
+      tsakhilgaanKBTST =
+        zoruuDun *
+        (ashiglaltiinZardal.tsakhilgaanUrjver || 1) *
+        guidliinKoeffNum;
+      chadalDun =
+        bichiltKhonog > 0 && tsakhilgaanKBTST > 0
+          ? (tsakhilgaanKBTST / bichiltKhonog / 12) *
+            (String(baiguullagiinId) === "679aea9032299b7ba8462a77" ? 11520 : 15500)
+          : 0;
+      tsekhDun = (ashiglaltiinZardal.tariff || 0) * tsakhilgaanKBTST;
+      if (sekhDemjikhTulburAvakhEsekh) {
+        sekhDemjikhTulburDun =
+          zoruuDun * (ashiglaltiinZardal.tsakhilgaanUrjver || 1) * 23.79;
+        tsakhilgaanDun = chadalDun + tsekhDun + sekhDemjikhTulburDun;
+      } else {
+        tsakhilgaanDun = chadalDun + tsekhDun;
+      }
+    } else {
+      tsakhilgaanDun =
+        (ashiglaltiinZardal.tariff || 0) *
+        (ashiglaltiinZardal.tsakhilgaanUrjver || 1) *
+        (zoruuDun || 0);
+    }
+
+    const suuriKhuraamj = Number(ashiglaltiinZardal.suuriKhuraamj) || 0;
+    const niitDun = suuriKhuraamj + tsakhilgaanDun;
+
+    res.send({
+      success: true,
+      niitDun: Math.round(niitDun),
+      suuriKhuraamj,
+      tsakhilgaanKBTST,
+      chadalDun,
+      tsekhDun,
+      sekhDemjikhTulburDun,
+      zoruuDun,
+      tailbar: ashiglaltiinZardal.ner || "Цахилгаан",
     });
   } catch (err) {
     next(err);
