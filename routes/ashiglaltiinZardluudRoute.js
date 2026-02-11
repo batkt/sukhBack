@@ -158,13 +158,19 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     }
 
     const zardluud = targetBarilga.tokhirgoo.ashiglaltiinZardluud || [];
-    const ashiglaltiinZardal = zardluud.find(
-      (z) =>
-        z.turul === "кВт" ||
-        (z.turul && String(z.turul).trim().toLowerCase() === "квт") ||
-        z.zaalt === true ||
-        (z.ner && String(z.ner).toLowerCase().includes("цахилгаан"))
-    );
+    const isTsakhilgaan = (z) =>
+      z.zaalt === true ||
+      z.turul === "кВт" ||
+      (z.turul && String(z.turul).trim().toLowerCase() === "квт") ||
+      (z.ner && String(z.ner).toLowerCase().includes("цахилгаан"));
+    const candidates = zardluud.filter(isTsakhilgaan);
+    // Prefer zaalt:true; then prefer the one with suuriKhuraamj or tariff so we get a non-zero amount when applicable
+    const ashiglaltiinZardal = candidates.length === 0
+      ? null
+      : candidates.sort((a, b) => {
+          const score = (z) => (z.zaalt ? 1000 : 0) + (Number(z.suuriKhuraamj) || 0) + (Number(z.tariff) || 0) * 10;
+          return score(b) - score(a);
+        })[0];
     if (!ashiglaltiinZardal) {
       return res.status(400).send({
         success: false,
