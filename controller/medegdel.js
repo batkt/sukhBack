@@ -214,25 +214,25 @@ exports.medegdelKharsanEsekh = asyncHandler(async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     }
 
-    const result = await Medegdel(kholbolt).findByIdAndUpdate(
-      id,
-      { $set: { kharsanEsekh: true, updatedAt: new Date() } },
-      { new: true }
-    );
-
-    if (!result) {
+    const doc = await Medegdel(kholbolt).findById(id).lean();
+    if (!doc) {
       return res.status(404).json({ success: false, message: "Мэдэгдэл олдсонгүй" });
     }
 
-    // If this is a root (no parentId), mark all replies in the thread as seen so "seen" indicator shows
-    const rootId = result.parentId || result._id;
-    const rootIdStr = String(rootId);
-    if (!rootId || String(rootId) === String(result._id)) {
-      await Medegdel(kholbolt).updateMany(
-        { parentId: result._id },
-        { $set: { kharsanEsekh: true, updatedAt: new Date() } }
-      );
-    }
+    // Always resolve root so we mark the whole thread (root + all replies), whether id is root or reply
+    const rootId = doc.parentId ? String(doc.parentId) : String(doc._id);
+    const rootIdStr = rootId;
+
+    await Medegdel(kholbolt).updateOne(
+      { _id: rootId },
+      { $set: { kharsanEsekh: true, updatedAt: new Date() } }
+    );
+    await Medegdel(kholbolt).updateMany(
+      { parentId: rootId },
+      { $set: { kharsanEsekh: true, updatedAt: new Date() } }
+    );
+
+    const result = await Medegdel(kholbolt).findById(id).lean();
 
     // Real-time: notify all clients (other tabs, other admins) so list/thread show seen state
     try {
