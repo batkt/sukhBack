@@ -108,8 +108,8 @@ router.post("/ashiglaltiinZardluudNemekh", async (req, res, next) => {
 
 /**
  * POST /tsakhilgaanTootsool – calculate electricity (цахилгаан) amount from meter readings.
- * Same formula as gereeRoute zaaltOlnoorOruulya / turees: zoruu * urjver * guidliinKoeff, chadal, tsekh, sekhDemjikh.
- * Body: baiguullagiinId, barilgiinId (optional), umnukhZaalt, suuliinZaalt, guidliinKoeff.
+ * Formula: usageDun = zoruuDun * guidliinKoeff; niitDun = usageDun [+ suuriKhuraamj if includeSuuriKhuraamj].
+ * Body: baiguullagiinId, barilgiinId (optional), umnukhZaalt, suuliinZaalt, guidliinKoeff, includeSuuriKhuraamj (optional boolean).
  */
 router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
   try {
@@ -127,6 +127,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const guidliinKoeffRaw =
       req.body.guidliinKoeff ??
       req.body.guidliin_koeff;
+    const includeSuuriKhuraamj = req.body.includeSuuriKhuraamj === true || req.body.includeSuuriKhuraamj === "true";
 
     if (!baiguullagiinId) {
       return res.status(400).send({
@@ -192,55 +193,18 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         : parseFloat(String(guidliinKoeffRaw || "").replace(/,/g, "").trim()) || 1;
 
     const zoruuDun = suuliinZaaltNum - umnukhZaaltNum;
-    let tsakhilgaanDun = 0;
-    let tsakhilgaanKBTST = 0;
-    let chadalDun = 0;
-    let tsekhDun = 0;
-    let sekhDemjikhTulburDun = 0;
-    const tokhirgoo = baiguullaga.tokhirgoo || {};
-    const guidelBuchiltKhonogEsekh = tokhirgoo.guidelBuchiltKhonogEsekh === true;
-    const bichiltKhonog = tokhirgoo.bichiltKhonog || 0;
-    const sekhDemjikhTulburAvakhEsekh = tokhirgoo.sekhDemjikhTulburAvakhEsekh === true;
-
-    if (guidelBuchiltKhonogEsekh) {
-      tsakhilgaanKBTST =
-        zoruuDun *
-        (ashiglaltiinZardal.tsakhilgaanUrjver || 1) *
-        guidliinKoeffNum;
-      chadalDun =
-        bichiltKhonog > 0 && tsakhilgaanKBTST > 0
-          ? (tsakhilgaanKBTST / bichiltKhonog / 12) *
-            (String(baiguullagiinId) === "679aea9032299b7ba8462a77" ? 11520 : 15500)
-          : 0;
-      tsekhDun = (ashiglaltiinZardal.tariff || 0) * tsakhilgaanKBTST;
-      if (sekhDemjikhTulburAvakhEsekh) {
-        sekhDemjikhTulburDun =
-          zoruuDun * (ashiglaltiinZardal.tsakhilgaanUrjver || 1) * 23.79;
-        tsakhilgaanDun = chadalDun + tsekhDun + sekhDemjikhTulburDun;
-      } else {
-        tsakhilgaanDun = chadalDun + tsekhDun;
-      }
-    } else {
-      tsakhilgaanDun =
-        (ashiglaltiinZardal.tariff || 0) *
-        (ashiglaltiinZardal.tsakhilgaanUrjver || 1) *
-        (zoruuDun || 0);
-    }
-
+    const usageDun = zoruuDun * guidliinKoeffNum;
     const suuriKhuraamj = Number(ashiglaltiinZardal.suuriKhuraamj) || 0;
-    const niitDun = suuriKhuraamj + tsakhilgaanDun;
+    const niitDun = includeSuuriKhuraamj ? usageDun + suuriKhuraamj : usageDun;
 
     res.send({
       success: true,
       niitDun: Math.round(niitDun),
+      usageDun: Math.round(usageDun),
       suuriKhuraamj,
-      tsakhilgaanKBTST,
-      chadalDun,
-      tsekhDun,
-      sekhDemjikhTulburDun,
       zoruuDun,
       tailbar: ashiglaltiinZardal.ner || "Цахилгаан",
-      _received: { umnukhZaaltNum, suuliinZaaltNum, guidliinKoeffNum },
+      _received: { umnukhZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
     });
   } catch (err) {
     next(err);
