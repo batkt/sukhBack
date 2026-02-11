@@ -114,13 +114,19 @@ router.post("/ashiglaltiinZardluudNemekh", async (req, res, next) => {
 router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const {
-      baiguullagiinId,
-      barilgiinId,
-      umnukhZaalt,
-      suuliinZaalt,
-      guidliinKoeff,
-    } = req.body;
+    const baiguullagiinId = req.body.baiguullagiinId;
+    const barilgiinId = req.body.barilgiinId;
+    // Support both camelCase and snake_case; accept number or string
+    const umnukhZaaltRaw =
+      req.body.umnukhZaalt ??
+      req.body.umnukh_zaalt ??
+      req.body.omnohZaalt;
+    const suuliinZaaltRaw =
+      req.body.suuliinZaalt ??
+      req.body.suuliin_zaalt;
+    const guidliinKoeffRaw =
+      req.body.guidliinKoeff ??
+      req.body.guidliin_koeff;
 
     if (!baiguullagiinId) {
       return res.status(400).send({
@@ -155,8 +161,9 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const ashiglaltiinZardal = zardluud.find(
       (z) =>
         z.turul === "кВт" ||
-        (z.turul && z.turul.trim().toLowerCase() === "квт") ||
-        z.zaalt === true
+        (z.turul && String(z.turul).trim().toLowerCase() === "квт") ||
+        z.zaalt === true ||
+        (z.ner && String(z.ner).toLowerCase().includes("цахилгаан"))
     );
     if (!ashiglaltiinZardal) {
       return res.status(400).send({
@@ -165,9 +172,18 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    const umnukhZaaltNum = parseFloat(String(umnukhZaalt).replace(/,/g, "")) || 0;
-    const suuliinZaaltNum = parseFloat(String(suuliinZaalt).replace(/,/g, "")) || 0;
-    const guidliinKoeffNum = parseFloat(String(guidliinKoeff).replace(/,/g, "")) || 1;
+    const umnukhZaaltNum =
+      typeof umnukhZaaltRaw === "number"
+        ? umnukhZaaltRaw
+        : parseFloat(String(umnukhZaaltRaw || "").replace(/,/g, "").trim()) || 0;
+    const suuliinZaaltNum =
+      typeof suuliinZaaltRaw === "number"
+        ? suuliinZaaltRaw
+        : parseFloat(String(suuliinZaaltRaw || "").replace(/,/g, "").trim()) || 0;
+    const guidliinKoeffNum =
+      typeof guidliinKoeffRaw === "number"
+        ? guidliinKoeffRaw
+        : parseFloat(String(guidliinKoeffRaw || "").replace(/,/g, "").trim()) || 1;
 
     const zoruuDun = suuliinZaaltNum - umnukhZaaltNum;
     let tsakhilgaanDun = 0;
@@ -218,6 +234,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       sekhDemjikhTulburDun,
       zoruuDun,
       tailbar: ashiglaltiinZardal.ner || "Цахилгаан",
+      _received: { umnukhZaaltNum, suuliinZaaltNum, guidliinKoeffNum },
     });
   } catch (err) {
     next(err);
