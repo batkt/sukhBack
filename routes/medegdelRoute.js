@@ -58,7 +58,7 @@ const chatStorage = multer.diskStorage({
 // 20MB – nginx must have client_max_body_size 20M or uploads get 413 (see nginx.conf.example)
 const uploadChatFile = multer({ storage: chatStorage, limits: { fileSize: 20 * 1024 * 1024 } });
 
-router.route("/medegdelIlgeeye").post(tokenShalgakh, upload.single("zurag"), medegdelIlgeeye);
+router.route("/medegdelIlgeeye").post(tokenShalgakh, upload.array("zurag", 10), medegdelIlgeeye);
 router.post("/medegdel/uploadChatFile", tokenShalgakh, uploadChatFile.single("file"), medegdelUploadChatFile);
 
 router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {

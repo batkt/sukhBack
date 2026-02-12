@@ -502,9 +502,25 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       });
     }
 
-    const orshinSuugchIds = Array.isArray(orshinSuugchId)
-      ? orshinSuugchId
-      : [orshinSuugchId];
+    // FormData sends orshinSuugchId as JSON string "[id1,id2]"; parse it so each resident gets one medegdel and socket emit uses correct id
+    let orshinSuugchIds;
+    if (Array.isArray(orshinSuugchId)) {
+      orshinSuugchIds = orshinSuugchId;
+    } else if (typeof orshinSuugchId === "string" && orshinSuugchId.trim().startsWith("[")) {
+      try {
+        orshinSuugchIds = JSON.parse(orshinSuugchId);
+      } catch {
+        orshinSuugchIds = [orshinSuugchId];
+      }
+    } else {
+      orshinSuugchIds = [orshinSuugchId];
+    }
+    if (!Array.isArray(orshinSuugchIds) || orshinSuugchIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "orshinSuugchId must be a non-empty array",
+      });
+    }
 
     const medegdelList = [];
     const io = req.app.get("socketio");
@@ -520,9 +536,10 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
       medegdel.ognoo = new Date();
       if (turul) medegdel.turul = String(turul);
 
-      // Add image path if file was uploaded (store relative path for API: baiguullagiinId/filename)
-      if (req.file && req.file.filename) {
-        medegdel.zurag = `${baiguullagiinId}/${req.file.filename}`;
+      // Add image path(s): support single or multiple (comma-separated for multiple)
+      const files = req.files && req.files.length ? req.files : (req.file ? [req.file] : []);
+      if (files.length > 0) {
+        medegdel.zurag = files.map((f) => `${baiguullagiinId}/${f.filename}`).join(",");
       }
 
       await medegdel.save();
