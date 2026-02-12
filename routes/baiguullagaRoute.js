@@ -282,12 +282,14 @@ router.post("/baiguullagaBurtgekh", async (req, res, next) => {
         try {
           // Create separate database for the organization
           // Note: kholboltNemye should include authSource=admin in connection string
+          // Function signature: kholboltNemye(baiguullagiinId, baaziinNer, cloudMongoDBEsekh, clusterUrl, password, userName)
           await db.kholboltNemye(
             baiguullaga._id,
             req.body.baaziinNer,
-            "127.0.0.1:27017",
-            "admin",
-            "Br1stelback1",
+            true,              // cloudMongoDBEsekh - false for local MongoDB
+            "127.0.0.1:27017",  // clusterUrl
+            "Br1stelback1",     // password
+            "admin",            // userName
           );
           console.log(
             `✅ Database connection created for: ${req.body.baaziinNer}`,
