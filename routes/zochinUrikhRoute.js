@@ -778,7 +778,9 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
           zochinTurul: item.zochinTurul,
           zochinTailbar: item.zochinTailbar,
           ezenToot: item.ezenToot || "", 
-          davtamjiinTurul: item.davtamjiinTurul
+          davtamjiinTurul: item.davtamjiinTurul,
+          baiguullagiinId: item.baiguullagiinId || null,
+          barilgiinId: item.barilgiinId || null
         };
     });
 
