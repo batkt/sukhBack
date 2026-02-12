@@ -11,6 +11,7 @@ const ustgakhTuukhSchema = new Schema(
     
     // Document data before deletion (snapshot)
     deletedData: Schema.Types.Mixed, // Full document snapshot before deletion
+    documentCreatedAt: Date, // Original creation date of the deleted document
     
     // Who deleted it
     ajiltniiId: String, // Employee ID who deleted

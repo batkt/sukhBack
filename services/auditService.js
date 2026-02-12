@@ -241,11 +241,20 @@ async function logDelete(
     const docBaiguullagiinId = deletedDoc?.baiguullagiinId || additionalContext.baiguullagiinId || ajiltan.baiguullagiinId;
     const docBarilgiinId = deletedDoc?.barilgiinId || additionalContext.barilgiinId;
 
+    // Extract the original creation date from the deleted document
+    // Try createdAt first (Mongoose timestamps), then createdDate, then any date field
+    const documentCreatedAt = deletedDoc?.createdAt || 
+                              deletedDoc?.createdDate || 
+                              deletedDoc?.ekhlekhOgnoo || 
+                              deletedDoc?.ognoo ||
+                              null;
+
     const ustgakhTuukh = new UstgakhTuukh(db.erunkhiiKholbolt)({
       modelName: modelName,
       documentId: documentId?.toString(),
       collectionName: modelName,
       deletedData: deletedDoc,
+      documentCreatedAt: documentCreatedAt,
       ajiltniiId: ajiltan.id,
       ajiltniiNer: ajiltan.ner,
       ajiltniiNevtrekhNer: ajiltan.nevtrekhNer,
