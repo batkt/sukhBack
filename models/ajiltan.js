@@ -125,6 +125,79 @@ ajiltanSchema.pre("updateOne", async function () {
     const salt = await bcrypt.genSalt(12);
     this._update.nuutsUg = await bcrypt.hash(this._update.nuutsUg, salt);
   }
+  
+  // Store old document for audit logging
+  if (!this._oldDoc) {
+    try {
+      this._oldDoc = await this.model.findOne(this.getQuery()).lean();
+    } catch (err) {
+      // Ignore errors
+    }
+  }
+});
+
+// Pre-update hook to capture old document
+ajiltanSchema.pre("findOneAndUpdate", async function () {
+  if (!this._oldDoc) {
+    try {
+      this._oldDoc = await this.model.findOne(this.getQuery()).lean();
+    } catch (err) {
+      // Ignore errors
+    }
+  }
+});
+
+// Post-update hook for audit logging
+ajiltanSchema.post("findOneAndUpdate", async function (doc) {
+  if (doc && this._oldDoc) {
+    try {
+      const { logEdit } = require("../services/auditService");
+      const { getCurrentRequest } = require("../middleware/requestContext");
+      const { db } = require("zevbackv2");
+      
+      const req = getCurrentRequest();
+      if (req) {
+        await logEdit(
+          req,
+          db,
+          "ajiltan",
+          doc._id.toString(),
+          this._oldDoc,
+          doc.toObject ? doc.toObject() : doc,
+          { barilgiinId: doc.barilgiinId }
+        );
+      }
+    } catch (err) {
+      console.error("❌ [AUDIT] Error logging ajiltan edit:", err.message);
+    }
+  }
+});
+
+// Post-delete hook for audit logging
+ajiltanSchema.post("findOneAndDelete", async function (doc) {
+  if (doc) {
+    try {
+      const { logDelete } = require("../services/auditService");
+      const { getCurrentRequest } = require("../middleware/requestContext");
+      const { db } = require("zevbackv2");
+      
+      const req = getCurrentRequest();
+      if (req) {
+        await logDelete(
+          req,
+          db,
+          "ajiltan",
+          doc._id.toString(),
+          doc.toObject ? doc.toObject() : doc,
+          "hard",
+          null,
+          { barilgiinId: doc.barilgiinId }
+        );
+      }
+    } catch (err) {
+      console.error("❌ [AUDIT] Error logging ajiltan delete:", err.message);
+    }
+  }
 });
 
 ajiltanSchema.methods.passwordShalgaya = async function (pass) {

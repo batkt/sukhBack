@@ -38,10 +38,12 @@ const zogsoolRoute = require("./routes/zogsoolRoute");
 const parkingRoute = require("./routes/parkingRoute");
 const uneguiMashinRoute = require("./routes/uneguiMashinRoute");
 const zochinUrikhRoute = require("./routes/zochinUrikhRoute");
+const auditRoute = require("./routes/auditRoute");
 
 const { db } = require("zevbackv2");
 
 const aldaaBarigch = require("./middleware/aldaaBarigch");
+const { requestContextMiddleware } = require("./middleware/requestContext");
 const nekhemjlekhiinZagvar = require("./models/nekhemjlekhiinZagvar");
 const nekhemjlekhController = require("./controller/nekhemjlekhController");
 const NekhemjlekhCron = require("./models/cronSchedule");
@@ -76,6 +78,9 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// Request context middleware for audit logging
+app.use(requestContextMiddleware);
 
 // Serve medegdel images – both /medegdel/... and /api/medegdel/... (nginx may pass /api prefix)
 const { getMedegdelRoots, getMedegdelPublicRoot } = require("./config/medegdelPaths");
@@ -149,6 +154,7 @@ app.use(zogsoolRoute);
 app.use(parkingRoute);
 app.use(uneguiMashinRoute);
 app.use(zochinUrikhRoute);
+app.use("/api/audit", auditRoute);
 
 app.use(aldaaBarigch);
 
