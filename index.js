@@ -154,7 +154,7 @@ app.use(zogsoolRoute);
 app.use(parkingRoute);
 app.use(uneguiMashinRoute);
 app.use(zochinUrikhRoute);
-app.use("audit", auditRoute);
+app.use("/api/audit", auditRoute);
 
 app.use(aldaaBarigch);
 
