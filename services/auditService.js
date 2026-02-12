@@ -4,38 +4,78 @@ const UstgakhTuukh = require("../models/ustgakhTuukh");
 
 /**
  * Get employee info from request token
+ * Also handles orshinSuugch tokens
  */
 async function getAjiltanFromRequest(req, db) {
   try {
-    if (!req.headers.authorization) {
-      return null;
+    // First try to get from request body (set by tokenShalgakh middleware)
+    if (req.body?.nevtersenAjiltniiToken) {
+      const token = req.body.nevtersenAjiltniiToken;
+      return {
+        id: token.id?.toString(),
+        ner: token.ner,
+        nevtrekhNer: token.nevtrekhNer,
+        baiguullagiinId: token.baiguullagiinId,
+      };
     }
 
-    const token = req.headers.authorization.replace("Bearer ", "");
-    if (!token) {
-      return null;
+    // Try orshinSuugch token
+    if (req.body?.nevtersenOrshinSuugchiinToken) {
+      const token = req.body.nevtersenOrshinSuugchiinToken;
+      return {
+        id: token.id?.toString(),
+        ner: token.ner,
+        nevtrekhNer: token.nevtrekhNer || token.utas,
+        baiguullagiinId: token.baiguullagiinId,
+      };
     }
 
-    const jwt = require("jsonwebtoken");
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret");
+    // Fallback to authorization header
+    if (req.headers.authorization) {
+      const token = req.headers.authorization.replace("Bearer ", "");
+      if (!token) {
+        return null;
+      }
 
-    if (decoded && decoded.id) {
-      const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
-        .findById(decoded.id)
-        .select("_id ner nevtrekhNer baiguullagiinId")
-        .lean();
+      const jwt = require("jsonwebtoken");
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.APP_SECRET || "secret");
 
-      if (ajiltan) {
-        return {
-          id: ajiltan._id.toString(),
-          ner: ajiltan.ner,
-          nevtrekhNer: ajiltan.nevtrekhNer,
-          baiguullagiinId: ajiltan.baiguullagiinId,
-        };
+      if (decoded && decoded.id) {
+        // Try ajiltan first
+        const ajiltan = await Ajiltan(db.erunkhiiKholbolt)
+          .findById(decoded.id)
+          .select("_id ner nevtrekhNer baiguullagiinId")
+          .lean();
+
+        if (ajiltan) {
+          return {
+            id: ajiltan._id.toString(),
+            ner: ajiltan.ner,
+            nevtrekhNer: ajiltan.nevtrekhNer,
+            baiguullagiinId: ajiltan.baiguullagiinId,
+          };
+        }
+
+        // If not ajiltan, try orshinSuugch
+        const OrshinSuugch = require("../models/orshinSuugch");
+        const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+          .findById(decoded.id)
+          .select("_id ner utas baiguullagiinId")
+          .lean();
+
+        if (orshinSuugch) {
+          return {
+            id: orshinSuugch._id.toString(),
+            ner: orshinSuugch.ner,
+            nevtrekhNer: orshinSuugch.utas,
+            baiguullagiinId: orshinSuugch.baiguullagiinId,
+          };
+        }
       }
     }
   } catch (err) {
     // Token invalid or expired - that's okay, just return null
+    console.warn("⚠️ [AUDIT] Error getting user from request:", err.message);
   }
 
   return null;
@@ -103,14 +143,18 @@ async function logEdit(req, db, modelName, documentId, oldDoc, newDoc, additiona
     const ajiltan = await getAjiltanFromRequest(req, db);
     if (!ajiltan) {
       // No user logged in - skip logging
+      console.warn(`⚠️ [AUDIT] No ajiltan found for ${modelName}:${documentId} - skipping audit log`);
       return;
     }
 
     const changes = getChanges(oldDoc, newDoc);
     if (changes.length === 0) {
       // No actual changes - skip logging
+      console.log(`ℹ️ [AUDIT] No changes detected for ${modelName}:${documentId} - skipping audit log`);
       return;
     }
+
+    console.log(`✅ [AUDIT] Logging ${changes.length} changes for ${modelName}:${documentId} by ${ajiltan.nevtrekhNer}`);
 
     // Get organization info if available
     let baiguullagiinRegister = null;
@@ -170,8 +214,11 @@ async function logDelete(
     const ajiltan = await getAjiltanFromRequest(req, db);
     if (!ajiltan) {
       // No user logged in - skip logging
+      console.warn(`⚠️ [AUDIT] No user found for ${modelName}:${documentId} delete - skipping audit log`);
       return;
     }
+
+    console.log(`✅ [AUDIT] Logging delete for ${modelName}:${documentId} by ${ajiltan.nevtrekhNer}`);
 
     // Get organization info if available
     let baiguullagiinRegister = null;

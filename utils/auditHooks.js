@@ -12,6 +12,27 @@ const { getCurrentRequest } = require("../middleware/requestContext");
  * @param {String} modelName - Name of the model (e.g., "ajiltan", "geree")
  */
 function addAuditHooks(schema, modelName) {
+  // Pre-save hook to capture old document before save()
+  schema.pre("save", async function () {
+    if (this.isNew) {
+      // New document - nothing to track
+      return;
+    }
+    if (!this._oldDoc && this._id) {
+      try {
+        // Get the original document from database
+        // Use the model from the connection, not this.constructor
+        const Model = this.constructor;
+        this._oldDoc = await Model.findById(this._id).lean();
+        if (!this._oldDoc) {
+          console.warn(`⚠️ [AUDIT] Could not find old document for ${modelName}:${this._id}`);
+        }
+      } catch (err) {
+        console.error(`❌ [AUDIT] Error getting old doc for ${modelName}:${this._id}`, err.message);
+      }
+    }
+  });
+
   // Pre-update hook to capture old document
   schema.pre("findOneAndUpdate", async function () {
     if (!this._oldDoc) {
@@ -30,6 +51,49 @@ function addAuditHooks(schema, modelName) {
       } catch (err) {
         // Ignore errors
       }
+    }
+  });
+
+  // Post-save hook for audit logging
+  schema.post("save", async function (doc) {
+    if (this.isNew) {
+      // New document - nothing to track
+      return;
+    }
+    if (this._oldDoc) {
+      try {
+        const { db } = require("zevbackv2");
+        const req = getCurrentRequest();
+        
+        if (!req) {
+          console.warn(`⚠️ [AUDIT] No request context for ${modelName} save on ${doc._id} - skipping audit log`);
+          return;
+        }
+        
+        const oldDoc = this._oldDoc;
+        const newDoc = doc.toObject ? doc.toObject() : doc;
+        
+        // Extract context from document
+        const additionalContext = {
+          baiguullagiinId: doc.baiguullagiinId || null,
+          barilgiinId: doc.barilgiinId || null,
+        };
+        
+        console.log(`📝 [AUDIT] Logging ${modelName} save for document ${doc._id}`);
+        await logEdit(
+          req,
+          db,
+          modelName,
+          doc._id.toString(),
+          oldDoc,
+          newDoc,
+          additionalContext
+        );
+      } catch (err) {
+        console.error(`❌ [AUDIT] Error logging ${modelName} save:`, err.message, err.stack);
+      }
+    } else {
+      console.warn(`⚠️ [AUDIT] No old document captured for ${modelName} save on ${doc._id} - skipping audit log`);
     }
   });
 
@@ -98,35 +162,53 @@ function addAuditHooks(schema, modelName) {
     }
   });
 
+  // Pre-delete hook to capture document before deletion
+  schema.pre("findOneAndDelete", async function () {
+    if (!this._docToDelete) {
+      try {
+        this._docToDelete = await this.model.findOne(this.getQuery()).lean();
+      } catch (err) {
+        console.error(`❌ [AUDIT] Error getting doc to delete for ${modelName}:`, err.message);
+      }
+    }
+  });
+
   // Post-delete hook for audit logging
   schema.post("findOneAndDelete", async function (doc) {
-    if (doc) {
+    // Use the document from pre-hook if available, otherwise use the returned doc
+    const deletedDoc = this._docToDelete || (doc ? (doc.toObject ? doc.toObject() : doc) : null);
+    
+    if (deletedDoc) {
       try {
         const { db } = require("zevbackv2");
         const req = getCurrentRequest();
         
-        if (req) {
-          const deletedDoc = doc.toObject ? doc.toObject() : doc;
-          
-          const additionalContext = {
-            baiguullagiinId: doc.baiguullagiinId || null,
-            barilgiinId: doc.barilgiinId || null,
-          };
-          
-          await logDelete(
-            req,
-            db,
-            modelName,
-            doc._id.toString(),
-            deletedDoc,
-            "hard",
-            null,
-            additionalContext
-          );
+        if (!req) {
+          console.warn(`⚠️ [AUDIT] No request context for ${modelName} delete on ${deletedDoc._id} - skipping audit log`);
+          return;
         }
+        
+        const additionalContext = {
+          baiguullagiinId: deletedDoc.baiguullagiinId || null,
+          barilgiinId: deletedDoc.barilgiinId || null,
+        };
+        
+        console.log(`🗑️ [AUDIT] Logging ${modelName} delete for document ${deletedDoc._id}`);
+        await logDelete(
+          req,
+          db,
+          modelName,
+          deletedDoc._id.toString(),
+          deletedDoc,
+          "hard",
+          "Deleted via findOneAndDelete",
+          additionalContext
+        );
       } catch (err) {
-        console.error(`❌ [AUDIT] Error logging ${modelName} delete:`, err.message);
+        console.error(`❌ [AUDIT] Error logging ${modelName} delete:`, err.message, err.stack);
       }
+    } else {
+      console.warn(`⚠️ [AUDIT] No document found for ${modelName} delete - skipping audit log`);
     }
   });
 
@@ -168,6 +250,76 @@ function addAuditHooks(schema, modelName) {
  * This tracks nested tokhirgoo object changes in models like baiguullaga, geree, etc.
  */
 function addTokhirgooAuditHook(schema, modelName) {
+  // Track tokhirgoo changes on save()
+  schema.post("save", async function (doc) {
+    if (this.isNew || !this._oldDoc) {
+      return;
+    }
+    try {
+      const oldTokhirgoo = this._oldDoc.tokhirgoo || {};
+      const newTokhirgoo = doc.tokhirgoo || {};
+      
+      // Check if tokhirgoo changed
+      if (JSON.stringify(oldTokhirgoo) !== JSON.stringify(newTokhirgoo)) {
+        const { db } = require("zevbackv2");
+        const req = getCurrentRequest();
+        
+        if (req) {
+          const { logEdit } = require("../services/auditService");
+          
+          // Create a focused change log for tokhirgoo
+          const changes = [];
+          const allKeys = new Set([
+            ...Object.keys(oldTokhirgoo),
+            ...Object.keys(newTokhirgoo),
+          ]);
+          
+          for (const key of allKeys) {
+            const oldValue = oldTokhirgoo[key];
+            const newValue = newTokhirgoo[key];
+            
+            if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+              changes.push({
+                field: `tokhirgoo.${key}`,
+                oldValue: oldValue,
+                newValue: newValue,
+              });
+            }
+          }
+          
+          if (changes.length > 0) {
+            const oldDoc = { tokhirgoo: oldTokhirgoo };
+            const newDoc = { tokhirgoo: newTokhirgoo };
+            
+            console.log(`✅ [AUDIT] Logging tokhirgoo change for ${modelName}:${doc._id}`, {
+              changesCount: changes.length,
+              changedFields: changes.map(c => c.field)
+            });
+            
+            await logEdit(
+              req,
+              db,
+              modelName,
+              doc._id.toString(),
+              oldDoc,
+              newDoc,
+              {
+                baiguullagiinId: doc.baiguullagiinId || null,
+                barilgiinId: doc.barilgiinId || null,
+                isTokhirgooChange: true, // Flag to indicate this is a settings change
+              }
+            );
+          }
+        } else {
+          console.warn(`⚠️ [AUDIT] No request context for ${modelName} tokhirgoo change on ${doc._id}`);
+        }
+      }
+    } catch (err) {
+      console.error(`❌ [AUDIT] Error logging ${modelName} tokhirgoo change:`, err.message);
+    }
+  });
+
+  // Track tokhirgoo changes on findOneAndUpdate
   schema.post("findOneAndUpdate", async function (doc) {
     if (doc && this._oldDoc) {
       try {
@@ -206,6 +358,11 @@ function addTokhirgooAuditHook(schema, modelName) {
               const oldDoc = { tokhirgoo: oldTokhirgoo };
               const newDoc = { tokhirgoo: newTokhirgoo };
               
+              console.log(`✅ [AUDIT] Logging tokhirgoo change for ${modelName}:${doc._id}`, {
+                changesCount: changes.length,
+                changedFields: changes.map(c => c.field)
+              });
+              
               await logEdit(
                 req,
                 db,
@@ -220,6 +377,8 @@ function addTokhirgooAuditHook(schema, modelName) {
                 }
               );
             }
+          } else {
+            console.warn(`⚠️ [AUDIT] No request context for ${modelName} tokhirgoo change on ${doc._id}`);
           }
         }
       } catch (err) {
