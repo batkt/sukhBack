@@ -155,7 +155,6 @@ app.use(parkingRoute);
 app.use(uneguiMashinRoute);
 app.use(zochinUrikhRoute);
 app.use("/audit", auditRoute);
-app.use("/api/audit", auditRoute); // Also register with /api prefix for compatibility
 
 app.use(aldaaBarigch);
 
