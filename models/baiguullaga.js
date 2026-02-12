@@ -581,6 +581,11 @@ baiguullagaSchema.post("updateOne", async function () {
   }
 });
 
+// Add audit hooks for tracking changes (including tokhirgoo) - after all hooks
+const { addAuditHooks, addTokhirgooAuditHook } = require("../utils/auditHooks");
+addAuditHooks(baiguullagaSchema, "baiguullaga");
+addTokhirgooAuditHook(baiguullagaSchema, "baiguullaga");
+
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");

@@ -51,6 +51,10 @@ const mashinSchema = new Schema(
   }
 );
 
+// Add audit hooks for tracking changes
+const { addAuditHooks } = require("../utils/auditHooks");
+addAuditHooks(mashinSchema, "mashin");
+
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");

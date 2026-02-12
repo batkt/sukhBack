@@ -67,6 +67,10 @@ const bankniiGuilgeeSchema = new Schema(
   }
 );
 
+// Add audit hooks for tracking changes
+const { addAuditHooks } = require("../utils/auditHooks");
+addAuditHooks(bankniiGuilgeeSchema, "bankniiGuilgee");
+
 module.exports = function a(conn, historical = false) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");

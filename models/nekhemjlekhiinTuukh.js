@@ -75,6 +75,10 @@ nekhemjlekhiinTuukhSchema.virtual("canPay").get(function () {
   return this.tuluv !== "Төлсөн";
 });
 
+// Add audit hooks for tracking changes
+const { addAuditHooks } = require("../utils/auditHooks");
+addAuditHooks(nekhemjlekhiinTuukhSchema, "nekhemjlekhiinTuukh");
+
 nekhemjlekhiinTuukhSchema.methods.checkOverdue = function () {
   const today = new Date();
   if (this.tulukhOgnoo && today > this.tulukhOgnoo && this.tuluv !== "Төлсөн") {

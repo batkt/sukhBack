@@ -66,6 +66,10 @@ ebarimtSchema.pre("updateOne", async function () {
   this._update.dateOgnoo = new Date(this._update.date);
 });
 
+// Add audit hooks for tracking changes
+const { addAuditHooks } = require("../utils/auditHooks");
+addAuditHooks(ebarimtSchema, "ebarimt");
+
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");

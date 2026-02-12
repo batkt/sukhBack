@@ -23,6 +23,10 @@ const zogsoolSchema = new Schema(
   }
 );
 
+// Add audit hooks for tracking changes
+const { addAuditHooks } = require("../utils/auditHooks");
+addAuditHooks(zogsoolSchema, "zogsool");
+
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");

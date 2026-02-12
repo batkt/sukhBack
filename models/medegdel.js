@@ -36,6 +36,10 @@ const medegdelSchema = new Schema(
   }
 );
 
+// Add audit hooks for tracking changes
+const { addAuditHooks } = require("../utils/auditHooks");
+addAuditHooks(medegdelSchema, "medegdel");
+
 module.exports = function (conn) {
   if (!conn || !conn.kholbolt)
     throw new Error("Холболтын мэдээлэл заавал бөглөх шаардлагатай!");

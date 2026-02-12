@@ -180,6 +180,10 @@ async function handleZardluudUpdate(doc) {
   }
 }
 
+// Add audit hooks for tracking changes
+const { addAuditHooks } = require("../utils/auditHooks");
+addAuditHooks(ashiglaltiinZardluudSchema, "ashiglaltiinZardluud");
+
 ashiglaltiinZardluudSchema.post(
   ["findOneAndDelete", "deleteOne"],
   async function (doc) {

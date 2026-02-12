@@ -258,6 +258,11 @@ gereeSchema.post("updateOne", async function () {
   }
 });
 
+// Add audit hooks for tracking changes (including tokhirgoo) - after schema definition
+const { addAuditHooks, addTokhirgooAuditHook } = require("../utils/auditHooks");
+addAuditHooks(gereeSchema, "geree");
+addTokhirgooAuditHook(gereeSchema, "geree");
+
 async function handleGuilgeeForNekhemjlekh(doc, GereeModel) {
   try {
     if (!doc || !doc.avlaga || !doc.avlaga.guilgeenuud) {

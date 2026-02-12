@@ -482,6 +482,11 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
     delete req.body.erunkhiiKholbolt;
     delete req.body.tukhainBaaziinKholbolt;
 
+    // Get old document before update for audit logging
+    const oldDoc = await OrshinSuugch(db.erunkhiiKholbolt)
+      .findById(req.params.id)
+      .lean();
+
     // Prevent duplicate toot when updating: check if new toot+barilgiinId is already taken by another resident
     const updateToot = req.body.toot ? String(req.body.toot).trim() : null;
     const updateDavkhar = req.body.davkhar ? String(req.body.davkhar).trim() : null;
@@ -609,6 +614,29 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
             }
           }
         }
+      }
+    }
+    
+    // Log edit to audit after successful update
+    if (result && oldDoc) {
+      try {
+        const { logEdit } = require("../services/auditService");
+        const newDoc = result.toObject ? result.toObject() : result;
+        await logEdit(
+          req,
+          db,
+          "orshinSuugch",
+          req.params.id,
+          oldDoc,
+          newDoc,
+          {
+            baiguullagiinId: result.baiguullagiinId,
+            barilgiinId: result.barilgiinId || null,
+          }
+        );
+      } catch (auditErr) {
+        console.error("❌ [AUDIT] Error logging orshinSuugch edit:", auditErr.message);
+        // Don't block response if audit logging fails
       }
     }
     

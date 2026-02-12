@@ -4753,6 +4753,28 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
     // Don't delete nevtreltiinTuukh - keep login history
     // Don't delete ebarimt - keep all receipts
 
+    // Log deletion to audit before actually deleting
+    try {
+      const { logDelete } = require("../services/auditService");
+      const deletedDoc = orshinSuugch.toObject ? orshinSuugch.toObject() : orshinSuugch;
+      await logDelete(
+        req,
+        db,
+        "orshinSuugch",
+        userId.toString(),
+        deletedDoc,
+        "hard",
+        "Self-delete by user",
+        {
+          baiguullagiinId: orshinSuugch.baiguullagiinId,
+          barilgiinId: null,
+        }
+      );
+    } catch (auditErr) {
+      console.error("❌ [AUDIT] Error logging orshinSuugch delete:", auditErr.message);
+      // Don't block deletion if audit logging fails
+    }
+
     // Actually delete the orshinSuugch user account
     // The gerees are marked as "Цуцалсан" and can be restored when they register again with the same utas
     await OrshinSuugchModel.findByIdAndDelete(userId);
@@ -4822,6 +4844,28 @@ exports.orshinSuugchUstgakh = asyncHandler(async (req, res, next) => {
     // Don't delete nekhemjlekhiinTuukh - keep all invoice history
     // Don't delete nevtreltiinTuukh - keep login history
     // Don't delete ebarimt - keep all receipts
+
+    // Log deletion to audit before actually deleting
+    try {
+      const { logDelete } = require("../services/auditService");
+      const deletedDoc = orshinSuugch.toObject ? orshinSuugch.toObject() : orshinSuugch;
+      await logDelete(
+        req,
+        db,
+        "orshinSuugch",
+        userId.toString(),
+        deletedDoc,
+        "hard",
+        "Admin delete",
+        {
+          baiguullagiinId: orshinSuugch.baiguullagiinId,
+          barilgiinId: null,
+        }
+      );
+    } catch (auditErr) {
+      console.error("❌ [AUDIT] Error logging orshinSuugch delete:", auditErr.message);
+      // Don't block deletion if audit logging fails
+    }
 
     // Actually delete the orshinSuugch user account
     // The gerees are marked as "Цуцалсан" and can be restored when they register again with the same utas
