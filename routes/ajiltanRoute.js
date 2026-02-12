@@ -38,7 +38,6 @@ crudWithFile(
       
       // Log albanTushaal if present in request body
       if (req.body?.albanTushaal !== undefined) {
-        console.log(`📝 [AJILTAN] albanTushaal received:`, req.body.albanTushaal);
       }
       
       if (req.params.id) {
