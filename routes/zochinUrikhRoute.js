@@ -752,8 +752,6 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
        ];
     }
 
-    console.log(`🔍 [ZOCHIN_JAGSAALT] Fetching for baiguullagiinId: ${baiguullagiinId}, Search: ${req.query.search || 'None'}`);
-    
     // Execute query with pagination
     const data = await Mashin(tukhainBaaziinKholbolt)
       .find(matchQuery)
@@ -763,8 +761,6 @@ router.get("/zochinJagsaalt", tokenShalgakh, async (req, res, next) => {
       .lean();
 
     const total = await Mashin(tukhainBaaziinKholbolt).countDocuments(matchQuery);
-    
-    console.log(`🔍 [ZOCHIN_JAGSAALT] Found ${total} total matching records.`);
 
     // Reshape data for table
     const formattedData = data.map(item => {
