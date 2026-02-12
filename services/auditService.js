@@ -142,21 +142,24 @@ async function logEdit(req, db, modelName, documentId, oldDoc, newDoc, additiona
   try {
     const ajiltan = await getAjiltanFromRequest(req, db);
     if (!ajiltan) {
-      // No user logged in - skip logging
-      console.warn(`⚠️ [AUDIT] No ajiltan found for ${modelName}:${documentId} - skipping audit log`);
+      // No user logged in - skip logging silently
       return;
     }
 
     const changes = getChanges(oldDoc, newDoc);
     if (changes.length === 0) {
-      // No actual changes - skip logging
-      console.log(`ℹ️ [AUDIT] No changes detected for ${modelName}:${documentId} - skipping audit log`);
+      // No actual changes - skip logging silently
       return;
     }
 
-    console.log(`✅ [AUDIT] Logging ${changes.length} changes for ${modelName}:${documentId} by ${ajiltan.nevtrekhNer}`);
+    const documentCreatedAt = oldDoc?.createdAt || 
+                              oldDoc?.createdDate || 
+                              oldDoc?.ekhlekhOgnoo || 
+                              oldDoc?.ognoo ||
+                              newDoc?.createdAt ||
+                              newDoc?.createdDate ||
+                              null;
 
-    // Get organization info if available
     let baiguullagiinRegister = null;
     if (ajiltan.baiguullagiinId) {
       try {
@@ -181,6 +184,7 @@ async function logEdit(req, db, modelName, documentId, oldDoc, newDoc, additiona
       ajiltniiNer: ajiltan.ner,
       ajiltniiNevtrekhNer: ajiltan.nevtrekhNer,
       changes: changes,
+      documentCreatedAt: documentCreatedAt,
       baiguullagiinId: ajiltan.baiguullagiinId,
       baiguullagiinRegister: baiguullagiinRegister,
       barilgiinId: additionalContext.barilgiinId || null,
@@ -213,12 +217,9 @@ async function logDelete(
   try {
     const ajiltan = await getAjiltanFromRequest(req, db);
     if (!ajiltan) {
-      // No user logged in - skip logging
-      console.warn(`⚠️ [AUDIT] No user found for ${modelName}:${documentId} delete - skipping audit log`);
+      // No user logged in - skip logging silently
       return;
     }
-
-    console.log(`✅ [AUDIT] Logging delete for ${modelName}:${documentId} by ${ajiltan.nevtrekhNer}`);
 
     // Get organization info if available
     let baiguullagiinRegister = null;

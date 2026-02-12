@@ -66,7 +66,7 @@ function addAuditHooks(schema, modelName) {
         const req = getCurrentRequest();
         
         if (!req) {
-          console.warn(`⚠️ [AUDIT] No request context for ${modelName} save on ${doc._id} - skipping audit log`);
+          // Silently skip if no request context
           return;
         }
         
@@ -79,7 +79,6 @@ function addAuditHooks(schema, modelName) {
           barilgiinId: doc.barilgiinId || null,
         };
         
-        console.log(`📝 [AUDIT] Logging ${modelName} save for document ${doc._id}`);
         await logEdit(
           req,
           db,
@@ -90,10 +89,8 @@ function addAuditHooks(schema, modelName) {
           additionalContext
         );
       } catch (err) {
-        console.error(`❌ [AUDIT] Error logging ${modelName} save:`, err.message, err.stack);
+        console.error(`❌ [AUDIT] Error logging ${modelName} save:`, err.message);
       }
-    } else {
-      console.warn(`⚠️ [AUDIT] No old document captured for ${modelName} save on ${doc._id} - skipping audit log`);
     }
   });
 
@@ -184,7 +181,7 @@ function addAuditHooks(schema, modelName) {
         const req = getCurrentRequest();
         
         if (!req) {
-          console.warn(`⚠️ [AUDIT] No request context for ${modelName} delete on ${deletedDoc._id} - skipping audit log`);
+          // Silently skip if no request context
           return;
         }
         
@@ -193,7 +190,6 @@ function addAuditHooks(schema, modelName) {
           barilgiinId: deletedDoc.barilgiinId || null,
         };
         
-        console.log(`🗑️ [AUDIT] Logging ${modelName} delete for document ${deletedDoc._id}`);
         await logDelete(
           req,
           db,
@@ -205,10 +201,8 @@ function addAuditHooks(schema, modelName) {
           additionalContext
         );
       } catch (err) {
-        console.error(`❌ [AUDIT] Error logging ${modelName} delete:`, err.message, err.stack);
+        console.error(`❌ [AUDIT] Error logging ${modelName} delete:`, err.message);
       }
-    } else {
-      console.warn(`⚠️ [AUDIT] No document found for ${modelName} delete - skipping audit log`);
     }
   });
 
@@ -291,11 +285,6 @@ function addTokhirgooAuditHook(schema, modelName) {
             const oldDoc = { tokhirgoo: oldTokhirgoo };
             const newDoc = { tokhirgoo: newTokhirgoo };
             
-            console.log(`✅ [AUDIT] Logging tokhirgoo change for ${modelName}:${doc._id}`, {
-              changesCount: changes.length,
-              changedFields: changes.map(c => c.field)
-            });
-            
             await logEdit(
               req,
               db,
@@ -310,8 +299,6 @@ function addTokhirgooAuditHook(schema, modelName) {
               }
             );
           }
-        } else {
-          console.warn(`⚠️ [AUDIT] No request context for ${modelName} tokhirgoo change on ${doc._id}`);
         }
       }
     } catch (err) {
@@ -358,11 +345,6 @@ function addTokhirgooAuditHook(schema, modelName) {
               const oldDoc = { tokhirgoo: oldTokhirgoo };
               const newDoc = { tokhirgoo: newTokhirgoo };
               
-              console.log(`✅ [AUDIT] Logging tokhirgoo change for ${modelName}:${doc._id}`, {
-                changesCount: changes.length,
-                changedFields: changes.map(c => c.field)
-              });
-              
               await logEdit(
                 req,
                 db,
@@ -377,8 +359,6 @@ function addTokhirgooAuditHook(schema, modelName) {
                 }
               );
             }
-          } else {
-            console.warn(`⚠️ [AUDIT] No request context for ${modelName} tokhirgoo change on ${doc._id}`);
           }
         }
       } catch (err) {

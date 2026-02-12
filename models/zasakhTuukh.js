@@ -23,6 +23,9 @@ const zasakhTuukhSchema = new Schema(
       },
     ],
     
+    // Original document creation date
+    documentCreatedAt: Date, // Original creation date of the document being edited
+    
     // Context
     baiguullagiinId: String, // Organization ID
     baiguullagiinRegister: String, // Organization register
