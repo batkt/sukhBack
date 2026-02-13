@@ -65,8 +65,6 @@ function getDistrictNameFromAbbreviation(abbreviation) {
  * @returns {Promise<Array>} Combined cities with source indicators
  */
 async function getCities() {
-  console.log("🏙️ [ADDRESS SERVICE] Fetching cities from Wallet API...");
-  
   try {
     const walletCities = await walletApiService.getAddressCities();
     
@@ -82,7 +80,6 @@ async function getCities() {
         // Add source indicator
         source: SOURCE_WALLET_API
       }));
-      console.log(`✅ [ADDRESS SERVICE] Found ${walletCities.length} cities from Wallet API`);
       
       return {
         data: cities,
@@ -93,7 +90,6 @@ async function getCities() {
         }
       };
     } else {
-      console.log("⚠️ [ADDRESS SERVICE] No cities from Wallet API");
       return {
         data: [],
         sources: {
@@ -122,8 +118,6 @@ async function getCities() {
  * @returns {Promise<Array>} Combined districts with source indicators
  */
 async function getDistricts(cityId) {
-  console.log("🏘️ [ADDRESS SERVICE] Fetching districts for cityId:", cityId);
-  
   try {
     const walletDistricts = await walletApiService.getAddressDistricts(cityId);
     
@@ -139,7 +133,6 @@ async function getDistricts(cityId) {
         // Add source indicator
         source: SOURCE_WALLET_API
       }));
-      console.log(`✅ [ADDRESS SERVICE] Found ${walletDistricts.length} districts from Wallet API`);
       
       return {
         data: districts,
@@ -150,7 +143,6 @@ async function getDistricts(cityId) {
         }
       };
     } else {
-      console.log("⚠️ [ADDRESS SERVICE] No districts from Wallet API");
       return {
         data: [],
         sources: {
@@ -179,8 +171,6 @@ async function getDistricts(cityId) {
  * @returns {Promise<Array>} Combined khoroos with source indicators
  */
 async function getKhoroo(districtId) {
-  console.log("🏘️ [ADDRESS SERVICE] Fetching khoroos for districtId:", districtId);
-  
   try {
     const walletKhoroo = await walletApiService.getAddressKhoroo(districtId);
     
@@ -196,7 +186,6 @@ async function getKhoroo(districtId) {
         // Add source indicator
         source: SOURCE_WALLET_API
       }));
-      console.log(`✅ [ADDRESS SERVICE] Found ${walletKhoroo.length} khoroos from Wallet API`);
       
       return {
         data: khoroos,
@@ -207,7 +196,6 @@ async function getKhoroo(districtId) {
         }
       };
     } else {
-      console.log("⚠️ [ADDRESS SERVICE] No khoroos from Wallet API");
       return {
         data: [],
         sources: {
@@ -236,8 +224,6 @@ async function getKhoroo(districtId) {
  * @returns {Promise<Array>} Combined bair with source indicators
  */
 async function getBair(khorooId) {
-  console.log("🏢 [ADDRESS SERVICE] Fetching bair for khorooId:", khorooId);
-  
   const results = {
     walletApi: [],
     ownOrg: [],
@@ -250,7 +236,6 @@ async function getBair(khorooId) {
 
   // Fetch from Wallet API
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching bair from Wallet API...");
     const walletBair = await walletApiService.getAddressBair(khorooId);
     
     if (Array.isArray(walletBair) && walletBair.length > 0) {
@@ -265,9 +250,6 @@ async function getBair(khorooId) {
         // Add source indicator
         source: SOURCE_WALLET_API
       }));
-      console.log(`✅ [ADDRESS SERVICE] Found ${walletBair.length} bair from Wallet API`);
-    } else {
-      console.log("⚠️ [ADDRESS SERVICE] No bair from Wallet API");
     }
     
     // Extract khoroo name and find district from Wallet API for matching OWN_ORG bair
@@ -280,7 +262,6 @@ async function getBair(khorooId) {
           const khorooMatch = firstBairName.match(/(\d+-р хороо)/);
           if (khorooMatch) {
             khorooName = khorooMatch[1]; // e.g., "15-р хороо"
-            console.log(`🔍 [ADDRESS SERVICE] Extracted khoroo name from bair: ${khorooName}`);
           }
           
           // Try to extract district abbreviation from bair name (e.g., "СБД" from "СБД 1-р хороо 905-р байр")
@@ -289,9 +270,6 @@ async function getBair(khorooId) {
             const districtNameFromAbbr = getDistrictNameFromAbbreviation(districtAbbreviation);
             if (districtNameFromAbbr) {
               districtName = districtNameFromAbbr;
-              console.log(`🔍 [ADDRESS SERVICE] Extracted district from abbreviation: "${districtAbbreviation}" -> "${districtName}"`);
-            } else {
-              console.log(`⚠️ [ADDRESS SERVICE] District abbreviation "${districtAbbreviation}" not found in mapping`);
             }
           }
           
@@ -300,7 +278,6 @@ async function getBair(khorooId) {
             // Find which district this khoroo belongs to by checking all districts
             // This is needed to match OWN_ORG bair by both district and khoroo
             try {
-              console.log("🔍 [ADDRESS SERVICE] Finding district for khorooId:", khorooId);
               const cities = await walletApiService.getAddressCities();
               if (cities && cities.length > 0) {
                 // Try to find district by checking khoroos in each district
@@ -326,9 +303,7 @@ async function getBair(khorooId) {
                           // Also extract khoroo name from the matching khoroo if not already extracted
                           if (!khorooName && (matchingKhoroo.name || matchingKhoroo.khorooName)) {
                             khorooName = (matchingKhoroo.name || matchingKhoroo.khorooName || "").trim();
-                            console.log(`🔍 [ADDRESS SERVICE] Extracted khoroo name from Wallet API: ${khorooName}`);
                           }
-                          console.log(`✅ [ADDRESS SERVICE] Found district for khoroo: "${districtName}" (from city: ${city.name || city.cityName})`);
                           break; // Found it, stop searching
                         }
                       } catch (error) {
@@ -344,10 +319,6 @@ async function getBair(khorooId) {
                     // Continue to next city if this one fails
                     continue;
                   }
-                }
-                
-                if (!districtName) {
-                  console.log("⚠️ [ADDRESS SERVICE] Could not find district for khorooId, will match by khoroo only");
                 }
               }
             } catch (error) {
@@ -366,7 +337,6 @@ async function getBair(khorooId) {
 
   // Fetch from own organization
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching bair from own organization...");
     // Pass khorooId, khorooName, and districtName for matching
     const ownOrgBair = await getOwnOrgBair(khorooId, khorooName, districtName);
     
@@ -382,9 +352,6 @@ async function getBair(khorooId) {
         bairAddress: bair.bairAddress || "",
         source: SOURCE_OWN_ORG
       }));
-      console.log(`✅ [ADDRESS SERVICE] Found ${ownOrgBair.length} bair from own organization`);
-    } else {
-      console.log("⚠️ [ADDRESS SERVICE] No bair from own organization");
     }
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error fetching bair from own organization:", error.message);
@@ -392,7 +359,6 @@ async function getBair(khorooId) {
 
   // Combine results
   results.combined = [...results.walletApi, ...results.ownOrg];
-  console.log(`✅ [ADDRESS SERVICE] Total bair: ${results.combined.length} (Wallet API: ${results.walletApi.length}, Own Org: ${results.ownOrg.length})`);
 
   return {
     data: results.combined,

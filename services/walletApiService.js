@@ -48,10 +48,6 @@ async function getWalletServiceToken() {
       return walletServiceToken;
     }
 
-    console.log("🔑 [WALLET API] Requesting service token...");
-    console.log("🔑 [WALLET API] URL:", `${WALLET_API_BASE_URL}/auth/token`);
-    console.log("🔑 [WALLET API] Username:", WALLET_API_USERNAME);
-
     const response = await axios.post(`${WALLET_API_BASE_URL}/auth/token`, {
       username: WALLET_API_USERNAME,
       password: WALLET_API_PASSWORD,
@@ -59,20 +55,15 @@ async function getWalletServiceToken() {
       timeout: 10000,
     });
 
-    console.log("🔑 [WALLET API] Response status:", response.status);
-    console.log("🔑 [WALLET API] Response data:", JSON.stringify(response.data).substring(0, 200));
-
     if (response.data && response.data.accessToken) {
       walletServiceToken = response.data.accessToken;
       tokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
-      console.log("✅ [WALLET API] Service token obtained successfully");
       return walletServiceToken;
     }
 
     if (response.data && response.data.token) {
       walletServiceToken = response.data.token;
       tokenExpiry = Date.now() + 23 * 60 * 60 * 1000;
-      console.log("✅ [WALLET API] Service token obtained successfully (legacy format)");
       return walletServiceToken;
     }
 

@@ -302,20 +302,6 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
 
 exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
   try {
-    console.log("Энэ рүү орлоо: orshinSuugchBurtgey");
-    console.log("📥 REQUEST BODY:", {
-      barilgiinId: req.body.barilgiinId,
-      baiguullagiinId: req.body.baiguullagiinId,
-      toot: req.body.toot,
-      davkhar: req.body.davkhar,
-      orts: req.body.orts,
-      duureg: req.body.duureg,
-      horoo: req.body.horoo,
-      soh: req.body.soh,
-      sohNer: req.body.sohNer,
-      bairniiNer: req.body.bairniiNer,
-    });
-    console.log("FULL BODY DEBUG:", JSON.stringify(req.body, null, 2));
     const { db } = require("zevbackv2");
 
     // Note: duureg, horoo, and soh are optional - can be retrieved from baiguullaga if not provided
@@ -336,13 +322,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     // Set nevtrekhNer to utas if not provided
     if (!req.body.nevtrekhNer) {
       req.body.nevtrekhNer = phoneNumber;
-      console.log(`✅ [REGISTER] Auto-set nevtrekhNer to: ${phoneNumber}`);
     }
     
     // Set default password to "1234" if not provided
     if (!req.body.nuutsUg) {
       req.body.nuutsUg = "1234";
-      console.log(`✅ [REGISTER] Auto-set nuutsUg to default: 1234`);
     }
 
     // Email is optional - only register with Wallet API if email is provided
@@ -371,16 +355,13 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     if (email) {
       try {
         // First, try to get existing user from Wallet API
-        console.log("📞 [WEBSITE REGISTER] Checking Wallet API for existing user...");
         walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
 
         if (walletUserInfo && walletUserInfo.userId) {
           // User exists in Wallet API
           walletUserId = walletUserInfo.userId;
-          console.log("✅ [WEBSITE REGISTER] User found in Wallet API:", walletUserId);
         } else {
           // User doesn't exist in Wallet API, register them
-          console.log("📞 [WEBSITE REGISTER] Registering user in Wallet API...");
           walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
 
           if (!walletUserInfo || !walletUserInfo.userId) {
@@ -388,16 +369,12 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           }
 
           walletUserId = walletUserInfo.userId;
-          console.log("✅ [WEBSITE REGISTER] User registered in Wallet API:", walletUserId);
         }
       } catch (walletError) {
         console.error("❌ [WEBSITE REGISTER] Wallet API error:", walletError.message);
         // If Wallet API fails, we can still proceed with registration
         // but user won't be able to login via mobile until they register there
-        console.warn("⚠️ [WEBSITE REGISTER] Continuing without Wallet API integration");
       }
-    } else {
-      console.log("ℹ️ [WEBSITE REGISTER] Email not provided, skipping Wallet API registration");
     }
 
     // Check for existing user by utas OR walletUserId (unified check)
@@ -779,9 +756,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined 
       ? parseFloat(req.body.tsahilgaaniiZaalt) || 0 
       : 0; // Default to 0 кВт if not provided
-    
-    console.log("⚡ [REGISTER] Request body tsahilgaaniiZaalt:", req.body.tsahilgaaniiZaalt);
-    console.log("⚡ [REGISTER] Parsed tsahilgaaniiZaalt:", tsahilgaaniiZaalt, "кВт");
 
     // If user exists, use existing user and add new toot to their toots array
     // If user doesn't exist, create new user
@@ -839,14 +813,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       }
       
       userData.tsahilgaaniiZaalt = tsahilgaaniiZaalt;
-      
-      console.log("⚡ [REGISTER] userData.tsahilgaaniiZaalt:", userData.tsahilgaaniiZaalt);
-      console.log("⚡ [REGISTER] Full userData keys:", Object.keys(userData));
 
       orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
     }
-    
-    console.log("⚡ [REGISTER] orshinSuugch.tsahilgaaniiZaalt after creation:", orshinSuugch.tsahilgaaniiZaalt);
     
     // Validate: User can only register with ONE building
     // If user already has a barilgiinId, they cannot register with a different one
@@ -990,13 +959,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           
           if (existingWalletTootIndex >= 0) {
             orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
-            console.log(`🔄 [REGISTER] Updated existing Wallet API toot in array`);
           } else {
             if (!orshinSuugch.toots) {
               orshinSuugch.toots = [];
             }
             orshinSuugch.toots.push(walletTootEntry);
-            console.log(`➕ [REGISTER] Added new Wallet API toot to array`);
           }
         } catch (error) {
           console.error("❌ [REGISTER] Error creating barilga in centralized org:", error.message);
@@ -1028,12 +995,10 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           orshinSuugch.toots = [];
         }
         orshinSuugch.toots.push(walletTootEntry);
-        console.log("⚠️ [REGISTER] bairName not provided, added to toots without centralized org");
       }
     }
     
     await orshinSuugch.save();
-    console.log("✅ [REGISTER] orshinSuugch saved successfully:", orshinSuugch._id);
 
      // --- AUTO CREATE GUEST SETTINGS (Mashin) ---
     try {
@@ -1097,23 +1062,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       console.error("❌ [AUTO-ZOCHIN] Error:", zochinErr.message);
     }
     
-    // Verify tsahilgaaniiZaalt was saved
-    const savedOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(orshinSuugch._id).select("tsahilgaaniiZaalt");
-    console.log("✅ [REGISTER] Verified tsahilgaaniiZaalt saved to orshinSuugch:", savedOrshinSuugch?.tsahilgaaniiZaalt);
-
     try {
       // Only create contracts if baiguullaga exists (OWN_ORG registration)
       // If email is provided but no baiguullaga, skip contract creation (wallet-only registration)
       if (!baiguullaga) {
-        console.log("ℹ️ [REGISTER] No baiguullaga found - skipping contract creation (wallet-only registration)");
+        // Skip contract creation for wallet-only registration
       } else {
         // Reuse tukhainBaaziinKholbolt from above (already declared)
         if (!tukhainBaaziinKholbolt) {
           console.error("❌ [REGISTER] tukhainBaaziinKholbolt not found for baiguullaga:", baiguullaga._id);
           throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
         }
-        
-        console.log("✅ [REGISTER] tukhainBaaziinKholbolt found, proceeding with contract creation");
 
       // Get ashiglaltiinZardluud from baiguullaga.barilguud[].tokhirgoo
       const targetBarilgaForZardluud = baiguullaga.barilguud?.find(
@@ -1681,9 +1640,6 @@ exports.tootShalgaya = asyncHandler(async (req, res, next) => {
 
 exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   try {
-    console.log("🔐 [LOGIN] Login request received");
-    console.log("🔐 [LOGIN] Phone:", req.body.utas);
-    console.log("🔐 [LOGIN] Firebase token provided:", !!req.body.firebaseToken);
 
     const { db } = require("zevbackv2");
 
@@ -1716,17 +1672,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     let walletUserId = null;
     
     try {
-      console.log("📞 [LOGIN] Fetching user from Wallet API for billing info...");
       walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
       
       if (walletUserInfo && walletUserInfo.userId) {
         walletUserId = walletUserInfo.userId;
-        console.log("✅ [LOGIN] User found in Wallet API:", walletUserId);
-      } else {
-        console.warn("⚠️ [LOGIN] User not found in Wallet API (will continue with local login)");
       }
     } catch (walletError) {
-      console.warn("⚠️ [LOGIN] Wallet API error (will continue with local login):", walletError.message);
       // Continue without Wallet API - password validation is local only
     }
 
@@ -1743,14 +1694,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     }
 
     // Validate against local password (stored in our database)
-    console.log("🔐 [LOGIN] Validating password from local database...");
     try {
       passwordValid = await orshinSuugch.passwordShalgaya(providedPassword);
-      if (passwordValid) {
-        console.log("✅ [LOGIN] Password validated successfully");
-      } else {
-        console.log("❌ [LOGIN] Password validation failed");
-      }
     } catch (passwordError) {
       console.error("❌ [LOGIN] Error validating password:", passwordError.message);
       passwordValid = false;
@@ -1824,7 +1769,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         // Don't fail login if SMS fails
       }
     } else {
-      console.log("⚠️ [LOGIN] SMS verification DISABLED - login proceeding without SMS");
     }
 
     const userData = {
@@ -1844,7 +1788,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       // If user exists and has an org, that is their PERMANENT primary home in erunkhiiBaaz
       userData.baiguullagiinId = orshinSuugch.baiguullagiinId;
       userData.baiguullagiinNer = orshinSuugch.baiguullagiinNer;
-      console.log(`ℹ️ [LOGIN] Locked primary org: ${orshinSuugch.baiguullagiinId}`);
     } else if (req.body.baiguullagiinId) {
       // For NEW users without an org, set the initial primary org
       userData.baiguullagiinId = req.body.baiguullagiinId;
@@ -1874,11 +1817,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     if (isOwnOrgAddressLoginCheck && orshinSuugch && orshinSuugch.barilgiinId && barilgiinIdToSave) {
       const existingBarilgiinId = String(orshinSuugch.barilgiinId);
       const newBarilgiinId = String(barilgiinIdToSave);
-      
-      console.log("🔍 [LOGIN] Checking building validation...");
-      console.log("🔍 [LOGIN] Existing barilgiinId:", existingBarilgiinId);
-      console.log("🔍 [LOGIN] New barilgiinId:", newBarilgiinId);
-      console.log("🔍 [LOGIN] isOwnOrgAddressLoginCheck:", isOwnOrgAddressLoginCheck);
       
       if (existingBarilgiinId !== newBarilgiinId) {
         // Get building names for better error message
@@ -1914,18 +1852,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           message: `Та аль хэдийн "${existingBuildingName}" барилгад бүртгэгдсэн байна. Өөр барилгад нэвтрэх боломжгүй.`,
         });
       }
-    } else {
-      console.log("✅ [LOGIN] Building validation skipped (not OWN_ORG login or no barilgiinId provided)");
-      console.log("✅ [LOGIN] isOwnOrgAddressLoginCheck:", isOwnOrgAddressLoginCheck);
-      console.log("✅ [LOGIN] orshinSuugch.barilgiinId:", orshinSuugch?.barilgiinId);
-      console.log("✅ [LOGIN] barilgiinIdToSave:", barilgiinIdToSave);
     }
     
     // 3. Preserve existing primary building - STRIKTLY IMMUTABLE
     if (orshinSuugch && orshinSuugch.barilgiinId) {
       // Use existing building, ignore barilgiinIdToSave for primary document
       userData.barilgiinId = orshinSuugch.barilgiinId;
-      console.log(`ℹ️ [LOGIN] Locked primary building: ${orshinSuugch.barilgiinId}`);
     } else if (barilgiinIdToSave) {
       // First time setting a building
       userData.barilgiinId = barilgiinIdToSave;
@@ -2069,14 +2001,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     const doorNoToUse = userData.walletDoorNo || req.body.doorNo;
 
     if (orshinSuugch) {
-      console.log("🔄 [WALLET LOGIN] Updating existing user:", orshinSuugch._id);
       Object.assign(orshinSuugch, userData);
       // Initialize toots array if it doesn't exist
       if (!orshinSuugch.toots) {
         orshinSuugch.toots = [];
       }
     } else {
-      console.log("➕ [WALLET LOGIN] Creating new user");
       orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userData);
       // Initialize toots array if it doesn't exist
       if (!orshinSuugch.toots) {
@@ -2095,11 +2025,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       if (existingTootIndex >= 0) {
         // Update existing toot entry
         orshinSuugch.toots[existingTootIndex] = userData.newTootEntry;
-        console.log(`🔄 [WALLET LOGIN] Updated existing toot in array: ${userData.newTootEntry.toot}`);
       } else {
         // Add new toot to array
         orshinSuugch.toots.push(userData.newTootEntry);
-        console.log(`➕ [WALLET LOGIN] Added new toot to array: ${userData.newTootEntry.toot}`);
       }
       
       // Also set as primary toot ONLY if user doesn't have one (first registration)
@@ -2126,9 +2054,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         if (userData.barilgiinId) {
           orshinSuugch.barilgiinId = userData.barilgiinId;
         }
-        console.log(`✅ [WALLET LOGIN] OWN_ORG primary address set for NEW user: baiguullagiinId=${userData.baiguullagiinId}`);
-      } else {
-        console.log(`ℹ️ [WALLET LOGIN] OWN_ORG address selection ignored for existing primary user (will wait for toot to add to array)`);
       }
     } else if (bairIdToUse && doorNoToUse && !req.body.baiguullagiinId) {
       // Handle Wallet API address - create/find barilga in centralized org
@@ -2141,7 +2066,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         // Try to fetch bair name from Wallet API (optional, frontend should send it)
         try {
           // Note: We don't have a direct getBairById endpoint, so frontend should send bairName
-          console.log("⚠️ [WALLET LOGIN] bairName not provided, frontend should send it");
         } catch (error) {
           console.error("❌ [WALLET LOGIN] Could not fetch bair name:", error.message);
         }
@@ -2153,10 +2077,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           const barilgaResult = await findOrCreateBarilgaFromWallet(
             bairIdToUse,
             walletBairName
-          );
-          
-          console.log(
-            `🏢 [WALLET LOGIN] ${barilgaResult.isNew ? "Created" : "Found"} barilga in centralized org: ${barilgaResult.barilgiinId}`
           );
           
           // Set centralized org as primary address
@@ -2183,13 +2103,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           
           if (existingWalletTootIndex >= 0) {
             orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
-            console.log(`🔄 [WALLET LOGIN] Updated existing Wallet API toot in array`);
           } else {
             if (!orshinSuugch.toots) {
               orshinSuugch.toots = [];
             }
             orshinSuugch.toots.push(walletTootEntry);
-            console.log(`➕ [WALLET LOGIN] Added new Wallet API toot to array`);
           }
         } catch (error) {
           console.error("❌ [WALLET LOGIN] Error creating barilga in centralized org:", error.message);
@@ -2221,48 +2139,32 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           orshinSuugch.toots = [];
         }
         orshinSuugch.toots.push(walletTootEntry);
-        console.log("⚠️ [WALLET LOGIN] bairName not provided, added to toots without centralized org");
       }
     }
 
     if (req.body.firebaseToken) {
       orshinSuugch.firebaseToken = req.body.firebaseToken;
-      console.log("📱 [WALLET LOGIN] Updating Firebase token");
     }
 
     await orshinSuugch.save();
-    console.log("✅ [WALLET LOGIN] User saved to database:", orshinSuugch._id);
-    console.log("✅ [WALLET LOGIN] Saved fields:", Object.keys(userData).join(", "));
-    console.log("🔍 [WALLET LOGIN] Address check - bairId:", bairIdToUse, "doorNo:", doorNoToUse);
 
     // Automatically fetch and connect billing if address is available
     let billingInfo = null;
 
     if (bairIdToUse && doorNoToUse) {
       try {
-        console.log("🏠 [WALLET LOGIN] Auto-fetching billing with saved address...");
-        console.log("🏠 [WALLET LOGIN] bairId:", bairIdToUse, "doorNo:", doorNoToUse);
-        
-        // getBillingByAddress requires phoneNumber, not walletUserId
-        console.log("🔍 [WALLET LOGIN] Using phoneNumber for getBillingByAddress:", phoneNumber);
-        
-        console.log("🔍 [WALLET LOGIN] About to call getBillingByAddress...");
         const billingResponse = await walletApiService.getBillingByAddress(
           phoneNumber,
           bairIdToUse,
           doorNoToUse
         );
-        console.log("🔍 [WALLET LOGIN] getBillingByAddress returned:", JSON.stringify(billingResponse));
 
         if (billingResponse && Array.isArray(billingResponse) && billingResponse.length > 0) {
           billingInfo = billingResponse[0];
-          console.log("✅ [WALLET LOGIN] Billing info found:", billingInfo.customerName);
           
           // If billingId is not in the response, try to get it using customerId
           if (!billingInfo.billingId && billingInfo.customerId) {
             try {
-              console.log("🔍 [WALLET LOGIN] Billing ID not found, fetching by customer ID...");
-              console.log("🔍 [WALLET LOGIN] Customer ID:", billingInfo.customerId);
               // Wallet API userId means phoneNumber
               const billingByCustomer = await walletApiService.getBillingByCustomer(
                 phoneNumber,
@@ -2290,13 +2192,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                     if (matchingBilling && matchingBilling.billingId) {
                       billingInfo.billingId = matchingBilling.billingId;
                       billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
-                      console.log("✅ [WALLET LOGIN] Billing ID found from billing list:", billingInfo.billingId);
                     } else {
                       // If no match, use first billing if available
                       if (billingList[0] && billingList[0].billingId) {
                         billingInfo.billingId = billingList[0].billingId;
                         billingInfo.billingName = billingList[0].billingName || billingInfo.billingName;
-                        console.log("✅ [WALLET LOGIN] Using first billing from list:", billingInfo.billingId);
                       }
                     }
                   }
@@ -2312,7 +2212,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
               
               // Try billing list as fallback
               try {
-                console.log("🔍 [WALLET LOGIN] Trying billing list as fallback...");
                 // Wallet API userId means phoneNumber
                 const billingList = await walletApiService.getBillingList(phoneNumber);
                 if (billingList && billingList.length > 0) {
@@ -2322,7 +2221,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                   if (matchingBilling && matchingBilling.billingId) {
                     billingInfo.billingId = matchingBilling.billingId;
                     billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
-                    console.log("✅ [WALLET LOGIN] Billing ID found from billing list (fallback):", billingInfo.billingId);
                   }
                 }
               } catch (listError) {
@@ -2334,20 +2232,13 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           // Automatically connect billing to Wallet API account
           if (billingInfo.billingId || billingInfo.customerId) {
             try {
-              console.log("🔗 [WALLET LOGIN] Auto-connecting billing to Wallet API account...");
-              if (billingInfo.billingId) {
-                console.log("🔗 [WALLET LOGIN] Billing ID found:", billingInfo.billingId);
-              }
               // Wallet API doesn't allow billingId in body - use only customerId
               const billingData = {
                 customerId: billingInfo.customerId,
               };
 
               // saveBilling requires phoneNumber, not walletUserId
-              console.log("🔍 [WALLET LOGIN] Using phoneNumber for saveBilling:", phoneNumber);
               const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
-              console.log("✅ [WALLET LOGIN] Billing auto-connected to Wallet API account");
-              console.log("✅ [WALLET LOGIN] Connection result:", JSON.stringify(connectResult));
             } catch (connectError) {
               console.error("❌ [WALLET LOGIN] Error auto-connecting billing:", connectError.message);
               if (connectError.response) {
@@ -2360,9 +2251,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             // Try to connect billing without billingId using customerId
             if (billingInfo.customerId) {
               try {
-                console.log("🔗 [WALLET LOGIN] Attempting to connect billing without billingId...");
-                console.log("🔗 [WALLET LOGIN] Using customerId:", billingInfo.customerId);
-                
                 // Send only customerId - Wallet API will return full billing info including billingId
                 const billingData = {
                   customerId: billingInfo.customerId,
@@ -2370,15 +2258,11 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
                 // Try to save without billingId - Wallet API might create it
                 // saveBilling requires phoneNumber, not walletUserId
-                console.log("🔍 [WALLET LOGIN] Using phoneNumber for saveBilling:", phoneNumber);
                 const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
-                console.log("✅ [WALLET LOGIN] Billing connected without billingId");
-                console.log("✅ [WALLET LOGIN] Connection result:", JSON.stringify(connectResult));
                 
                 // If successful, update billingInfo with returned billingId
                 if (connectResult && connectResult.billingId) {
                   billingInfo.billingId = connectResult.billingId;
-                  console.log("✅ [WALLET LOGIN] Got billingId from save response:", billingInfo.billingId);
                 }
               } catch (connectError) {
                 console.error("❌ [WALLET LOGIN] Error connecting billing without billingId:", connectError.message);
@@ -2418,30 +2302,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           if (Object.keys(updateData).length > 0) {
             Object.assign(orshinSuugch, updateData);
             await orshinSuugch.save();
-            console.log("✅ [WALLET LOGIN] User updated with billing data");
-          }
-        } else {
-          console.log("⚠️ [WALLET LOGIN] No billing info found for saved address");
-          console.log("⚠️ [WALLET LOGIN] billingResponse:", JSON.stringify(billingResponse));
-          console.log("⚠️ [WALLET LOGIN] billingResponse type:", typeof billingResponse);
-          console.log("⚠️ [WALLET LOGIN] billingResponse is array:", Array.isArray(billingResponse));
-          if (billingResponse) {
-            console.log("⚠️ [WALLET LOGIN] billingResponse length:", billingResponse.length);
           }
         }
       } catch (billingError) {
         // Log error but don't fail login
-        console.error("⚠️ [WALLET LOGIN] Error auto-fetching billing (continuing anyway):", billingError.message);
-        if (billingError.response) {
-          console.error("⚠️ [WALLET LOGIN] Error response status:", billingError.response.status);
-          console.error("⚠️ [WALLET LOGIN] Error response data:", JSON.stringify(billingError.response.data));
-        }
-        if (billingError.stack) {
-          console.error("⚠️ [WALLET LOGIN] Error stack:", billingError.stack);
-        }
+        console.error("❌ [WALLET LOGIN] Error auto-fetching billing:", billingError.message);
       }
-    } else {
-      console.log("ℹ️ [WALLET LOGIN] No address available for auto-billing fetch");
     }
 
     // Create gerees for all OWN_ORG toots that don't have gerees yet
@@ -2864,7 +2730,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       butsaakhObject.billingInfo = billingInfo;
     }
 
-    console.log("✅ [WALLET LOGIN] Login successful for user:", orshinSuugch._id);
     res.status(200).json(butsaakhObject);
   } catch (err) {
     console.error("❌ [WALLET LOGIN] Error:", err.message);
