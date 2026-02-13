@@ -276,9 +276,10 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         }
 
         // 2. Lookup Resident and their tsahilgaaniiZaalt (Highest Priority)
+        // CRITICAL: Residents are stored in central erunkhiiKholbolt, not tenant DB
         if (actualResidentId) {
           try {
-            const OrshinSuugchModel = OrshinSuugch(tukhainBaaziinKholbolt);
+            const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
             let resident = null;
 
             // Try findById first (casting to ObjectId if possible)
@@ -316,15 +317,15 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
                 console.log(`[CALC] Resident found but tsahilgaaniiZaalt is ${resTariff} (invalid)`);
               }
             } else {
-              console.warn(`[CALC] Resident not found for ID: ${actualResidentId}`);
+              console.warn(`[CALC] Resident not found for ID: ${actualResidentId} in central DB`);
               debugInfo.residentNotFound = true;
 
-              // Extreme fallback: verify connection by finding ANY resident in this org
+              // Verify connection by finding ANY resident in this org (in central DB)
               const anyResident = await OrshinSuugchModel.findOne({ baiguullagiinId: baiguullagiinId });
               if (anyResident) {
-                debugInfo.anyResidentFoundInOrg = anyResident.ner;
+                debugInfo.anyResidentFoundInCentralOrg = anyResident.ner;
               } else {
-                debugInfo.noResidentsFoundInOrgAtAll = true;
+                debugInfo.noResidentsFoundInCentralOrgAtAll = true;
               }
             }
           } catch (e) {
