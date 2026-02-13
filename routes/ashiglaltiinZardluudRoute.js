@@ -179,43 +179,43 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       return hasElec && isNotElevator && isNotShared;
     };
     const candidates = zardluud.filter(isTsakhilgaan);
-    // Priority: 1. Meter-based, 2. Exact name, 3. Non-zero tariff
-    const ashiglaltiinZardal = candidates.length === 0
-      ? null
-      : candidates.sort((a, b) => {
-        const nameA = (a.ner || "").trim().toLowerCase();
-        const nameB = (b.ner || "").trim().toLowerCase();
-
-        // Meter-based is TOP priority
-        const isMeterA = a.zaalt ? 10000000 : 0;
-        const isMeterB = b.zaalt ? 10000000 : 0;
-
-        // Exact name match
-        const isExactA = (nameA === "цахилгаан" || nameA === "цахилгаан квт" || nameA === "цахилгаан кв") ? 1000000 : 0;
-        const isExactB = (nameB === "цахилгаан" || nameB === "цахилгаан квт" || nameB === "цахилгаан кв") ? 1000000 : 0;
-
-        // Value presence check (Tariff OR Base Fee)
-        const tariffValA = Number(a.tariff) || Number(a.zaaltTariff) || 0;
-        const tariffValB = Number(b.tariff) || Number(b.zaaltTariff) || 0;
-        const baseFeeA = Number(a.suuriKhuraamj) || 0;
-        const baseFeeB = Number(b.suuriKhuraamj) || 0;
-
-        const hasValueA = (tariffValA > 0 || baseFeeA > 0) ? 2000000 : -5000000;
-        const hasValueB = (tariffValB > 0 || baseFeeB > 0) ? 2000000 : -5000000;
-
-        const scoreA = isMeterA + isExactA + hasValueA + tariffValA / 1000 + baseFeeA / 10000;
-        const scoreB = isMeterB + isExactB + hasValueB + tariffValB / 1000 + baseFeeB / 10000;
-
-        console.log(`  - Option "${a.ner}": score=${scoreA}, meter=${!!a.zaalt}, tariff=${tariffValA}, baseFee=${baseFeeA}, exact=${isExactA > 0}`);
-        return scoreB - scoreA;
-      })[0];
-
-    if (!ashiglaltiinZardal) {
+    if (candidates.length === 0) {
+      console.warn(`[CALC] No electricity candidate found for organization ${baiguullagiinId}`);
       return res.status(400).send({
         success: false,
         message: "Цахилгаан (кВт) ашиглалтын зардал олдсонгүй",
       });
     }
+
+    // Aggregate values across ALL valid candidates
+    let maxTariff = 0;
+    let maxSuuriKhuraamj = 0;
+    let selectedChargeName = "";
+    let bestScore = -Infinity;
+
+    console.log(`[CALC] Aggregating from ${candidates.length} candidates:`);
+    candidates.forEach(c => {
+      const tariffVal = Number(c.tariff) || Number(c.zaaltTariff) || 0;
+      const suuriVal = Number(c.suuriKhuraamj) || 0;
+
+      if (tariffVal > maxTariff) maxTariff = tariffVal;
+      if (suuriVal > maxSuuriKhuraamj) maxSuuriKhuraamj = suuriVal;
+
+      // Determine "selectedChargeName" based on the highest quality candidate
+      const name = (c.ner || "").trim().toLowerCase();
+      const isMeter = c.zaalt ? 10000000 : 0;
+      const isExact = (name === "цахилгаан" || name === "цахилгаан квт" || name === "цахилгаан кв") ? 1000000 : 0;
+      const hasValue = (tariffVal > 0 || suuriVal > 0) ? 2000000 : -5000000;
+      const currentScore = isMeter + isExact + hasValue;
+
+      if (currentScore > bestScore) {
+        bestScore = currentScore;
+        selectedChargeName = c.ner;
+      }
+      console.log(`  - Option "${c.ner}": tariff=${tariffVal}, suuri=${suuriVal}, score=${currentScore}`);
+    });
+
+    console.log(`[CALC] Aggregated Results: tariff=${maxTariff}, suuri=${maxSuuriKhuraamj}, selected=${selectedChargeName}`);
 
     const umnukhZaaltNum =
       typeof umnukhZaaltRaw === "number"
