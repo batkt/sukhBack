@@ -4,6 +4,7 @@ const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
 const ashiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
 const Baiguullaga = require("../models/baiguullaga");
 const OrshinSuugch = require("../models/orshinSuugch");
+const Geree = require("../models/geree");
 
 // CRUD routes
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
@@ -118,6 +119,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const baiguullagiinId = req.body.baiguullagiinId;
     const barilgiinId = req.body.barilgiinId;
     const residentId = req.body.residentId;
+    const gereeniiId = req.body.gereeniiId;
     // Support both camelCase and snake_case; accept number or string
     const umnukhZaaltRaw =
       req.body.umnukhZaalt ??
@@ -219,28 +221,60 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
     console.log(`[CALC] Aggregated Results: tariff=${maxTariff}, suuri=${maxSuuriKhuraamj}, selected=${selectedChargeName}`);
 
-    // Check for Resident-specific tariff
+    // Check for Resident or Contract-specific tariff
     let finalTariff = maxTariff;
     let residentSpecificUsed = false;
-    if (residentId) {
-      console.log(`[CALC] Looking for resident with ID: ${residentId}`);
+
+    if (residentId || gereeniiId) {
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
         (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
       );
+
       if (tukhainBaaziinKholbolt) {
-        const resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(residentId);
-        if (resident) {
-          console.log(`[CALC] Found resident: "${resident.ner}" (ID: ${resident._id})`);
-          console.log(`[CALC] Resident tsahilgaaniiZaalt: ${resident.tsahilgaaniiZaalt}`);
-          if (resident.tsahilgaaniiZaalt > 0) {
-            finalTariff = resident.tsahilgaaniiZaalt;
-            residentSpecificUsed = true;
-            console.log(`[CALC] SUCCESS: Using resident-specific tariff: ${finalTariff}`);
-          } else {
-            console.log(`[CALC] INFO: Resident has no valid tsahilgaaniiZaalt, falling back to global.`);
+        // 1. Check Resident (Highest Priority) - tsahilgaaniiZaalt
+        if (residentId) {
+          try {
+            const resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(residentId);
+            if (resident) {
+              console.log(`[CALC] Found resident: "${resident.ner}" (ID: ${resident._id})`);
+              if (resident.tsahilgaaniiZaalt > 0) {
+                finalTariff = resident.tsahilgaaniiZaalt;
+                residentSpecificUsed = true;
+                console.log(`[CALC] SUCCESS: Using resident-specific tariff: ${finalTariff}`);
+              }
+            } else {
+              console.warn(`[CALC] Resident not found for ID: ${residentId}`);
+            }
+          } catch (e) {
+            console.error("[CALC] Resident lookup error:", e.message);
           }
-        } else {
-          console.warn(`[CALC] WARNING: Resident not found for ID: ${residentId}`);
+        }
+
+        // 2. Check Contract (Secondary) - if resident tariff not used
+        if (!residentSpecificUsed && gereeniiId) {
+          try {
+            const geree = await Geree(tukhainBaaziinKholbolt).findById(gereeniiId);
+            if (geree) {
+              console.log(`[CALC] Found contract: "${geree.gereeniiDugaar}" (ID: ${geree._id})`);
+              // Search for electricity charge in contract's zardluud
+              const contractElec = (geree.zardluud || []).find(z => {
+                const name = (z.ner || "").trim().toLowerCase();
+                return name.includes("цахилгаан") && !name.includes("шат");
+              });
+              if (contractElec && contractElec.tariff > 0) {
+                finalTariff = contractElec.tariff;
+                residentSpecificUsed = true;
+                console.log(`[CALC] SUCCESS: Using contract-specific tariff: ${finalTariff}`);
+              } else if (geree.umnukhZaalt > 0 && geree.umnukhZaalt < 500) {
+                // Heuristic: If umnukhZaalt is small, it might be mislabeled tariff?
+                // Actually, let's not guess. The user said "geree tsakhilgaaniiZaalt".
+              }
+            } else {
+              console.warn(`[CALC] Contract not found for ID: ${gereeniiId}`);
+            }
+          } catch (e) {
+            console.error("[CALC] Contract lookup error:", e.message);
+          }
         }
       }
     }
