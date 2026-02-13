@@ -127,7 +127,11 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const guidliinKoeffRaw =
       req.body.guidliinKoeff ??
       req.body.guidliin_koeff;
-    const includeSuuriKhuraamj = req.body.includeSuuriKhuraamj === true || req.body.includeSuuriKhuraamj === "true";
+    const includeSuuriKhuraamj = req.body.includeSuuriKhuraamj === true ||
+      req.body.includeSuuriKhuraamj === "true" ||
+      req.body.includeSuuriKhuraamj === 1 ||
+      req.body.includeSuuriKhuraamj === "1" ||
+      req.body.includeSuuriKhuraamj === undefined;
 
     if (!baiguullagiinId) {
       return res.status(400).send({
@@ -160,26 +164,34 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
     const zardluud = targetBarilga.tokhirgoo.ashiglaltiinZardluud || [];
     const isTsakhilgaan = (z) => {
-      const name = (z.ner || "").trim();
-      const isElecName = name === "Цахилгаан" || name === "Цахилгаан кВт";
-      const isNotElevator = !name.toLowerCase().includes("шат");
-      return isElecName && isNotElevator;
+      const name = (z.ner || "").trim().toLowerCase();
+      // Must contain "цахилгаан" and NOT "шат"
+      const hasElec = name.includes("цахилгаан");
+      const isNotElevator = !name.includes("шат");
+      // Prioritize identifying it as electricity if it's meter-based OR named specifically
+      return hasElec && isNotElevator;
     };
     const candidates = zardluud.filter(isTsakhilgaan);
-    // Prefer zaalt:true; then prefer the one with suuriKhuraamj or tariff so we get a non-zero amount when applicable
+    // Prefer zaalt:true; then prefer exact name; then prefer having a tariff
     const ashiglaltiinZardal = candidates.length === 0
       ? null
       : candidates.sort((a, b) => {
-        // Prioritize zaalt:true (meter-based) heavily, then specific name match, then exclude "шат" (elevator)
-        const isMeter = a.zaalt ? 1000000 : 0;
-        const isMeterB = b.zaalt ? 1000000 : 0;
-        const isExact = (a.ner && a.ner.trim() === "Цахилгаан") ? 100000 : 0;
-        const isExactB = (b.ner && b.ner.trim() === "Цахилгаан") ? 100000 : 0;
-        const isShat = (a.ner && a.ner.toLowerCase().includes("шат")) ? -500000 : 0;
-        const isShatB = (b.ner && b.ner.toLowerCase().includes("шат")) ? -500000 : 0;
+        const nameA = (a.ner || "").trim().toLowerCase();
+        const nameB = (b.ner || "").trim().toLowerCase();
 
-        const scoreA = isMeter + isExact + isShat + (Number(a.tariff) || 0);
-        const scoreB = isMeterB + isExactB + isShatB + (Number(b.tariff) || 0);
+        const isMeterA = a.zaalt ? 1000000 : 0;
+        const isMeterB = b.zaalt ? 1000000 : 0;
+
+        const isExactA = (nameA === "цахилгаан" || nameA === "цахилгаан квт" || nameA === "цахилгаан кв") ? 100000 : 0;
+        const isExactB = (nameB === "цахилгаан" || nameB === "цахилгаан квт" || nameB === "цахилгаан кв") ? 100000 : 0;
+
+        const tariffValA = Number(a.tariff) || Number(a.zaaltTariff) || 0;
+        const tariffValB = Number(b.tariff) || Number(b.zaaltTariff) || 0;
+        const hasTariffA = tariffValA > 0 ? 50000 : 0;
+        const hasTariffB = tariffValB > 0 ? 50000 : 0;
+
+        const scoreA = isMeterA + isExactA + hasTariffA + tariffValA / 1000;
+        const scoreB = isMeterB + isExactB + hasTariffB + tariffValB / 1000;
         return scoreB - scoreA;
       })[0];
 
@@ -236,8 +248,8 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       odorZaaltNum,
       shonoZaaltNum,
       suuliinZaaltNum,
-      tariff: ashiglaltiinZardal.tariff || ashiglaltiinZardal.zaaltTariff || 0,
-      tailbar: ashiglaltiinZardal.ner || "Цахилгаан",
+      tariff: targetTariff,
+      selectedCharge: ashiglaltiinZardal ? ashiglaltiinZardal.ner : "None",
       _received: { umnukhZaaltNum, odorZaaltNum, shonoZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
     });
   } catch (err) {
