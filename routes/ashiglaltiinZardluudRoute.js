@@ -276,13 +276,19 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         }
 
         // 2. Lookup Resident and their tsahilgaaniiZaalt (Highest Priority)
-        // CRITICAL: Residents are stored in central erunkhiiKholbolt, not tenant DB
+        // CRITICAL: Residents are stored in central erunkhiiKholbolt
         if (actualResidentId) {
           try {
-            const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+            const centralConn = db.erunkhiiKholbolt;
+            const OrshinSuugchModel = OrshinSuugch(centralConn);
+
+            debugInfo.lookup_actualResidentId = actualResidentId;
+            debugInfo.lookup_baiguullagiinId = baiguullagiinId;
+            debugInfo.centralDbName = (centralConn?.kholbolt?.db?.databaseName) || "unknown";
+
             let resident = null;
 
-            // Try findById first (casting to ObjectId if possible)
+            // Try 1: Direct findById (smart cast)
             try {
               if (mongoose.Types.ObjectId.isValid(actualResidentId)) {
                 resident = await OrshinSuugchModel.findById(new mongoose.Types.ObjectId(actualResidentId));
@@ -290,47 +296,57 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
               if (!resident) {
                 resident = await OrshinSuugchModel.findById(actualResidentId);
               }
-            } catch (oidErr) {
-              console.log("[CALC] findById failed, trying findOne string ID");
-            }
+            } catch (err) { }
 
-            // Fallback to findOne by _id or id string
+            // Try 2: Broad findOne (like orshinSuugchRoute.js)
             if (!resident) {
+              const baiguullagiinIdString = String(baiguullagiinId);
               resident = await OrshinSuugchModel.findOne({
-                $or: [{ _id: actualResidentId }, { id: actualResidentId }]
-              });
+                $and: [
+                  { $or: [{ _id: actualResidentId }, { _id: new mongoose.Types.ObjectId(actualResidentId) }] },
+                  {
+                    $or: [
+                      { baiguullagiinId: baiguullagiinIdString },
+                      { "toots.baiguullagiinId": baiguullagiinIdString }
+                    ]
+                  }
+                ]
+              }).catch(() => null);
             }
 
             if (resident) {
-              debugInfo.residentFound = true;
+              debugInfo.residentFoundFinal = true;
               debugInfo.residentNer = resident.ner;
               debugInfo.residentTsahilgaaniiZaalt = resident.tsahilgaaniiZaalt;
 
-              console.log(`[CALC] Checking resident "${resident.ner}" (ID: ${resident._id}) for tariff...`);
+              console.log(`[CALC] Found resident: "${resident.ner}" (ID: ${resident._id})`);
               const resTariff = Number(resident.tsahilgaaniiZaalt);
               if (resTariff > 0 && resTariff < 1000) {
                 finalTariff = resTariff;
                 residentSpecificUsed = true;
                 tariffSource = "Resident (tsahilgaaniiZaalt)";
                 console.log(`[CALC] SUCCESS: Using ${tariffSource}: ${finalTariff}`);
-              } else {
-                console.log(`[CALC] Resident found but tsahilgaaniiZaalt is ${resTariff} (invalid)`);
               }
             } else {
-              console.warn(`[CALC] Resident not found for ID: ${actualResidentId} in central DB`);
-              debugInfo.residentNotFound = true;
+              debugInfo.residentNotFoundFinal = true;
+              console.warn(`[CALC] Resident not found: ${actualResidentId}`);
 
-              // Verify connection by finding ANY resident in this org (in central DB)
-              const anyResident = await OrshinSuugchModel.findOne({ baiguullagiinId: baiguullagiinId });
-              if (anyResident) {
-                debugInfo.anyResidentFoundInCentralOrg = anyResident.ner;
+              // Verify connection again
+              const anyRes = await OrshinSuugchModel.findOne({
+                $or: [
+                  { baiguullagiinId: String(baiguullagiinId) },
+                  { "toots.baiguullagiinId": String(baiguullagiinId) }
+                ]
+              }).limit(1);
+              if (anyRes) {
+                debugInfo.verified_anyResidentInOrgFound = anyRes.ner;
               } else {
-                debugInfo.noResidentsFoundInCentralOrgAtAll = true;
+                debugInfo.verified_noResidentsFoundInOrgAtAll = true;
               }
             }
           } catch (e) {
             console.error("[CALC] Resident lookup error:", e.message);
-            debugInfo.lookupError = e.message;
+            debugInfo.lookup_exception = e.message;
           }
         }
 
