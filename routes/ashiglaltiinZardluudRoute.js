@@ -3,6 +3,7 @@ const router = express.Router();
 const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
 const ashiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
 const Baiguullaga = require("../models/baiguullaga");
+const OrshinSuugch = require("../models/orshinSuugch");
 
 // CRUD routes
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
@@ -116,6 +117,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const { db } = require("zevbackv2");
     const baiguullagiinId = req.body.baiguullagiinId;
     const barilgiinId = req.body.barilgiinId;
+    const residentId = req.body.residentId;
     // Support both camelCase and snake_case; accept number or string
     const umnukhZaaltRaw =
       req.body.umnukhZaalt ??
@@ -217,6 +219,21 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
     console.log(`[CALC] Aggregated Results: tariff=${maxTariff}, suuri=${maxSuuriKhuraamj}, selected=${selectedChargeName}`);
 
+    // Check for Resident-specific tariff
+    let finalTariff = maxTariff;
+    if (residentId) {
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      );
+      if (tukhainBaaziinKholbolt) {
+        const resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(residentId);
+        if (resident && resident.tsahilgaaniiZaalt > 0) {
+          finalTariff = resident.tsahilgaaniiZaalt;
+          console.log(`[CALC] Using resident-specific tariff (tsahilgaaniiZaalt): ${finalTariff}`);
+        }
+      }
+    }
+
     const umnukhZaaltNum =
       typeof umnukhZaaltRaw === "number"
         ? umnukhZaaltRaw
@@ -247,8 +264,8 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         ? guidliinKoeffRaw
         : parseFloat(String(guidliinKoeffRaw || "").replace(/,/g, "").trim()) || 1;
 
-    // Use aggregated values
-    const targetTariff = maxTariff;
+    // Use aggregated/resident values
+    const targetTariff = finalTariff;
     const zoruu = Math.abs(suuliinZaaltNum - umnukhZaaltNum);
     const usageAmount = zoruu * targetTariff * guidliinKoeffNum;
     const suuriKhuraamj = maxSuuriKhuraamj;
