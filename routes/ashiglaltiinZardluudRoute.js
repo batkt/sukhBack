@@ -159,19 +159,30 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     }
 
     const zardluud = targetBarilga.tokhirgoo.ashiglaltiinZardluud || [];
-    const isTsakhilgaan = (z) =>
-      z.zaalt === true ||
-      z.turul === "кВт" ||
-      (z.turul && String(z.turul).trim().toLowerCase() === "квт") ||
-      (z.ner && String(z.ner).toLowerCase().includes("цахилгаан"));
+    const isTsakhilgaan = (z) => {
+      const name = (z.ner || "").trim();
+      const isElecName = name === "Цахилгаан" || name === "Цахилгаан кВт";
+      const isNotElevator = !name.toLowerCase().includes("шат");
+      return isElecName && isNotElevator;
+    };
     const candidates = zardluud.filter(isTsakhilgaan);
     // Prefer zaalt:true; then prefer the one with suuriKhuraamj or tariff so we get a non-zero amount when applicable
     const ashiglaltiinZardal = candidates.length === 0
       ? null
       : candidates.sort((a, b) => {
-        const score = (z) => (z.zaalt ? 1000 : 0) + (Number(z.suuriKhuraamj) || 0) + (Number(z.tariff) || 0) * 10;
-        return score(b) - score(a);
+        // Prioritize zaalt:true (meter-based) heavily, then specific name match, then exclude "шат" (elevator)
+        const isMeter = a.zaalt ? 1000000 : 0;
+        const isMeterB = b.zaalt ? 1000000 : 0;
+        const isExact = (a.ner && a.ner.trim() === "Цахилгаан") ? 100000 : 0;
+        const isExactB = (b.ner && b.ner.trim() === "Цахилгаан") ? 100000 : 0;
+        const isShat = (a.ner && a.ner.toLowerCase().includes("шат")) ? -500000 : 0;
+        const isShatB = (b.ner && b.ner.toLowerCase().includes("шат")) ? -500000 : 0;
+
+        const scoreA = isMeter + isExact + isShat + (Number(a.tariff) || 0);
+        const scoreB = isMeterB + isExactB + isShatB + (Number(b.tariff) || 0);
+        return scoreB - scoreA;
       })[0];
+
     if (!ashiglaltiinZardal) {
       return res.status(400).send({
         success: false,
@@ -209,8 +220,10 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         ? guidliinKoeffRaw
         : parseFloat(String(guidliinKoeffRaw || "").replace(/,/g, "").trim()) || 1;
 
-    const zoruu = suuliinZaaltNum - umnukhZaaltNum;
-    const usageAmount = zoruu * (ashiglaltiinZardal.tariff || ashiglaltiinZardal.zaaltTariff || 0) * guidliinKoeffNum;
+    // Use absolute difference to handle prepaid logic or swapped fields
+    const targetTariff = ashiglaltiinZardal.zaaltTariff || ashiglaltiinZardal.tariff || 0;
+    const zoruu = Math.abs(suuliinZaaltNum - umnukhZaaltNum);
+    const usageAmount = zoruu * targetTariff * guidliinKoeffNum;
     const suuriKhuraamj = Number(ashiglaltiinZardal.suuriKhuraamj) || 0;
     const niitDun = includeSuuriKhuraamj ? usageAmount + suuriKhuraamj : usageAmount;
 
