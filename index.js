@@ -39,6 +39,7 @@ const parkingRoute = require("./routes/parkingRoute");
 const uneguiMashinRoute = require("./routes/uneguiMashinRoute");
 const zochinUrikhRoute = require("./routes/zochinUrikhRoute");
 const auditRoute = require("./routes/auditRoute");
+const transformationRoute = require("./routes/transformationRoute");
 
 const { db } = require("zevbackv2");
 
@@ -155,6 +156,7 @@ app.use(parkingRoute);
 app.use(uneguiMashinRoute);
 app.use(zochinUrikhRoute);
 app.use("/audit", auditRoute);
+app.use(transformationRoute);
 
 app.use(aldaaBarigch);
 

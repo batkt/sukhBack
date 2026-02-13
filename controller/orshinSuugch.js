@@ -940,7 +940,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     try {
       // Only create Mashin if baiguullagiinId and barilgiinId are present
       if (orshinSuugch.baiguullagiinId && orshinSuugch.barilgiinId) {
-        const Mashin = require("../models/mashin");
+      const Mashin = require("../models/mashin");
         
         // Load baiguullaga if not already loaded (for Wallet API registrations)
         let baiguullagaForMashin = baiguullaga;
@@ -963,57 +963,57 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           const targetBarilga = baiguullagaForMashin?.barilguud?.find(
             b => String(b._id) === String(orshinSuugch.barilgiinId)
           );
-          const buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
+      const buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
           const orgSettings = baiguullagaForMashin?.tokhirgoo?.zochinTokhirgoo;
-          
-          const defaultSettings = buildingSettings && buildingSettings.zochinUrikhEsekh !== undefined
-             ? buildingSettings 
-             : orgSettings;
-          
+      
+      const defaultSettings = buildingSettings && buildingSettings.zochinUrikhEsekh !== undefined
+         ? buildingSettings 
+         : orgSettings;
+
           const MashinModel = Mashin(tukhainBaaziinKholboltForMashin);
-          
-          const existingSettings = await MashinModel.findOne({
-             ezemshigchiinId: orshinSuugch._id.toString(),
-             zochinTurul: "Оршин суугч"
-          });
-          
-          if (!existingSettings) {
-             const newMashin = new MashinModel({
-                 ezemshigchiinId: orshinSuugch._id.toString(),
-                 orshinSuugchiinId: orshinSuugch._id.toString(),
-                 ezemshigchiinNer: orshinSuugch.ner,
-                 ezemshigchiinUtas: orshinSuugch.utas,
+         
+         const existingSettings = await MashinModel.findOne({
+            ezemshigchiinId: orshinSuugch._id.toString(),
+            zochinTurul: "Оршин суугч"
+         });
+         
+         if (!existingSettings) {
+            const newMashin = new MashinModel({
+                ezemshigchiinId: orshinSuugch._id.toString(),
+                orshinSuugchiinId: orshinSuugch._id.toString(),
+                ezemshigchiinNer: orshinSuugch.ner,
+                ezemshigchiinUtas: orshinSuugch.utas,
                  baiguullagiinId: orshinSuugch.baiguullagiinId.toString(),
                  barilgiinId: String(orshinSuugch.barilgiinId),
-                 dugaar: (() => {
-                   if (req.body.mashiniiDugaar) return req.body.mashiniiDugaar;
-                   if (req.body.dugaar) return req.body.dugaar;
-                   if (req.body.mashin && req.body.mashin.dugaar) return req.body.mashin.dugaar;
-                   if (Array.isArray(req.body.mashinuud) && req.body.mashinuud.length > 0) {
-                     const m = req.body.mashinuud[0];
-                     return typeof m === 'object' ? (m.dugaar || m.mashiniiDugaar || "БҮРТГЭЛГҮЙ") : m;
-                   }
-                   return "БҮРТГЭЛГҮЙ";
-                 })(),
-                 ezenToot: orshinSuugch.toot || req.body.toot || "",
+                dugaar: (() => {
+                  if (req.body.mashiniiDugaar) return req.body.mashiniiDugaar;
+                  if (req.body.dugaar) return req.body.dugaar;
+                  if (req.body.mashin && req.body.mashin.dugaar) return req.body.mashin.dugaar;
+                  if (Array.isArray(req.body.mashinuud) && req.body.mashinuud.length > 0) {
+                    const m = req.body.mashinuud[0];
+                    return typeof m === 'object' ? (m.dugaar || m.mashiniiDugaar || "БҮРТГЭЛГҮЙ") : m;
+                  }
+                  return "БҮРТГЭЛГҮЙ";
+                })(),
+                ezenToot: orshinSuugch.toot || req.body.toot || "",
                  zochinUrikhEsekh: defaultSettings?.zochinUrikhEsekh !== false, 
-                 zochinTurul: "Оршин суугч", 
-                 turul: "Оршин суугч", 
+                zochinTurul: "Оршин суугч", 
+                turul: "Оршин суугч", 
                  zochinErkhiinToo: defaultSettings?.zochinErkhiinToo || 0,
                  zochinTusBurUneguiMinut: defaultSettings?.zochinTusBurUneguiMinut || 0,
                  zochinNiitUneguiMinut: defaultSettings?.zochinNiitUneguiMinut || 0,
                  zochinTailbar: defaultSettings?.zochinTailbar || "",
                  davtamjiinTurul: defaultSettings?.davtamjiinTurul || "saraar",
                  davtamjUtga: defaultSettings?.davtamjUtga
-             });
-             
-             await newMashin.save();
-          }
+            });
+            
+            await newMashin.save();
+         }
         }
       }
     } catch (zochinErr) {
     }
-    
+
     try {
       // Only create contracts if baiguullaga exists (OWN_ORG registration)
       // If email is provided but no baiguullaga, skip contract creation (wallet-only registration)
@@ -1999,30 +1999,30 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           orshinSuugch.barilgiinId = barilgaResult.barilgiinId;
           
           // Also add to toots array for tracking
-          const walletTootEntry = {
-            toot: doorNoToUse,
-            source: "WALLET_API",
-            walletBairId: bairIdToUse,
-            walletDoorNo: doorNoToUse,
+      const walletTootEntry = {
+        toot: doorNoToUse,
+        source: "WALLET_API",
+        walletBairId: bairIdToUse,
+        walletDoorNo: doorNoToUse,
             walletBairName: walletBairName,
             baiguullagiinId: CENTRALIZED_ORG_ID,
             barilgiinId: barilgaResult.barilgiinId,
-            createdAt: new Date()
-          };
-          
-          const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
-            t => t.source === "WALLET_API" && 
-                 t.walletBairId === bairIdToUse &&
-                 t.walletDoorNo === doorNoToUse
-          );
-          
-          if (existingWalletTootIndex >= 0) {
-            orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
-          } else {
+        createdAt: new Date()
+      };
+      
+      const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
+        t => t.source === "WALLET_API" && 
+             t.walletBairId === bairIdToUse &&
+             t.walletDoorNo === doorNoToUse
+      );
+      
+      if (existingWalletTootIndex >= 0) {
+        orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+      } else {
             if (!orshinSuugch.toots) {
               orshinSuugch.toots = [];
             }
-            orshinSuugch.toots.push(walletTootEntry);
+        orshinSuugch.toots.push(walletTootEntry);
           }
         } catch (error) {
           // Fallback: just add to toots array without centralized org
@@ -2163,7 +2163,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                   billingInfo.billingId = connectResult.billingId;
                 }
               } catch (connectError) {
-              }
+                }
             }
           }
 
@@ -2917,30 +2917,30 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           orshinSuugch.barilgiinId = barilgaResult.barilgiinId;
           
           // Also add to toots array for tracking
-          const walletTootEntry = {
-            toot: req.body.doorNo,
-            source: "WALLET_API",
-            walletBairId: req.body.bairId,
-            walletDoorNo: req.body.doorNo,
+      const walletTootEntry = {
+        toot: req.body.doorNo,
+        source: "WALLET_API",
+        walletBairId: req.body.bairId,
+        walletDoorNo: req.body.doorNo,
             walletBairName: walletBairName,
             baiguullagiinId: CENTRALIZED_ORG_ID,
             barilgiinId: barilgaResult.barilgiinId,
-            createdAt: new Date()
-          };
-          
-          const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
-            t => t.source === "WALLET_API" && 
-                 t.walletBairId === req.body.bairId &&
-                 t.walletDoorNo === req.body.doorNo
-          );
-          
-          if (existingWalletTootIndex >= 0) {
-            orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
-          } else {
-            if (!orshinSuugch.toots) {
-              orshinSuugch.toots = [];
-            }
-            orshinSuugch.toots.push(walletTootEntry);
+        createdAt: new Date()
+      };
+      
+      const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
+        t => t.source === "WALLET_API" && 
+             t.walletBairId === req.body.bairId &&
+             t.walletDoorNo === req.body.doorNo
+      );
+      
+      if (existingWalletTootIndex >= 0) {
+        orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+      } else {
+        if (!orshinSuugch.toots) {
+          orshinSuugch.toots = [];
+        }
+        orshinSuugch.toots.push(walletTootEntry);
           }
         } catch (error) {
           // Fallback: just add to toots array without centralized org
@@ -3438,7 +3438,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                 }
               } catch (connectError) {
                 // Silent fail - billing connection is optional
-              }
+                }
             }
           }
 
@@ -3578,12 +3578,12 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           } catch (customerBillingError) {
             // Try billing list as fallback
             try {
-              // Wallet API requires phone number as userId in header
-              const billingList = await walletApiService.getBillingList(phoneNumber);
-              if (billingList && billingList.length > 0) {
-                const matchingBilling = billingList.find(b => 
-                  b.customerId === billingInfo.customerId
-                );
+                // Wallet API requires phone number as userId in header
+                const billingList = await walletApiService.getBillingList(phoneNumber);
+                if (billingList && billingList.length > 0) {
+                  const matchingBilling = billingList.find(b => 
+                    b.customerId === billingInfo.customerId
+                  );
                 if (matchingBilling && matchingBilling.billingId) {
                   billingInfo.billingId = matchingBilling.billingId;
                   billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
