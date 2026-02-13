@@ -947,6 +947,89 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           orshinSuugch.bairniiNer = targetBarilga.ner || "";
         }
       }
+    } else if (req.body.bairId && req.body.doorNo && !req.body.baiguullagiinId) {
+      // Handle Wallet API address - create/find barilga in centralized org
+      // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
+      
+      // Get bairName from request (frontend should send it from address selection)
+      const walletBairName = req.body.bairName || req.body.walletBairName;
+      
+      if (walletBairName) {
+        try {
+          // Find or create barilga in centralized org
+          const barilgaResult = await findOrCreateBarilgaFromWallet(
+            req.body.bairId,
+            walletBairName
+          );
+          
+          console.log(
+            `🏢 [REGISTER] ${barilgaResult.isNew ? "Created" : "Found"} barilga in centralized org: ${barilgaResult.barilgiinId}`
+          );
+          
+          // Set centralized org as primary address
+          orshinSuugch.baiguullagiinId = CENTRALIZED_ORG_ID;
+          orshinSuugch.barilgiinId = barilgaResult.barilgiinId;
+          
+          // Also add to toots array for tracking
+          const walletTootEntry = {
+            toot: req.body.doorNo,
+            source: "WALLET_API",
+            walletBairId: req.body.bairId,
+            walletDoorNo: req.body.doorNo,
+            walletBairName: walletBairName,
+            baiguullagiinId: CENTRALIZED_ORG_ID,
+            barilgiinId: barilgaResult.barilgiinId,
+            createdAt: new Date()
+          };
+          
+          const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
+            t => t.source === "WALLET_API" && 
+                 t.walletBairId === req.body.bairId &&
+                 t.walletDoorNo === req.body.doorNo
+          );
+          
+          if (existingWalletTootIndex >= 0) {
+            orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+            console.log(`🔄 [REGISTER] Updated existing Wallet API toot in array`);
+          } else {
+            if (!orshinSuugch.toots) {
+              orshinSuugch.toots = [];
+            }
+            orshinSuugch.toots.push(walletTootEntry);
+            console.log(`➕ [REGISTER] Added new Wallet API toot to array`);
+          }
+        } catch (error) {
+          console.error("❌ [REGISTER] Error creating barilga in centralized org:", error.message);
+          // Fallback: just add to toots array without centralized org
+          const walletTootEntry = {
+            toot: req.body.doorNo,
+            source: "WALLET_API",
+            walletBairId: req.body.bairId,
+            walletDoorNo: req.body.doorNo,
+            createdAt: new Date()
+          };
+          
+          if (!orshinSuugch.toots) {
+            orshinSuugch.toots = [];
+          }
+          orshinSuugch.toots.push(walletTootEntry);
+        }
+      } else {
+        // Fallback: add to toots array without centralized org (if bairName not provided)
+        const walletTootEntry = {
+          toot: req.body.doorNo,
+          source: "WALLET_API",
+          walletBairId: req.body.bairId,
+          walletDoorNo: req.body.doorNo,
+          createdAt: new Date()
+        };
+        
+        if (!orshinSuugch.toots) {
+          orshinSuugch.toots = [];
+        }
+        orshinSuugch.toots.push(walletTootEntry);
+        console.log("⚠️ [REGISTER] bairName not provided, added to toots without centralized org");
+      }
     }
     
     await orshinSuugch.save();
