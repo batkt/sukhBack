@@ -13,6 +13,10 @@ const axios = require("axios");
 const jwt = require("jsonwebtoken");
 const addressService = require("../services/addressService");
 const walletApiService = require("../services/walletApiService");
+const {
+  findOrCreateBarilgaFromWallet,
+  CENTRALIZED_ORG_ID,
+} = require("./negdsenSan");
 
 // ... existing code ...
 
@@ -2044,28 +2048,97 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         console.log(`ℹ️ [WALLET LOGIN] OWN_ORG address selection ignored for existing primary user (will wait for toot to add to array)`);
       }
     } else if (bairIdToUse && doorNoToUse && !req.body.baiguullagiinId) {
-      // Handle Wallet API address - add to toots array
+      // Handle Wallet API address - create/find barilga in centralized org
       // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
-      const walletTootEntry = {
-        toot: doorNoToUse,
-        source: "WALLET_API",
-        walletBairId: bairIdToUse,
-        walletDoorNo: doorNoToUse,
-        createdAt: new Date()
-      };
       
-      const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
-        t => t.source === "WALLET_API" && 
-             t.walletBairId === bairIdToUse &&
-             t.walletDoorNo === doorNoToUse
-      );
+      // Get bairName from request or fetch from Wallet API
+      let walletBairName = req.body.bairName || req.body.walletBairName;
       
-      if (existingWalletTootIndex >= 0) {
-        orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
-        console.log(`🔄 [WALLET LOGIN] Updated existing Wallet API toot in array`);
+      if (!walletBairName && bairIdToUse) {
+        // Try to fetch bair name from Wallet API (optional, frontend should send it)
+        try {
+          // Note: We don't have a direct getBairById endpoint, so frontend should send bairName
+          console.log("⚠️ [WALLET LOGIN] bairName not provided, frontend should send it");
+        } catch (error) {
+          console.error("❌ [WALLET LOGIN] Could not fetch bair name:", error.message);
+        }
+      }
+      
+      if (walletBairName) {
+        try {
+          // Find or create barilga in centralized org
+          const barilgaResult = await findOrCreateBarilgaFromWallet(
+            bairIdToUse,
+            walletBairName
+          );
+          
+          console.log(
+            `🏢 [WALLET LOGIN] ${barilgaResult.isNew ? "Created" : "Found"} barilga in centralized org: ${barilgaResult.barilgiinId}`
+          );
+          
+          // Set centralized org as primary address
+          orshinSuugch.baiguullagiinId = CENTRALIZED_ORG_ID;
+          orshinSuugch.barilgiinId = barilgaResult.barilgiinId;
+          
+          // Also add to toots array for tracking
+          const walletTootEntry = {
+            toot: doorNoToUse,
+            source: "WALLET_API",
+            walletBairId: bairIdToUse,
+            walletDoorNo: doorNoToUse,
+            walletBairName: walletBairName,
+            baiguullagiinId: CENTRALIZED_ORG_ID,
+            barilgiinId: barilgaResult.barilgiinId,
+            createdAt: new Date()
+          };
+          
+          const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
+            t => t.source === "WALLET_API" && 
+                 t.walletBairId === bairIdToUse &&
+                 t.walletDoorNo === doorNoToUse
+          );
+          
+          if (existingWalletTootIndex >= 0) {
+            orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+            console.log(`🔄 [WALLET LOGIN] Updated existing Wallet API toot in array`);
+          } else {
+            if (!orshinSuugch.toots) {
+              orshinSuugch.toots = [];
+            }
+            orshinSuugch.toots.push(walletTootEntry);
+            console.log(`➕ [WALLET LOGIN] Added new Wallet API toot to array`);
+          }
+        } catch (error) {
+          console.error("❌ [WALLET LOGIN] Error creating barilga in centralized org:", error.message);
+          // Fallback: just add to toots array without centralized org
+          const walletTootEntry = {
+            toot: doorNoToUse,
+            source: "WALLET_API",
+            walletBairId: bairIdToUse,
+            walletDoorNo: doorNoToUse,
+            createdAt: new Date()
+          };
+          
+          if (!orshinSuugch.toots) {
+            orshinSuugch.toots = [];
+          }
+          orshinSuugch.toots.push(walletTootEntry);
+        }
       } else {
+        // Fallback: add to toots array without centralized org (if bairName not provided)
+        const walletTootEntry = {
+          toot: doorNoToUse,
+          source: "WALLET_API",
+          walletBairId: bairIdToUse,
+          walletDoorNo: doorNoToUse,
+          createdAt: new Date()
+        };
+        
+        if (!orshinSuugch.toots) {
+          orshinSuugch.toots = [];
+        }
         orshinSuugch.toots.push(walletTootEntry);
-        console.log(`➕ [WALLET LOGIN] Added new Wallet API toot to array`);
+        console.log("⚠️ [WALLET LOGIN] bairName not provided, added to toots without centralized org");
       }
     }
 
@@ -3023,31 +3096,87 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
       orshinSuugch.horoo = userData.newTootEntry.horoo;
       orshinSuugch.soh = userData.newTootEntry.soh;
     } else if (req.body.bairId && req.body.doorNo && !req.body.baiguullagiinId) {
-      // Handle Wallet API address - add to toots array
+      // Handle Wallet API address - create/find barilga in centralized org
       // Only treat as WALLET_API if baiguullagiinId is NOT provided (ensures OWN_ORG takes priority)
-      const walletTootEntry = {
-        toot: req.body.doorNo,
-        source: "WALLET_API",
-        walletBairId: req.body.bairId,
-        walletDoorNo: req.body.doorNo,
-        createdAt: new Date()
-      };
       
-      const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
-        t => t.source === "WALLET_API" && 
-             t.walletBairId === req.body.bairId &&
-             t.walletDoorNo === req.body.doorNo
-      );
+      // Get bairName from request (frontend should send it from address selection)
+      const walletBairName = req.body.bairName || req.body.walletBairName;
       
-      if (existingWalletTootIndex >= 0) {
-        orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
-        console.log(`🔄 [WALLET REGISTER] Updated existing Wallet API toot in array`);
+      if (walletBairName) {
+        try {
+          // Find or create barilga in centralized org
+          const barilgaResult = await findOrCreateBarilgaFromWallet(
+            req.body.bairId,
+            walletBairName
+          );
+          
+          console.log(
+            `🏢 [WALLET REGISTER] ${barilgaResult.isNew ? "Created" : "Found"} barilga in centralized org: ${barilgaResult.barilgiinId}`
+          );
+          
+          // Set centralized org as primary address
+          orshinSuugch.baiguullagiinId = CENTRALIZED_ORG_ID;
+          orshinSuugch.barilgiinId = barilgaResult.barilgiinId;
+          
+          // Also add to toots array for tracking
+          const walletTootEntry = {
+            toot: req.body.doorNo,
+            source: "WALLET_API",
+            walletBairId: req.body.bairId,
+            walletDoorNo: req.body.doorNo,
+            walletBairName: walletBairName,
+            baiguullagiinId: CENTRALIZED_ORG_ID,
+            barilgiinId: barilgaResult.barilgiinId,
+            createdAt: new Date()
+          };
+          
+          const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
+            t => t.source === "WALLET_API" && 
+                 t.walletBairId === req.body.bairId &&
+                 t.walletDoorNo === req.body.doorNo
+          );
+          
+          if (existingWalletTootIndex >= 0) {
+            orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+            console.log(`🔄 [WALLET REGISTER] Updated existing Wallet API toot in array`);
+          } else {
+            if (!orshinSuugch.toots) {
+              orshinSuugch.toots = [];
+            }
+            orshinSuugch.toots.push(walletTootEntry);
+            console.log(`➕ [WALLET REGISTER] Added new Wallet API toot to array`);
+          }
+        } catch (error) {
+          console.error("❌ [WALLET REGISTER] Error creating barilga in centralized org:", error.message);
+          // Fallback: just add to toots array without centralized org
+          const walletTootEntry = {
+            toot: req.body.doorNo,
+            source: "WALLET_API",
+            walletBairId: req.body.bairId,
+            walletDoorNo: req.body.doorNo,
+            createdAt: new Date()
+          };
+          
+          if (!orshinSuugch.toots) {
+            orshinSuugch.toots = [];
+          }
+          orshinSuugch.toots.push(walletTootEntry);
+        }
       } else {
+        // Fallback: add to toots array without centralized org (if bairName not provided)
+        const walletTootEntry = {
+          toot: req.body.doorNo,
+          source: "WALLET_API",
+          walletBairId: req.body.bairId,
+          walletDoorNo: req.body.doorNo,
+          createdAt: new Date()
+        };
+        
         if (!orshinSuugch.toots) {
           orshinSuugch.toots = [];
         }
         orshinSuugch.toots.push(walletTootEntry);
-        console.log(`➕ [WALLET REGISTER] Added new Wallet API toot to array`);
+        console.log("⚠️ [WALLET REGISTER] bairName not provided, added to toots without centralized org");
       }
     }
 
