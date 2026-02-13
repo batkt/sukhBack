@@ -3,6 +3,7 @@ const router = express.Router();
 const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
 const ashiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
 const Baiguullaga = require("../models/baiguullaga");
+const OrshinSuugch = require("../models/orshinSuugch");
 
 // CRUD routes
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
@@ -116,6 +117,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const { db } = require("zevbackv2");
     const baiguullagiinId = req.body.baiguullagiinId;
     const barilgiinId = req.body.barilgiinId;
+    const residentId = req.body.residentId;
     // Support both camelCase and snake_case; accept number or string
     const umnukhZaaltRaw =
       req.body.umnukhZaalt ??
@@ -217,6 +219,32 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
     console.log(`[CALC] Aggregated Results: tariff=${maxTariff}, suuri=${maxSuuriKhuraamj}, selected=${selectedChargeName}`);
 
+    // Check for Resident-specific tariff
+    let finalTariff = maxTariff;
+    let residentSpecificUsed = false;
+    if (residentId) {
+      console.log(`[CALC] Looking for resident with ID: ${residentId}`);
+      const tukhainBaaziinKholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      );
+      if (tukhainBaaziinKholbolt) {
+        const resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(residentId);
+        if (resident) {
+          console.log(`[CALC] Found resident: "${resident.ner}" (ID: ${resident._id})`);
+          console.log(`[CALC] Resident tsahilgaaniiZaalt: ${resident.tsahilgaaniiZaalt}`);
+          if (resident.tsahilgaaniiZaalt > 0) {
+            finalTariff = resident.tsahilgaaniiZaalt;
+            residentSpecificUsed = true;
+            console.log(`[CALC] SUCCESS: Using resident-specific tariff: ${finalTariff}`);
+          } else {
+            console.log(`[CALC] INFO: Resident has no valid tsahilgaaniiZaalt, falling back to global.`);
+          }
+        } else {
+          console.warn(`[CALC] WARNING: Resident not found for ID: ${residentId}`);
+        }
+      }
+    }
+
     const umnukhZaaltNum =
       typeof umnukhZaaltRaw === "number"
         ? umnukhZaaltRaw
@@ -247,8 +275,8 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         ? guidliinKoeffRaw
         : parseFloat(String(guidliinKoeffRaw || "").replace(/,/g, "").trim()) || 1;
 
-    // Use aggregated values
-    const targetTariff = maxTariff;
+    // Use aggregated/resident values
+    const targetTariff = finalTariff;
     const zoruu = Math.abs(suuliinZaaltNum - umnukhZaaltNum);
     const usageAmount = zoruu * targetTariff * guidliinKoeffNum;
     const suuriKhuraamj = maxSuuriKhuraamj;
@@ -275,6 +303,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       shonoZaaltNum,
       suuliinZaaltNum,
       tariff: targetTariff,
+      isResidentTariff: residentSpecificUsed,
       selectedCharge: selectedChargeName || "None",
       _received: { umnukhZaaltNum, odorZaaltNum, shonoZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
     });
