@@ -140,7 +140,6 @@ async function markInvoicesAsPaid(options) {
     if (gereeToUpdate) {
       gereeToUpdate.positiveBalance = (gereeToUpdate.positiveBalance || 0) + dun;
       await gereeToUpdate.save();
-      console.log(`💰 [INVOICE PAYMENT] No invoices found, saved ${dun} as positiveBalance in geree ${gereeToUpdate._id}`);
 
       // NEW: Also create a history record for this prepayment so it's visible and counts 
       // towards the dashboard balance reduction.
@@ -171,7 +170,6 @@ async function markInvoicesAsPaid(options) {
           guilgeeKhiisenAjiltniiId: null,
         });
         await prepayDoc.save();
-        console.log(`✅ [INVOICE PAYMENT] Created prepayment record for visibility.`);
       } catch (historyError) {
         console.error(`❌ [INVOICE PAYMENT] Error creating prepayment history:`, historyError.message);
       }
@@ -187,8 +185,6 @@ async function markInvoicesAsPaid(options) {
       positiveBalanceAdded: dun,
     };
   }
-
-  console.log(`💰 [INVOICE PAYMENT] Found ${invoices.length} unpaid invoice(s), applying payment of ${dun}`);
 
   let remainingPayment = dun;
   const updatedInvoices = [];
@@ -252,8 +248,6 @@ async function markInvoicesAsPaid(options) {
         continue;
       }
 
-      console.log(`✅ [INVOICE PAYMENT] Applied ${amountToApply}₮ to invoice ${updatedInvoice._id} (${isFullyPaid ? 'fully paid' : 'partial'})`);
-
       remainingPayment -= amountToApply;
       updatedInvoices.push({
         invoice: updatedInvoice,
@@ -278,7 +272,6 @@ async function markInvoicesAsPaid(options) {
           if (gereeForUpdate) {
             gereeForUpdate.ekhniiUldegdel = 0;
             await gereeForUpdate.save();
-            console.log(`✅ [INVOICE PAYMENT] Updated geree.ekhniiUldegdel to 0 for geree ${gereeForUpdate._id}`);
           }
         } catch (error) {
           console.error(`❌ [INVOICE PAYMENT] Error updating geree.ekhniiUldegdel:`, error.message);
@@ -322,7 +315,6 @@ async function markInvoicesAsPaid(options) {
 
       const savedTulsun = await tulsunDoc.save();
       tulsunAvlagaDocs.push(savedTulsun);
-      console.log(`✅ [INVOICE PAYMENT] Created single consolidated payment record: ${dun}₮`);
     } catch (tulsunError) {
       console.error(
         "❌ [INVOICE PAYMENT] Error creating gereeniiTulsunAvlaga:",
@@ -374,7 +366,6 @@ async function markInvoicesAsPaid(options) {
             geree.positiveBalance = (geree.positiveBalance || 0) + balancePerGeree;
             await geree.save();
             gereePositiveBalanceMap.set(gereeId, geree.positiveBalance);
-            console.log(`💰 [INVOICE PAYMENT] Added ${balancePerGeree}₮ to positiveBalance for geree ${gereeId}`);
 
             // Skip creating separate prepayment gereeniiTulsunAvlaga - the consolidated record above already has the full payment
             // (Creating both would show 2 payment entries for one user payment)
