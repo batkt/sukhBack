@@ -1209,8 +1209,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           // DO NOT overwrite baiguullagiinId, barilgiinId at top level
           // These are the resident's "primary" home.
           // New building links go into the toots array.
-
-          console.log(`ℹ️ [IMPORT] Existing resident found (${phoneNumber}). Preserving primary org: ${orshinSuugch.baiguullagiinId}`);
         } else {
           orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(userObject);
           // For new users, set the top-level fields
@@ -1301,7 +1299,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
              }
           }
         } catch (zochinErr) {
-          console.error("❌ [IMPORT-ZOCHIN] Error:", zochinErr.message);
+          // Error creating guest settings - silently continue
         }
 
         // Create gerees for all OWN_ORG toots that don't have gerees yet
@@ -1637,13 +1635,9 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
         }
       });
 
-      console.log("🔍 [TOOT TEMPLATE] davkhariinToonuud keys:", Object.keys(davkhariinToonuud));
-      console.log("🔍 [TOOT TEMPLATE] Extracted orts from keys:", Array.from(ortsSet));
-
       // Method 2: Check if there's a direct orts field in tokhirgoo
       if (ortsSet.size === 0 && targetBarilga.tokhirgoo?.orts) {
         const ortsValue = targetBarilga.tokhirgoo.orts;
-        console.log("🔍 [TOOT TEMPLATE] Found tokhirgoo.orts:", ortsValue, "Type:", typeof ortsValue);
 
         // Try to parse as a number first (handles both number and numeric string like "2")
         const ortsAsNumber = typeof ortsValue === 'number' ? ortsValue : parseInt(ortsValue);
@@ -1653,21 +1647,17 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
           for (let i = 1; i <= ortsAsNumber; i++) {
             ortsSet.add(String(i));
           }
-          console.log("🔍 [TOOT TEMPLATE] Using orts as count, created range 1 to", ortsAsNumber);
         } else if (typeof ortsValue === 'string' && ortsValue.includes(',')) {
           // If it's a comma-separated string like "1,2,3"
           ortsValue.split(',').forEach(o => {
             const trimmed = o.trim();
             if (trimmed) ortsSet.add(trimmed);
           });
-          console.log("🔍 [TOOT TEMPLATE] Using orts as comma-separated list:", ortsValue);
         }
       }
 
       // If no orts found, default to 1
       const ortsList = ortsSet.size > 0 ? Array.from(ortsSet).sort((a, b) => parseInt(a) - parseInt(b)) : ["1"];
-
-      console.log("✅ [TOOT TEMPLATE] Final ortsList:", ortsList);
 
       const wb = XLSX.utils.book_new();
       const headers = ["Давхар", "Тоот"];
@@ -1683,7 +1673,6 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
         ws["!cols"] = colWidths;
 
         const sheetName = `Орц ${orts}`;
-        console.log(`📄 [TOOT TEMPLATE] Creating sheet: ${sheetName}`);
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       });
 
@@ -2015,7 +2004,6 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
       results: results,
     });
   } catch (error) {
-    console.error("Error importing tootBurtgel from Excel:", error);
     next(error);
   }
 });
@@ -2194,7 +2182,6 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
       results,
     });
   } catch (error) {
-    console.error("Error importing initial balance from Excel:", error);
     next(error);
   }
 });

@@ -1942,7 +1942,6 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    console.error("Error generating electricity Excel template:", error);
     next(error);
   }
 });
@@ -2004,12 +2003,6 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
 
     const zaaltZardluud = zardluud.filter(isVariableElectricity);
 
-    console.log("⚡ [ZAALT IMPORT] Electricity zardluud found:", {
-      totalZardluud: zardluud.length,
-      zaaltZardluudCount: zaaltZardluud.length,
-      zaaltZardluud: zaaltZardluud.map(z => ({ ner: z.ner, zaalt: z.zaalt, tariffUsgeer: z.tariffUsgeer }))
-    });
-
     // Prioritize exact "Цахилгаан" match (no trailing space)
     let zaaltZardal = zaaltZardluud.find(
       (z) => z.ner && z.ner.trim() === "Цахилгаан"
@@ -2018,9 +2011,6 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
     // If no exact match, use first one
     if (!zaaltZardal && zaaltZardluud.length > 0) {
       zaaltZardal = zaaltZardluud[0];
-      console.warn(
-        `⚠️  [ZAALT] Multiple electricity tariffs found (${zaaltZardluud.length}). Using: ${zaaltZardal.ner} (tariff: ${zaaltZardal.zaaltTariff}, default: ${zaaltZardal.zaaltDefaultDun})`
-      );
     }
 
     if (!zaaltZardal) {
@@ -2125,10 +2115,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
             }
 
             await orshinSuugch.save();
-            console.log(`⚡ [EXCEL] Updated orshinSuugch readings and using tariff for ${gereeniiDugaar}:`, { odor, shone, niitOdoo, tariff: gereeZaaltTariff });
           }
-        } else {
-          console.log(`⚠️ [EXCEL] No orshinSuugchId found in geree for ${gereeniiDugaar}, using building level:`, gereeZaaltTariff);
         }
 
         // Get tariff tiers from geree.zardluud or building level
@@ -2142,15 +2129,6 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
 
         // Use defaultDun from Excel input (NEW - separate from ashiglaltiinZardluud)
         const gereeZaaltDefaultDun = defaultDunFromExcel;
-
-        // Log tariff and defaultDun source for debugging
-        console.log(`⚡ [EXCEL] Using tariff from orshinSuugch, defaultDun from Excel for ${gereeniiDugaar}:`, {
-          tariff: gereeZaaltTariff,
-          tariffSource: "orshinSuugch.tsahilgaaniiZaalt",
-          defaultDun: gereeZaaltDefaultDun,
-          defaultDunSource: "Excel",
-          hasTiers: gereeZaaltTariffTiers.length > 0
-        });
 
         // Calculate tiered pricing if zaaltTariffTiers is available
         let zaaltDun = 0;
@@ -2308,7 +2286,6 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         });
 
         await zaaltUnshlalt.save();
-        console.log(`💾 [ZAALT IMPORT] Saved to zaaltUnshlalt model: ${gereeniiDugaar}`);
 
         results.success.push({
           row: rowNumber,
@@ -2319,10 +2296,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           niitOdoo: niitOdoo,
           zaaltDun: zaaltDun,
         });
-
-        console.log(`✅ [ZAALT IMPORT] Processed geree ${gereeniiDugaar}: ${zaaltDun} MNT`);
       } catch (error) {
-        console.error(`❌ [ZAALT IMPORT] Error processing row ${rowNumber}:`, error.message);
         results.failed.push({
           row: rowNumber,
           gereeniiDugaar: row["Гэрээний дугаар"]?.toString().trim() || "",
@@ -2337,7 +2311,6 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
       results: results,
     });
   } catch (error) {
-    console.error("Error importing electricity Excel:", error);
     next(error);
   }
 });
@@ -2348,30 +2321,16 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
  */
 exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
   try {
-    console.log("📥 [ZAALT EXPORT] Request received:", {
-      method: req.method,
-      path: req.path,
-      originalUrl: req.originalUrl,
-      body: req.body,
-    });
-
     const { db } = require("zevbackv2");
     const { baiguullagiinId, barilgiinId } = req.body;
 
     if (!baiguullagiinId) {
-      console.error("❌ [ZAALT EXPORT] Missing baiguullagiinId");
       throw new aldaa("Байгууллагын ID хоосон");
     }
 
     if (!barilgiinId) {
-      console.error("❌ [ZAALT EXPORT] Missing barilgiinId");
       throw new aldaa("Барилгын ID хоосон");
     }
-
-    console.log("✅ [ZAALT EXPORT] Parameters validated:", {
-      baiguullagiinId,
-      barilgiinId,
-    });
 
     const Baiguullaga = require("../models/baiguullaga");
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
@@ -2389,11 +2348,6 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
     // Get electricity readings from dedicated zaaltUnshlalt model
     const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
 
-    console.log("🔍 [ZAALT EXPORT] Searching for electricity data:", {
-      baiguullagiinId: baiguullaga._id.toString(),
-      barilgiinId: barilgiinId,
-    });
-
     // Get all electricity readings for this building, sorted by contract number and date
     const zaaltUnshlaltuud = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
       .find({
@@ -2403,13 +2357,7 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       .sort({ gereeniiDugaar: 1, unshlaltiinOgnoo: -1 }) // Latest reading first for each contract
       .lean();
 
-    console.log("📊 [ZAALT EXPORT] Total electricity readings found:", zaaltUnshlaltuud.length);
-
     if (!zaaltUnshlaltuud || zaaltUnshlaltuud.length === 0) {
-      console.log("❌ [ZAALT EXPORT] No electricity data found:", {
-        baiguullagiinId: baiguullaga._id.toString(),
-        barilgiinId: barilgiinId,
-      });
       throw new aldaa("Цахилгааны уншилтын мэдээлэл олдсонгүй");
     }
 
@@ -2438,13 +2386,6 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
     });
 
     const gereenuud = Array.from(latestReadings.values());
-
-    console.log("✅ [ZAALT EXPORT] Found electricity data:", {
-      baiguullagiinId: baiguullaga._id.toString(),
-      barilgiinId: barilgiinId,
-      totalReadings: zaaltUnshlaltuud.length,
-      uniqueContracts: gereenuud.length,
-    });
 
     // Get building-level electricity zardal configuration
     const targetBarilga = baiguullaga.barilguud?.find(
@@ -2550,12 +2491,7 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
 
         if (orshinSuugch && orshinSuugch.tsahilgaaniiZaalt !== undefined) {
           tariff = orshinSuugch.tsahilgaaniiZaalt || 0;
-          console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - Using tariff from orshinSuugch.tsahilgaaniiZaalt:`, tariff);
-        } else {
-          console.error(`❌ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - orshinSuugch not found or tsahilgaaniiZaalt not set. Tariff will be 0.`);
         }
-      } else {
-        console.error(`❌ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - No orshinSuugchId found in geree. Tariff will be 0.`);
       }
 
       // DO NOT fallback to zaaltZardal.zaaltTariff - tariff MUST come from orshinSuugch
@@ -2565,28 +2501,17 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       // DO NOT fallback to zaaltZardal.zaaltDefaultDun - it must come from Excel input
       if (reading.zaaltCalculation?.defaultDun) {
         defaultDun = reading.zaaltCalculation.defaultDun;
-        console.log(`💰 [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - Using defaultDun from Excel (saved in zaaltCalculation):`, defaultDun);
       } else if (reading.defaultDun) {
         // Fallback to reading.defaultDun (which should also be from Excel)
         defaultDun = reading.defaultDun;
-        console.log(`💰 [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - Using defaultDun from reading (saved from Excel):`, defaultDun);
       } else {
         // DO NOT use zaaltZardal.zaaltDefaultDun - defaultDun MUST come from Excel input
         defaultDun = 0;
-        console.error(`❌ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - No defaultDun found from Excel. Using 0.`);
       }
 
       // Always recalculate payment: (usage * tariff) + base fee
       // Formula: zaaltDun = zoruu * tariff + defaultDun
       const zaaltDun = (zoruu * tariff) + defaultDun;
-
-      console.log(`💰 [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} payment calculation:`, {
-        zoruu: zoruu,
-        tariff: tariff,
-        defaultDun: defaultDun,
-        calculation: `${zoruu} * ${tariff} + ${defaultDun}`,
-        zaaltDun: zaaltDun
-      });
       const calculatedAt = reading.zaaltCalculation?.calculatedAt
         ? new Date(reading.zaaltCalculation.calculatedAt).toLocaleString("mn-MN", {
           timeZone: "Asia/Ulaanbaatar",
@@ -2641,7 +2566,6 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
-    console.error("Error exporting electricity readings data:", error);
     next(error);
   }
 });

@@ -355,16 +355,9 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
     const statusWasSetToRejected = updateFields.status === "rejected";
     const shouldSendReplyToApp = statusWasSetToDone || statusWasSetToRejected;
     const hasTailbar = updateFields.tailbar || medegdel.tailbar;  
-    console.log("🔍 [REPLY CHECK] isReplyableType:", isReplyableType);
-    console.log("🔍 [REPLY CHECK] shouldSendReplyToApp:", shouldSendReplyToApp);
-    console.log("🔍 [REPLY CHECK] hasTailbar:", hasTailbar);
     
     if (isReplyableType && shouldSendReplyToApp && hasTailbar) {
       try {
-        console.log("📤 [REPLY] Creating reply notification...");
-        console.log("📤 [REPLY] orshinSuugchId:", medegdel.orshinSuugchId);
-        console.log("📤 [REPLY] tailbar:", updateFields.tailbar || medegdel.tailbar);
-        
         const replyMedegdel = new Medegdel(kholbolt)();
         replyMedegdel.parentId = medegdel._id; // Thread: link reply to root for chat
         replyMedegdel.orshinSuugchId = medegdel.orshinSuugchId;
@@ -378,23 +371,16 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
         replyMedegdel.ognoo = new Date();
 
         await replyMedegdel.save();
-        console.log("✅ [REPLY] Reply notification saved:", replyMedegdel._id);
 
         const replyData = replyMedegdel.toObject ? replyMedegdel.toObject() : replyMedegdel;
 
         const io = req.app.get("socketio");
         if (io && medegdel.orshinSuugchId) {
           const socketEventName = "orshinSuugch" + medegdel.orshinSuugchId;
-          console.log("📡 [SOCKET] Emitting event:", socketEventName);
           io.emit(socketEventName, replyData);
-          console.log("✅ [SOCKET] Event emitted successfully");
-        } else {
-          console.warn("⚠️ [SOCKET] Socket.io not available or orshinSuugchId missing");
-          console.warn("⚠️ [SOCKET] io:", !!io, "orshinSuugchId:", medegdel.orshinSuugchId);
         }
       } catch (replyError) {
-        console.error("❌ [REPLY] Error sending reply notification:", replyError);
-        console.error("❌ [REPLY] Error stack:", replyError.stack);
+        // Error sending reply notification - silently continue
       }
     }
 
@@ -591,10 +577,6 @@ exports.medegdelUploadChatFile = asyncHandler(async (req, res, next) => {
       return res.status(400).json({ success: false, message: "file is required" });
     }
     const relativePath = `${baiguullagiinId}/${req.file.filename}`;
-    if (req.file.path) {
-      console.log(`🔍 [UPLOAD] Saved chat file to: ${req.file.path}`);
-      console.log(`🔍 [UPLOAD] Image URL path: /medegdel/${relativePath} (or /api/medegdel/${relativePath})`);
-    }
     res.json({ success: true, path: relativePath });
   } catch (error) {
     next(error);
@@ -745,12 +727,10 @@ exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
     const io = req.app.get("socketio");
     if (io && userId) {
       const userEvent = "orshinSuugch" + userId;
-      console.log("[medegdelUserReply] SEND orshinSuugch: event=" + userEvent + " parentId=" + (replyObj.parentId || "") + " message=" + (replyObj.message || "").slice(0, 40));
       io.emit(userEvent, replyObj);
     }
     if (io && root.baiguullagiinId) {
       const adminEvent = "baiguullagiin" + root.baiguullagiinId;
-      console.log("[medegdelUserReply] SEND baiguullagiin: event=" + adminEvent + " type=medegdelUserReply parentId=" + (replyObj.parentId || ""));
       io.emit(adminEvent, { type: "medegdelUserReply", data: replyObj });
     }
 

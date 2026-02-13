@@ -68,7 +68,6 @@ router.get("/nekhemjlekhiinTuukh/:id", tokenShalgakh, async (req, res, next) => 
       data: nekhemjlekh,
     });
   } catch (error) {
-    console.error("Invoice fetch error:", error);
     next(error);
   }
 });
@@ -134,8 +133,6 @@ router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
       });
     }
 
-    console.log(`📅 [PREVIOUS MONTH] Creating invoices for ${gerees.length} contract(s) - ${monthsAgo} month(s) ago`);
-
     const results = {
       success: true,
       total: gerees.length,
@@ -150,8 +147,6 @@ router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
     for (let i = 0; i < gerees.length; i++) {
       const geree = gerees[i];
       try {
-        console.log(`📝 [${i + 1}/${gerees.length}] Processing contract ${geree.gereeniiDugaar}...`);
-
         const invoiceResult = await gereeNeesNekhemjlekhUusgekhPreviousMonth(
           geree,
           baiguullaga,
@@ -164,10 +159,8 @@ router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
         if (invoiceResult.success) {
           if (invoiceResult.alreadyExists) {
             results.alreadyExists++;
-            console.log(`ℹ️  [${i + 1}/${gerees.length}] Invoice already exists for ${geree.gereeniiDugaar}`);
           } else {
             results.created++;
-            console.log(`✅ [${i + 1}/${gerees.length}] Created invoice for ${geree.gereeniiDugaar}`);
           }
           results.invoices.push({
             gereeniiDugaar: geree.gereeniiDugaar,
@@ -182,7 +175,6 @@ router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
             gereeniiDugaar: geree.gereeniiDugaar,
             error: errorMsg,
           });
-          console.log(`❌ [${i + 1}/${gerees.length}] Error for ${geree.gereeniiDugaar}: ${errorMsg}`);
         }
       } catch (error) {
         results.errors++;
@@ -191,15 +183,11 @@ router.post("/previousMonth", tokenShalgakh, async (req, res, next) => {
           gereeniiDugaar: geree.gereeniiDugaar,
           error: errorMsg,
         });
-        console.error(`❌ [${i + 1}/${gerees.length}] Гэрээ ${geree.gereeniiDugaar} боловсруулах алдаа:`, errorMsg);
       }
     }
 
-    console.log(`📊 [PREVIOUS MONTH] Results: Created: ${results.created}, Already exists: ${results.alreadyExists}, Errors: ${results.errors}, Total: ${results.total}`);
-
     res.json(results);
   } catch (error) {
-    console.error("Error creating previous month invoices:", error);
     next(error);
   }
 });
@@ -275,7 +263,6 @@ router.get("/preview", tokenShalgakh, async (req, res, next) => {
       res.status(400).json(result);
     }
   } catch (error) {
-    console.error("Preview invoice error:", error);
     next(error);
   }
 });
@@ -344,7 +331,6 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error("Manual send invoice error:", error);
     next(error);
   }
 });
@@ -394,7 +380,6 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
       });
     }
   } catch (error) {
-    console.error("Manual send mass invoices error:", error);
     next(error);
   }
 });
