@@ -168,31 +168,42 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       // Must contain "цахилгаан" and NOT "шат"
       const hasElec = name.includes("цахилгаан");
       const isNotElevator = !name.includes("шат");
-      // Prioritize identifying it as electricity if it's meter-based OR named specifically
-      return hasElec && isNotElevator;
+
+      // Exclude shared/common area terms
+      const isNotShared = !name.includes("дундын") &&
+        !name.includes("нийтийн") &&
+        !name.includes("ерөнхий") &&
+        !name.includes("гадна") &&
+        !name.includes("гэрэлтүүлэг");
+
+      return hasElec && isNotElevator && isNotShared;
     };
     const candidates = zardluud.filter(isTsakhilgaan);
-    // Prefer zaalt:true; then prefer exact name; then prefer having a tariff
+    // Priority: 1. Meter-based, 2. Exact name, 3. Non-zero tariff
     const ashiglaltiinZardal = candidates.length === 0
       ? null
       : candidates.sort((a, b) => {
         const nameA = (a.ner || "").trim().toLowerCase();
         const nameB = (b.ner || "").trim().toLowerCase();
 
-        const isMeterA = a.zaalt ? 1000000 : 0;
-        const isMeterB = b.zaalt ? 1000000 : 0;
+        // Meter-based is TOP priority
+        const isMeterA = a.zaalt ? 10000000 : 0;
+        const isMeterB = b.zaalt ? 10000000 : 0;
 
-        const isExactA = (nameA === "цахилгаан" || nameA === "цахилгаан квт" || nameA === "цахилгаан кв") ? 100000 : 0;
-        const isExactB = (nameB === "цахилгаан" || nameB === "цахилгаан квт" || nameB === "цахилгаан кв") ? 100000 : 0;
+        // Exact name match
+        const isExactA = (nameA === "цахилгаан" || nameA === "цахилгаан квт" || nameA === "цахилгаан кв") ? 1000000 : 0;
+        const isExactB = (nameB === "цахилгаан" || nameB === "цахилгаан квт" || nameB === "цахилгаан кв") ? 1000000 : 0;
 
+        // Non-zero tariff
         const tariffValA = Number(a.tariff) || Number(a.zaaltTariff) || 0;
         const tariffValB = Number(b.tariff) || Number(b.zaaltTariff) || 0;
-        const hasTariffA = tariffValA > 0 ? 5000000 : -5000000;
-        const hasTariffB = tariffValB > 0 ? 5000000 : -5000000;
+        const hasTariffA = tariffValA > 0 ? 100000 : -5000000;
+        const hasTariffB = tariffValB > 0 ? 100000 : -5000000;
 
         const scoreA = isMeterA + isExactA + hasTariffA + tariffValA / 1000;
         const scoreB = isMeterB + isExactB + hasTariffB + tariffValB / 1000;
-        console.log(`  - Option "${a.ner}": score=${scoreA}, meter=${a.zaalt}, tariff=${tariffValA}`);
+
+        console.log(`  - Option "${a.ner}": score=${scoreA}, meter=${!!a.zaalt}, tariff=${tariffValA}, exact=${isExactA > 0}`);
         return scoreB - scoreA;
       })[0];
 
