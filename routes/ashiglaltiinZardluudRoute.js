@@ -148,8 +148,8 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
     const targetBarilga = barilgiinId
       ? baiguullaga.barilguud.find(
-          (b) => String(b._id) === String(barilgiinId)
-        )
+        (b) => String(b._id) === String(barilgiinId)
+      )
       : baiguullaga.barilguud[0];
     if (!targetBarilga || !targetBarilga.tokhirgoo) {
       return res.status(404).send({
@@ -169,9 +169,9 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const ashiglaltiinZardal = candidates.length === 0
       ? null
       : candidates.sort((a, b) => {
-          const score = (z) => (z.zaalt ? 1000 : 0) + (Number(z.suuriKhuraamj) || 0) + (Number(z.tariff) || 0) * 10;
-          return score(b) - score(a);
-        })[0];
+        const score = (z) => (z.zaalt ? 1000 : 0) + (Number(z.suuriKhuraamj) || 0) + (Number(z.tariff) || 0) * 10;
+        return score(b) - score(a);
+      })[0];
     if (!ashiglaltiinZardal) {
       return res.status(400).send({
         success: false,
@@ -183,28 +183,49 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       typeof umnukhZaaltRaw === "number"
         ? umnukhZaaltRaw
         : parseFloat(String(umnukhZaaltRaw || "").replace(/,/g, "").trim()) || 0;
-    const suuliinZaaltNum =
-      typeof suuliinZaaltRaw === "number"
+
+    // Split readings: Odor (Day) and Shono (Night)
+    const odorZaaltRaw = req.body.odorZaalt ?? req.body.odor_zaalt;
+    const shonoZaaltRaw = req.body.shonoZaalt ?? req.body.shono_zaalt;
+
+    const odorZaaltNum =
+      typeof odorZaaltRaw === "number"
+        ? odorZaaltRaw
+        : parseFloat(String(odorZaaltRaw || "").replace(/,/g, "").trim()) || 0;
+    const shonoZaaltNum =
+      typeof shonoZaaltRaw === "number"
+        ? shonoZaaltRaw
+        : parseFloat(String(shonoZaaltRaw || "").replace(/,/g, "").trim()) || 0;
+
+    // If both Odor and Shono are provided, suuliinZaalt is their sum
+    const suuliinZaaltNum = (odorZaaltRaw != null || shonoZaaltRaw != null)
+      ? odorZaaltNum + shonoZaaltNum
+      : (typeof suuliinZaaltRaw === "number"
         ? suuliinZaaltRaw
-        : parseFloat(String(suuliinZaaltRaw || "").replace(/,/g, "").trim()) || 0;
+        : parseFloat(String(suuliinZaaltRaw || "").replace(/,/g, "").trim()) || 0);
+
     const guidliinKoeffNum =
       typeof guidliinKoeffRaw === "number"
         ? guidliinKoeffRaw
         : parseFloat(String(guidliinKoeffRaw || "").replace(/,/g, "").trim()) || 1;
 
-    const zoruuDun = suuliinZaaltNum - umnukhZaaltNum;
-    const usageDun = zoruuDun * guidliinKoeffNum;
+    const zoruu = suuliinZaaltNum - umnukhZaaltNum;
+    const usageAmount = zoruu * (ashiglaltiinZardal.tariff || ashiglaltiinZardal.zaaltTariff || 0) * guidliinKoeffNum;
     const suuriKhuraamj = Number(ashiglaltiinZardal.suuriKhuraamj) || 0;
-    const niitDun = includeSuuriKhuraamj ? usageDun + suuriKhuraamj : usageDun;
+    const niitDun = includeSuuriKhuraamj ? usageAmount + suuriKhuraamj : usageAmount;
 
     res.send({
       success: true,
-      niitDun: Math.round(niitDun),
-      usageDun: Math.round(usageDun),
+      niitDun: Math.round(niitDun * 100) / 100,
+      usageAmount: Math.round(usageAmount * 100) / 100,
       suuriKhuraamj,
-      zoruuDun,
+      zoruu: Math.round(zoruu * 100) / 100,
+      odorZaaltNum,
+      shonoZaaltNum,
+      suuliinZaaltNum,
+      tariff: ashiglaltiinZardal.tariff || ashiglaltiinZardal.zaaltTariff || 0,
       tailbar: ashiglaltiinZardal.ner || "Цахилгаан",
-      _received: { umnukhZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
+      _received: { umnukhZaaltNum, odorZaaltNum, shonoZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
     });
   } catch (err) {
     next(err);
