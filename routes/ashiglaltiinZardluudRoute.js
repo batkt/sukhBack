@@ -221,15 +221,26 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
     // Check for Resident-specific tariff
     let finalTariff = maxTariff;
+    let residentSpecificUsed = false;
     if (residentId) {
+      console.log(`[CALC] Looking for resident with ID: ${residentId}`);
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
         (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
       );
       if (tukhainBaaziinKholbolt) {
         const resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(residentId);
-        if (resident && resident.tsahilgaaniiZaalt > 0) {
-          finalTariff = resident.tsahilgaaniiZaalt;
-          console.log(`[CALC] Using resident-specific tariff (tsahilgaaniiZaalt): ${finalTariff}`);
+        if (resident) {
+          console.log(`[CALC] Found resident: "${resident.ner}" (ID: ${resident._id})`);
+          console.log(`[CALC] Resident tsahilgaaniiZaalt: ${resident.tsahilgaaniiZaalt}`);
+          if (resident.tsahilgaaniiZaalt > 0) {
+            finalTariff = resident.tsahilgaaniiZaalt;
+            residentSpecificUsed = true;
+            console.log(`[CALC] SUCCESS: Using resident-specific tariff: ${finalTariff}`);
+          } else {
+            console.log(`[CALC] INFO: Resident has no valid tsahilgaaniiZaalt, falling back to global.`);
+          }
+        } else {
+          console.warn(`[CALC] WARNING: Resident not found for ID: ${residentId}`);
         }
       }
     }
@@ -292,6 +303,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       shonoZaaltNum,
       suuliinZaaltNum,
       tariff: targetTariff,
+      isResidentTariff: residentSpecificUsed,
       selectedCharge: selectedChargeName || "None",
       _received: { umnukhZaaltNum, odorZaaltNum, shonoZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
     });
