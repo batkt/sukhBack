@@ -30,7 +30,6 @@ async function nekhemjlekheesEbarimtShineUusgye(
   nuatTulukhEsekh = true
 ) {
   try {
-    console.log("Энэ рүү орлоо: nekhemjlekheesEbarimtShineUusgye");
 
     const dun = nekhemjlekh.niitTulbur || 0;
     var ebarimt = new EbarimtShine(tukhainBaaziinKholbolt)();
@@ -101,7 +100,6 @@ async function nekhemjlekheesEbarimtShineUusgye(
 
     return ebarimt;
   } catch (error) {
-    console.error("Create ebarimt error:", error);
     throw error;
   }
 }
@@ -120,31 +118,24 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
         : process.env.EBARIMTSHINE_IP;
       
       var url = baseUrl + "rest/receipt";
-      console.log(`📧 Sending ebarimt to ${shouldUseTest ? 'TEST' : 'PRODUCTION'} endpoint for baiguullaga: ${orgId}`);
       
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         if (err) {
-          console.error("❌ [EBARIMT] Request error:", err.message);
           if (next) next(err);
           return;
         }
         
-        console.log("📧 [EBARIMT] API Response status code:", res1?.statusCode);
-        console.log("📧 [EBARIMT] API Response body:", JSON.stringify(body, null, 2));
         
         if (body && (body.error || body.message)) {
-          console.error("❌ [EBARIMT] API returned error:", body.message || body.error);
           if (next)
             next(new Error(body.message || body.error || "E-barimt API error"));
           return;
         }
         
-        console.log("✅ [EBARIMT] Calling onFinish callback with response");
         onFinish(body, ugugdul);
       });
     } else if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
   } catch (aldaa) {
-    console.error("EbarimtDuudya error:", aldaa.message);
     if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
   }
 }
@@ -156,7 +147,6 @@ async function ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt) {
     const username = process.env.EBARIMTSHINE_USERNAME || 'easy-register-test';
     const password = process.env.EBARIMTSHINE_PASSWORD || '99119911';
 
-    console.log(`🔑 [EBARIMT] Requesting new token from ${authUrl}`);
 
     request.post({
       url: authUrl,
@@ -170,12 +160,10 @@ async function ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt) {
       json: true
     }, (err, res, body) => {
       if (err) {
-        console.error("❌ [EBARIMT] Auth request error:", err.message);
         return reject(err);
       }
 
       if (body && (body.error || body.error_description)) {
-        console.error("❌ [EBARIMT] Auth API returned error:", body.error_description || body.error);
         return reject(new Error(body.error_description || body.error));
       }
 
@@ -194,10 +182,8 @@ async function ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt) {
         },
         { upsert: true }
       ).then(() => {
-        console.log("✅ [EBARIMT] New token saved to database");
         resolve(body.access_token);
       }).catch(dbErr => {
-        console.error("❌ [EBARIMT] DB save error:", dbErr.message);
         // Still resolve with the token even if DB save fails
         resolve(body.access_token);
       });
@@ -215,14 +201,12 @@ async function getEbarimtToken(baiguullagiinId, tukhainBaaziinKholbolt) {
     }).lean();
 
     if (tokenObject && tokenObject.token) {
-      console.log("✅ [EBARIMT] Using existing valid token from database");
       return tokenObject.token;
     }
 
     // Otherwise fetch new one
     return await ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt);
   } catch (error) {
-    console.error("getEbarimtToken error:", error.message);
     throw error;
   }
 }
@@ -259,7 +243,6 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
     
     // Ensure proper slash between base URL and path
     const url = baseUrl + (path.startsWith('/') ? '' : '/') + path;
-    console.log(`📧 [EASY-REGISTER] ${method} to ${url} for baiguullaga: ${orgId}`);
 
     const options = {
       method: method,
@@ -280,18 +263,12 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
 
     request(options, (err, res, resBody) => {
       if (err) {
-        console.error("❌ [EASY-REGISTER] Request error:", err.message);
         if (next) next(err);
         return;
       }
       
-      console.log("📧 [EASY-REGISTER] API Response status code:", res?.statusCode);
-      if (res?.statusCode === 404) {
-        console.log("📧 [EASY-REGISTER] 404 Response Body:", JSON.stringify(resBody, null, 2));
-      }
       
       if (resBody && (resBody.error || (res?.statusCode >= 400 && resBody.msg))) {
-        console.error("❌ [EASY-REGISTER] API returned error:", resBody.msg || resBody.error);
         if (next)
           next(new Error(resBody.msg || resBody.error || "Easy Register API error"));
         return;
@@ -300,7 +277,6 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
       onFinish(resBody);
     });
   } catch (error) {
-    console.error("easyRegisterDuudya error:", error.message);
     if (next) next(error);
   }
 }
@@ -507,7 +483,6 @@ router.post(
 
       ebarimtDuudya(ebarimt, butsaakhMethod, next, true, req.body.baiguullagiinId);
     } catch (error) {
-      console.error("Error creating ebarimt:", error);
       next(error);
     }
   }
