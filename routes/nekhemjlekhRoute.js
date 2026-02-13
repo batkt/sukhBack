@@ -28,7 +28,7 @@ router.use((req, res, next) => {
     if (baiguullagiinId && req.app) {
       try {
         req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
-      } catch (e) {}
+      } catch (e) { }
     }
     return originalJson(data);
   };
@@ -398,6 +398,9 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
     next(error);
   }
 });
+
+// Recalculate and re-sync contract balance
+router.post("/recalculate-balance", tokenShalgakh, recalculateGereeBalance);
 
 // Delete a specific zardal from an invoice
 router.post("/nekhemjlekhiinTuukh/deleteZardal", tokenShalgakh, deleteInvoiceZardal);

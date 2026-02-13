@@ -5,6 +5,8 @@ const NekhemjlekhCron = require("../models/cronSchedule");
 const OrshinSuugch = require("../models/orshinSuugch");
 const MsgTuukh = require("../models/msgTuukh");
 const Medegdel = require("../models/medegdel");
+const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 const request = require("request");
 const { db } = require("zevbackv2");
 const asyncHandler = require("express-async-handler");
@@ -187,11 +189,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
         // Check if we need to update electricity data from latest ZaaltUnshlalt
         try {
           const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
-          
+
           console.log(`🔍 [INVOICE UPDATE] Checking for ZaaltUnshlalt for ${tempData.gereeniiDugaar}...`);
-          
+
           const latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
-            .findOne({ 
+            .findOne({
               $or: [
                 { gereeniiId: String(tempData._id) },
                 { gereeniiDugaar: tempData.gereeniiDugaar }
@@ -209,32 +211,32 @@ const gereeNeesNekhemjlekhUusgekh = async (
           if (latestReading && latestReading.zaaltDun > 0) {
             // Find existing electricity entry in the invoice
             const existingElectricityIdx = existingInvoice.medeelel?.zardluud?.findIndex(
-              z => z.zaalt === true && z.ner && z.ner.toLowerCase().includes("цахилгаан") && 
-                   !z.ner.toLowerCase().includes("дундын") && !z.ner.toLowerCase().includes("өмчлөл")
+              z => z.zaalt === true && z.ner && z.ner.toLowerCase().includes("цахилгаан") &&
+                !z.ner.toLowerCase().includes("дундын") && !z.ner.toLowerCase().includes("өмчлөл")
             );
-            
-            const existingElectricity = existingElectricityIdx >= 0 
-              ? existingInvoice.medeelel.zardluud[existingElectricityIdx] 
+
+            const existingElectricity = existingElectricityIdx >= 0
+              ? existingInvoice.medeelel.zardluud[existingElectricityIdx]
               : null;
-            
+
             // Check if the electricity amount needs updating
             const currentZaaltDun = existingElectricity?.dun || existingElectricity?.tariff || 0;
             const newZaaltDun = latestReading.zaaltDun;
-            
+
             console.log(`🔍 [INVOICE UPDATE] Electricity comparison for ${tempData.gereeniiDugaar}:`, {
               existingElectricityIdx,
               currentZaaltDun,
               newZaaltDun,
               needsUpdate: currentZaaltDun !== newZaaltDun
             });
-            
+
             if (currentZaaltDun !== newZaaltDun) {
               console.log(`🔄 [INVOICE] Updating electricity from ${currentZaaltDun} to ${newZaaltDun} for ${tempData.gereeniiDugaar}`);
-              
+
               const zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
               const defaultDun = latestReading.defaultDun || latestReading.zaaltCalculation?.defaultDun || 0;
               const tariff = latestReading.tariff || latestReading.zaaltCalculation?.tariff || 0;
-              
+
               if (existingElectricityIdx >= 0) {
                 // Update existing electricity entry
                 existingInvoice.medeelel.zardluud[existingElectricityIdx] = {
@@ -251,7 +253,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   zaaltUs: latestReading.zaaltUs || 0,
                 };
               }
-              
+
               // Update zaalt metadata
               if (existingInvoice.medeelel.zaalt) {
                 existingInvoice.medeelel.zaalt = {
@@ -264,20 +266,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   zaaltDun: newZaaltDun,
                 };
               }
-              
+
               // Recalculate total
               const newTotal = existingInvoice.medeelel.zardluud.reduce((sum, z) => {
                 return sum + (z.dun || z.tariff || 0);
               }, 0);
-              
+
               existingInvoice.niitTulbur = newTotal;
               existingInvoice.tsahilgaanNekhemjlekh = newZaaltDun;
               existingInvoice.uldegdel = newTotal;
-              
+
               await existingInvoice.save();
-              
+
               console.log(`✅ [INVOICE] Updated invoice ${existingInvoice.nekhemjlekhiinDugaar} with new electricity: ${newZaaltDun}, total: ${newTotal}`);
-              
+
               return {
                 success: true,
                 nekhemjlekh: existingInvoice,
@@ -705,7 +707,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     let ekhniiUldegdelFromOrshinSuugch = 0;
     let ekhniiUldegdelTailbar = ""; // Store the description from gereeniiTulukhAvlaga
     let ekhniiUldegdelRecordId = null; // Store the ID for reference
-    
+
     // Only fetch and include ekhniiUldegdel if the flag is true (checkbox checked)
     if (includeEkhniiUldegdel) {
       // First check gereeniiTulukhAvlaga for ekhniiUldegdel records (primary source)
@@ -716,7 +718,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           baiguullagiinId: String(tempData.baiguullagiinId),
           ekhniiUldegdelEsekh: true,
         }).lean();
-        
+
         if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
           // Sum up all ekhniiUldegdel records and use uldegdel (remaining balance after payments)
           // This ensures the invoice shows the correct remaining amount, not the original amount
@@ -725,18 +727,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
             const amount = Number(record.uldegdel ?? record.undsenDun ?? record.tulukhDun ?? 0);
             return sum + amount;
           }, 0);
-          
+
           // Get the tailbar (description) from the first record
           const firstRecord = tulukhAvlagaRecords[0];
           ekhniiUldegdelTailbar = firstRecord.tailbar || firstRecord.temdeglel || "";
           ekhniiUldegdelRecordId = firstRecord._id?.toString();
-          
+
           console.log(`💰 [INVOICE] ekhniiUldegdel from gereeniiTulukhAvlaga (uldegdel): ${ekhniiUldegdelFromOrshinSuugch}₮, tailbar: ${ekhniiUldegdelTailbar}`);
         }
       } catch (error) {
         console.error(`❌ [INVOICE] Error fetching ekhniiUldegdel from gereeniiTulukhAvlaga:`, error.message);
       }
-      
+
       // Fallback to orshinSuugch.ekhniiUldegdel if no gereeniiTulukhAvlaga records found
       if (ekhniiUldegdelFromOrshinSuugch === 0 && tempData.orshinSuugchId) {
         try {
@@ -787,7 +789,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       orshinSuugchId: tempData.orshinSuugchId,
       willProcessElectricity: !!(tempData.barilgiinId && tempData.baiguullagiinId && tempData.orshinSuugchId)
     });
-    
+
     if (tempData.barilgiinId && tempData.baiguullagiinId && tempData.orshinSuugchId) {
       try {
         const { db } = require("zevbackv2");
@@ -810,7 +812,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           }
           return true;
         };
-        
+
         const gereeZaaltZardluud = (tempData.zardluud || []).filter(isVariableElectricity);
 
         const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
@@ -829,7 +831,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           // Process ALL zaalt entries from BOTH contract and building level
           // Combine both sources, with contract entries taking priority for same name
           const combinedZaaltZardluud = [...gereeZaaltZardluud, ...zaaltZardluud];
-          
+
           // Keep only unique zaalt entries by name (first occurrence wins = contract priority)
           const seenNames = new Set();
           const zaaltZardluudToProcess = combinedZaaltZardluud.filter(z => {
@@ -841,7 +843,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
             seenNames.add(key);
             return true;
           });
-          
+
           console.log("⚡ [INVOICE] Electricity entries to process:", {
             gereeniiDugaar: tempData.gereeniiDugaar,
             combinedCount: combinedZaaltZardluud.length,
@@ -853,7 +855,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
               suuriKhuraamj: z.suuriKhuraamj
             }))
           });
-          
+
           const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
             tempData.orshinSuugchId
           ).select("tsahilgaaniiZaalt").lean();
@@ -885,20 +887,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
             let zaaltDun = 0;
             let isFixedCharge = false;
             let kwhTariff = zaaltTariff; // from orshinSuugch.tsahilgaaniiZaalt
-            
+
             // Variable electricity = zaalt + цахилгаан (not дундын өмчлөл) - needs Excel, don't show suuriKhuraamj alone
             const nameLower = (gereeZaaltZardal.ner || "").toLowerCase();
             const isVariableElectricityZardal = gereeZaaltZardal.zaalt &&
               nameLower.includes("цахилгаан") &&
               !nameLower.includes("дундын") &&
               !nameLower.includes("өмчлөл");
-            
+
             // For variable цахилгаан: when no Excel (zoruu=0), skip - match Excel behavior (don't show suuriKhuraamj/tariff)
             if (isVariableElectricityZardal && zoruu === 0) {
               console.log("⏭️ [INVOICE] Skipping variable цахилгаан - no Excel reading, zoruu=0 (not showing suuriKhuraamj/tariff)");
               continue;
             }
-            
+
             // Determine if this is a FIXED or CALCULATED electricity charge:
             // FIXED: tariffUsgeer = "₮" -> use tariff directly as the total amount
             // CALCULATED: tariffUsgeer = "кВт" -> tariff is kWh rate, suuriKhuraamj is base fee from Excel
@@ -906,15 +908,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
             // Key distinction: 
             // - "Дундын өмчлөл Цахилгаан": tariffUsgeer="₮", tariff=6883.44 -> FIXED (use tariff directly)
             // - "Цахилгаан": tariffUsgeer="кВт", tariff=2000 (кВт rate), suuriKhuraamj=Excel imported amount -> CALCULATED
-            
+
             // If tariffUsgeer is "кВт", it's ALWAYS a calculated type (per-kWh billing)
             const isCalculatedType = gereeZaaltZardal.tariffUsgeer === "кВт";
-            
+
             if (!isCalculatedType) {
               // This is a FIXED electricity charge - use tariff directly
               isFixedCharge = true;
               zaaltDun = gereeZaaltZardal.tariff || gereeZaaltZardal.dun || 0;
-              
+
               console.log("⚡ [INVOICE] Fixed electricity charge (no calculation):", {
                 gereeniiDugaar: tempData.gereeniiDugaar,
                 ner: gereeZaaltZardal.ner,
@@ -928,7 +930,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
               if (!kwhTariff || kwhTariff === 0) {
                 kwhTariff = gereeZaaltZardal.tariff || 0;
               }
-              
+
               try {
                 const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
                 const gereeniiId = tempData._id?.toString() || tempData.gereeniiId || tempData._id;
@@ -964,13 +966,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   });
                   // Get all calculation data from Excel reading
                   zaaltDefaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
-                  
+
                   // Get zoruu from Excel reading (this is the actual usage from import)
                   const readingZoruu = latestReading.zaaltCalculation?.zoruu || latestReading.zoruu || 0;
-                  
+
                   // Get tariff from Excel reading (kWh rate used during import)
                   const readingTariff = latestReading.zaaltCalculation?.tariff || latestReading.tariff || 0;
-                  
+
                   // Use the pre-calculated zaaltDun from Excel if available
                   if (latestReading.zaaltDun > 0) {
                     zaaltDun = latestReading.zaaltDun;
@@ -1003,35 +1005,35 @@ const gereeNeesNekhemjlekhUusgekh = async (
                     gereeniiDugaar: tempData.gereeniiDugaar,
                     ner: gereeZaaltZardal.ner
                   });
-                  
+
                   // For цахилгаан (кВт): do NOT show suuriKhuraamj when no Excel - match Excel behavior
                   if (zoruu === 0) {
                     console.log("⏭️ [INVOICE] Skipping цахилгаан - no Excel reading, zoruu=0 (not showing suuriKhuraamj alone)");
                     continue;
                   }
-                  
+
                   // Fallback to zardal's suuriKhuraamj, zaaltDefaultDun, or tariff (for old data format)
-                  zaaltDefaultDun = Number(gereeZaaltZardal.suuriKhuraamj) || 
-                                    gereeZaaltZardal.zaaltDefaultDun || 
-                                    gereeZaaltZardal.tariff || 0;
-                  
+                  zaaltDefaultDun = Number(gereeZaaltZardal.suuriKhuraamj) ||
+                    gereeZaaltZardal.zaaltDefaultDun ||
+                    gereeZaaltZardal.tariff || 0;
+
                   // Calculate with zoruu from tempData (if available)
                   zaaltDun = (zoruu * kwhTariff) + zaaltDefaultDun;
                 }
               } catch (error) {
                 console.error("❌ [INVOICE] Error fetching latest reading:", error.message);
-                
+
                 // Fallback calculation
-                zaaltDefaultDun = Number(gereeZaaltZardal.suuriKhuraamj) || 
-                                  gereeZaaltZardal.zaaltDefaultDun || 
-                                  gereeZaaltZardal.tariff || 0;
+                zaaltDefaultDun = Number(gereeZaaltZardal.suuriKhuraamj) ||
+                  gereeZaaltZardal.zaaltDefaultDun ||
+                  gereeZaaltZardal.tariff || 0;
                 zaaltDun = (zoruu * kwhTariff) + zaaltDefaultDun;
               }
-              
+
               // For calculated цахилгаан (tariffUsgeer="кВт"): do NOT show suuriKhuraamj alone when no Excel
               // Excel does not add a цахилгаан row when there's no import - match that behavior
               if (zaaltDun === 0 && zoruu === 0) {
-                const wouldUseSuuriKhuraamj = Number(gereeZaaltZardal.suuriKhuraamj) || 
+                const wouldUseSuuriKhuraamj = Number(gereeZaaltZardal.suuriKhuraamj) ||
                   gereeZaaltZardal.zaaltDefaultDun || gereeZaaltZardal.tariff || 0;
                 if (wouldUseSuuriKhuraamj > 0) {
                   console.log("⏭️ [INVOICE] Skipping цахилгаан - no Excel reading, not showing suuriKhuraamj alone (match Excel behavior)");
@@ -1041,9 +1043,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
               // Final fallback: if zaaltDun is still 0 but zardal has suuriKhuraamj, use that
               // (Only for non-calculated or when zoruu > 0 - already handled above)
               if (zaaltDun === 0) {
-                const fallbackDun = Number(gereeZaaltZardal.suuriKhuraamj) || 
-                                    gereeZaaltZardal.zaaltDefaultDun || 
-                                    gereeZaaltZardal.tariff || 0;
+                const fallbackDun = Number(gereeZaaltZardal.suuriKhuraamj) ||
+                  gereeZaaltZardal.zaaltDefaultDun ||
+                  gereeZaaltZardal.tariff || 0;
                 if (fallbackDun > 0) {
                   zaaltDun = fallbackDun;
                   zaaltDefaultDun = fallbackDun;
@@ -1054,7 +1056,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   });
                 }
               }
-              
+
               console.log("⚡ [INVOICE] Calculated electricity charge:", {
                 gereeniiDugaar: tempData.gereeniiDugaar,
                 ner: gereeZaaltZardal.ner,
@@ -1066,13 +1068,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 formula: `(${zoruu} * ${kwhTariff}) + ${zaaltDefaultDun} = ${zaaltDun}`
               });
             }
-            
+
             // Skip if no amount
             if (zaaltDun === 0) {
               console.warn("⚠️ [INVOICE] Skipping electricity entry with 0 amount:", gereeZaaltZardal.ner);
               continue;
             }
-            
+
             totalTsahilgaanNekhemjlekh += zaaltDun;
             const finalZaaltTariff = zaaltDun;
 
@@ -1184,7 +1186,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     const normalizedZardluud = normalizeZardluudTurul(finalZardluud);
-    
+
     // Log electricity entries in normalizedZardluud
     const electricityInNormalized = normalizedZardluud.filter(z => z.zaalt === true);
     console.log("⚡ [INVOICE] Electricity entries in normalizedZardluud:", {
@@ -2129,7 +2131,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
 
     let ekhniiUldegdelAmount = 0;
     let ekhniiUldegdelTailbar = ""; // Store the description from gereeniiTulukhAvlaga
-    
+
     // First check gereeniiTulukhAvlaga for ekhniiUldegdel records (primary source)
     try {
       const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
@@ -2138,7 +2140,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         baiguullagiinId: String(baiguullagiinId),
         ekhniiUldegdelEsekh: true,
       }).lean();
-      
+
       if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
         // Sum up all ekhniiUldegdel records using undsenDun (original amount before payments)
         // The preview should show the original charged amount, not the remaining balance
@@ -2147,17 +2149,17 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
           const amount = Number(record.undsenDun ?? record.tulukhDun ?? record.uldegdel ?? 0);
           return sum + amount;
         }, 0);
-        
+
         // Get the tailbar (description) from the first record
         const firstRecord = tulukhAvlagaRecords[0];
         ekhniiUldegdelTailbar = firstRecord.tailbar || firstRecord.temdeglel || "";
-        
+
         console.log(`💰 [PREVIEW] Found ekhniiUldegdel in gereeniiTulukhAvlaga (undsenDun): ${ekhniiUldegdelAmount}₮, tailbar: ${ekhniiUldegdelTailbar}`);
       }
     } catch (error) {
       console.error("Error fetching ekhniiUldegdel from gereeniiTulukhAvlaga:", error.message);
     }
-    
+
     // Fallback to orshinSuugch.ekhniiUldegdel if no gereeniiTulukhAvlaga records found
     if (ekhniiUldegdelAmount === 0 && geree.orshinSuugchId) {
       try {
@@ -2199,10 +2201,10 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         }
         return true;
       };
-      
+
       const gereeZaaltZardluud = (geree.zardluud || []).filter(isVariableElectricity);
       const buildingZaaltZardluud = ashiglaltiinZardluud.filter(isVariableElectricity);
-      
+
       // Combine both sources, then deduplicate by name (contract entries take priority)
       const combinedZaalt = [...gereeZaaltZardluud, ...buildingZaaltZardluud];
       const seenNames = new Set();
@@ -2212,11 +2214,11 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         seenNames.add(key);
         return true;
       });
-      
+
       if (zaaltZardluud.length > 0) {
         const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
         let zaaltTariff = 0;
-        
+
         // Try to get tariff from orshinSuugch first (for calculated electricity)
         if (geree.orshinSuugchId) {
           const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
@@ -2225,7 +2227,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
             .lean();
           zaaltTariff = Number(orshinSuugch?.tsahilgaaniiZaalt) || 0;
         }
-        
+
         // Get latest reading for this geree (for calculated electricity)
         let latestReading = null;
         try {
@@ -2233,9 +2235,9 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
             gereeniiId: String(gereeId),
             gereeniiDugaar: geree.gereeniiDugaar
           });
-          
+
           latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
-            .findOne({ 
+            .findOne({
               $or: [
                 { gereeniiId: String(gereeId) },
                 { gereeniiDugaar: geree.gereeniiDugaar }
@@ -2243,7 +2245,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
             })
             .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1 })
             .lean();
-          
+
           if (latestReading) {
             console.log("✅ [PREVIEW] Found ZaaltUnshlalt:", {
               gereeniiDugaar: latestReading.gereeniiDugaar,
@@ -2263,27 +2265,27 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
         } catch (e) {
           console.log("❌ [PREVIEW] Error finding zaalt readings:", e.message);
         }
-        
+
         // Process each electricity zardal
         for (const zaaltZardal of zaaltZardluud) {
           let electricityDun = 0;
           let zoruu = 0;
           let defaultDun = 0;
           let kwhTariff = zaaltTariff; // from orshinSuugch
-          
+
           // Variable electricity = zaalt + цахилгаан (not дундын өмчлөл) - needs Excel, don't show suuriKhuraamj alone
           const pvNameLower = (zaaltZardal.ner || "").toLowerCase();
           const pvIsVariableElectricity = zaaltZardal.zaalt &&
             pvNameLower.includes("цахилгаан") &&
             !pvNameLower.includes("дундын") &&
             !pvNameLower.includes("өмчлөл");
-          
+
           // For variable цахилгаан: when no Excel reading, skip - match Excel behavior
           if (pvIsVariableElectricity && !latestReading) {
             console.log("⏭️ [PREVIEW] Skipping variable цахилгаан - no Excel reading (not showing suuriKhuraamj/tariff)");
             continue;
           }
-          
+
           // Determine if this is a FIXED or CALCULATED electricity charge:
           // FIXED: tariffUsgeer = "₮" -> use tariff directly as the total amount
           // CALCULATED: tariffUsgeer = "кВт" -> tariff is kWh rate, suuriKhuraamj is base fee from Excel
@@ -2291,14 +2293,14 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
           // Key distinction: 
           // - "Дундын өмчлөл Цахилгаан": tariffUsgeer="₮", tariff=6883.44 -> FIXED
           // - "Цахилгаан": tariffUsgeer="кВт", tariff=kWh rate, suuriKhuraamj=Excel imported -> CALCULATED
-          
+
           // If tariffUsgeer is "кВт", it's ALWAYS a calculated type (per-kWh billing)
           const isCalculatedType = zaaltZardal.tariffUsgeer === "кВт";
-          
+
           if (!isCalculatedType) {
             // FIXED electricity charge - use tariff directly
             electricityDun = zaaltZardal.tariff || zaaltZardal.dun || 0;
-            
+
             console.log("⚡ [PREVIEW] Fixed electricity charge:", {
               gereeniiDugaar: geree.gereeniiDugaar,
               ner: zaaltZardal.ner,
@@ -2311,15 +2313,15 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
             if (!kwhTariff || kwhTariff === 0) {
               kwhTariff = zaaltZardal.tariff || 0;
             }
-            
+
             if (latestReading) {
               // Get all calculation data from Excel reading
               defaultDun = latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0;
               zoruu = latestReading.zoruu || latestReading.zaaltCalculation?.zoruu || 0;
-              
+
               // Get tariff from Excel reading (kWh rate used during import)
               const readingTariff = latestReading.zaaltCalculation?.tariff || latestReading.tariff || 0;
-              
+
               // Use the pre-calculated zaaltDun from Excel if available
               if (latestReading.zaaltDun > 0) {
                 electricityDun = latestReading.zaaltDun;
@@ -2353,11 +2355,11 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
                 continue;
               }
               // Fallback to zardal's suuriKhuraamj, zaaltDefaultDun, or tariff (for old data format)
-              defaultDun = Number(zaaltZardal.suuriKhuraamj) || 
-                          zaaltZardal.zaaltDefaultDun || 
-                          zaaltZardal.tariff || 0;
+              defaultDun = Number(zaaltZardal.suuriKhuraamj) ||
+                zaaltZardal.zaaltDefaultDun ||
+                zaaltZardal.tariff || 0;
               electricityDun = (zoruu * kwhTariff) + defaultDun;
-              
+
               console.log("⚠️ [PREVIEW] No Excel reading, using fallback:", {
                 gereeniiDugaar: geree.gereeniiDugaar,
                 ner: zaaltZardal.ner,
@@ -2368,10 +2370,10 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
                 formula: `(${zoruu} * ${kwhTariff}) + ${defaultDun} = ${electricityDun}`
               });
             }
-            
+
             // For calculated цахилгаан: do NOT show suuriKhuraamj alone when no Excel
             if (electricityDun === 0 && zoruu === 0) {
-              const wouldUseSuuriKhuraamj = Number(zaaltZardal.suuriKhuraamj) || 
+              const wouldUseSuuriKhuraamj = Number(zaaltZardal.suuriKhuraamj) ||
                 zaaltZardal.zaaltDefaultDun || zaaltZardal.tariff || 0;
               if (wouldUseSuuriKhuraamj > 0) {
                 console.log("⏭️ [PREVIEW] Skipping цахилгаан - no Excel reading, not showing suuriKhuraamj alone");
@@ -2380,9 +2382,9 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
             }
             // Final fallback: if electricityDun is still 0 but zardal has suuriKhuraamj, use that
             if (electricityDun === 0) {
-              const fallbackDun = Number(zaaltZardal.suuriKhuraamj) || 
-                                  zaaltZardal.zaaltDefaultDun || 
-                                  zaaltZardal.tariff || 0;
+              const fallbackDun = Number(zaaltZardal.suuriKhuraamj) ||
+                zaaltZardal.zaaltDefaultDun ||
+                zaaltZardal.tariff || 0;
               if (fallbackDun > 0) {
                 electricityDun = fallbackDun;
                 defaultDun = fallbackDun;
@@ -2394,7 +2396,7 @@ const previewInvoice = async (gereeId, baiguullagiinId, barilgiinId, targetMonth
               }
             }
           }
-          
+
           if (electricityDun > 0) {
             zardluudWithDun.push({
               ner: zaaltZardal.ner || "Цахилгаан",
@@ -2612,10 +2614,10 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
     } else if (existingUnsentInvoices.length > 0) {
       // If override=false but there are unsent invoices, check if we need to update
       const oldestUnsentInvoice = existingUnsentInvoices[0];
-      
+
       // Check if this invoice has any payments (paymentHistory or partial payment)
       const hasPayments = (oldestUnsentInvoice.paymentHistory && oldestUnsentInvoice.paymentHistory.length > 0) ||
-                          (oldestUnsentInvoice.uldegdel !== oldestUnsentInvoice.niitTulbur && oldestUnsentInvoice.uldegdel < oldestUnsentInvoice.niitTulbur);
+        (oldestUnsentInvoice.uldegdel !== oldestUnsentInvoice.niitTulbur && oldestUnsentInvoice.uldegdel < oldestUnsentInvoice.niitTulbur);
 
       // SMART UPDATE CHECK: Calculate what the new invoice WOULD look like
       // NOTE: previewInvoice includes ekhniiUldegdel, but we DON'T want to include it in manual send
@@ -2627,13 +2629,13 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         const zardluudOnlyTotal = previewZardluud
           .filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл")))
           .reduce((sum, z) => sum + (z.dun || z.tariff || 0), 0);
-        
+
         // Get the old invoice's zardluud total (excluding ekhniiUldegdel)
         const oldZardluud = oldestUnsentInvoice.medeelel?.zardluud || [];
         const oldZardluudOnlyTotal = oldZardluud
           .filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл")))
           .reduce((sum, z) => sum + (z.dun || z.tariff || 0), 0);
-        
+
         const newZardluudCount = previewZardluud.filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл"))).length;
         const oldZardluudCount = oldZardluud.filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл"))).length;
 
@@ -2644,20 +2646,20 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         // This preserves the existing invoice with its uldegdel intact
         if (Math.abs(zardluudOnlyTotal - oldZardluudOnlyTotal) < 0.5 && newZardluudCount === oldZardluudCount) {
           console.log(`✅ [MANUAL SEND] SKIPPED update: Invoice zardluud are identical. Preserving existing invoice.`);
-          
+
           // Still delete any DUPLICATE unsent invoices for this month
           if (existingUnsentInvoices.length > 1) {
             for (let i = 1; i < existingUnsentInvoices.length; i++) {
               const duplicateInvoice = existingUnsentInvoices[i];
               const duplicateHasPayments = (duplicateInvoice.paymentHistory && duplicateInvoice.paymentHistory.length > 0) ||
-                                           (duplicateInvoice.uldegdel !== duplicateInvoice.niitTulbur && duplicateInvoice.uldegdel < duplicateInvoice.niitTulbur);
+                (duplicateInvoice.uldegdel !== duplicateInvoice.niitTulbur && duplicateInvoice.uldegdel < duplicateInvoice.niitTulbur);
               if (!duplicateHasPayments) {
                 await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: duplicateInvoice._id });
                 console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${duplicateInvoice.nekhemjlekhiinDugaar || duplicateInvoice._id}`);
               }
             }
           }
-          
+
           return {
             success: true,
             message: "Нэхэмжлэх хэвийн байна. Өөрчлөлт ороогүй.",
@@ -2670,29 +2672,29 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
         }
 
         console.log(`🔄 [MANUAL SEND] Detected zardluud change (Old: ${oldZardluudOnlyTotal}, New: ${zardluudOnlyTotal}). Updating invoice...`);
-        
+
         // Log the preview zardluud for debugging
         console.log(`📋 [MANUAL SEND] Preview zardluud:`, previewZardluud.map(z => ({ ner: z.ner, dun: z.dun, tariff: z.tariff, zaalt: z.zaalt })));
-        
+
         // ALWAYS update in place to preserve uldegdel and payment history
         // Filter out ekhniiUldegdel from the new zardluud since we don't want to add it via manual send
         const newZardluudWithoutEkhniiUldegdel = previewZardluud.filter(
           z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл" && !(z.ner && z.ner.includes("Эхний үлдэгдэл"))
         );
-        
+
         console.log(`📋 [MANUAL SEND] New zardluud (without ekhniiUldegdel):`, newZardluudWithoutEkhniiUldegdel.map(z => ({ ner: z.ner, dun: z.dun, tariff: z.tariff, zaalt: z.zaalt })));
-        
+
         // Preserve ekhniiUldegdel entries from the old invoice (if any)
         const oldEkhniiUldegdelEntries = oldZardluud.filter(
           z => z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл" || (z.ner && z.ner.includes("Эхний үлдэгдэл"))
         );
-        
+
         // Combine: new zardluud (without ekhniiUldegdel) + preserved ekhniiUldegdel from old invoice
         const updatedZardluud = [...newZardluudWithoutEkhniiUldegdel, ...oldEkhniiUldegdelEntries];
-        
+
         // Calculate new total (zardluud only, ekhniiUldegdel stays separate)
         const newNiitTulbur = updatedZardluud.reduce((sum, z) => sum + (z.dun || z.tariff || 0), 0);
-        
+
         // Update the existing invoice
         // IMPORTANT: Create a new medeelel object to ensure Mongoose detects the change
         oldestUnsentInvoice.medeelel = {
@@ -2700,7 +2702,7 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
           zardluud: updatedZardluud
         };
         oldestUnsentInvoice.niitTulbur = newNiitTulbur;
-        
+
         // Recalculate uldegdel: preserve existing uldegdel ratio or recalculate based on payments
         const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
         if (totalPaid > 0) {
@@ -2710,7 +2712,7 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
           // No payments - keep uldegdel = niitTulbur (full amount due)
           oldestUnsentInvoice.uldegdel = newNiitTulbur;
         }
-        
+
         // Update zaalt metadata if available
         const zaaltEntry = newZardluudWithoutEkhniiUldegdel.find(z => z.zaalt === true && z.ner?.toLowerCase().includes("цахилгаан") && !z.ner?.toLowerCase().includes("дундын"));
         if (zaaltEntry) {
@@ -2724,10 +2726,10 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
           };
           oldestUnsentInvoice.tsahilgaanNekhemjlekh = zaaltEntry.dun || zaaltEntry.tariff || oldestUnsentInvoice.tsahilgaanNekhemjlekh;
         }
-        
+
         // Mark medeelel as modified to ensure Mongoose saves the changes
         oldestUnsentInvoice.markModified('medeelel');
-        
+
         await oldestUnsentInvoice.save();
 
         // Update Geree.globalUldegdel by delta (new - old) so home/nekhemjlekh show correct total
@@ -2745,16 +2747,16 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
             console.error("❌ [MANUAL SEND] Error updating geree.globalUldegdel:", gereeErr.message);
           }
         }
-        
+
         console.log(`✅ [MANUAL SEND] Updated invoice ${oldestUnsentInvoice.nekhemjlekhiinDugaar} in place, new total: ${newNiitTulbur}, uldegdel: ${oldestUnsentInvoice.uldegdel}`);
-        
+
         // Delete any DUPLICATE unsent invoices for this month (keep only the one we just updated)
         if (existingUnsentInvoices.length > 1) {
           for (let i = 1; i < existingUnsentInvoices.length; i++) {
             const duplicateInvoice = existingUnsentInvoices[i];
             // Check if this duplicate has payments
             const duplicateHasPayments = (duplicateInvoice.paymentHistory && duplicateInvoice.paymentHistory.length > 0) ||
-                                         (duplicateInvoice.uldegdel !== duplicateInvoice.niitTulbur && duplicateInvoice.uldegdel < duplicateInvoice.niitTulbur);
+              (duplicateInvoice.uldegdel !== duplicateInvoice.niitTulbur && duplicateInvoice.uldegdel < duplicateInvoice.niitTulbur);
             if (!duplicateHasPayments) {
               await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt).deleteOne({ _id: duplicateInvoice._id });
               console.log(`🗑️ [MANUAL SEND] Deleted duplicate unsent invoice: ${duplicateInvoice.nekhemjlekhiinDugaar || duplicateInvoice._id}`);
@@ -2763,7 +2765,7 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
             }
           }
         }
-        
+
         // Send socket notification so home header refreshes balance
         if (app && geree.orshinSuugchId) {
           try {
@@ -3103,6 +3105,77 @@ const deleteInvoiceZardal = asyncHandler(async (req, res, next) => {
   });
 });
 
+const recalculateGereeBalance = asyncHandler(async (req, res) => {
+  const { gereeId, baiguullagiinId } = req.body;
+
+  if (!gereeId || !baiguullagiinId) {
+    return res.status(400).json({ success: false, message: "gereeId and baiguullagiinId are required" });
+  }
+
+  const kholbolt = db.kholboltuud.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+
+  if (!kholbolt) {
+    return res.status(404).json({ success: false, message: "Connection not found" });
+  }
+
+  const NekhemjlekhiinTuukhModel = nekhemjlekhiinTuukh(kholbolt);
+  const GereeModel = Geree(kholbolt);
+  const TulsunModel = GereeniiTulsunAvlaga(kholbolt);
+
+  // 1. Sum up all unpaid invoice amounts (uldegdel)
+  const unpaidInvoices = await NekhemjlekhiinTuukhModel.find({
+    gereeniiId: String(gereeId),
+    baiguullagiinId: String(baiguullagiinId),
+    tuluv: { $ne: "Төлсөн" }
+  }).select("uldegdel niitTulbur").lean();
+
+  let totalUnpaid = 0;
+  unpaidInvoices.forEach(inv => {
+    totalUnpaid += (inv.uldegdel ?? inv.niitTulbur ?? 0);
+  });
+
+  // 2. Sum up all unapplied payments (prepayments)
+  // These are payments that are NOT linked to any specific invoice
+  const unappliedPayments = await TulsunModel.find({
+    gereeniiId: String(gereeId),
+    baiguullagiinId: String(baiguullagiinId),
+    $or: [{ nekhemjlekhId: { $exists: false } }, { nekhemjlekhId: "" }, { nekhemjlekhId: null }]
+  }).select("tulsunDun").lean();
+
+  let totalPrepayments = 0;
+  unappliedPayments.forEach(p => {
+    totalPrepayments += (p.tulsunDun || 0);
+  });
+
+  // 3. Final Global Balance = Total Unpaid - Total Prepayments
+  const finalGlobalUldegdel = totalUnpaid - totalPrepayments;
+
+  // 4. Update the Geree document
+  const updatedGeree = await GereeModel.findByIdAndUpdate(
+    gereeId,
+    {
+      $set: {
+        globalUldegdel: finalGlobalUldegdel,
+        positiveBalance: totalPrepayments
+      }
+    },
+    { new: true }
+  );
+
+  console.log(`🔄 [RECALC] Geree ${gereeId} balance re-synced. Unpaid Invoices: ${totalUnpaid}, Prepayments: ${totalPrepayments}, Final Global: ${finalGlobalUldegdel}`);
+
+  res.json({
+    success: true,
+    message: "Balance recalculated successfully",
+    data: {
+      globalUldegdel: finalGlobalUldegdel,
+      positiveBalance: totalPrepayments
+    }
+  });
+});
+
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
   gereeNeesNekhemjlekhUusgekhPreviousMonth,
@@ -3113,4 +3186,5 @@ module.exports = {
   manualSendMassInvoices,
   manualSendSelectedInvoices,
   deleteInvoiceZardal,
+  recalculateGereeBalance,
 };

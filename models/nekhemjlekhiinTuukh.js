@@ -200,12 +200,17 @@ const handleBalanceOnDelete = async function (doc) {
       );
 
       if (kholbolt) {
-        // Update globalUldegdel if there was a payment amount
-        if (doc.niitTulbur > 0) {
+        // Update globalUldegdel only by the UNPAID amount (uldegdel)
+        // This prevents double-deduction when a paid/partially paid invoice is deleted
+        const unpaidAmount = typeof doc.uldegdel === "number" ? Math.max(0, doc.uldegdel) : (doc.tuluv === "Төлсөн" ? 0 : doc.niitTulbur);
+
+        if (unpaidAmount > 0) {
           await Geree(kholbolt).findByIdAndUpdate(doc.gereeniiId, {
-            $inc: { globalUldegdel: -doc.niitTulbur },
+            $inc: { globalUldegdel: -unpaidAmount },
           });
-          console.log(`📉 [Middleware] Decremented globalUldegdel by ${doc.niitTulbur} for invoice ${doc.nekhemjlekhiinDugaar || doc._id}`);
+          console.log(`📉 [Middleware] Decremented globalUldegdel by ${unpaidAmount} (unpaid) for invoice ${doc.nekhemjlekhiinDugaar || doc._id}`);
+        } else {
+          console.log(`ℹ️ [Middleware] No globalUldegdel decrement needed for ${doc.tuluv} invoice ${doc.nekhemjlekhiinDugaar || doc._id}`);
         }
 
         // Cascade delete related records from gereeniiTulsunAvlaga
