@@ -130,11 +130,6 @@ async function getBillingByAddress(userId, bairId, doorNo) {
   try {
     const token = await getWalletServiceToken();
     
-    console.log("🔍 [WALLET API] Fetching billing by address...");
-    console.log("🔍 [WALLET API] userId:", userId);
-    console.log("🔍 [WALLET API] bairId:", bairId);
-    console.log("🔍 [WALLET API] doorNo:", doorNo);
-    
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${doorNo}`,
       {
@@ -144,10 +139,6 @@ async function getBillingByAddress(userId, bairId, doorNo) {
         },
       }
     );
-
-    console.log("📋 [WALLET API] Billing by address response status:", response.status);
-    console.log("📋 [WALLET API] Billing by address responseCode:", response.data?.responseCode);
-    console.log("📋 [WALLET API] Billing by address response data:", JSON.stringify(response.data));
 
     if (response.data && response.data.responseCode && response.data.data) {
       // Ensure we return an array
@@ -160,19 +151,14 @@ async function getBillingByAddress(userId, bairId, doorNo) {
       return [];
     }
 
-    console.warn("⚠️ [WALLET API] No billing data in response");
     return [];
   } catch (error) {
     if (error.response) {
-      console.error("❌ [WALLET API] Error response status:", error.response.status);
-      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
-      
       if (error.response.status === 404) {
-        console.warn("⚠️ [WALLET API] Billing not found for address (404)");
         return [];
       }
+      console.error("❌ [WALLET API] Error getting billing by address:", error.message);
     }
-    console.error("❌ [WALLET API] Error getting billing by address:", error.message);
     throw error;
   }
 }
@@ -329,10 +315,6 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
   try {
     const token = await getWalletServiceToken();
     
-    console.log("🔍 [WALLET API] Getting billing by biller...");
-    console.log("🔍 [WALLET API] billerCode:", billerCode);
-    console.log("🔍 [WALLET API] customerCode:", customerCode);
-    
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/billing/biller/${billerCode}/${customerCode}`,
       {
@@ -343,8 +325,6 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
       }
     );
 
-    console.log("🔍 [WALLET API] Billing by biller response:", JSON.stringify(response.data, null, 2));
-
     if (response.data && response.data.responseCode && response.data.data) {
       let data = response.data.data;
       
@@ -354,7 +334,6 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
         const enrichedData = await Promise.all(data.map(async (customer) => {
           // If billingId is already present, return as is
           if (customer.billingId) {
-            console.log("✅ [WALLET API] Customer already has billingId:", customer.billingId);
             return customer;
           }
           
@@ -365,10 +344,8 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
               const billing = await getBillingByCustomer(userId, customer.customerId);
               if (billing && billing.billingId) {
                 customer.billingId = billing.billingId;
-                console.log("✅ [WALLET API] Found billingId from getBillingByCustomer:", customer.billingId);
               } else {
                 // Try billing list
-                console.log("🔍 [WALLET API] Trying billing list to find billingId...");
                 const billingList = await getBillingList(userId);
                 const matchingBilling = billingList.find(b => 
                   b.customerId === customer.customerId || 
@@ -376,9 +353,7 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
                 );
                 if (matchingBilling && matchingBilling.billingId) {
                   customer.billingId = matchingBilling.billingId;
-                  console.log("✅ [WALLET API] Found billingId from billing list:", customer.billingId);
                 } else {
-                  console.log("⚠️ [WALLET API] No billingId found for customer, returning null");
                   customer.billingId = null;
                 }
               }
@@ -398,11 +373,9 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
         // Single customer object
         if (!data.billingId && data.customerId) {
           try {
-            console.log("🔍 [WALLET API] Fetching billingId for customerId:", data.customerId);
             const billing = await getBillingByCustomer(userId, data.customerId);
             if (billing && billing.billingId) {
               data.billingId = billing.billingId;
-              console.log("✅ [WALLET API] Found billingId:", data.billingId);
             } else {
               // Try billing list
               const billingList = await getBillingList(userId);
@@ -412,7 +385,6 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
               );
               if (matchingBilling && matchingBilling.billingId) {
                 data.billingId = matchingBilling.billingId;
-                console.log("✅ [WALLET API] Found billingId from billing list:", data.billingId);
               } else {
                 data.billingId = null;
               }
@@ -478,9 +450,6 @@ async function getBillingList(userId) {
       },
     });
 
-    console.log("📋 [WALLET API] Billing list response status:", response.status);
-    console.log("📋 [WALLET API] Billing list responseCode:", response.data?.responseCode);
-    console.log("📋 [WALLET API] Billing list count:", response.data?.data?.length || 0);
 
     if (response.data && response.data.responseCode) {
       if (response.data.data) {
@@ -508,10 +477,6 @@ async function getBillingBills(userId, billingId) {
   try {
     const token = await getWalletServiceToken();
     
-    console.log("📄 [WALLET API] Getting billing bills...");
-    console.log("📄 [WALLET API] userId (should be phoneNumber):", userId);
-    console.log("📄 [WALLET API] billingId:", billingId);
-    
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/billing/bills/${billingId}`,
       {
@@ -522,34 +487,17 @@ async function getBillingBills(userId, billingId) {
       }
     );
 
-    console.log("📄 [WALLET API] Billing bills response status:", response.status);
-    console.log("📄 [WALLET API] Billing bills responseCode:", response.data?.responseCode);
-    console.log("📄 [WALLET API] Billing bills response data:", JSON.stringify(response.data));
-
     if (response.data && response.data.responseCode) {
       if (response.data.data) {
         let data = response.data.data;
-        console.log("📄 [WALLET API] Raw billing bills data before sanitization:", JSON.stringify(data, null, 2));
         
         if (Array.isArray(data)) {
-          console.log("📄 [WALLET API] Billing bills count:", data.length);
-          const sanitized = data.map((item, index) => {
-            console.log(`📄 [WALLET API] Sanitizing bill[${index}]...`);
-            const sanitizedItem = sanitizeNullValues(item);
-            console.log(`✅ [WALLET API] Sanitized bill[${index}]:`, JSON.stringify(sanitizedItem, null, 2));
-            return sanitizedItem;
-          });
-          return sanitized;
+          return data.map((item) => sanitizeNullValues(item));
         } else if (typeof data === 'object') {
-          console.log("📄 [WALLET API] Single bill object, sanitizing...");
-          const sanitized = sanitizeNullValues(data);
-          console.log("✅ [WALLET API] Sanitized bill:", JSON.stringify(sanitized, null, 2));
-          return [sanitized];
+          return [sanitizeNullValues(data)];
         }
       }
     }
-
-    console.warn("⚠️ [WALLET API] No bills data in response or responseCode is false");
     return [];
   } catch (error) {
     console.error("Error getting billing bills from wallet API:", error.message);
@@ -660,12 +608,8 @@ async function saveBilling(userId, billingData) {
   try {
     const token = await getWalletServiceToken();
     
-    console.log("💾 [WALLET API] Saving billing...");
-    console.log("💾 [WALLET API] userId:", userId);
-    
     // Clean the billingData to remove Mongoose objects and circular references
     const cleanedBillingData = cleanObjectForJSON(billingData);
-    console.log("💾 [WALLET API] Cleaned billingData:", JSON.stringify(cleanedBillingData, null, 2));
     
     const response = await axios.post(
       `${WALLET_API_BASE_URL}/api/billing`,
@@ -679,16 +623,9 @@ async function saveBilling(userId, billingData) {
       }
     );
 
-    console.log("💾 [WALLET API] Save billing response status:", response.status);
-    console.log("💾 [WALLET API] Save billing responseCode:", response.data?.responseCode);
-    console.log("💾 [WALLET API] Save billing response data:", JSON.stringify(response.data));
-
     if (response.data && response.data.responseCode && response.data.data) {
-      console.log("✅ [WALLET API] Billing saved successfully");
       return response.data.data;
     }
-
-    console.warn("⚠️ [WALLET API] Save billing responseCode is false or no data");
     throw new Error("Failed to save billing in Wallet API");
   } catch (error) {
     if (error.response) {
