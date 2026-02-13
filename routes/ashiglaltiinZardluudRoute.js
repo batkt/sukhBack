@@ -247,11 +247,11 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         ? guidliinKoeffRaw
         : parseFloat(String(guidliinKoeffRaw || "").replace(/,/g, "").trim()) || 1;
 
-    // Use absolute difference to handle prepaid logic or swapped fields
-    const targetTariff = ashiglaltiinZardal.zaaltTariff || ashiglaltiinZardal.tariff || 0;
+    // Use aggregated values
+    const targetTariff = maxTariff;
     const zoruu = Math.abs(suuliinZaaltNum - umnukhZaaltNum);
     const usageAmount = zoruu * targetTariff * guidliinKoeffNum;
-    const suuriKhuraamj = Number(ashiglaltiinZardal.suuriKhuraamj) || 0;
+    const suuriKhuraamj = maxSuuriKhuraamj;
     const niitDun = includeSuuriKhuraamj ? usageAmount + suuriKhuraamj : usageAmount;
 
     console.log(`[CALC] Final calculation results:`, {
@@ -275,7 +275,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       shonoZaaltNum,
       suuliinZaaltNum,
       tariff: targetTariff,
-      selectedCharge: ashiglaltiinZardal ? ashiglaltiinZardal.ner : "None",
+      selectedCharge: selectedChargeName || "None",
       _received: { umnukhZaaltNum, odorZaaltNum, shonoZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
     });
   } catch (err) {
