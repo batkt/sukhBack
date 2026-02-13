@@ -52,17 +52,11 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const { billerCode, customerCode } = req.params;
     
-    console.log("🔍 [WALLET BILLING BY BILLER] Request received");
-    console.log("🔍 [WALLET BILLING BY BILLER] billerCode:", billerCode);
-    console.log("🔍 [WALLET BILLING BY BILLER] customerCode:", customerCode);
-    
     if (!billerCode || !customerCode) {
       throw new aldaa("Биллер код болон хэрэглэгчийн код заавал бөглөх шаардлагатай!");
     }
 
     const billing = await walletApiService.getBillingByBiller(userId, billerCode, customerCode);
-    
-    console.log("🔍 [WALLET BILLING BY BILLER] Response from API:", JSON.stringify(billing, null, 2));
     
     if (!billing) {
       return res.status(404).json({
@@ -97,7 +91,6 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
     };
 
     const sanitizedBilling = sanitizeResponse(billing);
-    console.log("✅ [WALLET BILLING BY BILLER] Returning sanitized response:", JSON.stringify(sanitizedBilling, null, 2));
 
     res.status(200).json({
       success: true,
@@ -139,22 +132,8 @@ exports.walletBillingByCustomer = asyncHandler(async (req, res, next) => {
 exports.walletBillingList = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
-    console.log("📋 [WALLET BILLING LIST] Fetching billing list for user:", userId);
-    
     const billingList = await walletApiService.getBillingList(userId);
-    
     const data = Array.isArray(billingList) ? billingList : [];
-    
-    console.log("✅ [WALLET BILLING LIST] Returning", data.length, "billing(s)");
-    if (data.length > 0) {
-      console.log("✅ [WALLET BILLING LIST] First billing:", {
-        billingId: data[0].billingId,
-        billingName: data[0].billingName,
-        customerName: data[0].customerName,
-        hasPayableBills: data[0].hasPayableBills,
-        payableBillCount: data[0].payableBillCount,
-      });
-    }
     
     res.status(200).json({
       success: true,
@@ -174,9 +153,6 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);  // Returns phoneNumber (utas)
     const { billingId } = req.params;
     
-    console.log("📄 [WALLET BILLING BILLS] Fetching bills for billingId:", billingId);
-    console.log("📄 [WALLET BILLING BILLS] Using userId (phoneNumber):", userId);
-    
     if (!billingId) {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
     }
@@ -187,56 +163,35 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
       if (!walletUserInfo || !walletUserInfo.userId) {
         throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд нэвтэрнэ үү.");
       }
-      console.log("✅ [WALLET BILLING BILLS] User verified in Wallet API");
     } catch (userCheckError) {
       console.error("❌ [WALLET BILLING BILLS] User not found in Wallet API:", userCheckError.message);
       throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд нэвтэрнэ үү.");
     }
 
     const bills = await walletApiService.getBillingBills(userId, billingId);
-    console.log("📄 [WALLET BILLING BILLS] Raw bills from API:", JSON.stringify(bills, null, 2));
-    
     const data = Array.isArray(bills) ? bills : [];
-    console.log("📄 [WALLET BILLING BILLS] Bills array length:", data.length);
     
     // Ensure all bills are properly sanitized (double-check)
-    const sanitizedData = data.map((bill, index) => {
-      console.log(`📄 [WALLET BILLING BILLS] Processing bill[${index}]:`, JSON.stringify(bill, null, 2));
-      
+    const sanitizedData = data.map((bill) => {
       const sanitized = {};
       for (const key in bill) {
         if (bill.hasOwnProperty(key)) {
           const value = bill[key];
-          const originalType = typeof value;
-          const isNull = value === null;
-          const isUndefined = value === undefined;
           
           // Convert null/undefined to empty string for all fields
-          if (isNull || isUndefined) {
-            console.log(`⚠️ [WALLET BILLING BILLS] Bill[${index}].${key} is ${isNull ? 'null' : 'undefined'}, converting to empty string`);
+          if (value === null || value === undefined) {
             sanitized[key] = "";
           } else if (Array.isArray(value)) {
-            console.log(`📄 [WALLET BILLING BILLS] Bill[${index}].${key} is array with ${value.length} items`);
-            sanitized[key] = value.map((item, itemIndex) => {
-              if (item === null || item === undefined) {
-                console.log(`⚠️ [WALLET BILLING BILLS] Bill[${index}].${key}[${itemIndex}] is ${item === null ? 'null' : 'undefined'}, converting to empty string`);
-                return "";
-              }
-              return item;
+            sanitized[key] = value.map((item) => {
+              return (item === null || item === undefined) ? "" : item;
             });
           } else {
             sanitized[key] = value;
-            console.log(`✅ [WALLET BILLING BILLS] Bill[${index}].${key} = ${value} (type: ${originalType})`);
           }
         }
       }
-      
-      console.log(`✅ [WALLET BILLING BILLS] Sanitized bill[${index}]:`, JSON.stringify(sanitized, null, 2));
       return sanitized;
     });
-    
-    console.log("✅ [WALLET BILLING BILLS] Returning", sanitizedData.length, "bill(s) for billingId:", billingId);
-    console.log("✅ [WALLET BILLING BILLS] Final response data:", JSON.stringify(sanitizedData, null, 2));
     
     res.status(200).json({
       success: true,
@@ -386,17 +341,11 @@ exports.walletInvoiceCreate = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const invoiceData = req.body;
     
-    console.log("📝 [WALLET INVOICE CREATE] Creating invoice for user:", userId);
-    console.log("📝 [WALLET INVOICE CREATE] Invoice data:", JSON.stringify(invoiceData));
-    
     if (!invoiceData) {
       throw new aldaa("Нэхэмжлэхийн мэдээлэл заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.createInvoice(userId, invoiceData);
-    
-    console.log("✅ [WALLET INVOICE CREATE] Invoice created successfully");
-    console.log("✅ [WALLET INVOICE CREATE] Invoice ID:", result.invoiceId);
     
     res.status(200).json({
       success: true,
@@ -414,9 +363,6 @@ exports.walletInvoiceGet = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const { invoiceId } = req.params;
     
-    console.log("📄 [WALLET INVOICE GET] Getting invoice for user:", userId);
-    console.log("📄 [WALLET INVOICE GET] Invoice ID:", invoiceId);
-    
     if (!invoiceId) {
       throw new aldaa("Нэхэмжлэхийн ID заавал бөглөх шаардлагатай!");
     }
@@ -424,15 +370,11 @@ exports.walletInvoiceGet = asyncHandler(async (req, res, next) => {
     const invoice = await walletApiService.getInvoice(userId, invoiceId);
     
     if (!invoice) {
-      console.log("⚠️ [WALLET INVOICE GET] Invoice not found");
       return res.status(404).json({
         success: false,
         message: "Нэхэмжлэх олдсонгүй",
       });
     }
-
-    console.log("✅ [WALLET INVOICE GET] Invoice found");
-    console.log("✅ [WALLET INVOICE GET] Invoice status:", invoice.invoiceStatus);
     
     res.status(200).json({
       success: true,
@@ -449,16 +391,11 @@ exports.walletInvoiceCancel = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const { invoiceId } = req.params;
     
-    console.log("🚫 [WALLET INVOICE CANCEL] Canceling invoice for user:", userId);
-    console.log("🚫 [WALLET INVOICE CANCEL] Invoice ID:", invoiceId);
-    
     if (!invoiceId) {
       throw new aldaa("Нэхэмжлэхийн ID заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.cancelInvoice(userId, invoiceId);
-    
-    console.log("✅ [WALLET INVOICE CANCEL] Invoice canceled successfully");
     
     res.status(200).json({
       success: true,
@@ -476,20 +413,11 @@ exports.walletPaymentCreate = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const paymentData = req.body;
     
-    console.log("💳 [WALLET PAYMENT CREATE] Creating payment for user:", userId);
-    console.log("💳 [WALLET PAYMENT CREATE] Payment data:", JSON.stringify(paymentData));
-    
     if (!paymentData || !paymentData.invoiceId) {
       throw new aldaa("Төлбөрийн мэдээлэл болон нэхэмжлэхийн ID заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.createPayment(userId, paymentData);
-    
-    console.log("✅ [WALLET PAYMENT CREATE] Payment created successfully");
-    console.log("✅ [WALLET PAYMENT CREATE] Payment ID:", result.paymentId);
-    if (result.qrText) {
-      console.log("✅ [WALLET PAYMENT CREATE] QR code generated");
-    }
     
     res.status(200).json({
       success: true,
