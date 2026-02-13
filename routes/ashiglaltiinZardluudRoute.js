@@ -225,6 +225,11 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     let finalTariff = maxTariff;
     let residentSpecificUsed = false;
     let tariffSource = "Global";
+    let debugInfo = {
+      residentIdPassed: residentId,
+      gereeniiIdPassed: gereeniiId,
+      maxTariffAggregated: maxTariff
+    };
 
     if (residentId || gereeniiId) {
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
@@ -239,19 +244,26 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         if (!actualResidentId && gereeniiId) {
           try {
             contractObj = await Geree(tukhainBaaziinKholbolt).findById(gereeniiId);
-            if (contractObj && contractObj.orshinSuugchId) {
-              actualResidentId = contractObj.orshinSuugchId;
-              console.log(`[CALC] Found residentId "${actualResidentId}" from contract "${contractObj.gereeniiDugaar}"`);
-            } else if (contractObj) {
-              // Rare case: check for resident by toot and bairniiId/baiguullagiinId
-              console.log(`[CALC] Contract found but no orshinSuugchId. Attempting reverse lookup by toot: ${contractObj.toot}`);
-              const potentialResident = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
-                toot: contractObj.toot,
-                baiguullagiinId: baiguullagiinId
-              });
-              if (potentialResident) {
-                actualResidentId = potentialResident._id;
-                console.log(`[CALC] Reverse lookup SUCCESS: Found resident "${potentialResident.ner}" (ID: ${actualResidentId})`);
+            if (contractObj) {
+              debugInfo.contractFound = true;
+              debugInfo.contractGereeniiDugaar = contractObj.gereeniiDugaar;
+              debugInfo.contractOrshinSuugchId = contractObj.orshinSuugchId;
+
+              if (contractObj.orshinSuugchId) {
+                actualResidentId = contractObj.orshinSuugchId;
+                console.log(`[CALC] Found residentId "${actualResidentId}" from contract "${contractObj.gereeniiDugaar}"`);
+              } else {
+                // Secondary fallback: Match by Toot
+                console.log(`[CALC] No orshinSuugchId on contract. Searching by toot "${contractObj.toot}"`);
+                const potentialRes = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
+                  toot: contractObj.toot,
+                  baiguullagiinId: baiguullagiinId
+                });
+                if (potentialRes) {
+                  actualResidentId = potentialRes._id;
+                  debugInfo.residentFoundByToot = true;
+                  console.log(`[CALC] Reverse lookup SUCCESS: Found resident "${potentialRes.ner}" (ID: ${actualResidentId})`);
+                }
               }
             }
           } catch (e) {
@@ -264,6 +276,10 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
           try {
             const resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(actualResidentId);
             if (resident) {
+              debugInfo.residentFound = true;
+              debugInfo.residentNer = resident.ner;
+              debugInfo.residentTsahilgaaniiZaalt = resident.tsahilgaaniiZaalt;
+
               console.log(`[CALC] Checking resident "${resident.ner}" (ID: ${resident._id}) for tariff...`);
               // Check the specific field "tsahilgaaniiZaalt"
               const resTariff = Number(resident.tsahilgaaniiZaalt);
@@ -277,6 +293,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
               }
             } else {
               console.warn(`[CALC] Resident not found for ID: ${actualResidentId}`);
+              debugInfo.residentNotFound = true;
             }
           } catch (e) {
             console.error("[CALC] Resident findById error:", e.message);
@@ -293,9 +310,10 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
             });
             if (contractElec && contractElec.tariff > 0) {
               finalTariff = contractElec.tariff;
-              residentSpecificUsed = true;
               tariffSource = "Contract (Zardluud)";
               console.log(`[CALC] FALLBACK: Using ${tariffSource}: ${finalTariff}`);
+            } else {
+              debugInfo.contractElecNotFound = true;
             }
           }
         }
@@ -364,6 +382,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       isResidentTariff: residentSpecificUsed,
       selectedCharge: selectedChargeName || "None",
       _received: { umnukhZaaltNum, odorZaaltNum, shonoZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
+      _debug: debugInfo
     });
   } catch (err) {
     next(err);
