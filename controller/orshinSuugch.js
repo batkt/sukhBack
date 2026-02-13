@@ -148,7 +148,6 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
     );
 
     if (!targetBarilga) {
-      console.log("Барилга олдсонгүй");
       return;
     }
 
@@ -159,7 +158,6 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
     // Validate that davkhar already exists - do not allow creating new davkhar when assigning toot
     const davkharStr = String(davkhar);
     if (!davkharArray.includes(davkharStr)) {
-      console.warn(`⚠️ [updateDavkharWithToot] Davkhar "${davkharStr}" does not exist in barilga. Cannot assign toot "${toot}" to unregistered davkhar.`);
       return; // Exit early - do not create new davkhar or assign toot
     }
 
@@ -218,7 +216,6 @@ exports.updateDavkharWithToot = async function updateDavkharWithToot(
     // It represents floors EXEMPT from lift charges, NOT all floors in the building
     // So we do NOT auto-calculate it when registering users
   } catch (error) {
-    console.error("Error updating davkhar with toot:", error);
   }
 };
 
@@ -246,7 +243,6 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
       baiguullagiinId
     );
     if (!baiguullaga) {
-      console.error("Байгууллага олдсонгүй");
       return;
     }
 
@@ -284,19 +280,10 @@ exports.calculateLiftShalgaya = async function calculateLiftShalgaya(
             new: true
           }
         );
-        console.log(
-          `✅ LiftShalgaya collection synced: ${choloolugdokhDavkhar.length} floors exempted`
-        );
       }
-
-      console.log(
-        `✅ LiftShalgaya updated in baiguullaga: ${choloolugdokhDavkhar.length} floors exempted`
-      );
     } else {
-      console.error("Барилга олдсонгүй");
     }
   } catch (error) {
-    console.error("Error calculating liftShalgaya:", error);
   }
 };
 
@@ -371,7 +358,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           walletUserId = walletUserInfo.userId;
         }
       } catch (walletError) {
-        console.error("❌ [WEBSITE REGISTER] Wallet API error:", walletError.message);
         // If Wallet API fails, we can still proceed with registration
         // but user won't be able to login via mobile until they register there
       }
@@ -420,7 +406,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         );
         if (matchingBarilga) {
           baiguullaga = org;
-          console.log(`✅ Found baiguullaga from address: ${baiguullaga.ner} (${baiguullaga._id})`);
           // Also set tukhainBaaziinKholbolt now that we have baiguullaga
           tukhainBaaziinKholbolt = db.kholboltuud.find(
             (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
@@ -448,7 +433,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           
           if (matchesDuureg && matchesHoroo && matchesSoh) {
             baiguullaga = org;
-            console.log(`✅ Found baiguullaga from location: ${baiguullaga.ner} (${baiguullaga._id})`);
             // Also set tukhainBaaziinKholbolt now that we have baiguullaga
             tukhainBaaziinKholbolt = db.kholboltuud.find(
               (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
@@ -481,13 +465,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         (b) => String(b._id) === String(barilgiinId)
       );
       if (providedBarilga) {
-        console.log(
-          `✅ Using provided barilgiinId: ${barilgiinId} (${providedBarilga.ner})`
-        );
       } else {
-        console.log(
-          `⚠️  Provided barilgiinId ${barilgiinId} not found in baiguullaga, will search instead`
-        );
         barilgiinId = null; // Reset to null so we can search
       }
     }
@@ -500,14 +478,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       );
       if (barilgaByName) {
         barilgiinId = String(barilgaByName._id);
-        console.log(
-          `✅ Found building by name (bairniiNer): ${bairniiNerToFind} -> ${barilgiinId} (${barilgaByName.ner})`
-        );
-      } else {
-        console.log(
-          `⚠️  Building name "${bairniiNerToFind}" not found in baiguullaga, available buildings:`,
-          baiguullaga.barilguud.map((b) => b.ner).join(", ")
-        );
       }
     }
 
@@ -525,10 +495,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       const sohNerToFind = req.body.sohNer
         ? req.body.sohNer.toString().trim()
         : null;
-
-      console.log(
-        `🔍 Trying to find building by location: duureg=${duuregToFind}, horoo=${horooToFind}, soh=${sohToFind}, sohNer=${sohNerToFind}`
-      );
 
       const barilgaByLocation = baiguullaga.barilguud.find((b) => {
         const tokhirgoo = b.tokhirgoo || {};
@@ -556,13 +522,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
       if (barilgaByLocation) {
         barilgiinId = String(barilgaByLocation._id);
-        console.log(
-          `✅ Found building by location: ${barilgiinId} (${barilgaByLocation.ner})`
-        );
-      } else {
-        console.log(
-          `⚠️  No building found matching location: duureg=${duuregToFind}, horoo=${horooToFind}, soh=${sohToFind}`
-        );
       }
     }
 
@@ -573,9 +532,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       baiguullaga.barilguud &&
       baiguullaga.barilguud.length > 1
     ) {
-      console.log(
-        `🔍 Searching for building because barilgiinId was not provided...`
-      );
       const tootToFind = req.body.toot.trim();
       const davkharToFind = req.body.davkhar ? req.body.davkhar.trim() : null;
       const ortsToFind = req.body.orts ? req.body.orts.trim() : "1";
@@ -650,25 +606,12 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       // If davkhar was provided and we found a match, use it
       if (foundBuilding) {
         barilgiinId = String(foundBuilding._id);
-        console.log(
-          `✅ Found building ${foundBuilding.ner} (${barilgiinId}) for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}`
-        );
       } else if (foundBuildings.length === 1) {
         // If davkhar not provided but only one building has this toot, use it
         barilgiinId = String(foundBuildings[0]._id);
-        console.log(
-          `✅ Found unique building ${foundBuildings[0].ner} (${barilgiinId}) for toot ${tootToFind}`
-        );
       } else if (foundBuildings.length > 1) {
         // Multiple buildings have this toot - use first one (original behavior)
         barilgiinId = String(foundBuildings[0]._id);
-        console.log(
-          `⚠️  Multiple buildings found for toot ${tootToFind}, using first: ${foundBuildings[0].ner} (${barilgiinId})`
-        );
-      } else if (davkharToFind) {
-        console.log(
-          `⚠️  Could not find building for davkhar=${davkharToFind}, orts=${ortsToFind}, toot=${tootToFind}`
-        );
       }
     }
 
@@ -896,11 +839,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         if (existingTootIndex >= 0) {
           // Update existing toot entry if same toot and barilgiinId
           orshinSuugch.toots[existingTootIndex] = tootEntry;
-          console.log(`orshinSuugch service`);
         } else {
           // Add new toot to array - don't update primary toot fields for existing users
           orshinSuugch.toots.push(tootEntry);
-          console.log(`orshinSuugch service`);
         }
         
         // Only update primary toot fields (toot, davkhar, barilgiinId, bairniiNer) if this is a NEW user
@@ -929,10 +870,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           const barilgaResult = await findOrCreateBarilgaFromWallet(
             req.body.bairId,
             walletBairName
-          );
-          
-          console.log(
-            `🏢 [REGISTER] ${barilgaResult.isNew ? "Created" : "Found"} barilga in centralized org: ${barilgaResult.barilgiinId}`
           );
           
           // Set centralized org as primary address
@@ -966,7 +903,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
             orshinSuugch.toots.push(walletTootEntry);
           }
         } catch (error) {
-          console.error("❌ [REGISTER] Error creating barilga in centralized org:", error.message);
           // Fallback: just add to toots array without centralized org
           const walletTootEntry = {
             toot: req.body.doorNo,
@@ -1023,7 +959,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         }
         
         if (!tukhainBaaziinKholboltForMashin) {
-          console.error("❌ [AUTO-ZOCHIN] tukhainBaaziinKholbolt not found for baiguullaga:", orshinSuugch.baiguullagiinId);
         } else {
           const targetBarilga = baiguullagaForMashin?.barilguud?.find(
             b => String(b._id) === String(orshinSuugch.barilgiinId)
@@ -1077,7 +1012,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         }
       }
     } catch (zochinErr) {
-      console.error("❌ [AUTO-ZOCHIN] Error:", zochinErr.message);
     }
     
     try {
@@ -1088,7 +1022,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       } else {
         // Reuse tukhainBaaziinKholbolt from above (already declared)
         if (!tukhainBaaziinKholbolt) {
-          console.error("❌ [REGISTER] tukhainBaaziinKholbolt not found for baiguullaga:", baiguullaga._id);
           throw new Error("Байгууллагын холболтын мэдээлэл олдсонгүй");
         }
 
@@ -1160,7 +1093,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
  
         if (conflictingGeree) {
           // Log warning instead of throwing error to allow roommates/multi-family registration
-          console.warn(`⚠️ [REGISTER] Unit ${orshinSuugch.toot} is already occupied by another user (${conflictingGeree.orshinSuugchId}). Allowing multiple registration.`);
         }
       }
 
@@ -1202,8 +1134,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           zaaltTog: 0, // Day reading (will be updated later)
           zaaltUs: 0, // Night reading (will be updated later)
         };
-
-        console.log("orshinSuugch service");
 
         // Add optional fields from frontend if provided
         if (req.body.tailbar) {
@@ -1342,7 +1272,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
               "automataar"
             );
           } catch (invErr) {
-            console.error(`❌ [REGISTER] Invoice creation error for toot ${tootEntry.toot}:`, invErr.message);
           }
 
           // Update davkhar with toot if provided
@@ -1372,15 +1301,12 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
                 "automataar"
               );
             } catch (invErr) {
-              console.error("❌ [REGISTER] Reactivation invoice error:", invErr.message);
             }
           }
         }
       }
       }
     } catch (contractError) {
-      console.error("❌ [REGISTER] Error creating contract:", contractError);
-      console.error("❌ [REGISTER] Contract error stack:", contractError?.stack);
       // Don't fail registration if contract creation fails - user is already saved
     }
 
@@ -1400,8 +1326,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
 
     res.status(201).json(response);
   } catch (error) {
-    console.error("❌ [REGISTER] Error in orshinSuugchBurtgey:", error);
-    console.error("❌ [REGISTER] Error stack:", error?.stack);
     next(error);
   }
 });
@@ -1584,7 +1508,6 @@ exports.validateOwnOrgToot = asyncHandler(async (req, res, next) => {
       }
     });
   } catch (error) {
-    console.error("❌ [TOOT VALIDATION] Error:", error.message);
     next(error);
   }
 });
@@ -1701,7 +1624,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     try {
       passwordValid = await orshinSuugch.passwordShalgaya(providedPassword);
     } catch (passwordError) {
-      console.error("❌ [LOGIN] Error validating password:", passwordError.message);
       passwordValid = false;
     }
 
@@ -1765,7 +1687,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           }
         }
       } catch (smsError) {
-        console.error("⚠️ [LOGIN] Error sending SMS (continuing with login):", smsError.message);
         // Don't fail login if SMS fails
       }
     } else {
@@ -1801,7 +1722,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           userData.baiguullagiinNer = baiguullaga.ner;
         }
       } catch (err) {
-        console.error("Error fetching baiguullaga name:", err.message);
       }
     }
 
@@ -1841,11 +1761,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             }
           }
         } catch (err) {
-          console.error("Error fetching building names:", err.message);
+          // Error fetching building names
         }
         
-        console.error("❌ [LOGIN] User trying to login with different building!");
-        console.error("❌ [LOGIN] Existing:", existingBuildingName, "New:", newBuildingName);
         
         return res.status(400).json({
           success: false,
@@ -1968,7 +1886,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           bairniiNer: targetBarilga.ner || ""
         };
       } catch (error) {
-        console.error("❌ [WALLET LOGIN] OWN_ORG toot validation error:", error.message);
         throw error;
       }
     }
@@ -2066,7 +1983,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         try {
           // Note: We don't have a direct getBairById endpoint, so frontend should send bairName
         } catch (error) {
-          console.error("❌ [WALLET LOGIN] Could not fetch bair name:", error.message);
         }
       }
       
@@ -2109,7 +2025,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             orshinSuugch.toots.push(walletTootEntry);
           }
         } catch (error) {
-          console.error("❌ [WALLET LOGIN] Error creating barilga in centralized org:", error.message);
           // Fallback: just add to toots array without centralized org
           const walletTootEntry = {
             toot: doorNoToUse,
@@ -2195,14 +2110,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                     }
                   }
                 } catch (listError) {
-                  console.error("⚠️ [WALLET LOGIN] Error fetching billing list:", listError.message);
                 }
               }
             } catch (customerBillingError) {
-              console.error("⚠️ [WALLET LOGIN] Error fetching billing by customer ID:", customerBillingError.message);
-              if (customerBillingError.response) {
-                console.error("⚠️ [WALLET LOGIN] Error response:", JSON.stringify(customerBillingError.response.data));
-              }
               
               // Try billing list as fallback
               try {
@@ -2218,7 +2128,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                   }
                 }
               } catch (listError) {
-                console.error("⚠️ [WALLET LOGIN] Error in billing list fallback:", listError.message);
               }
             }
           }
@@ -2234,11 +2143,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
               // saveBilling requires phoneNumber, not walletUserId
               const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
             } catch (connectError) {
-              console.error("❌ [WALLET LOGIN] Error auto-connecting billing:", connectError.message);
-              if (connectError.response) {
-                console.error("❌ [WALLET LOGIN] Error response status:", connectError.response.status);
-                console.error("❌ [WALLET LOGIN] Error response data:", JSON.stringify(connectError.response.data));
-              }
               // Don't throw - billing info is still saved locally
             }
           } else {
@@ -2259,11 +2163,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                   billingInfo.billingId = connectResult.billingId;
                 }
               } catch (connectError) {
-                console.error("❌ [WALLET LOGIN] Error connecting billing without billingId:", connectError.message);
-                if (connectError.response) {
-                  console.error("❌ [WALLET LOGIN] Error response status:", connectError.response.status);
-                  console.error("❌ [WALLET LOGIN] Error response data:", JSON.stringify(connectError.response.data));
-                }
               }
             }
           }
@@ -2296,7 +2195,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         }
       } catch (billingError) {
         // Log error but don't fail login
-        console.error("❌ [WALLET LOGIN] Error auto-fetching billing:", billingError.message);
       }
     }
 
@@ -2309,7 +2207,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(tootEntry.baiguullagiinId);
           
           if (!baiguullaga) {
-            console.log(`orshinSuugch service`);
             continue;
           }
           
@@ -2318,7 +2215,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           );
 
           if (!tukhainBaaziinKholbolt) {
-            console.log(`orshinSuugch service`);
             continue;
           }
           
@@ -2332,7 +2228,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           });
 
           if (existingGeree) {
-            console.log(`orshinSuugch service`);
             continue;
           }
 
@@ -2427,7 +2322,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
               await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
                 $set: updateData,
               });
-              console.log(`orshinSuugch service`);
               continue; // Skip creating new contract, we reactivated the old one
             }
           }
@@ -2442,7 +2336,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           });
 
           if (conflictingGeree) {
-            console.log(`orshinSuugch service`);
             continue; // Skip creating contract - toot already owned by someone else
           }
           
@@ -2535,7 +2428,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
             const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
             await geree.save();
-            console.log(`orshinSuugch service`);
 
             // Update davkhar with toot if provided
             if (tootEntry.toot && tootEntry.davkhar) {
@@ -2547,11 +2439,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 tukhainBaaziinKholbolt
               );
             }
-          } else {
-            console.log(`orshinSuugch service`);
           }
         } catch (tootGereeError) {
-          console.log(`orshinSuugch service`);
           // Continue with next toot if this one fails
         }
       }
@@ -2561,14 +2450,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(orshinSuugch.baiguullagiinId);
         
         if (!baiguullaga) {
-          console.log("orshinSuugch service");
         } else {
           const tukhainBaaziinKholbolt = db.kholboltuud.find(
             (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
           );
 
           if (!tukhainBaaziinKholbolt) {
-            console.log("orshinSuugch service");
           } else {
             // Check if geree already exists for this user and toot combination
             const GereeModel = Geree(tukhainBaaziinKholbolt);
@@ -2580,7 +2467,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             });
 
             if (existingGeree) {
-              console.log("orshinSuugch service");
             } else {
               // Validate: One toot cannot have different owners
               if (orshinSuugch.toot && orshinSuugch.barilgiinId) {
@@ -2592,7 +2478,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                 });
 
                 if (conflictingGeree) {
-                  console.log("orshinSuugch service");
                   // Skip creating contract - toot already owned by someone else
                 } else {
                   const targetBarilga = baiguullaga.barilguud?.find(
@@ -2682,7 +2567,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
                     const geree = new Geree(tukhainBaaziinKholbolt)(contractData);
                     await geree.save();
-                    console.log("orshinSuugch service");
 
                     // Update davkhar with toot if provided
                     if (orshinSuugch.toot && orshinSuugch.davkhar) {
@@ -2701,7 +2585,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           }
         }
       } catch (gereeError) {
-        console.log("orshinSuugch service");
         // Don't fail login if geree creation fails
       }
     }
@@ -2721,7 +2604,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     res.status(200).json(butsaakhObject);
   } catch (err) {
-    console.error("❌ [WALLET LOGIN] Error:", err.message);
     next(err);
   }
 });
@@ -2784,7 +2666,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           userData.baiguullagiinNer = baiguullaga.ner;
         }
       } catch (error) {
-        console.warn("⚠️ [WALLET REGISTER] Could not fetch baiguullagiinNer:", error.message);
       }
     }
 
@@ -2820,7 +2701,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
             }
           }
         } catch (err) {
-          console.error("Error fetching building names:", err.message);
+          // Error fetching building names
         }
         
         return res.status(400).json({
@@ -2974,7 +2855,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           bairniiNer: targetBarilga.ner || ""
         };
       } catch (error) {
-        console.error("❌ [WALLET REGISTER] OWN_ORG toot validation error:", error.message);
         throw error;
       }
     }
@@ -3063,7 +2943,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
             orshinSuugch.toots.push(walletTootEntry);
           }
         } catch (error) {
-          console.error("❌ [WALLET REGISTER] Error creating barilga in centralized org:", error.message);
           // Fallback: just add to toots array without centralized org
           const walletTootEntry = {
             toot: req.body.doorNo,
@@ -3110,7 +2989,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(tootEntry.baiguullagiinId);
           
           if (!baiguullaga) {
-            console.error(`❌ [WALLET REGISTER] Baiguullaga not found for toot ${tootEntry.toot}`);
             continue;
           }
           
@@ -3119,7 +2997,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           );
 
           if (!tukhainBaaziinKholbolt) {
-            console.error(`❌ [WALLET REGISTER] Kholbolt not found for toot ${tootEntry.toot}`);
             continue;
           }
           
@@ -3133,7 +3010,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           });
 
           if (existingGeree) {
-            console.log(`orshinSuugch service`);
             continue;
           }
 
@@ -3228,7 +3104,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
               await GereeModel.findByIdAndUpdate(existingCancelledGeree._id, {
                 $set: updateData,
               });
-              console.log(`orshinSuugch service`);
               continue; // Skip creating new contract, we reactivated the old one
             }
           }
@@ -3331,10 +3206,8 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
               );
             }
           } else {
-            console.error(`❌ [WALLET REGISTER] Target barilga not found for toot ${tootEntry.toot}`);
           }
         } catch (tootGereeError) {
-          console.error(`❌ [WALLET REGISTER] Error creating geree for toot ${tootEntry.toot}:`, tootGereeError.message);
           // Continue with next toot if this one fails
         }
       }
@@ -3344,14 +3217,12 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(orshinSuugch.baiguullagiinId);
         
         if (!baiguullaga) {
-          console.error("❌ [WALLET REGISTER] Baiguullaga not found for geree creation");
         } else {
           const tukhainBaaziinKholbolt = db.kholboltuud.find(
             (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
           );
 
           if (!tukhainBaaziinKholbolt) {
-            console.error("❌ [WALLET REGISTER] Kholbolt not found for geree creation");
           } else {
             // Check if geree already exists for this user and toot combination
             const GereeModel = Geree(tukhainBaaziinKholbolt);
@@ -3467,7 +3338,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
           }
         }
       } catch (gereeError) {
-        console.error("❌ [WALLET REGISTER] Error creating geree:", gereeError.message);
         // Don't fail registration if geree creation fails
       }
     }
@@ -3516,7 +3386,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                     }
                   }
                 } catch (listError) {
-                  console.error("❌ [WALLET REGISTER] Error fetching billing list:", listError.message);
                 }
               }
             } catch (customerBillingError) {
@@ -3534,7 +3403,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
                   }
                 }
               } catch (listError) {
-                console.error("❌ [WALLET REGISTER] Error in billing list fallback:", listError.message);
               }
             }
           }
@@ -3602,7 +3470,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
         }
       } catch (billingError) {
         // Log error but don't fail registration
-        console.error("❌ [WALLET REGISTER] Error auto-fetching billing (continuing anyway):", billingError.message);
       }
     }
 
@@ -3621,7 +3488,6 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
     }
     res.status(200).json(butsaakhObject);
   } catch (err) {
-    console.error("❌ [WALLET REGISTER] Error:", err.message);
     next(err);
   }
 });
@@ -3750,7 +3616,6 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
         });
       }
     } catch (billingError) {
-      console.error("❌ [WALLET BILLING] Error fetching billing info:", billingError.message);
       throw new aldaa(`Биллингийн мэдээлэл авахад алдаа гарлаа: ${billingError.message}`);
     }
 
@@ -3769,7 +3634,6 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
         await walletApiService.saveBilling(phoneNumber, billingData);
         billingConnected = true;
       } catch (connectError) {
-        console.error("❌ [WALLET BILLING] Error connecting billing:", connectError.message);
         connectionError = connectError.message;
       }
     } else {
@@ -3794,7 +3658,6 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
             billingConnected = true;
           }
         } catch (connectError) {
-          console.error("❌ [WALLET BILLING] Error connecting billing:", connectError.message);
           connectionError = connectError.message;
         }
       } else {
@@ -3853,9 +3716,6 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
             walletBairName
           );
           
-          console.log(
-            `🏢 [WALLET BILLING] ${barilgaResult.isNew ? "Created" : "Found"} barilga in centralized org: ${barilgaResult.barilgiinId}`
-          );
           
           // Set centralized org as primary address
           updateData.baiguullagiinId = CENTRALIZED_ORG_ID;
@@ -3890,7 +3750,6 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           }
         }
       } catch (barilgaError) {
-        console.error("❌ [WALLET BILLING] Error creating barilga in centralized org:", barilgaError.message);
         // Continue without centralized org - don't fail the billing save
       }
     }
@@ -3909,7 +3768,6 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
       connectionError: connectionError,
     });
   } catch (err) {
-    console.error("❌ [WALLET BILLING] Error:", err.message);
     next(err);
   }
 });
@@ -3925,7 +3783,6 @@ exports.walletAddressCities = asyncHandler(async (req, res, next) => {
       message: `Found ${result.sources.total} cities (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
     });
   } catch (err) {
-    console.error("❌ [ADDRESS] Error getting cities:", err.message);
     next(err);
   }
 });
@@ -3946,7 +3803,6 @@ exports.walletAddressDistricts = asyncHandler(async (req, res, next) => {
       message: `Found ${result.sources.total} districts (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
     });
   } catch (err) {
-    console.error("❌ [ADDRESS] Error getting districts:", err.message);
     next(err);
   }
 });
@@ -3967,7 +3823,6 @@ exports.walletAddressKhoroo = asyncHandler(async (req, res, next) => {
       message: `Found ${result.sources.total} khoroos (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
     });
   } catch (err) {
-    console.error("❌ [ADDRESS] Error getting khoroo:", err.message);
     next(err);
   }
 });
@@ -3988,7 +3843,6 @@ exports.walletAddressBair = asyncHandler(async (req, res, next) => {
       message: `Found ${result.sources.total} bair (Wallet API: ${result.sources.walletApi}, Own Org: ${result.sources.ownOrg})`
     });
   } catch (err) {
-    console.error("❌ [ADDRESS] Error getting bair:", err.message);
     next(err);
   }
 });
@@ -4048,10 +3902,6 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
           codeSent: false,
         });
       }
-    } else if (purpose === "register") {
-      console.log(
-        "⚠️ purpose=register received; schema expects 'registration'. Consider mapping before saving."
-      );
     }
 
     const BatalgaajuulahCodeModel = BatalgaajuulahCode(kholbolt);
@@ -4093,7 +3943,6 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
       codeSent: true,
     });
   } catch (error) {
-    console.error("🔥 dugaarBatalgaajuulya error:", error?.message);
     next(error);
   }
 });
@@ -4183,7 +4032,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       orshinSuugch.nuutsUg = shineNuutsUg;
       await orshinSuugch.save();
     } catch (saveError) {
-      console.error("Error saving password:", saveError);
       return res.status(400).json({
         success: false,
         message: "Нууц үг хадгалахад алдаа гарлаа!",
@@ -4199,7 +4047,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
         ? oldPasswordHash !== updatedUser.nuutsUg
         : true;
     } catch (fetchError) {
-      console.error("Error fetching updated user:", fetchError);
       return res.status(400).json({
         success: false,
         message: "Хэрэглэгчийн мэдээлэл авахад алдаа гарлаа!",
@@ -4217,8 +4064,6 @@ exports.nuutsUgSergeeye = asyncHandler(async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.error("Password reset error:", error);
-    console.error("Error stack:", error.stack);
     return res.status(500).json({
       success: false,
       message: "Нууц үг солиход алдаа гарлаа",
@@ -4243,7 +4088,6 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
     try {
       tokenObject = jwt.verify(token, process.env.APP_SECRET);
     } catch (jwtError) {
-      console.error("JWT Verification Error:", jwtError.message);
       if (jwtError.name === "JsonWebTokenError") {
         return next(new Error("Token буруу байна!"));
       } else if (jwtError.name === "TokenExpiredError") {
@@ -4268,7 +4112,6 @@ exports.tokenoorOrshinSuugchAvya = asyncHandler(async (req, res, next) => {
         next(err);
       });
   } catch (error) {
-    console.error("Token verification error:", error);
     next(error);
   }
 });
@@ -4299,7 +4142,6 @@ function msgIlgeeye(
     url = encodeURI(url);
     request(url, { json: true }, (err1, res1, body) => {
       if (err1) {
-        console.error("SMS sending error:", err1);
       } else {
         var msg = new MsgTuukh(tukhainBaaziinKholbolt)();
         msg.baiguullagiinId = baiguullagiinId;
@@ -4326,7 +4168,6 @@ function msgIlgeeye(
       }
     });
   } catch (err) {
-    console.error("msgIlgeeye error:", err);
   }
 }
 
@@ -4340,8 +4181,6 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
     
     // If SMS is disabled, automatically verify without checking code
     if (!ENABLE_LOGIN_SMS) {
-      console.log("⚠️ [LOGIN VERIFY] SMS verification DISABLED - auto-approving verification");
-      
       const { db } = require("zevbackv2");
       const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
       
@@ -4351,8 +4190,6 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
           message: "Хэрэглэгч олдсонгүй!",
         });
       }
-
-      console.log("✅ [LOGIN VERIFY] Auto-approved verification for user:", orshinSuugch._id);
 
       return res.json({
         success: true,
@@ -4364,8 +4201,6 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
     // If baiguullagiinId is not provided, skip OTP verification and proceed
     // This allows wallet-only registrations (without organization) to proceed
     if (!baiguullagiinId) {
-      console.log("ℹ️ [LOGIN VERIFY] No baiguullagiinId provided, skipping OTP verification");
-      
       const { db } = require("zevbackv2");
       const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas });
       
@@ -4375,8 +4210,6 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
           message: "Хэрэглэгч олдсонгүй!",
         });
       }
-
-      console.log("✅ [LOGIN VERIFY] Skipped OTP verification for wallet-only user:", orshinSuugch._id);
 
       return res.json({
         success: true,
@@ -4436,15 +4269,12 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
       });
     }
 
-    console.log("✅ [LOGIN VERIFY] Code verified for user:", orshinSuugch._id);
-
     res.json({
       success: true,
       message: "Код амжилттай баталгаажлаа",
       // Frontend should save verification status to local storage
     });
   } catch (error) {
-    console.error("❌ [LOGIN VERIFY] Error:", error.message);
     next(error);
   }
 });
@@ -4623,8 +4453,6 @@ exports.cleanupExpiredCodes = asyncHandler(async (req, res, next) => {
     const BatalgaajuulahCodeModel = BatalgaajuulahCode(db.erunkhiiKholbolt);
     const deletedCount = await BatalgaajuulahCodeModel.cleanupExpired();
 
-    console.log(`Cleaned up ${deletedCount} expired verification codes`);
-
     res.json({
       success: true,
       message: `Cleaned up ${deletedCount} expired verification codes`,
@@ -4767,7 +4595,6 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
         }
       );
     } catch (auditErr) {
-      console.error("❌ [AUDIT] Error logging orshinSuugch delete:", auditErr.message);
       // Don't block deletion if audit logging fails
     }
 
@@ -4859,7 +4686,6 @@ exports.orshinSuugchUstgakh = asyncHandler(async (req, res, next) => {
         }
       );
     } catch (auditErr) {
-      console.error("❌ [AUDIT] Error logging orshinSuugch delete:", auditErr.message);
       // Don't block deletion if audit logging fails
     }
 
