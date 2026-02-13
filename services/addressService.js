@@ -382,8 +382,6 @@ async function getBair(khorooId) {
  */
 async function getOwnOrgCities() {
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching cities from baiguullaga...");
-    
     const kholboltuud = db.kholboltuud || [];
     const uniqueCities = new Set();
     const cities = [];
@@ -419,7 +417,6 @@ async function getOwnOrgCities() {
       }
     }
 
-    console.log(`✅ [ADDRESS SERVICE] Found ${cities.length} unique cities from baiguullaga`);
     return cities;
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error getting cities from own organization:", error.message);
@@ -434,8 +431,6 @@ async function getOwnOrgCities() {
  */
 async function getOwnOrgDistricts(cityId) {
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching districts from baiguullaga for cityId:", cityId);
-    
     const kholboltuud = db.kholboltuud || [];
     const uniqueDistricts = new Set();
     const districts = [];
@@ -446,7 +441,6 @@ async function getOwnOrgDistricts(cityId) {
       : null;
 
     if (!cityName) {
-      console.log("⚠️ [ADDRESS SERVICE] cityId is not from own org, skipping");
       return [];
     }
 
@@ -493,7 +487,6 @@ async function getOwnOrgDistricts(cityId) {
       }
     }
 
-    console.log(`✅ [ADDRESS SERVICE] Found ${districts.length} districts from baiguullaga`);
     return districts;
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error getting districts from own organization:", error.message);
@@ -508,8 +501,6 @@ async function getOwnOrgDistricts(cityId) {
  */
 async function getOwnOrgKhoroo(districtId) {
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching khoroos from baiguullaga for districtId:", districtId);
-    
     const kholboltuud = db.kholboltuud || [];
     const uniqueKhoroos = new Set();
     const khoroos = [];
@@ -520,7 +511,6 @@ async function getOwnOrgKhoroo(districtId) {
       : null;
 
     if (!districtCode) {
-      console.log("⚠️ [ADDRESS SERVICE] districtId is not from own org, skipping");
       return [];
     }
 
@@ -555,7 +545,6 @@ async function getOwnOrgKhoroo(districtId) {
       }
     }
 
-    console.log(`✅ [ADDRESS SERVICE] Found ${khoroos.length} khoroos from baiguullaga`);
     return khoroos;
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error getting khoroos from own organization:", error.message);
@@ -572,8 +561,6 @@ async function getOwnOrgKhoroo(districtId) {
  */
 async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
   try {
-    console.log("📡 [ADDRESS SERVICE] Fetching bair from baiguullaga for khorooId:", khorooId, "khorooName:", khorooName, "districtName:", districtName);
-    
     const kholboltuud = db.kholboltuud || [];
     const uniqueBair = new Set();
     const bair = [];
@@ -588,12 +575,8 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
       // If khorooName is provided (extracted from Wallet API), use it for matching
       khorooNer = khorooName; // e.g., "15-р хороо"
       khorooCode = khorooName; // Also try matching by code
-      console.log(`🔍 [ADDRESS SERVICE] Using khorooName from Wallet API: ${khorooName}`);
     } else {
       // If khorooName is not provided, try to get it from Wallet API
-      console.log("⚠️ [ADDRESS SERVICE] khorooId is not from own org and no khorooName provided");
-      console.log("⚠️ [ADDRESS SERVICE] Attempting to fetch khoroo details from Wallet API...");
-      
       try {
         // Try to find khoroo by searching through districts
         const cities = await walletApiService.getAddressCities();
@@ -617,7 +600,6 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
                     if (khorooName) {
                       khorooNer = khorooName;
                       khorooCode = khorooName;
-                      console.log(`✅ [ADDRESS SERVICE] Found khoroo name from Wallet API: ${khorooName}`);
                       break;
                     }
                   }
@@ -632,18 +614,10 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
             }
           }
         }
-        
-        if (!khorooName) {
-          console.log("⚠️ [ADDRESS SERVICE] Could not fetch khoroo name from Wallet API");
-          console.log("⚠️ [ADDRESS SERVICE] Will try to match by district only, or show all if no district filter");
-        }
       } catch (error) {
         console.error("❌ [ADDRESS SERVICE] Error fetching khoroo from Wallet API:", error.message);
-        console.log("⚠️ [ADDRESS SERVICE] Will try to match by district only, or show all if no district filter");
       }
     }
-
-    console.log(`🔍 [ADDRESS SERVICE] Will match OWN_ORG bair with khoroo: "${khorooNer || khorooCode}", district: "${districtName || 'any (no district filter)'}"`);
 
     for (const kholbolt of kholboltuud) {
       try {
@@ -672,11 +646,6 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
                   (khorooCodeNorm && (barilgaKhorooKodNorm === khorooCodeNorm || barilgaKhorooNerNorm === khorooCodeNorm)) ||
                   (khorooNerNorm && (barilgaKhorooNerNorm === khorooNerNorm || barilgaKhorooKodNorm === khorooNerNorm));
                 
-                // Debug logging for buildings that don't match khoroo
-                if (!khorooMatches && (khorooCode || khorooNer)) {
-                  console.log(`🔍 [ADDRESS SERVICE] Bair "${barilga.ner}" doesn't match khoroo - Looking for: "${khorooNer || khorooCode}", Building has: kod="${barilgaKhorooKod}", ner="${barilgaKhorooNer}"`);
-                }
-                
                 // If districtName is provided, also match by district (duuregNer)
                 // Use case-insensitive and trimmed comparison
                 // But if district doesn't match, still show the building if khoroo matches (more flexible)
@@ -700,7 +669,6 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
                   }
                   
                   if (districtMismatch && khorooMatches) {
-                    console.log(`⚠️ [ADDRESS SERVICE] Khoroo matches but district doesn't - Wallet: "${walletDistrict}", OWN_ORG: "${ownOrgDistrict}", but will still show bair: ${barilga.ner}`);
                     // Show building even if district doesn't match if khoroo matches
                     districtMatches = true;
                   }
@@ -710,7 +678,6 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
                 // 1. Khoroo matches (or no khoroo filter), AND
                 // 2. District matches (or no district filter, or khoroo matches)
                 if (khorooMatches && districtMatches) {
-                  console.log(`✅ [ADDRESS SERVICE] Matched OWN_ORG bair: ${barilga.ner} (district: ${barilgaDuuregNer}, khoroo: ${barilgaKhorooNer})`);
                   const bairKey = `${barilga.ner}_${barilga._id}`;
                   if (!uniqueBair.has(bairKey)) {
                     uniqueBair.add(bairKey);
@@ -742,7 +709,6 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
       }
     }
 
-    console.log(`✅ [ADDRESS SERVICE] Found ${bair.length} bair from baiguullaga`);
     return bair;
   } catch (error) {
     console.error("❌ [ADDRESS SERVICE] Error getting bair from own organization:", error.message);

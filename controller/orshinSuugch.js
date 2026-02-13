@@ -1012,7 +1012,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
          : orgSettings;
 
       if (defaultSettings) {
-         console.log(`🔍 [AUTO-ZOCHIN] Found defaults for ${orshinSuugch.ner}. Quota: ${defaultSettings.zochinErkhiinToo}`);
          const MashinModel = Mashin(tukhainBaaziinKholbolt);
          
          const existingSettings = await MashinModel.findOne({
@@ -1051,12 +1050,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
             });
             
             await newMashin.save();
-            console.log(`✅ [AUTO-ZOCHIN] Mashin record created for ${orshinSuugch.ner}`);
-         } else {
-            console.log(`ℹ️ [AUTO-ZOCHIN] Mashin record already exists for ${orshinSuugch.ner}`);
          }
-      } else {
-         console.log(`⚠️ [AUTO-ZOCHIN] No default guest settings found for building or organization`);
       }
     } catch (zochinErr) {
       console.error("❌ [AUTO-ZOCHIN] Error:", zochinErr.message);

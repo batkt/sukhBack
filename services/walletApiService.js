@@ -331,7 +331,6 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
           // Try to get billingId from billing list or by customerId
           try {
             if (customer.customerId) {
-              console.log("🔍 [WALLET API] Fetching billingId for customerId:", customer.customerId);
               const billing = await getBillingByCustomer(userId, customer.customerId);
               if (billing && billing.billingId) {
                 customer.billingId = billing.billingId;
@@ -394,7 +393,6 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
     return null;
   } catch (error) {
     if (error.response && error.response.status === 404) {
-      console.warn("⚠️ [WALLET API] Billing by biller not found (404)");
       return null;
     }
     console.error("❌ [WALLET API] Error getting billing by biller:", error.message);
@@ -503,10 +501,6 @@ async function getBillingPayments(userId, billingId) {
   try {
     const token = await getWalletServiceToken();
     
-    console.log("📋 [WALLET API] Getting billing payments...");
-    console.log("📋 [WALLET API] userId:", userId);
-    console.log("📋 [WALLET API] billingId:", billingId);
-    
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/billing/payments/${billingId}`,
       {
@@ -517,36 +511,26 @@ async function getBillingPayments(userId, billingId) {
       }
     );
 
-    console.log("📋 [WALLET API] Payments response status:", response.status);
-    console.log("📋 [WALLET API] Payments responseCode:", response.data?.responseCode);
-
     if (response.data && response.data.responseCode) {
       if (response.data.data) {
         let data = response.data.data;
         
         if (Array.isArray(data)) {
-          console.log("✅ [WALLET API] Found", data.length, "payment(s)");
           return data.map(item => sanitizeNullValues(item));
         } else if (typeof data === 'object') {
-          console.log("✅ [WALLET API] Found 1 payment");
           return [sanitizeNullValues(data)];
         }
       }
     }
 
-    console.log("⚠️ [WALLET API] No payments found");
     return [];
   } catch (error) {
-    console.error("❌ [WALLET API] Error getting billing payments:", error.message);
     if (error.response) {
-      console.error("❌ [WALLET API] Error response status:", error.response.status);
-      console.error("❌ [WALLET API] Error response data:", error.response.data);
-      
       // If 404, return empty array (no payments exist yet)
       if (error.response.status === 404) {
-        console.log("ℹ️ [WALLET API] No payments found (404) - returning empty array");
         return [];
       }
+      console.error("❌ [WALLET API] Error getting billing payments:", error.message);
     }
     throw error;
   }
@@ -755,10 +739,6 @@ async function changeBillingName(userId, billingId, newName) {
 
 async function createInvoice(userId, invoiceData) {
   try {
-    console.log("📝 [WALLET API] Creating invoice...");
-    console.log("📝 [WALLET API] userId:", userId);
-    console.log("📝 [WALLET API] invoiceData:", JSON.stringify(invoiceData));
-    
     const token = await getWalletServiceToken();
     
     const response = await axios.post(
@@ -772,30 +752,17 @@ async function createInvoice(userId, invoiceData) {
         },
       }
     );
-
-    console.log("📝 [WALLET API] Invoice creation response status:", response.status);
-    console.log("📝 [WALLET API] Invoice creation responseCode:", response.data?.responseCode);
-    console.log("📝 [WALLET API] Invoice creation response data:", JSON.stringify(response.data, null, 2));
     
     if (response.data && response.data.responseCode && response.data.data) {
-      console.log("✅ [WALLET API] Invoice created successfully");
-      console.log("✅ [WALLET API] Invoice ID:", response.data.data.invoiceId);
-      console.log("✅ [WALLET API] Invoice amount:", response.data.data.invoiceAmount);
-      console.log("✅ [WALLET API] Invoice total:", response.data.data.invoiceTotal);
       return response.data.data;
     }
 
     // If responseCode is false, log the error message
     const errorMsg = response.data?.responseMsg || response.data?.message || "Failed to create invoice in Wallet API";
-    console.error("❌ [WALLET API] Invoice creation failed - invalid response");
-    console.error("❌ [WALLET API] Error message:", errorMsg);
-    console.error("❌ [WALLET API] Full response:", JSON.stringify(response.data, null, 2));
-    
+    console.error("❌ [WALLET API] Invoice creation failed:", errorMsg);
     throw new Error(errorMsg);
   } catch (error) {
     if (error.response && error.response.data) {
-      console.error("❌ [WALLET API] Error response status:", error.response.status);
-      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
       const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to create invoice";
       throw new Error(errorMessage);
     }
@@ -806,10 +773,6 @@ async function createInvoice(userId, invoiceData) {
 
 async function getInvoice(userId, invoiceId) {
   try {
-    console.log("📄 [WALLET API] Getting invoice...");
-    console.log("📄 [WALLET API] userId:", userId);
-    console.log("📄 [WALLET API] invoiceId:", invoiceId);
-    
     const token = await getWalletServiceToken();
     
     const response = await axios.get(
@@ -822,38 +785,22 @@ async function getInvoice(userId, invoiceId) {
       }
     );
 
-    console.log("📄 [WALLET API] Get invoice response status:", response.status);
-    console.log("📄 [WALLET API] Get invoice responseCode:", response.data?.responseCode);
-
     if (response.data && response.data.responseCode && response.data.data) {
-      console.log("✅ [WALLET API] Invoice found");
-      console.log("✅ [WALLET API] Invoice status:", response.data.data.invoiceStatus);
-      console.log("✅ [WALLET API] Invoice amount:", response.data.data.invoiceAmount);
       return response.data.data;
     }
 
-    console.log("⚠️ [WALLET API] Invoice not found or invalid response");
     return null;
   } catch (error) {
     if (error.response && error.response.status === 404) {
-      console.log("⚠️ [WALLET API] Invoice not found (404)");
       return null;
     }
     console.error("❌ [WALLET API] Error getting invoice:", error.message);
-    if (error.response) {
-      console.error("❌ [WALLET API] Error response status:", error.response.status);
-      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
-    }
     throw error;
   }
 }
 
 async function cancelInvoice(userId, invoiceId) {
   try {
-    console.log("🚫 [WALLET API] Canceling invoice...");
-    console.log("🚫 [WALLET API] userId:", userId);
-    console.log("🚫 [WALLET API] invoiceId:", invoiceId);
-    
     const token = await getWalletServiceToken();
     
     const response = await axios.put(
@@ -867,20 +814,13 @@ async function cancelInvoice(userId, invoiceId) {
       }
     );
 
-    console.log("🚫 [WALLET API] Cancel invoice response status:", response.status);
-    console.log("🚫 [WALLET API] Cancel invoice responseCode:", response.data?.responseCode);
-
     if (response.data && response.data.responseCode) {
-      console.log("✅ [WALLET API] Invoice canceled successfully");
       return response.data;
     }
 
-    console.error("❌ [WALLET API] Invoice cancellation failed - invalid response");
     throw new Error("Failed to cancel invoice in Wallet API");
   } catch (error) {
     if (error.response && error.response.data) {
-      console.error("❌ [WALLET API] Error response status:", error.response.status);
-      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
       const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to cancel invoice";
       throw new Error(errorMessage);
     }
@@ -891,10 +831,6 @@ async function cancelInvoice(userId, invoiceId) {
 
 async function createPayment(userId, paymentData) {
   try {
-    console.log("💳 [WALLET API] Creating payment...");
-    console.log("💳 [WALLET API] userId:", userId);
-    console.log("💳 [WALLET API] paymentData:", JSON.stringify(paymentData));
-    
     const token = await getWalletServiceToken();
     
     const response = await axios.post(
@@ -909,33 +845,13 @@ async function createPayment(userId, paymentData) {
       }
     );
 
-    console.log("💳 [WALLET API] Payment creation response status:", response.status);
-    console.log("💳 [WALLET API] Payment creation responseCode:", response.data?.responseCode);
-    console.log("💳 [WALLET API] Payment creation response data:", JSON.stringify(response.data, null, 2));
-
     if (response.data && response.data.responseCode && response.data.data) {
-      console.log("✅ [WALLET API] Payment created successfully");
-      console.log("✅ [WALLET API] Payment ID:", response.data.data.paymentId);
-      console.log("✅ [WALLET API] Payment amount:", response.data.data.paymentAmount);
-      console.log("✅ [WALLET API] Receiver bank code:", response.data.data.receiverBankCode);
-      console.log("✅ [WALLET API] Receiver account:", response.data.data.receiverAccountNo);
-      console.log("✅ [WALLET API] Receiver name:", response.data.data.receiverAccountName);
-      
-      if (response.data.data.qrText) {
-        console.log("✅ [WALLET API] QR code found in response");
-      } else {
-        console.log("⚠️ [WALLET API] QR code not in response - Wallet API may require QR generation from payment details");
-      }
-      
       return response.data.data;
     }
 
-    console.error("❌ [WALLET API] Payment creation failed - invalid response");
     throw new Error("Failed to create payment in Wallet API");
   } catch (error) {
     if (error.response && error.response.data) {
-      console.error("❌ [WALLET API] Error response status:", error.response.status);
-      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
       const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to create payment";
       throw new Error(errorMessage);
     }
@@ -946,10 +862,6 @@ async function createPayment(userId, paymentData) {
 
 async function getPayment(userId, paymentId) {
   try {
-    console.log("📋 [WALLET API] Getting payment status...");
-    console.log("📋 [WALLET API] userId:", userId);
-    console.log("📋 [WALLET API] paymentId:", paymentId);
-    
     const token = await getWalletServiceToken();
     
     const response = await axios.get(
@@ -962,44 +874,16 @@ async function getPayment(userId, paymentId) {
       }
     );
 
-    console.log("📋 [WALLET API] Get payment response status:", response.status);
-    console.log("📋 [WALLET API] Get payment responseCode:", response.data?.responseCode);
-
     if (response.data && response.data.responseCode && response.data.data) {
-      console.log("✅ [WALLET API] Payment found");
-      console.log("✅ [WALLET API] Payment status:", response.data.data.paymentStatus);
-      console.log("✅ [WALLET API] Payment amount:", response.data.data.amount || response.data.data.paymentAmount);
-      console.log("✅ [WALLET API] Payment response keys:", Object.keys(response.data.data));
-      console.log("✅ [WALLET API] Full payment response:", JSON.stringify(response.data.data, null, 2));
-      
-      // Check for bank details in various possible locations
-      const paymentData = response.data.data;
-      if (paymentData.lines && Array.isArray(paymentData.lines) && paymentData.lines.length > 0) {
-        const firstLine = paymentData.lines[0];
-        if (firstLine.billTransactions && Array.isArray(firstLine.billTransactions) && firstLine.billTransactions.length > 0) {
-          const transaction = firstLine.billTransactions[0];
-          console.log("✅ [WALLET API] Found transaction with bank details:");
-          console.log("✅ [WALLET API] - receiverBankCode:", transaction.receiverBankCode);
-          console.log("✅ [WALLET API] - receiverAccountNo:", transaction.receiverAccountNo);
-          console.log("✅ [WALLET API] - receiverAccountName:", transaction.receiverAccountName);
-        }
-      }
-      
       return response.data.data;
     }
 
-    console.log("⚠️ [WALLET API] Payment not found or invalid response");
     return null;
   } catch (error) {
     if (error.response && error.response.status === 404) {
-      console.log("⚠️ [WALLET API] Payment not found (404)");
       return null;
     }
     console.error("❌ [WALLET API] Error getting payment:", error.message);
-    if (error.response) {
-      console.error("❌ [WALLET API] Error response status:", error.response.status);
-      console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
-    }
     throw error;
   }
 }
@@ -1037,9 +921,6 @@ async function editUser(userId, userData) {
 
 async function loginUser(phone, password) {
   try {
-    console.log("🔐 [WALLET API] Attempting user login...");
-    console.log("🔐 [WALLET API] Phone:", phone);
-    
     const token = await getWalletServiceToken();
     
     // TODO: Update this endpoint if Wallet API has a different login endpoint
@@ -1060,27 +941,21 @@ async function loginUser(phone, password) {
 
     if (response.data && response.data.responseCode) {
       if (response.data.data) {
-        console.log("✅ [WALLET API] User login successful");
         return { success: true, data: response.data.data };
       }
-      console.log("❌ [WALLET API] Login failed - invalid credentials");
       return { success: false, message: response.data.responseMsg || "Invalid credentials" };
     }
 
-    console.log("❌ [WALLET API] Login failed - invalid response");
     return { success: false, message: "Login failed" };
   } catch (error) {
     if (error.response) {
       if (error.response.status === 401 || error.response.status === 403) {
-        console.log("❌ [WALLET API] Login failed - invalid credentials (401/403)");
         return { success: false, message: "Invalid phone or password" };
       }
-      console.error("❌ [WALLET API] Login error response:", error.response.status, error.response.data);
       return { success: false, message: error.response.data?.responseMsg || "Login failed" };
     }
     // If endpoint doesn't exist (404), return false but don't throw
     if (error.code === 'ECONNREFUSED' || error.response?.status === 404) {
-      console.warn("⚠️ [WALLET API] Login endpoint not found or not available");
       return { success: false, message: "Login endpoint not available" };
     }
     console.error("❌ [WALLET API] Error during login:", error.message);
