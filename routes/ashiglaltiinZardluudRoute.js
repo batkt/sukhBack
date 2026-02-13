@@ -224,6 +224,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     // Check for Resident or Contract-specific tariff
     let finalTariff = maxTariff;
     let residentSpecificUsed = false;
+    let tariffSource = "Global";
 
     if (residentId || gereeniiId) {
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
@@ -231,49 +232,71 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       );
 
       if (tukhainBaaziinKholbolt) {
-        // 1. Check Resident (Highest Priority) - tsahilgaaniiZaalt
-        if (residentId) {
+        let actualResidentId = residentId;
+        let contractObj = null;
+
+        // 1. If we have gereeniiId but no residentId, find the residentId from the contract
+        if (!actualResidentId && gereeniiId) {
           try {
-            const resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(residentId);
-            if (resident) {
-              console.log(`[CALC] Found resident: "${resident.ner}" (ID: ${resident._id})`);
-              if (resident.tsahilgaaniiZaalt > 0) {
-                finalTariff = resident.tsahilgaaniiZaalt;
-                residentSpecificUsed = true;
-                console.log(`[CALC] SUCCESS: Using resident-specific tariff: ${finalTariff}`);
+            contractObj = await Geree(tukhainBaaziinKholbolt).findById(gereeniiId);
+            if (contractObj && contractObj.orshinSuugchId) {
+              actualResidentId = contractObj.orshinSuugchId;
+              console.log(`[CALC] Found residentId "${actualResidentId}" from contract "${contractObj.gereeniiDugaar}"`);
+            } else if (contractObj) {
+              // Rare case: check for resident by toot and bairniiId/baiguullagiinId
+              console.log(`[CALC] Contract found but no orshinSuugchId. Attempting reverse lookup by toot: ${contractObj.toot}`);
+              const potentialResident = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
+                toot: contractObj.toot,
+                baiguullagiinId: baiguullagiinId
+              });
+              if (potentialResident) {
+                actualResidentId = potentialResident._id;
+                console.log(`[CALC] Reverse lookup SUCCESS: Found resident "${potentialResident.ner}" (ID: ${actualResidentId})`);
               }
-            } else {
-              console.warn(`[CALC] Resident not found for ID: ${residentId}`);
             }
           } catch (e) {
-            console.error("[CALC] Resident lookup error:", e.message);
+            console.error("[CALC] Contract lookup/reverse error:", e.message);
           }
         }
 
-        // 2. Check Contract (Secondary) - if resident tariff not used
-        if (!residentSpecificUsed && gereeniiId) {
+        // 2. Lookup Resident and their tsahilgaaniiZaalt (Highest Priority)
+        if (actualResidentId) {
           try {
-            const geree = await Geree(tukhainBaaziinKholbolt).findById(gereeniiId);
-            if (geree) {
-              console.log(`[CALC] Found contract: "${geree.gereeniiDugaar}" (ID: ${geree._id})`);
-              // Search for electricity charge in contract's zardluud
-              const contractElec = (geree.zardluud || []).find(z => {
-                const name = (z.ner || "").trim().toLowerCase();
-                return name.includes("цахилгаан") && !name.includes("шат");
-              });
-              if (contractElec && contractElec.tariff > 0) {
-                finalTariff = contractElec.tariff;
+            const resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(actualResidentId);
+            if (resident) {
+              console.log(`[CALC] Checking resident "${resident.ner}" (ID: ${resident._id}) for tariff...`);
+              // Check the specific field "tsahilgaaniiZaalt"
+              const resTariff = Number(resident.tsahilgaaniiZaalt);
+              if (resTariff > 0 && resTariff < 1000) { // Sane check: tariffs are usually small
+                finalTariff = resTariff;
                 residentSpecificUsed = true;
-                console.log(`[CALC] SUCCESS: Using contract-specific tariff: ${finalTariff}`);
-              } else if (geree.umnukhZaalt > 0 && geree.umnukhZaalt < 500) {
-                // Heuristic: If umnukhZaalt is small, it might be mislabeled tariff?
-                // Actually, let's not guess. The user said "geree tsakhilgaaniiZaalt".
+                tariffSource = "Resident (tsahilgaaniiZaalt)";
+                console.log(`[CALC] SUCCESS: Using ${tariffSource}: ${finalTariff}`);
+              } else {
+                console.log(`[CALC] Resident found but tsahilgaaniiZaalt is ${resTariff} (invalid for tariff)`);
               }
             } else {
-              console.warn(`[CALC] Contract not found for ID: ${gereeniiId}`);
+              console.warn(`[CALC] Resident not found for ID: ${actualResidentId}`);
             }
           } catch (e) {
-            console.error("[CALC] Contract lookup error:", e.message);
+            console.error("[CALC] Resident findById error:", e.message);
+          }
+        }
+
+        // 3. Fallback: Check Contract's specific zardluud if resident tariff still not found
+        if (!residentSpecificUsed) {
+          const geree = contractObj || (gereeniiId ? await Geree(tukhainBaaziinKholbolt).findById(gereeniiId).catch(() => null) : null);
+          if (geree) {
+            const contractElec = (geree.zardluud || []).find(z => {
+              const name = (z.ner || "").trim().toLowerCase();
+              return name.includes("цахилгаан") && !name.includes("шат");
+            });
+            if (contractElec && contractElec.tariff > 0) {
+              finalTariff = contractElec.tariff;
+              residentSpecificUsed = true;
+              tariffSource = "Contract (Zardluud)";
+              console.log(`[CALC] FALLBACK: Using ${tariffSource}: ${finalTariff}`);
+            }
           }
         }
       }
@@ -337,6 +360,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       shonoZaaltNum,
       suuliinZaaltNum,
       tariff: targetTariff,
+      tariffSource,
       isResidentTariff: residentSpecificUsed,
       selectedCharge: selectedChargeName || "None",
       _received: { umnukhZaaltNum, odorZaaltNum, shonoZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
