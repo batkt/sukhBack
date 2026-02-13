@@ -187,11 +187,12 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
         const tariffValA = Number(a.tariff) || Number(a.zaaltTariff) || 0;
         const tariffValB = Number(b.tariff) || Number(b.zaaltTariff) || 0;
-        const hasTariffA = tariffValA > 0 ? 50000 : 0;
-        const hasTariffB = tariffValB > 0 ? 50000 : 0;
+        const hasTariffA = tariffValA > 0 ? 5000000 : -5000000;
+        const hasTariffB = tariffValB > 0 ? 5000000 : -5000000;
 
         const scoreA = isMeterA + isExactA + hasTariffA + tariffValA / 1000;
         const scoreB = isMeterB + isExactB + hasTariffB + tariffValB / 1000;
+        console.log(`  - Option "${a.ner}": score=${scoreA}, meter=${a.zaalt}, tariff=${tariffValA}`);
         return scoreB - scoreA;
       })[0];
 
@@ -238,6 +239,17 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const usageAmount = zoruu * targetTariff * guidliinKoeffNum;
     const suuriKhuraamj = Number(ashiglaltiinZardal.suuriKhuraamj) || 0;
     const niitDun = includeSuuriKhuraamj ? usageAmount + suuriKhuraamj : usageAmount;
+
+    console.log(`[CALC] Final calculation results:`, {
+      umnukh: umnukhZaaltNum,
+      suuliin: suuliinZaaltNum,
+      zoruu,
+      tariff: targetTariff,
+      coeff: guidliinKoeffNum,
+      usage: usageAmount,
+      suuri: includeSuuriKhuraamj ? suuriKhuraamj : 0,
+      total: niitDun
+    });
 
     res.send({
       success: true,
