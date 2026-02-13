@@ -185,7 +185,6 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     };
     const candidates = zardluud.filter(isTsakhilgaan);
     if (candidates.length === 0) {
-      console.warn(`[CALC] No electricity candidate found for organization ${baiguullagiinId}`);
       return res.status(400).send({
         success: false,
         message: "Цахилгаан (кВт) ашиглалтын зардал олдсонгүй",
@@ -198,7 +197,6 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     let selectedChargeName = "";
     let bestScore = -Infinity;
 
-    console.log(`[CALC] Aggregating from ${candidates.length} candidates:`);
     candidates.forEach(c => {
       const tariffVal = Number(c.tariff) || Number(c.zaaltTariff) || 0;
       const suuriVal = Number(c.suuriKhuraamj) || 0;
@@ -217,10 +215,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         bestScore = currentScore;
         selectedChargeName = c.ner;
       }
-      console.log(`  - Option "${c.ner}": tariff=${tariffVal}, suuri=${suuriVal}, score=${currentScore}`);
     });
-
-    console.log(`[CALC] Aggregated Results: tariff=${maxTariff}, suuri=${maxSuuriKhuraamj}, selected=${selectedChargeName}`);
 
     // Check for Resident or Contract-specific tariff
     let finalTariff = maxTariff;
@@ -255,10 +250,8 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
               if (contractObj.orshinSuugchId) {
                 actualResidentId = contractObj.orshinSuugchId;
-                console.log(`[CALC] Found residentId "${actualResidentId}" from contract "${contractObj.gereeniiDugaar}"`);
               } else {
                 // Secondary fallback: Match by Toot
-                console.log(`[CALC] No orshinSuugchId on contract. Searching by toot "${contractObj.toot}"`);
                 const potentialRes = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
                   toot: contractObj.toot,
                   baiguullagiinId: baiguullagiinId
@@ -266,12 +259,11 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
                 if (potentialRes) {
                   actualResidentId = potentialRes._id;
                   debugInfo.residentFoundByToot = true;
-                  console.log(`[CALC] Reverse lookup SUCCESS: Found resident "${potentialRes.ner}" (ID: ${actualResidentId})`);
                 }
               }
             }
           } catch (e) {
-            console.error("[CALC] Contract lookup/reverse error:", e.message);
+            // Contract lookup/reverse error - silently continue
           }
         }
 
@@ -319,17 +311,14 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
               debugInfo.residentNer = resident.ner;
               debugInfo.residentTsahilgaaniiZaalt = resident.tsahilgaaniiZaalt;
 
-              console.log(`[CALC] Found resident: "${resident.ner}" (ID: ${resident._id})`);
               const resTariff = Number(resident.tsahilgaaniiZaalt);
               if (resTariff > 0 && resTariff < 1000) {
                 finalTariff = resTariff;
                 residentSpecificUsed = true;
                 tariffSource = "Resident (tsahilgaaniiZaalt)";
-                console.log(`[CALC] SUCCESS: Using ${tariffSource}: ${finalTariff}`);
               }
             } else {
               debugInfo.residentNotFoundFinal = true;
-              console.warn(`[CALC] Resident not found: ${actualResidentId}`);
 
               // Verify connection again
               const anyRes = await OrshinSuugchModel.findOne({
@@ -345,7 +334,6 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
               }
             }
           } catch (e) {
-            console.error("[CALC] Resident lookup error:", e.message);
             debugInfo.lookup_exception = e.message;
           }
         }
@@ -361,7 +349,6 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
             if (contractElec && contractElec.tariff > 0) {
               finalTariff = contractElec.tariff;
               tariffSource = "Contract (Zardluud)";
-              console.log(`[CALC] FALLBACK: Using ${tariffSource}: ${finalTariff}`);
             } else {
               debugInfo.contractElecNotFound = true;
             }
@@ -406,17 +393,6 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const usageAmount = zoruu * targetTariff * guidliinKoeffNum;
     const suuriKhuraamj = maxSuuriKhuraamj;
     const niitDun = includeSuuriKhuraamj ? usageAmount + suuriKhuraamj : usageAmount;
-
-    console.log(`[CALC] Final calculation results:`, {
-      umnukh: umnukhZaaltNum,
-      suuliin: suuliinZaaltNum,
-      zoruu,
-      tariff: targetTariff,
-      coeff: guidliinKoeffNum,
-      usage: usageAmount,
-      suuri: includeSuuriKhuraamj ? suuriKhuraamj : 0,
-      total: niitDun
-    });
 
     res.send({
       success: true,
