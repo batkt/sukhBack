@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
+const mongoose = require("mongoose");
 const ashiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
 const Baiguullaga = require("../models/baiguullaga");
 const OrshinSuugch = require("../models/orshinSuugch");
@@ -237,6 +238,9 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       );
 
       if (tukhainBaaziinKholbolt) {
+        debugInfo.orgKholboltFound = true;
+        debugInfo.orgDbBaiguullagiinId = tukhainBaaziinKholbolt.baiguullagiinId;
+
         let actualResidentId = residentId;
         let contractObj = null;
 
@@ -274,29 +278,58 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         // 2. Lookup Resident and their tsahilgaaniiZaalt (Highest Priority)
         if (actualResidentId) {
           try {
-            const resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(actualResidentId);
+            const OrshinSuugchModel = OrshinSuugch(tukhainBaaziinKholbolt);
+            let resident = null;
+
+            // Try findById first (casting to ObjectId if possible)
+            try {
+              if (mongoose.Types.ObjectId.isValid(actualResidentId)) {
+                resident = await OrshinSuugchModel.findById(new mongoose.Types.ObjectId(actualResidentId));
+              }
+              if (!resident) {
+                resident = await OrshinSuugchModel.findById(actualResidentId);
+              }
+            } catch (oidErr) {
+              console.log("[CALC] findById failed, trying findOne string ID");
+            }
+
+            // Fallback to findOne by _id or id string
+            if (!resident) {
+              resident = await OrshinSuugchModel.findOne({
+                $or: [{ _id: actualResidentId }, { id: actualResidentId }]
+              });
+            }
+
             if (resident) {
               debugInfo.residentFound = true;
               debugInfo.residentNer = resident.ner;
               debugInfo.residentTsahilgaaniiZaalt = resident.tsahilgaaniiZaalt;
 
               console.log(`[CALC] Checking resident "${resident.ner}" (ID: ${resident._id}) for tariff...`);
-              // Check the specific field "tsahilgaaniiZaalt"
               const resTariff = Number(resident.tsahilgaaniiZaalt);
-              if (resTariff > 0 && resTariff < 1000) { // Sane check: tariffs are usually small
+              if (resTariff > 0 && resTariff < 1000) {
                 finalTariff = resTariff;
                 residentSpecificUsed = true;
                 tariffSource = "Resident (tsahilgaaniiZaalt)";
                 console.log(`[CALC] SUCCESS: Using ${tariffSource}: ${finalTariff}`);
               } else {
-                console.log(`[CALC] Resident found but tsahilgaaniiZaalt is ${resTariff} (invalid for tariff)`);
+                console.log(`[CALC] Resident found but tsahilgaaniiZaalt is ${resTariff} (invalid)`);
               }
             } else {
               console.warn(`[CALC] Resident not found for ID: ${actualResidentId}`);
               debugInfo.residentNotFound = true;
+
+              // Extreme fallback: verify connection by finding ANY resident in this org
+              const anyResident = await OrshinSuugchModel.findOne({ baiguullagiinId: baiguullagiinId });
+              if (anyResident) {
+                debugInfo.anyResidentFoundInOrg = anyResident.ner;
+              } else {
+                debugInfo.noResidentsFoundInOrgAtAll = true;
+              }
             }
           } catch (e) {
-            console.error("[CALC] Resident findById error:", e.message);
+            console.error("[CALC] Resident lookup error:", e.message);
+            debugInfo.lookupError = e.message;
           }
         }
 
