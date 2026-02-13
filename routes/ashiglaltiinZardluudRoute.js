@@ -194,16 +194,19 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         const isExactA = (nameA === "цахилгаан" || nameA === "цахилгаан квт" || nameA === "цахилгаан кв") ? 1000000 : 0;
         const isExactB = (nameB === "цахилгаан" || nameB === "цахилгаан квт" || nameB === "цахилгаан кв") ? 1000000 : 0;
 
-        // Non-zero tariff
+        // Value presence check (Tariff OR Base Fee)
         const tariffValA = Number(a.tariff) || Number(a.zaaltTariff) || 0;
         const tariffValB = Number(b.tariff) || Number(b.zaaltTariff) || 0;
-        const hasTariffA = tariffValA > 0 ? 100000 : -5000000;
-        const hasTariffB = tariffValB > 0 ? 100000 : -5000000;
+        const baseFeeA = Number(a.suuriKhuraamj) || 0;
+        const baseFeeB = Number(b.suuriKhuraamj) || 0;
 
-        const scoreA = isMeterA + isExactA + hasTariffA + tariffValA / 1000;
-        const scoreB = isMeterB + isExactB + hasTariffB + tariffValB / 1000;
+        const hasValueA = (tariffValA > 0 || baseFeeA > 0) ? 2000000 : -5000000;
+        const hasValueB = (tariffValB > 0 || baseFeeB > 0) ? 2000000 : -5000000;
 
-        console.log(`  - Option "${a.ner}": score=${scoreA}, meter=${!!a.zaalt}, tariff=${tariffValA}, exact=${isExactA > 0}`);
+        const scoreA = isMeterA + isExactA + hasValueA + tariffValA / 1000 + baseFeeA / 10000;
+        const scoreB = isMeterB + isExactB + hasValueB + tariffValB / 1000 + baseFeeB / 10000;
+
+        console.log(`  - Option "${a.ner}": score=${scoreA}, meter=${!!a.zaalt}, tariff=${tariffValA}, baseFee=${baseFeeA}, exact=${isExactA > 0}`);
         return scoreB - scoreA;
       })[0];
 
