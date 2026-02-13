@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { tokenShalgakh, db } = require("zevbackv2");
 const Baiguullaga = require("../models/baiguullaga");
+const Ajiltan = require("../models/ajiltan");
 const Geree = require("../models/geree");
 const BankniiGuilgee = require("../models/bankniiGuilgee");
 const EbarimtShine = require("../models/ebarimtShine");
@@ -34,31 +35,6 @@ const AUTHORIZED_ORGS = [
   "698e7fd3b6dd386b6c56a808", // Admin Org 1
 ];
 
-// router.get("/transformation/organizations", tokenShalgakh, async (req, res, next) => {
-//   try {
-//     const requestorOrgId = req.body.baiguullagiinId; // From tokenShalgakh
-
-//     // Safety check: Only work if requestor is from an authorized org
-//     if (!AUTHORIZED_ORGS.includes(requestorOrgId)) {
-//       return res.status(403).json({
-//         success: false,
-//         message: "Энэ үйлдлийг хийх эрх байхгүй байна! (Authorized org check failed)",
-//       });
-//     }
-
-//     const organizations = await Baiguullaga(db.erunkhiiKholbolt)
-//       .find({}, { ner: 1, barilguud: 1 })
-//       .lean();
-
-//     res.json({
-//       success: true,
-//       result: organizations
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// });
-
 router.post("/transformation/transformBarilga", tokenShalgakh, async (req, res, next) => {
   try {
     const { oldBaiguullagiinId, newBaiguullagiinId, barilgiinId } = req.body;
@@ -79,7 +55,7 @@ router.post("/transformation/transformBarilga", tokenShalgakh, async (req, res, 
       });
     }
 
-    // 1. Move Building Config in Erunkhii DB
+    // 1. Fetch Organizations
     const oldBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(oldBaiguullagiinId);
     const newBaiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(newBaiguullagiinId);
 
@@ -90,6 +66,7 @@ router.post("/transformation/transformBarilga", tokenShalgakh, async (req, res, 
       });
     }
 
+    // 2. Move Building Config in Main DB
     const barilgaIndex = oldBaiguullaga.barilguud.findIndex(b => String(b._id) === String(barilgiinId));
     if (barilgaIndex === -1) {
       return res.status(404).json({
@@ -98,73 +75,119 @@ router.post("/transformation/transformBarilga", tokenShalgakh, async (req, res, 
       });
     }
 
-    // Capture building config
     const barilgaConfig = oldBaiguullaga.barilguud[barilgaIndex].toObject();
-    
-    // Remove from old
     oldBaiguullaga.barilguud.splice(barilgaIndex, 1);
     await oldBaiguullaga.save();
 
-    // Add to new
     newBaiguullaga.barilguud.push(barilgaConfig);
     await newBaiguullaga.save();
 
-    // 2. Update Data in Tenant DB(s)
+    const results = {
+      buildingMoved: true
+    };
+
+    // 3. Update OrshinSuugch in Main DB (Crucial)
+    // Residents are shared in erunkhiiKholbolt. We need to update:
+    // a) Top-level fields (if it's their primary address)
+    // b) Nested toots array elements matching the buildingId
+    try {
+      const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+      
+      // Update top-level
+      const mainResult = await OrshinSuugchModel.updateMany(
+        { barilgiinId: barilgiinId },
+        { 
+          $set: { 
+            baiguullagiinId: newBaiguullagiinId,
+            baiguullagiinNer: newBaiguullaga.ner 
+          } 
+        }
+      );
+
+      // Update nested toots array
+      const tootsResult = await OrshinSuugchModel.updateMany(
+        { "toots.barilgiinId": barilgiinId },
+        { 
+          $set: { 
+            "toots.$[elem].baiguullagiinId": newBaiguullagiinId,
+            "toots.$[elem].baiguullagiinNer": newBaiguullaga.ner 
+          } 
+        },
+        { arrayFilters: [{ "elem.barilgiinId": barilgiinId }] }
+      );
+
+      results.orshinSuugch = {
+        topLevelModified: mainResult.modifiedCount,
+        arrayElementsModified: tootsResult.modifiedCount
+      };
+    } catch (err) {
+      results.orshinSuugch = "Error: " + err.message;
+    }
+
+    // 4. Update Ajiltan (Employees) in Main DB
+    try {
+      const AjiltanModel = Ajiltan(db.erunkhiiKholbolt);
+      const ajiltanResult = await AjiltanModel.updateMany(
+        { barilguud: barilgiinId },
+        { 
+          $set: { 
+            baiguullagiinId: newBaiguullagiinId,
+            baiguullagiinNer: newBaiguullaga.ner 
+          } 
+        }
+      );
+      results.ajiltan = ajiltanResult.modifiedCount;
+    } catch (err) {
+      results.ajiltan = "Error: " + err.message;
+    }
+
+    // 5. Update Tenant DB Records
     const oldKholbolt = db.kholboltuud.find(k => String(k.baiguullagiinId) === String(oldBaiguullagiinId));
-    const newKholbolt = db.kholboltuud.find(k => String(k.baiguullagiinId) === String(newBaiguullagiinId));
+    if (oldKholbolt) {
+      const tenantModels = [
+        { name: "geree", factory: Geree },
+        { name: "bankniiGuilgee", factory: BankniiGuilgee },
+        { name: "ebarimtShine", factory: EbarimtShine },
+        { name: "ebarimt", factory: EbarimtStandard },
+        { name: "nekhemjlekhiinTuukh", factory: nekhemjlekhiinTuukh },
+        { name: "mashin", factory: Mashin },
+        { name: "zaaltUnshlalt", factory: ZaaltUnshlalt },
+        { name: "qpayObject", factory: QuickQpayObject },
+        { name: "ashiglaltiinZardluud", factory: AshiglaltiinZardluud },
+        { name: "uilchilgeeniiZardluud", factory: UilchilgeeniiZardluud },
+        { name: "tootBurtgel", factory: TootBurtgel },
+        { name: "msgTuukh", factory: MsgTuukh },
+        { name: "nekhemjlekhCron", factory: NekhemjlekhCron },
+        { name: "gereeniiTulsunAvlaga", factory: GereeniiTulsunAvlaga },
+        { name: "gereeniiTulukhAvlaga", factory: GereeniiTulukhAvlaga },
+        { name: "gereeniiZaalt", factory: GereeniiZaalt },
+        { name: "gereeniiZagvar", factory: GereeniiZagvar },
+        { name: "nekhemjlekhiinZagvar", factory: NekhemjlekhiinZagvar },
+        { name: "medegdel", factory: Medegdel },
+        { name: "sonorduulga", factory: Sonorduulga },
+        { name: "uneguiMashin", factory: UneguiMashin },
+        { name: "zogsool", factory: Zogsool },
+        { name: "zogsooliinIp", factory: ZogsooliinIp },
+        { name: "orshinSuugchMashin", factory: OrshinSuugchMashin },
+        { name: "kassCameraKhaalt", factory: KassCameraKhaalt }
+      ];
 
-    if (!oldKholbolt) {
-      return res.status(500).json({ success: false, message: "Old organization connection not found" });
-    }
+      const updatePayload = { 
+        baiguullagiinId: newBaiguullagiinId,
+        baiguullagiinNer: newBaiguullaga.ner 
+      };
 
-    // Models to update which have baiguullagiinId and barilgiinId
-    const models = [
-      { name: "geree", factory: Geree },
-      { name: "bankniiGuilgee", factory: BankniiGuilgee },
-      { name: "ebarimtShine", factory: EbarimtShine },
-      { name: "ebarimt", factory: EbarimtStandard },
-      { name: "nekhemjlekhiinTuukh", factory: nekhemjlekhiinTuukh },
-      { name: "orshinSuugch", factory: OrshinSuugch },
-      { name: "mashin", factory: Mashin },
-      { name: "zaaltUnshlalt", factory: ZaaltUnshlalt },
-      { name: "qpayObject", factory: QuickQpayObject },
-      { name: "ashiglaltiinZardluud", factory: AshiglaltiinZardluud },
-      { name: "uilchilgeeniiZardluud", factory: UilchilgeeniiZardluud },
-      { name: "tootBurtgel", factory: TootBurtgel },
-      { name: "msgTuukh", factory: MsgTuukh },
-      { name: "nekhemjlekhCron", factory: NekhemjlekhCron },
-      { name: "gereeniiTulsunAvlaga", factory: GereeniiTulsunAvlaga },
-      { name: "gereeniiTulukhAvlaga", factory: GereeniiTulukhAvlaga },
-      { name: "gereeniiZaalt", factory: GereeniiZaalt },
-      { name: "gereeniiZagvar", factory: GereeniiZagvar },
-      { name: "nekhemjlekhiinZagvar", factory: NekhemjlekhiinZagvar },
-      { name: "medegdel", factory: Medegdel },
-      { name: "sonorduulga", factory: Sonorduulga },
-      { name: "uneguiMashin", factory: UneguiMashin },
-      { name: "zogsool", factory: Zogsool },
-      { name: "zogsooliinIp", factory: ZogsooliinIp },
-      { name: "orshinSuugchMashin", factory: OrshinSuugchMashin },
-      { name: "kassCameraKhaalt", factory: KassCameraKhaalt }
-    ];
-
-    const results = {};
-    const updatePayload = { baiguullagiinId: newBaiguullagiinId };
-    if (newBaiguullaga.ner) {
-      updatePayload.baiguullagiinNer = newBaiguullaga.ner;
-    }
-
-    for (const modelInfo of models) {
-      try {
-        const Model = modelInfo.factory(oldKholbolt);
-        const result = await Model.updateMany(
-          { baiguullagiinId: oldBaiguullagiinId, barilgiinId: barilgiinId },
-          { $set: updatePayload }
-        );
-        results[modelInfo.name] = result.modifiedCount;
-      } catch (err) {
-        // Some models might not have barilgiinId in their schema, or use different field names.
-        // If it fails with a specific schema error, we can log it.
-        results[modelInfo.name] = "Error: " + err.message;
+      for (const modelInfo of tenantModels) {
+        try {
+          const Model = modelInfo.factory(oldKholbolt);
+          const result = await Model.updateMany(
+            { barilgiinId: barilgiinId }, 
+            { $set: updatePayload }
+          );
+          results[modelInfo.name] = result.modifiedCount;
+        } catch (err) {
+          results[modelInfo.name] = "Error: " + err.message;
+        }
       }
     }
 
