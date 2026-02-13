@@ -39,7 +39,7 @@ const orshinSuugchSchema = new Schema(
     tuluv: String,
     davkhar: String, // Keep for backward compatibility
     bairniiNer: String, // Keep for backward compatibility
-    tailbar : String,
+    tailbar: String,
     taniltsuulgaKharakhEsekh: {
       type: Boolean,
       default: true,
@@ -60,16 +60,19 @@ const orshinSuugchSchema = new Schema(
     soh: String, // Keep for backward compatibility
     orts: String, // Web only field, keep for backward compatibility
     tailbar: String,
-    ekhniiUldegdel : Number,
+    ekhniiUldegdel: Number,
     ekhniiUldegdelUsgeer: String,
     tsahilgaaniiZaalt: Number, // Initial electricity reading (кВт) - defaults to 200 if not provided
+    odorZaalt: Number, // Latest Day reading for electricity
+    shonoZaalt: Number, // Latest Night reading for electricity
+    suuliinZaalt: Number, // Latest Total reading for electricity
     walletUserId: String,
     walletCustomerId: String,
     walletCustomerCode: String,
     walletBairId: String, // Keep for backward compatibility
     walletDoorNo: String, // Keep for backward compatibility
-    
-    
+
+
   },
   {
     timestamps: true,
@@ -127,11 +130,11 @@ orshinSuugchSchema.methods.zochinTokenUusgye = function (
     process.env.APP_SECRET,
     gishuunEsekh
       ? {
-          expiresIn: "12h",
-        }
+        expiresIn: "12h",
+      }
       : {
-          expiresIn: "1h",
-        }
+        expiresIn: "1h",
+      }
   );
   return token;
 };
@@ -208,7 +211,7 @@ orshinSuugchSchema.pre("updateOne", async function () {
     const salt = await bcrypt.genSalt(12);
     this._update.nuutsUg = await bcrypt.hash(this._update.nuutsUg, salt);
   }
-  
+
   // Store old document for audit logging
   if (!this._oldDoc) {
     try {

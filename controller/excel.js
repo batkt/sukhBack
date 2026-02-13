@@ -1401,7 +1401,7 @@ exports.gereeniiExcelTatya = asyncHandler(async (req, res, next) => {
         if (!object.baritsaaAwakhKhugatsaa) object.baritsaaAwakhKhugatsaa = 0;
         object.baritsaaBairshuulakhKhugatsaa =
           mur[
-            usegTooruuKhurvuulekh(tolgoinObject.baritsaaBairshuulakhKhugatsaa)
+          usegTooruuKhurvuulekh(tolgoinObject.baritsaaBairshuulakhKhugatsaa)
           ];
         object.uldegdel = mur[usegTooruuKhurvuulekh(tolgoinObject.avlaga)];
         object.dans = mur[usegTooruuKhurvuulekh(tolgoinObject.dans)];
@@ -1457,9 +1457,9 @@ exports.gereeniiExcelTatya = asyncHandler(async (req, res, next) => {
             if (tolgoinObject.hasOwnProperty(zardal.ner)) {
               if (
                 mur[usegTooruuKhurvuulekh(tolgoinObject[zardal.ner])] !=
-                  "Авахгүй" &&
+                "Авахгүй" &&
                 mur[usegTooruuKhurvuulekh(tolgoinObject[zardal.ner])] !=
-                  undefined
+                undefined
               ) {
                 if (object.zardluud && object.zardluud.length > 0) {
                   object.zardluud.push(zardal);
@@ -1532,7 +1532,7 @@ exports.gereeniiExcelTatya = asyncHandler(async (req, res, next) => {
         if (!object.baritsaaAwakhKhugatsaa) object.baritsaaAwakhKhugatsaa = 0;
         object.baritsaaBairshuulakhKhugatsaa =
           mur[
-            usegTooruuKhurvuulekh(tolgoinObject30.baritsaaBairshuulakhKhugatsaa)
+          usegTooruuKhurvuulekh(tolgoinObject30.baritsaaBairshuulakhKhugatsaa)
           ];
         object.uldegdel = mur[usegTooruuKhurvuulekh(tolgoinObject30.avlaga)];
         object.dans = mur[usegTooruuKhurvuulekh(tolgoinObject30.dans)];
@@ -1587,14 +1587,14 @@ exports.gereeniiExcelTatya = asyncHandler(async (req, res, next) => {
             if (zardal.turul === "Дурын")
               zardal.dun =
                 mur[
-                  usegTooruuKhurvuulekh(tolgoinObject30[zardal.ner + " дүн"])
+                usegTooruuKhurvuulekh(tolgoinObject30[zardal.ner + " дүн"])
                 ];
             if (tolgoinObject30.hasOwnProperty(zardal.ner)) {
               if (
                 mur[usegTooruuKhurvuulekh(tolgoinObject30[zardal.ner])] !=
-                  "Авахгүй" &&
+                "Авахгүй" &&
                 mur[usegTooruuKhurvuulekh(tolgoinObject30[zardal.ner])] !=
-                  undefined
+                undefined
               ) {
                 if (object.zardluud && object.zardluud.length > 0) {
                   object.zardluud.push(zardal);
@@ -1777,14 +1777,14 @@ exports.gereeniiExcelTatya = asyncHandler(async (req, res, next) => {
     if (talbainBulk)
       Talbai(req.body.tukhainBaaziinKholbolt)
         .bulkWrite(talbainBulk)
-        .then((bulkWriteOpResult) => {})
+        .then((bulkWriteOpResult) => { })
         .catch((err) => {
           next(err);
         });
     if (orshinSuugchBulk)
       OrshinSuugch(db.erunkhiiKholbolt)
         .bulkWrite(orshinSuugchBulk)
-        .then((bulkWriteOpResult) => {})
+        .then((bulkWriteOpResult) => { })
         .catch((err) => {
           next(err);
         });
@@ -1890,10 +1890,10 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
 
     // Add data rows with geree numbers
     gereenuud.forEach((geree) => {
-      const orshinSuugch = geree.orshinSuugchId 
+      const orshinSuugch = geree.orshinSuugchId
         ? orshinSuugchMap.get(geree.orshinSuugchId.toString())
         : null;
-      
+
       worksheet.addRow({
         gereeniiDugaar: geree.gereeniiDugaar || "",
         toot: geree.toot || "",
@@ -1914,14 +1914,14 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
     // Add formula for "Зөрүү" column (Нийт (одоо) - Өмнө)
     gereenuud.forEach((geree, index) => {
       const rowNumber = index + 2; // +2 because row 1 is header
-      
+
       // Нийт (одоо) = Өдөр + Шөнө (Column H = F + G)
       const niitCell = worksheet.getCell(`H${rowNumber}`);
       niitCell.value = {
         formula: `F${rowNumber}+G${rowNumber}`,
       };
       niitCell.numFmt = "0.00";
-      
+
       // Зөрүү = Нийт (одоо) - Өмнө (Column I = H - E)
       const zoruuCell = worksheet.getCell(`I${rowNumber}`);
       zoruuCell.value = {
@@ -1990,7 +1990,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
     // "Дундын өмчлөл Цахилгаан" is FIXED and should NOT be used for zaalt import
     // Only "Цахилгаан" (without "дундын" or "өмчлөл") should be used
     const zardluud = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
-    
+
     // Helper to check if this is a VARIABLE electricity (not fixed)
     const isVariableElectricity = (z) => {
       if (!z.zaalt) return false;
@@ -2001,20 +2001,20 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
       }
       return true;
     };
-    
+
     const zaaltZardluud = zardluud.filter(isVariableElectricity);
-    
+
     console.log("⚡ [ZAALT IMPORT] Electricity zardluud found:", {
       totalZardluud: zardluud.length,
       zaaltZardluudCount: zaaltZardluud.length,
       zaaltZardluud: zaaltZardluud.map(z => ({ ner: z.ner, zaalt: z.zaalt, tariffUsgeer: z.tariffUsgeer }))
     });
-    
+
     // Prioritize exact "Цахилгаан" match (no trailing space)
     let zaaltZardal = zaaltZardluud.find(
       (z) => z.ner && z.ner.trim() === "Цахилгаан"
     );
-    
+
     // If no exact match, use first one
     if (!zaaltZardal && zaaltZardluud.length > 0) {
       zaaltZardal = zaaltZardluud[0];
@@ -2022,7 +2022,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         `⚠️  [ZAALT] Multiple electricity tariffs found (${zaaltZardluud.length}). Using: ${zaaltZardal.ner} (tariff: ${zaaltZardal.zaaltTariff}, default: ${zaaltZardal.zaaltDefaultDun})`
       );
     }
-    
+
     if (!zaaltZardal) {
       throw new aldaa("Цахилгааны зардал (Цахилгаан) тохируулаагүй байна. Хувьсах зардлуудаас 'Цахилгаан' нэмнэ үү. (Дундын өмчлөл Цахилгаан биш)");
     }
@@ -2092,7 +2092,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         const shone = parseFloat(row["Шөнө"] || 0) || 0;
         const niitOdooRaw = row["Нийт (одоо)"];
         const niitOdoo = niitOdooRaw ? (parseFloat(niitOdooRaw) || 0) : (odor + shone);
-        
+
         // Parse defaultDun from Excel (NEW - separate from ashiglaltiinZardluud)
         const defaultDunFromExcel = parseFloat(row["Суурь хураамж"] || row["defaultDun"] || 0) || 0;
 
@@ -2108,21 +2108,29 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
 
         // Calculate: (Нийт (одоо) - Өмнө) * кВт tariff + default
         const zoruu = niitOdoo - umnu; // Usage amount (Зөрүү)
-        
+
         // Get tariff from orshinSuugch.tsahilgaaniiZaalt (separate from ashiglaltiinZardluud)
         let gereeZaaltTariff = zaaltTariff; // Default fallback to building level
         if (geree.orshinSuugchId) {
           const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(geree.orshinSuugchId);
-          if (orshinSuugch && orshinSuugch.tsahilgaaniiZaalt !== undefined) {
-            gereeZaaltTariff = orshinSuugch.tsahilgaaniiZaalt || 0;
-            console.log(`⚡ [EXCEL] Using tariff from orshinSuugch.tsahilgaaniiZaalt for ${gereeniiDugaar}:`, gereeZaaltTariff);
-          } else {
-            console.log(`⚠️ [EXCEL] orshinSuugch not found or tsahilgaaniiZaalt not set for ${gereeniiDugaar}, using building level:`, gereeZaaltTariff);
+          if (orshinSuugch) {
+            // Update latest readings for auto-fill functionality
+            orshinSuugch.odorZaalt = odor;
+            orshinSuugch.shonoZaalt = shone;
+            orshinSuugch.suuliinZaalt = niitOdoo;
+
+            // Handle tariff override if present
+            if (orshinSuugch.tsahilgaaniiZaalt !== undefined) {
+              gereeZaaltTariff = orshinSuugch.tsahilgaaniiZaalt || 0;
+            }
+
+            await orshinSuugch.save();
+            console.log(`⚡ [EXCEL] Updated orshinSuugch readings and using tariff for ${gereeniiDugaar}:`, { odor, shone, niitOdoo, tariff: gereeZaaltTariff });
           }
         } else {
           console.log(`⚠️ [EXCEL] No orshinSuugchId found in geree for ${gereeniiDugaar}, using building level:`, gereeZaaltTariff);
         }
-        
+
         // Get tariff tiers from geree.zardluud or building level
         let gereeZaaltZardal = null;
         if (geree.zardluud && Array.isArray(geree.zardluud)) {
@@ -2131,10 +2139,10 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           );
         }
         const gereeZaaltTariffTiers = gereeZaaltZardal?.zaaltTariffTiers || zaaltZardal.zaaltTariffTiers || [];
-        
+
         // Use defaultDun from Excel input (NEW - separate from ashiglaltiinZardluud)
         const gereeZaaltDefaultDun = defaultDunFromExcel;
-        
+
         // Log tariff and defaultDun source for debugging
         console.log(`⚡ [EXCEL] Using tariff from orshinSuugch, defaultDun from Excel for ${gereeniiDugaar}:`, {
           tariff: gereeZaaltTariff,
@@ -2143,18 +2151,18 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           defaultDunSource: "Excel",
           hasTiers: gereeZaaltTariffTiers.length > 0
         });
-        
+
         // Calculate tiered pricing if zaaltTariffTiers is available
         let zaaltDun = 0;
         let usedTariff = gereeZaaltTariff;
         let usedTier = null;
-        
+
         if (gereeZaaltTariffTiers && gereeZaaltTariffTiers.length > 0) {
           // Sort tiers by threshold (ascending)
           const sortedTiers = [...gereeZaaltTariffTiers].sort(
             (a, b) => (a.threshold || 0) - (b.threshold || 0)
           );
-          
+
           // Find the appropriate tier based on zoruu (usage)
           for (const tier of sortedTiers) {
             if (zoruu <= (tier.threshold || Infinity)) {
@@ -2163,14 +2171,14 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
               break;
             }
           }
-          
+
           // If zoruu exceeds all tiers, use the last (highest) tier
           if (!usedTier && sortedTiers.length > 0) {
             const lastTier = sortedTiers[sortedTiers.length - 1];
             usedTariff = lastTier.tariff || gereeZaaltTariff;
             usedTier = lastTier;
           }
-          
+
           zaaltDun = zoruu * usedTariff + gereeZaaltDefaultDun;
         } else {
           // Fallback to simple calculation if no tiers defined
@@ -2298,7 +2306,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           importAjiltniiId: req.nevtersenAjiltniiToken?.id || "",
           importAjiltniiNer: req.nevtersenAjiltniiToken?.ner || "",
         });
-        
+
         await zaaltUnshlalt.save();
         console.log(`💾 [ZAALT IMPORT] Saved to zaaltUnshlalt model: ${gereeniiDugaar}`);
 
@@ -2346,7 +2354,7 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       originalUrl: req.originalUrl,
       body: req.body,
     });
-    
+
     const { db } = require("zevbackv2");
     const { baiguullagiinId, barilgiinId } = req.body;
 
@@ -2359,7 +2367,7 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       console.error("❌ [ZAALT EXPORT] Missing barilgiinId");
       throw new aldaa("Барилгын ID хоосон");
     }
-    
+
     console.log("✅ [ZAALT EXPORT] Parameters validated:", {
       baiguullagiinId,
       barilgiinId,
@@ -2380,12 +2388,12 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
 
     // Get electricity readings from dedicated zaaltUnshlalt model
     const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
-    
+
     console.log("🔍 [ZAALT EXPORT] Searching for electricity data:", {
       baiguullagiinId: baiguullaga._id.toString(),
       barilgiinId: barilgiinId,
     });
-    
+
     // Get all electricity readings for this building, sorted by contract number and date
     const zaaltUnshlaltuud = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
       .find({
@@ -2411,18 +2419,18 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
     zaaltUnshlaltuud.forEach((reading) => {
       const key = reading.gereeniiDugaar;
       const existing = latestReadings.get(key);
-      
+
       if (!existing) {
         latestReadings.set(key, reading);
       } else {
         // Compare by importOgnoo first (most recent import), then calculatedAt, then unshlaltiinOgnoo
-        const readingImportDate = reading.importOgnoo 
-          ? new Date(reading.importOgnoo) 
+        const readingImportDate = reading.importOgnoo
+          ? new Date(reading.importOgnoo)
           : (reading.zaaltCalculation?.calculatedAt ? new Date(reading.zaaltCalculation.calculatedAt) : new Date(reading.unshlaltiinOgnoo));
-        const existingImportDate = existing.importOgnoo 
-          ? new Date(existing.importOgnoo) 
+        const existingImportDate = existing.importOgnoo
+          ? new Date(existing.importOgnoo)
           : (existing.zaaltCalculation?.calculatedAt ? new Date(existing.zaaltCalculation.calculatedAt) : new Date(existing.unshlaltiinOgnoo));
-        
+
         if (readingImportDate > existingImportDate) {
           latestReadings.set(key, reading);
         }
@@ -2448,12 +2456,12 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
 
     const zardluud = targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
     const zaaltZardluud = zardluud.filter((z) => z.zaalt === true);
-    
+
     // Prioritize exact "Цахилгаан" match (no trailing space)
     let zaaltZardal = zaaltZardluud.find(
       (z) => z.ner && z.ner.trim() === "Цахилгаан"
     );
-    
+
     // If no exact match, use first one
     if (!zaaltZardal && zaaltZardluud.length > 0) {
       zaaltZardal = zaaltZardluud[0];
@@ -2474,7 +2482,7 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
 
     // Get all unique orshinSuugchIds
     const orshinSuugchIds = [...new Set(gerees.map(g => g.orshinSuugchId).filter(id => id))];
-    
+
     // Fetch all orshinSuugch documents to get tsahilgaaniiZaalt (tariff)
     const orshinSuugchuud = await OrshinSuugch(db.erunkhiiKholbolt)
       .find({
@@ -2533,13 +2541,13 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       // Get tariff from orshinSuugch.tsahilgaaniiZaalt ONLY (do NOT use zaaltZardal or ashiglaltiinZardluud)
       let tariff = 0;
       let defaultDun = 0;
-      
+
       // Get orshinSuugchId from geree
       const orshinSuugchId = gereeToOrshinSuugchMap.get(reading.gereeniiDugaar);
-      
+
       if (orshinSuugchId) {
         const orshinSuugch = orshinSuugchMap.get(orshinSuugchId);
-        
+
         if (orshinSuugch && orshinSuugch.tsahilgaaniiZaalt !== undefined) {
           tariff = orshinSuugch.tsahilgaaniiZaalt || 0;
           console.log(`⚡ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - Using tariff from orshinSuugch.tsahilgaaniiZaalt:`, tariff);
@@ -2549,9 +2557,9 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       } else {
         console.error(`❌ [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} - No orshinSuugchId found in geree. Tariff will be 0.`);
       }
-      
+
       // DO NOT fallback to zaaltZardal.zaaltTariff - tariff MUST come from orshinSuugch
-      
+
       // defaultDun comes from Excel input ONLY (separate from ashiglaltiinZardluud)
       // For export, use the defaultDun from the calculation (which was saved from Excel during import)
       // DO NOT fallback to zaaltZardal.zaaltDefaultDun - it must come from Excel input
@@ -2571,7 +2579,7 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       // Always recalculate payment: (usage * tariff) + base fee
       // Formula: zaaltDun = zoruu * tariff + defaultDun
       const zaaltDun = (zoruu * tariff) + defaultDun;
-      
+
       console.log(`💰 [ZAALT EXPORT] Contract ${reading.gereeniiDugaar} payment calculation:`, {
         zoruu: zoruu,
         tariff: tariff,
@@ -2581,13 +2589,13 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       });
       const calculatedAt = reading.zaaltCalculation?.calculatedAt
         ? new Date(reading.zaaltCalculation.calculatedAt).toLocaleString("mn-MN", {
-            timeZone: "Asia/Ulaanbaatar",
-          })
+          timeZone: "Asia/Ulaanbaatar",
+        })
         : reading.unshlaltiinOgnoo
-        ? new Date(reading.unshlaltiinOgnoo).toLocaleString("mn-MN", {
+          ? new Date(reading.unshlaltiinOgnoo).toLocaleString("mn-MN", {
             timeZone: "Asia/Ulaanbaatar",
           })
-        : "";
+          : "";
 
       worksheet.addRow({
         gereeniiDugaar: reading.gereeniiDugaar || "",
