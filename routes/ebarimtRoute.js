@@ -14,6 +14,16 @@ const EbarimtShine = require("../models/ebarimtShine");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const { downloadEbarimtExcel } = require("../controller/excelImportController");
 
+// Middleware to copy query parameters to body for GET requests
+// This is needed because tokenShalgakh expects baiguullagiinId in req.body
+const copyQueryToBody = (req, res, next) => {
+  if (req.method === "GET" && Object.keys(req.query).length > 0) {
+    // Copy query params to body for GET requests
+    req.body = { ...req.body, ...req.query };
+  }
+  next();
+};
+
 function nuatBodyo(bodokhDun) {
   var nuatguiDun = bodokhDun / 1.1;
   return (bodokhDun - nuatguiDun).toFixed(2).toString();
@@ -558,21 +568,21 @@ router.post(
 // --- Easy Register API Routes ---
 
 // Get consumer info by identity (regNo or loginName)
-router.get("/easyRegister/info/consumer/:identity", tokenShalgakh, async (req, res, next) => {
+router.get("/easyRegister/info/consumer/:identity", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
   const { identity } = req.params;
   const path = `api/easy-register/api/info/consumer/${encodeURIComponent(identity)}`;
   easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
 });
 
 // Get foreigner info by identity (passportNo or F-register)
-router.get("/easyRegister/info/foreigner/:identity", tokenShalgakh, async (req, res, next) => {
+router.get("/easyRegister/info/foreigner/:identity", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
   const { identity } = req.params;
   const path = `api/easy-register/api/info/foreigner/${encodeURIComponent(identity)}`;
   easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
 });
 
 // Get foreigner info by loginName
-router.get("/easyRegister/info/foreigner/customerNo/:loginName", tokenShalgakh, async (req, res, next) => {
+router.get("/easyRegister/info/foreigner/customerNo/:loginName", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
   const { loginName } = req.params;
   const path = `api/easy-register/api/info/foreigner/customerNo/${encodeURIComponent(loginName)}`;
   easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
