@@ -129,7 +129,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       // Error checking ekhniiUldegdel - silently continue
     }
 
-    if (!shouldUseEkhniiUldegdel && !skipDuplicateCheck) {
+    // IMPORTANT:
+    // ALWAYS reuse existing monthly invoice when it exists (even if paid),
+    // regardless of skipDuplicateCheck. skipDuplicateCheck may still be used
+    // by callers, but it will only affect whether we *look* for duplicates;
+    // it must NEVER allow creating a second invoice for the same month.
+    if (!shouldUseEkhniiUldegdel) {
       const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
       const monthEnd = new Date(
         currentYear,
@@ -1743,7 +1748,9 @@ const gereeNeesNekhemjlekhUusgekhPreviousMonth = async (
     const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
 
     // Check for existing invoice in target month
-    if (!skipDuplicateCheck) {
+    // IMPORTANT: Always reuse existing monthly invoice when it exists
+    // (even if paid), regardless of skipDuplicateCheck.
+    if (true) {
       let checkBarilgiinId = tempData.barilgiinId;
       if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
         checkBarilgiinId = String(org.barilguud[0]._id);
@@ -2764,7 +2771,7 @@ const manualSendInvoice = async (
       baiguullaga,
       tukhainBaaziinKholbolt,
       "manual",
-      true, // skipDuplicateCheck
+      false, // skipDuplicateCheck = false → NEVER create a new invoice when a monthly invoice already exists (even if paid)
       false, // includeEkhniiUldegdel = false - DON'T include ekhniiUldegdel on manual send
     );
 
@@ -2975,12 +2982,10 @@ const deleteInvoiceZardal = asyncHandler(async (req, res, next) => {
   const { invoiceId, zardalId, baiguullagiinId } = req.body;
 
   if (!invoiceId || !zardalId || !baiguullagiinId) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        error: "invoiceId, zardalId, and baiguullagiinId are required",
-      });
+    return res.status(400).json({
+      success: false,
+      error: "invoiceId, zardalId, and baiguullagiinId are required",
+    });
   }
 
   const kholbolt = db.kholboltuud.find(
@@ -3040,12 +3045,10 @@ const deleteInvoiceZardal = asyncHandler(async (req, res, next) => {
     deletedAmount = charge - payment;
     pullPath = "medeelel.guilgeenuud";
   } else {
-    return res
-      .status(404)
-      .json({
-        success: false,
-        error: "Зардал эсвэл гүйлгээ олдсонгүй (ID mismatch)!",
-      });
+    return res.status(404).json({
+      success: false,
+      error: "Зардал эсвэл гүйлгээ олдсонгүй (ID mismatch)!",
+    });
   }
 
   const mongoose = require("mongoose");
@@ -3090,12 +3093,10 @@ const recalculateGereeBalance = asyncHandler(async (req, res) => {
   const { gereeId, baiguullagiinId } = req.body;
 
   if (!gereeId || !baiguullagiinId) {
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "gereeId and baiguullagiinId are required",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "gereeId and baiguullagiinId are required",
+    });
   }
 
   const kholbolt = db.kholboltuud.find(
