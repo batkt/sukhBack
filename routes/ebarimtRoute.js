@@ -211,6 +211,47 @@ async function getEbarimtToken(baiguullagiinId, tukhainBaaziinKholbolt) {
   }
 }
 
+// Helper function to auto-approve QR for Easy Register when receipt is created
+async function autoApproveQr(customerNo, qrData, baiguullagiinId, tukhainBaaziinKholbolt) {
+  if (!customerNo || !qrData) {
+    return null; // Skip if customerNo or qrData is missing
+  }
+
+  try {
+    const path = "api/easy-register/rest/v1/approveQr";
+    const body = {
+      customerNo: customerNo,
+      qrData: qrData
+    };
+
+    return new Promise((resolve, reject) => {
+      easyRegisterDuudya(
+        "POST",
+        path,
+        body,
+        (err) => {
+          // Silently handle errors - don't fail receipt creation if approveQr fails
+          if (err) {
+            console.log("Auto-approveQr failed (non-critical):", err.message);
+          }
+          resolve(null);
+        },
+        (data) => {
+          // Successfully approved QR
+          console.log("Auto-approveQr successful for customerNo:", customerNo);
+          resolve(data);
+        },
+        baiguullagiinId,
+        tukhainBaaziinKholbolt
+      );
+    });
+  } catch (error) {
+    // Silently handle errors - don't fail receipt creation if approveQr fails
+    console.log("Auto-approveQr error (non-critical):", error.message);
+    return null;
+  }
+}
+
 async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullagiinId = null, tukhainBaaziinKholbolt = null) {
   try {
     const orgId = baiguullagiinId;
@@ -458,7 +499,7 @@ router.post(
         nuatTulukhEsekh
       );
 
-      var butsaakhMethod = function (d, khariuObject) {
+      var butsaakhMethod = async function (d, khariuObject) {
         try {
           if (d?.status != "SUCCESS" && !d.success) throw new Error(d.message);
 
@@ -471,9 +512,28 @@ router.post(
           shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;
           shineBarimt.utas = khariuObject.utas;
 
+          // Save qrData if available
+          if (d.qrData) shineBarimt.qrData = d.qrData;
+          if (d.lottery) shineBarimt.lottery = d.lottery;
+          if (d.id) shineBarimt.receiptId = d.id;
+          if (d.date) shineBarimt.date = d.date;
+
           shineBarimt.save().catch((err) => {
             next(err);
           });
+
+          // Auto-approve QR for Easy Register if customerNo and qrData are available
+          if (khariuObject.customerNo && d.qrData) {
+            autoApproveQr(
+              khariuObject.customerNo,
+              d.qrData,
+              req.body.baiguullagiinId,
+              req.body.tukhainBaaziinKholbolt
+            ).catch((err) => {
+              // Non-critical error - don't fail the response
+              console.log("Auto-approveQr failed (non-critical):", err.message);
+            });
+          }
 
           res.send(d);
         } catch (err) {
@@ -547,3 +607,4 @@ module.exports = router;
 module.exports.nekhemjlekheesEbarimtShineUusgye =
   nekhemjlekheesEbarimtShineUusgye;
 module.exports.ebarimtDuudya = ebarimtDuudya;
+module.exports.autoApproveQr = autoApproveQr;

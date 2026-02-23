@@ -1533,6 +1533,7 @@ router.get(
           const {
             nekhemjlekheesEbarimtShineUusgye,
             ebarimtDuudya,
+            autoApproveQr,
           } = require("./ebarimtRoute");
           const EbarimtShine = require("../models/ebarimtShine");
 
@@ -1548,7 +1549,7 @@ router.get(
             nuatTulukhEsekh
           );
 
-          var butsaakhMethod = function (d, khariuObject) {
+          var butsaakhMethod = async function (d, khariuObject) {
             try {
               
               if (d?.status != "SUCCESS" && !d.success) {
@@ -1569,6 +1570,18 @@ router.get(
 
               shineBarimt.save()
                 .then(() => {
+                  // Auto-approve QR for Easy Register if customerNo and qrData are available
+                  if (khariuObject.customerNo && d.qrData) {
+                    autoApproveQr(
+                      khariuObject.customerNo,
+                      d.qrData,
+                      baiguullagiinId,
+                      kholbolt
+                    ).catch((err) => {
+                      // Non-critical error - don't fail the response
+                      console.log("Auto-approveQr failed (non-critical):", err.message);
+                    });
+                  }
                 })
                 .catch((saveErr) => {
                 });
@@ -1884,6 +1897,7 @@ router.get(
                     const {
                       nekhemjlekheesEbarimtShineUusgye,
                       ebarimtDuudya,
+                      autoApproveQr,
                     } = require("./ebarimtRoute");
                     const EbarimtShine = require("../models/ebarimtShine");
 
@@ -1901,7 +1915,7 @@ router.get(
 
                     // The ebarimt object already has invoice data set in nekhemjlekheesEbarimtShineUusgye
                     // ebarimtDuudya calls onFinish(body, ugugdul) where ugugdul is the ebarimt object
-                    var butsaakhMethod = function (d, ebarimtObject) {
+                    var butsaakhMethod = async function (d, ebarimtObject) {
                       try {
                         if (d?.status != "SUCCESS" && !d.success) {
                           return;
@@ -1920,7 +1934,23 @@ router.get(
                         if (d.id) shineBarimt.receiptId = d.id;
                         if (d.date) shineBarimt.date = d.date;
 
-                        shineBarimt.save();
+                        shineBarimt.save()
+                          .then(() => {
+                            // Auto-approve QR for Easy Register if customerNo and qrData are available
+                            if (ebarimtObject.customerNo && d.qrData) {
+                              autoApproveQr(
+                                ebarimtObject.customerNo,
+                                d.qrData,
+                                baiguullagiinId,
+                                kholbolt
+                              ).catch((err) => {
+                                // Non-critical error - don't fail the response
+                                console.log("Auto-approveQr failed (non-critical):", err.message);
+                              });
+                            }
+                          })
+                          .catch((saveErr) => {
+                          });
                       } catch (err) {
                       }
                     };
