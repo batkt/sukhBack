@@ -13,13 +13,13 @@ const Baiguullaga = require("../models/baiguullaga");
 const EbarimtShine = require("../models/ebarimtShine");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const { downloadEbarimtExcel } = require("../controller/excelImportController");
-
-// Middleware to copy query parameters to body for GET requests
-// This is needed because tokenShalgakh expects baiguullagiinId in req.body
 const copyQueryToBody = (req, res, next) => {
   if (req.method === "GET" && Object.keys(req.query).length > 0) {
-    // Copy query params to body for GET requests
+    const existingTukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
     req.body = { ...req.body, ...req.query };
+    if (existingTukhainBaaziinKholbolt && typeof existingTukhainBaaziinKholbolt === 'object') {
+      req.body.tukhainBaaziinKholbolt = existingTukhainBaaziinKholbolt;
+    }
   }
   next();
 };
@@ -283,11 +283,19 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
     if (process.env.EBARIMTSHINE_EASY_REGISTER_URL) {
       baseUrl = process.env.EBARIMTSHINE_EASY_REGISTER_URL;
     }
-    
-    // Fetch token from DB or Auth API
     let token;
     if (tukhainBaaziinKholbolt && orgId) {
-      token = await getEbarimtToken(orgId, tukhainBaaziinKholbolt);
+      let connectionObj = tukhainBaaziinKholbolt;
+      if (typeof tukhainBaaziinKholbolt === 'string') {
+        const { db } = require("zevbackv2");
+        connectionObj = db.kholboltuud.find(
+          (k) => String(k.baiguullagiinId) === String(orgId)
+        );
+        if (!connectionObj) {
+          throw new Error("Байгууллагын холболт олдсонгүй");
+        }
+      }
+      token = await getEbarimtToken(orgId, connectionObj);
     } else {
       token = process.env.EBARIMTSHINE_TOKEN;
     }
