@@ -88,7 +88,6 @@ const baiguullagaSchema = new Schema(
             davtamjUtga: Number,
             orshinSuugchMashiniiLimit: Number
           },
-          ajiltanTokhirgooIdevkhtei: Boolean,
           /** Ашиглалтын зардлууд - барилга тус бүрт тусдаа */
           ashiglaltiinZardluud: [
             {
@@ -226,7 +225,6 @@ const baiguullagaSchema = new Schema(
         davtamjUtga: Number,
         orshinSuugchMashiniiLimit: Number
       },
-      ajiltanTokhirgooIdevkhtei: Boolean,
     },
     erkhuud: [
       {
@@ -427,64 +425,7 @@ baiguullagaSchema.post("save", async function (doc) {
   }
   
   await updateGereeFromBaiguullagaZardluud(doc);
-  await syncAjiltanExemption(doc);
 });
-
-async function syncAjiltanExemption(doc) {
-  try {
-    if (!doc) return;
-    const isOrgExempt = doc.tokhirgoo?.ajiltanTokhirgooIdevkhtei;
-    const exemptBuildings = (doc.barilguud || []).filter(b => b.tokhirgoo?.ajiltanTokhirgooIdevkhtei).map(b => String(b._id));
-    
-    if (!isOrgExempt && exemptBuildings.length === 0) return;
-
-    const { db } = require("zevbackv2");
-    const kholbolt = db.kholboltuud.find(a => String(a.baiguullagiinId) === String(doc._id));
-    if (!kholbolt) return;
-
-    const Ajiltan = require("./ajiltan")(kholbolt);
-    const Geree = require("./geree")(kholbolt);
-    const NekhemjlekhiinTuukh = require("./nekhemjlekhiinTuukh")(kholbolt);
-
-    const employees = await Ajiltan.find({ baiguullagiinId: String(doc._id) }).lean();
-    for (const emp of employees) {
-      if (!emp.utas || !emp.ner || !emp.ovog) continue;
-      
-      let query = {
-        baiguullagiinId: String(doc._id),
-        ner: { $regex: new RegExp(`^${emp.ner.trim()}$`, 'i') },
-        ovog: { $regex: new RegExp(`^${emp.ovog.trim()}$`, 'i') }
-      };
-
-      if (!isOrgExempt) {
-        query.barilgiinId = { $in: exemptBuildings };
-      }
-
-      const gerees = await Geree.find(query).select('gereeniiDugaar utas');
-      for (const g of gerees) {
-        let phoneMatch = false;
-        let empPhones = Array.isArray(emp.utas) ? emp.utas : [emp.utas];
-        let gereePhones = Array.isArray(g.utas) ? g.utas : [g.utas];
-        
-        for (let p of empPhones) {
-          if (p && gereePhones.includes(p)) phoneMatch = true;
-        }
-        
-        if (!phoneMatch) continue;
-
-        await Geree.updateOne({ _id: g._id }, {
-          $set: { globalUldegdel: 0, baritsaaniiUldegdel: 0, ekhniiUldegdel: 0 }
-        });
-        await NekhemjlekhiinTuukh.deleteMany({
-          gereeniiId: String(g._id),
-          tuluv: "Төлөөгүй" // delete unpaid invoices that contribute to the visible balance
-        });
-      }
-    }
-  } catch (err) {
-    console.error("Error in syncAjiltanExemption:", err);
-  }
-}
 
 // Helper function to validate davkhariinToonuud for duplicate toots
 function validateDavkhariinToonuud(barilguud) {
@@ -626,7 +567,6 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
 baiguullagaSchema.post("findOneAndUpdate", async function (doc) {
   if (doc) {
     await updateGereeFromBaiguullagaZardluud(doc);
-    await syncAjiltanExemption(doc);
   }
 });
 
@@ -635,7 +575,6 @@ baiguullagaSchema.post("updateOne", async function () {
     const doc = await this.model.findOne(this.getQuery());
     if (doc) {
       await updateGereeFromBaiguullagaZardluud(doc);
-      await syncAjiltanExemption(doc);
     }
   } catch (error) {
     console.error("Error in updateOne hook:", error);

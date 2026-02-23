@@ -73,39 +73,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
   ekhniiUldegdelId = null // ID of the standalone GereeniiTulukhAvlaga record if it exists
 ) => {
   try {
-    if (org?.tokhirgoo?.ajiltanTokhirgooIdevkhtei) {
-      if (tempData.utas && tempData.utas.length > 0 && tempData.ner && tempData.ovog) {
-        const Ajiltan = require("../models/ajiltan");
-        const existingAjiltan = await Ajiltan(tukhainBaaziinKholbolt).findOne({
-          ner: { $regex: new RegExp(`^${tempData.ner}$`, 'i') },
-          ovog: { $regex: new RegExp(`^${tempData.ovog}$`, 'i') },
-          utas: { $in: tempData.utas },
-          baiguullagiinId: String(org._id)
-        }).lean();
-
-        if (existingAjiltan) {
-          if (tempData.globalUldegdel > 0 || tempData.baritsaaniiUldegdel > 0 || tempData.ekhniiUldegdel > 0) {
-            const Geree = require("../models/geree");
-            await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(tempData._id, {
-              $set: { globalUldegdel: 0, baritsaaniiUldegdel: 0, ekhniiUldegdel: 0 }
-            });
-            tempData.globalUldegdel = 0;
-            tempData.baritsaaniiUldegdel = 0;
-            tempData.ekhniiUldegdel = 0;
-          }
-
-          return {
-            success: false,
-            error: "Ажилтан тул хураамжаас чөлөөлөгдлөө.",
-            gereeniiId: tempData._id,
-            gereeniiDugaar: tempData.gereeniiDugaar,
-            skipReason: "employee_exemption",
-            tulbur: 0
-          };
-        }
-      }
-    }
-
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth(); // 0-11 (0 = January)
