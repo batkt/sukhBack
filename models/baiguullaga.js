@@ -88,6 +88,7 @@ const baiguullagaSchema = new Schema(
             davtamjUtga: Number,
             orshinSuugchMashiniiLimit: Number
           },
+          ajiltanTokhirgooIdevkhtei: Boolean,
           /** Ашиглалтын зардлууд - барилга тус бүрт тусдаа */
           ashiglaltiinZardluud: [
             {
@@ -225,6 +226,7 @@ const baiguullagaSchema = new Schema(
         davtamjUtga: Number,
         orshinSuugchMashiniiLimit: Number
       },
+      ajiltanTokhirgooIdevkhtei: Boolean,
     },
     erkhuud: [
       {
