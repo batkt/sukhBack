@@ -152,10 +152,10 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
 
 async function ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt) {
   return new Promise((resolve, reject) => {
-    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://st.auth.itc.gov.mn/auth/realms/Staging/protocol/openid-connect/token';
+    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
     const clientId = process.env.EBARIMTSHINE_CLIENT_ID || 'vatps';
-    const username = process.env.EBARIMTSHINE_USERNAME || 'easy-register-test';
-    const password = process.env.EBARIMTSHINE_PASSWORD || '99119911';
+    const username = process.env.EBARIMTSHINE_USERNAME || 'Rooden_like@yahoo.com';
+    const password = process.env.EBARIMTSHINE_PASSWORD || 'Br1stelback@';
 
 
     request.post({
@@ -267,7 +267,7 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
     const orgId = baiguullagiinId;
     const shouldUseTest = orgId && String(orgId) === "697723dc3e77b46e52ccf577";
     
-    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://st.auth.itc.gov.mn/auth/realms/Staging/protocol/openid-connect/token';
+    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
     
 
     
@@ -276,7 +276,7 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
     if (shouldUseTest) {
       baseUrl = 'https://st-service.itc.gov.mn';
     } else {
-      baseUrl = process.env.EBARIMTSHINE_IP;
+      baseUrl = 'https://service.itc.gov.mn';
     }
     
     // Allow explicit override if needed
