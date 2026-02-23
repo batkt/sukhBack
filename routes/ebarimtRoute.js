@@ -489,9 +489,9 @@ router.post(
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      if (nekhemjlekh.tuluv !== "Төлсөн") {
-        throw new Error("Invoice is not paid yet");
-      }
+      // Previously we blocked sending e-barimt when the invoice was not marked as "Төлсөн".
+      // This prevented re-sending e-barimt for already paid invoices in some flows.
+      // Now we allow sending e-barimt regardless of the current invoice status.
 
       const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
         req.body.baiguullagiinId

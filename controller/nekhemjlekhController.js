@@ -2180,16 +2180,14 @@ const manualSendInvoice = async (gereeId, baiguullagiinId, override = false, tar
       ]
     }).sort({ createdAt: 1 });
 
-    // Filter for PAID invoices
+    // Filter for PAID invoices (kept for potential logging/analytics)
     const paidInvoices = allExistingInvoices.filter(inv => inv.tuluv === "Төлсөн");
 
-    // If override is FALSE and a PAID invoice exists, BLOCK creation
-    if (!override && paidInvoices.length > 0) {
-      return {
-        success: false,
-        error: "Энэ сарын нэхэмжлэх төлөгдсөн байна. Дахин үүсгэх боломжгүй."
-      };
-    }
+    // Previously: if override=false and there was at least one PAID invoice for this month,
+    // we blocked creating a new invoice with the message:
+    // "Энэ сарын нэхэмжлэх төлөгдсөн байна. Дахин үүсгэх боломжгүй."
+    // This prevented resending/creating invoices when a month was already fully paid.
+    // Now we allow creating/sending again regardless of existing paid invoices.
 
     // Filter for UNSENT/UNPAID invoices for update logic
     const existingUnsentInvoices = allExistingInvoices.filter(inv =>
