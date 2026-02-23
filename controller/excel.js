@@ -1877,7 +1877,7 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
       { header: "Нийт (одоо)", key: "niitOdoo", width: 15 },
       { header: "Зөрүү", key: "zoruu", width: 15 },
       { header: "Суурь хураамж", key: "defaultDun", width: 15 },
-      { header: "кВт", key: "kwt", width: 12 },
+      { header: "Цахилгаан кВт", key: "kwt", width: 12 },
     ];
 
     // Style header row (worksheet.columns already creates headers in row 1)
@@ -2086,6 +2086,25 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         // Parse defaultDun from Excel (NEW - separate from ashiglaltiinZardluud)
         const defaultDunFromExcel = parseFloat(row["Суурь хураамж"] || row["defaultDun"] || 0) || 0;
 
+        // Parse per-resident electricity tariff from Excel ("Цахилгаан кВт") to overwrite orshinSuugch.tsahilgaaniiZaalt
+        let tsahilgaaniiZaaltFromExcel = null;
+        if (
+          row["Цахилгаан кВт"] !== undefined &&
+          row["Цахилгаан кВт"] !== null &&
+          String(row["Цахилгаан кВт"]).trim() !== ""
+        ) {
+          const parsedTariff = parseFloat(row["Цахилгаан кВт"]);
+          if (isNaN(parsedTariff)) {
+            results.failed.push({
+              row: rowNumber,
+              gereeniiDugaar: gereeniiDugaar,
+              error: "Цахилгаан кВт баганын утга буруу байна",
+            });
+            continue;
+          }
+          tsahilgaaniiZaaltFromExcel = parsedTariff;
+        }
+
         // Validate readings
         if (odor < 0 || shone < 0 || umnu < 0) {
           results.failed.push({
@@ -2102,15 +2121,21 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         // Get tariff from orshinSuugch.tsahilgaaniiZaalt (separate from ashiglaltiinZardluud)
         let gereeZaaltTariff = zaaltTariff; // Default fallback to building level
         if (geree.orshinSuugchId) {
-          const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(geree.orshinSuugchId);
+          const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+            geree.orshinSuugchId
+          );
           if (orshinSuugch) {
             // Update latest readings for auto-fill functionality
             orshinSuugch.odorZaalt = odor;
             orshinSuugch.shonoZaalt = shone;
             orshinSuugch.suuliinZaalt = niitOdoo;
 
-            // Handle tariff override if present
-            if (orshinSuugch.tsahilgaaniiZaalt !== undefined) {
+            // If Excel provides a per-resident tariff, overwrite current tsahilgaaniiZaalt
+            if (tsahilgaaniiZaaltFromExcel !== null) {
+              orshinSuugch.tsahilgaaniiZaalt = tsahilgaaniiZaaltFromExcel;
+              gereeZaaltTariff = tsahilgaaniiZaaltFromExcel;
+            } else if (orshinSuugch.tsahilgaaniiZaalt !== undefined) {
+              // Otherwise, use existing resident-specific tariff if present
               gereeZaaltTariff = orshinSuugch.tsahilgaaniiZaalt || 0;
             }
 
@@ -2457,7 +2482,7 @@ exports.zaaltExcelDataAvya = asyncHandler(async (req, res, next) => {
       { header: "Шөнө", key: "zaaltUs", width: 15 },
       { header: "Нийт (одоо)", key: "suuliinZaalt", width: 15 },
       { header: "Зөрүү", key: "zoruu", width: 15 },
-      { header: "Тариф (кВт)", key: "tariff", width: 15 },
+      { header: "Цахилгаан кВт", key: "tariff", width: 15 },
       { header: "Суурь хураамж", key: "defaultDun", width: 15 },
       { header: "Төлбөр", key: "zaaltDun", width: 15 },
       { header: "Тооцоолсон огноо", key: "calculatedAt", width: 20 },

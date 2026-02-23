@@ -1696,7 +1696,6 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
     }
   }
 );
-
 // TootBurtgel Excel Import
 exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
   try {
@@ -2007,7 +2006,6 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     next(error);
   }
 });
-
 
 exports.generateInitialBalanceTemplate = asyncHandler(async (req, res, next) => {
   try {
