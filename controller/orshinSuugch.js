@@ -1095,28 +1095,24 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           // Log warning instead of throwing error to allow roommates/multi-family registration
         }
       }
-
-      // If there's a cancelled geree, reactivate it and link it to the new user
-      // Do this AFTER fetching charges so we can update zardluud with current charges
       const existingCancelledGeree = await GereeModel.findOne({
         toot: orshinSuugch.toot || "",
         barilgiinId: barilgiinId || "",
+        davkhar: orshinSuugch.davkhar || "",
+        orts: orshinSuugch.orts || "",
         tuluv: "Цуцалсан",
       });
 
       if (existingCancelledGeree && tukhainBaaziinKholbolt) {
         isReactivating = true;
 
-        // Reactivate the cancelled geree and link it to the new user
-        // Update with current charges (zardluud) and niitTulbur
         const updateData = {
-          tuluv: "Идэвхтэй", // Reactivate from "Цуцалсан" to "Идэвхтэй"
-          gereeniiOgnoo: new Date(), // Update contract date
-          orshinSuugchId: orshinSuugch._id.toString(), // Link to new user
-          zardluud: zardluudArray, // Update with current charges
-          niitTulbur: niitTulbur, // Update with current total
-          ashiglaltiinZardal: 0, // Reset to 0
-          // Update user info in geree if needed
+          tuluv: "Идэвхтэй",
+          gereeniiOgnoo: new Date(),
+          orshinSuugchId: orshinSuugch._id.toString(),
+          zardluud: zardluudArray,
+          niitTulbur: niitTulbur,
+          ashiglaltiinZardal: 0,
           ovog: req.body.ovog || existingCancelledGeree.ovog,
           ner: req.body.ner || existingCancelledGeree.ner,
           register: req.body.register || existingCancelledGeree.register,
@@ -1124,18 +1120,16 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           mail: req.body.mail || existingCancelledGeree.mail,
           toot: orshinSuugch.toot || existingCancelledGeree.toot,
           davkhar: orshinSuugch.davkhar || existingCancelledGeree.davkhar,
-          bairNer: targetBarilgaForZardluud?.ner || existingCancelledGeree.bairNer || "", // Update building name
+          bairNer: targetBarilgaForZardluud?.ner || existingCancelledGeree.bairNer || "",
           duureg: req.body.duureg || existingCancelledGeree.duureg,
           horoo: req.body.horoo || existingCancelledGeree.horoo,
           sohNer: req.body.soh || existingCancelledGeree.sohNer,
-          // Update electricity readings if provided
-          umnukhZaalt: tsahilgaaniiZaalt, // Previous reading (initial reading at reactivation)
-          suuliinZaalt: tsahilgaaniiZaalt, // Current reading (same as initial at reactivation)
-          zaaltTog: 0, // Day reading (will be updated later)
-          zaaltUs: 0, // Night reading (will be updated later)
+          umnukhZaalt: tsahilgaaniiZaalt,
+          suuliinZaalt: tsahilgaaniiZaalt,
+          zaaltTog: 0,
+          zaaltUs: 0,
         };
 
-        // Add optional fields from frontend if provided
         if (req.body.tailbar) {
           updateData.temdeglel = req.body.tailbar;
           updateData.tailbar = req.body.tailbar;
@@ -1149,7 +1143,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         });
       }
 
-      // barilgiinId is already declared above (line 337), reuse it here
       const targetBarilga = barilgiinId
         ? baiguullaga.barilguud?.find(
             (b) => String(b._id) === String(barilgiinId)
@@ -2231,10 +2224,12 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             continue;
           }
 
-          // Check if there's a cancelled geree for this toot that we can reactivate
+       
           const existingCancelledGeree = await GereeModel.findOne({
             barilgiinId: tootEntry.barilgiinId,
             toot: tootEntry.toot,
+            davkhar: tootEntry.davkhar || "",
+            orts: tootEntry.orts || "",
             tuluv: "Цуцалсан",
             orshinSuugchId: orshinSuugch._id.toString()
           });
@@ -3000,7 +2995,7 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
             continue;
           }
           
-          // Check if geree already exists for this specific toot (user + barilgiinId + toot combination)
+       
           const GereeModel = Geree(tukhainBaaziinKholbolt);
           const existingGeree = await GereeModel.findOne({
             orshinSuugchId: orshinSuugch._id.toString(),
@@ -3013,10 +3008,13 @@ exports.walletBurtgey = asyncHandler(async (req, res, next) => {
             continue;
           }
 
-          // Check if there's a cancelled geree for this toot that we can reactivate
+     
+        
           const existingCancelledGeree = await GereeModel.findOne({
             barilgiinId: tootEntry.barilgiinId,
             toot: tootEntry.toot,
+            davkhar: tootEntry.davkhar || "",
+            orts: tootEntry.orts || "",
             tuluv: "Цуцалсан",
             orshinSuugchId: orshinSuugch._id.toString()
           });
