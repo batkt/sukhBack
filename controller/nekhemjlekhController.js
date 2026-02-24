@@ -279,12 +279,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
               }
 
               // Recalculate total
-              const newTotal = existingInvoice.medeelel.zardluud.reduce(
+              let newTotal = existingInvoice.medeelel.zardluud.reduce(
                 (sum, z) => {
                   return sum + (z.dun || z.tariff || 0);
                 },
                 0,
               );
+
+              // Apply 2nd floor discount for org 697c70e81e782d8110d3b064
+              const existDavkharStr1 = tempData.davkhar ? String(tempData.davkhar).trim() : "";
+              const existIsSecondFloor1 = existDavkharStr1 === "2" || Number(existDavkharStr1) === 2;
+              if (existIsSecondFloor1 && tempData.baiguullagiinId && String(tempData.baiguullagiinId).trim() === "697c70e81e782d8110d3b064") {
+                newTotal = Math.max(0, newTotal - 4495.42);
+                console.log(`[2ND FLOOR DISCOUNT] gereeNeesNekhemjlekhUusgekh electricity update path: Applied discount. New total: ${newTotal}`);
+              }
 
               existingInvoice.niitTulbur = newTotal;
               existingInvoice.tsahilgaanNekhemjlekh = newZaaltDun;
@@ -305,6 +313,25 @@ const gereeNeesNekhemjlekhUusgekh = async (
           }
         } catch (updateError) {
           // Error checking for electricity update - silently continue
+        }
+
+        // Apply 2nd floor discount for org 697c70e81e782d8110d3b064 (existing invoice, no electricity update needed)
+        const existDavkharStr2 = tempData.davkhar ? String(tempData.davkhar).trim() : "";
+        const existIsSecondFloor2 = existDavkharStr2 === "2" || Number(existDavkharStr2) === 2;
+        if (existIsSecondFloor2 && tempData.baiguullagiinId && String(tempData.baiguullagiinId).trim() === "697c70e81e782d8110d3b064") {
+          const zardluudTotal = (existingInvoice.medeelel?.zardluud || []).reduce(
+            (sum, z) => sum + (z.dun || z.tariff || 0), 0
+          );
+          const discountedTotal = Math.max(0, zardluudTotal - 4495.42);
+          // Only update if the current niitTulbur doesn't already have the discount
+          if (Math.abs(existingInvoice.niitTulbur - discountedTotal) > 1) {
+            existingInvoice.niitTulbur = discountedTotal;
+            existingInvoice.uldegdel = discountedTotal;
+            existingInvoice.markModified("niitTulbur");
+            existingInvoice.markModified("uldegdel");
+            await existingInvoice.save();
+            console.log(`[2ND FLOOR DISCOUNT] gereeNeesNekhemjlekhUusgekh existing invoice path: Applied discount. Old: ${zardluudTotal}, New: ${discountedTotal}`);
+          }
         }
 
         return {
