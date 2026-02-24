@@ -1235,11 +1235,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // Apply discount AFTER all other calculations (lift exclusion, positive balance, etc.)
     const davkharStr = tempData.davkhar ? String(tempData.davkhar).trim() : "";
     const isSecondFloor = davkharStr === "2" || davkharStr === 2 || Number(davkharStr) === 2;
-    if (isSecondFloor && tempData.baiguullagiinId) {
-      const orgIdForSecondFloorDiscount = "697c70e81e782d8110d3b064";
-      if (String(tempData.baiguullagiinId).trim() === orgIdForSecondFloorDiscount) {
-        const secondFloorDiscount = 4495.42;
-        correctedFinalNiitTulbur = Math.max(0, correctedFinalNiitTulbur - secondFloorDiscount);
+    const orgIdForSecondFloorDiscount = "697c70e81e782d8110d3b064";
+    const orgIdMatches = tempData.baiguullagiinId && String(tempData.baiguullagiinId).trim() === orgIdForSecondFloorDiscount;
+    
+    if (isSecondFloor && orgIdMatches) {
+      const secondFloorDiscount = 4495.42;
+      const beforeDiscount = correctedFinalNiitTulbur;
+      correctedFinalNiitTulbur = Math.max(0, correctedFinalNiitTulbur - secondFloorDiscount);
+      console.log(`[2ND FLOOR DISCOUNT] Applied discount of ${secondFloorDiscount} to invoice. Before: ${beforeDiscount}, After: ${correctedFinalNiitTulbur}, davkhar: ${tempData.davkhar}, orgId: ${tempData.baiguullagiinId}`);
+    } else {
+      // Debug logging to see why discount wasn't applied
+      if (tempData.baiguullagiinId && String(tempData.baiguullagiinId).trim() === orgIdForSecondFloorDiscount) {
+        console.log(`[2ND FLOOR DISCOUNT] Discount NOT applied. davkhar: "${tempData.davkhar}" (type: ${typeof tempData.davkhar}), isSecondFloor: ${isSecondFloor}, orgId: ${tempData.baiguullagiinId}`);
       }
     }
 
