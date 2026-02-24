@@ -2592,11 +2592,25 @@ const manualSendInvoice = async (
             !(z.ner && z.ner.includes("Эхний үлдэгдэл")),
         ).length;
 
+        // Check if 2nd floor discount should apply for org 697c70e81e782d8110d3b064
+        const skipDavkharStr = geree.davkhar ? String(geree.davkhar).trim() : "";
+        const skipIsSecondFloor = skipDavkharStr === "2" || Number(skipDavkharStr) === 2;
+        const skipOrgId = "697c70e81e782d8110d3b064";
+        const skipOrgMatches = geree.baiguullagiinId && String(geree.baiguullagiinId).trim() === skipOrgId;
+        const shouldApply2ndFloorDiscount = skipIsSecondFloor && skipOrgMatches;
+        const secondFloorDiscountAmount = 4495.42;
+
         // If zardluud amounts are effectively equal and item counts match, skip update entirely
         // This preserves the existing invoice with its uldegdel intact
+        // BUT: if 2nd floor discount should apply and hasn't been applied yet, force the update
+        const discountAlreadyApplied = shouldApply2ndFloorDiscount && 
+          Math.abs(oldestUnsentInvoice.niitTulbur - (oldZardluudOnlyTotal - secondFloorDiscountAmount)) < 1;
+        const discountNeedsApplying = shouldApply2ndFloorDiscount && !discountAlreadyApplied;
+
         if (
           Math.abs(zardluudOnlyTotal - oldZardluudOnlyTotal) < 0.5 &&
-          newZardluudCount === oldZardluudCount
+          newZardluudCount === oldZardluudCount &&
+          !discountNeedsApplying
         ) {
           // Still delete any DUPLICATE unsent invoices for this month
           if (existingUnsentInvoices.length > 1) {
@@ -2650,10 +2664,16 @@ const manualSendInvoice = async (
         ];
 
         // Calculate new total (zardluud only, ekhniiUldegdel stays separate)
-        const newNiitTulbur = updatedZardluud.reduce(
+        let newNiitTulbur = updatedZardluud.reduce(
           (sum, z) => sum + (z.dun || z.tariff || 0),
           0,
         );
+
+        // Apply 2nd floor discount for org 697c70e81e782d8110d3b064
+        if (shouldApply2ndFloorDiscount) {
+          newNiitTulbur = Math.max(0, newNiitTulbur - secondFloorDiscountAmount);
+          console.log(`[2ND FLOOR DISCOUNT] manualSend update path: Applied discount of ${secondFloorDiscountAmount}. New total: ${newNiitTulbur}`);
+        }
 
         // Update the existing invoice
         // IMPORTANT: Create a new medeelel object to ensure Mongoose detects the change
