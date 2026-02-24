@@ -1231,10 +1231,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     // Special discount for 2nd floor in specific organization: subtract 4,495.42
-    // This applies only to 2nd floor (davkhar === "2") for org ID: 697c70e81e782d8110d3b064
-    if (tempData.davkhar && String(tempData.davkhar).trim() === "2" && tempData.baiguullagiinId) {
+    // This applies only to 2nd floor (davkhar === "2" or 2) for org ID: 697c70e81e782d8110d3b064
+    // Apply discount AFTER all other calculations (lift exclusion, positive balance, etc.)
+    const davkharStr = tempData.davkhar ? String(tempData.davkhar).trim() : "";
+    const isSecondFloor = davkharStr === "2" || davkharStr === 2 || Number(davkharStr) === 2;
+    if (isSecondFloor && tempData.baiguullagiinId) {
       const orgIdForSecondFloorDiscount = "697c70e81e782d8110d3b064";
-      if (String(tempData.baiguullagiinId) === orgIdForSecondFloorDiscount) {
+      if (String(tempData.baiguullagiinId).trim() === orgIdForSecondFloorDiscount) {
         const secondFloorDiscount = 4495.42;
         correctedFinalNiitTulbur = Math.max(0, correctedFinalNiitTulbur - secondFloorDiscount);
       }
@@ -2309,10 +2312,12 @@ const previewInvoice = async (
     let finalNiitTulbur = zardluudTotal + ekhniiUldegdelAmount;
 
     // Special discount for 2nd floor in specific organization: subtract 4,495.42
-    // This applies only to 2nd floor (davkhar === "2") for org ID: 697c70e81e782d8110d3b064
-    if (geree.davkhar && String(geree.davkhar).trim() === "2" && geree.baiguullagiinId) {
+    // This applies only to 2nd floor (davkhar === "2" or 2) for org ID: 697c70e81e782d8110d3b064
+    const davkharStr = geree.davkhar ? String(geree.davkhar).trim() : "";
+    const isSecondFloor = davkharStr === "2" || davkharStr === 2 || Number(davkharStr) === 2;
+    if (isSecondFloor && geree.baiguullagiinId) {
       const orgIdForSecondFloorDiscount = "697c70e81e782d8110d3b064";
-      if (String(geree.baiguullagiinId) === orgIdForSecondFloorDiscount) {
+      if (String(geree.baiguullagiinId).trim() === orgIdForSecondFloorDiscount) {
         const secondFloorDiscount = 4495.42;
         finalNiitTulbur = Math.max(0, finalNiitTulbur - secondFloorDiscount);
       }
