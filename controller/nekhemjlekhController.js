@@ -1230,6 +1230,16 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     }
 
+    // Special discount for 2nd floor in specific organization: subtract 4,495.42
+    // This applies only to 2nd floor (davkhar === "2") for org ID: 697c70e81e782d8110d3b064
+    if (tempData.davkhar && String(tempData.davkhar).trim() === "2" && tempData.baiguullagiinId) {
+      const orgIdForSecondFloorDiscount = "697c70e81e782d8110d3b064";
+      if (String(tempData.baiguullagiinId) === orgIdForSecondFloorDiscount) {
+        const secondFloorDiscount = 4495.42;
+        correctedFinalNiitTulbur = Math.max(0, correctedFinalNiitTulbur - secondFloorDiscount);
+      }
+    }
+
     // Always add ekhniiUldegdel row (even when 0) for display purposes
     zardluudWithDun.push({
       _id:
@@ -2296,7 +2306,17 @@ const previewInvoice = async (
       tailbar: ekhniiUldegdelTailbar || "", // Include the description from gereeniiTulukhAvlaga
     });
 
-    const finalNiitTulbur = zardluudTotal + ekhniiUldegdelAmount;
+    let finalNiitTulbur = zardluudTotal + ekhniiUldegdelAmount;
+
+    // Special discount for 2nd floor in specific organization: subtract 4,495.42
+    // This applies only to 2nd floor (davkhar === "2") for org ID: 697c70e81e782d8110d3b064
+    if (geree.davkhar && String(geree.davkhar).trim() === "2" && geree.baiguullagiinId) {
+      const orgIdForSecondFloorDiscount = "697c70e81e782d8110d3b064";
+      if (String(geree.baiguullagiinId) === orgIdForSecondFloorDiscount) {
+        const secondFloorDiscount = 4495.42;
+        finalNiitTulbur = Math.max(0, finalNiitTulbur - secondFloorDiscount);
+      }
+    }
 
     let tulukhOgnoo = null;
     try {
