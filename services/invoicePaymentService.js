@@ -201,15 +201,45 @@ async function markInvoicesAsPaid(options) {
 
     try {
       const invoiceAmount = invoice.niitTulbur || 0;
-      const unpaidAmount = invoiceAmount; // Since invoice is unpaid, full amount is unpaid
+      // Use uldegdel if it exists and is valid, otherwise use full amount
+      const existingUldegdel = (typeof invoice.uldegdel === 'number' && !isNaN(invoice.uldegdel) && invoice.uldegdel > 0) 
+        ? invoice.uldegdel 
+        : invoiceAmount;
+      const unpaidAmount = existingUldegdel;
 
       if (unpaidAmount <= 0) {
-        continue; // Skip invoices with 0 amount
+        continue; // Skip invoices with 0 remaining
       }
 
       // Calculate how much to apply to this invoice
       const amountToApply = Math.min(remainingPayment, unpaidAmount);
-      const isFullyPaid = amountToApply >= unpaidAmount;
+      const newUldegdel = unpaidAmount - amountToApply;
+      const isFullyPaid = newUldegdel <= 0.01; // Use small threshold for floating point
+
+      // Calculate per-item (zardluud) payment distribution
+      let zardluudUpdate = null;
+      if (invoice.medeelel && invoice.medeelel.zardluud && invoice.medeelel.zardluud.length > 0) {
+        let remainingToDistribute = amountToApply;
+        const updatedZardluud = invoice.medeelel.zardluud.map(z => {
+          const itemDun = z.dun || 0;
+          const itemTulsunDun = z.tulsunDun || 0;
+          const itemUldegdel = itemDun - itemTulsunDun;
+          
+          if (remainingToDistribute <= 0 || itemUldegdel <= 0) {
+            return { ...z };
+          }
+          
+          const applyToItem = Math.min(remainingToDistribute, itemUldegdel);
+          remainingToDistribute -= applyToItem;
+          
+          return {
+            ...z,
+            tulsunDun: itemTulsunDun + applyToItem,
+            tulsenEsekh: (itemTulsunDun + applyToItem) >= (itemDun - 0.01),
+          };
+        });
+        zardluudUpdate = updatedZardluud;
+      }
 
       // Update invoice
       const paymentDate = ognoo ? new Date(ognoo) : new Date();
@@ -223,18 +253,19 @@ async function markInvoicesAsPaid(options) {
             tailbar: tailbar || (isFullyPaid ? "Төлбөр хийгдлээ" : `Хэсэгчилсэн төлбөр: ${amountToApply}₮`),
           },
         },
+        $set: {
+          uldegdel: isFullyPaid ? 0 : newUldegdel,
+          tuluv: isFullyPaid ? "Төлсөн" : "Хэсэгчлэн төлсөн",
+        },
       };
 
       if (isFullyPaid) {
-        updateData.$set = {
-          tuluv: "Төлсөн",
-          tulsunOgnoo: paymentDate,
-        };
-      } else {
-        // Partial payment - update uldegdel (remaining balance)
-        updateData.$set = {
-          uldegdel: unpaidAmount - amountToApply,
-        };
+        updateData.$set.tulsunOgnoo = paymentDate;
+      }
+
+      // Update zardluud with per-item payment tracking
+      if (zardluudUpdate) {
+        updateData.$set['medeelel.zardluud'] = zardluudUpdate;
       }
 
       const updatedInvoice = await NekhemjlekhiinTuukh.findByIdAndUpdate(
