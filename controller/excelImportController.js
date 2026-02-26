@@ -2155,10 +2155,56 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
 
         await newAvlaga.save();
 
-        // Update global balance
+        // Update global balance on the geree
         await GereeModel.findByIdAndUpdate(geree._id, {
           $inc: { globalUldegdel: amount }
         });
+
+        // Also update any existing UNPAID invoices for this contract to include
+        // the initial balance. Without this, invoices created before the initial
+        // balance import would show a lower amount than actually owed.
+        try {
+          const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+          const NekhemjlekhModel = NekhemjlekhiinTuukh(tukhainBaaziinKholbolt);
+
+          const unpaidInvoices = await NekhemjlekhModel.find({
+            gereeniiId: geree._id.toString(),
+            baiguullagiinId: String(baiguullagiinId),
+            tuluv: { $nin: ["Төлсөн", "Хүчингүй"] },
+          }).lean();
+
+          for (const invoice of unpaidInvoices) {
+            const currentNiitTulbur = invoice.niitTulbur || 0;
+            const currentUldegdel = invoice.uldegdel || 0;
+            const newNiitTulbur = currentNiitTulbur + amount;
+            const newUldegdel = currentUldegdel + amount;
+
+            // Update the "Эхний үлдэгдэл" row inside medeelel.zardluud
+            const zardluud = (invoice.medeelel?.zardluud || []).map((z) => {
+              if (z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл") {
+                return {
+                  ...z,
+                  tariff: (z.tariff || 0) + amount,
+                  dun: (z.dun || 0) + amount,
+                  tailbar: `Excel-ээр оруулсан эхний үлдэгдэл`,
+                };
+              }
+              return z;
+            });
+
+            await NekhemjlekhModel.findByIdAndUpdate(invoice._id, {
+              $set: {
+                niitTulbur: newNiitTulbur,
+                uldegdel: newUldegdel,
+                ekhniiUldegdel: (invoice.ekhniiUldegdel || 0) + amount,
+                "medeelel.zardluud": zardluud,
+              },
+            });
+          }
+        } catch (invoiceUpdateError) {
+          // Non-fatal: log but don't fail the import
+          console.error("Error updating unpaid invoices with initial balance:", invoiceUpdateError);
+        }
 
         results.success.push({
           row: rowNumber,

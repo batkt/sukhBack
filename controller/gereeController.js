@@ -154,6 +154,49 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
           const savedAvlaga = await newAvlaga.save();
           newAvlagaId = savedAvlaga._id;
           console.log("✅ [GEREE AVLAGA] Created standalone debt record:", newAvlagaId);
+
+          // If this is an initial balance (ekhniiUldegdelEsekh), also update any
+          // existing unpaid invoices for this contract immediately — don't wait for next invoice
+          if (guilgee.ekhniiUldegdelEsekh === true && dun > 0) {
+            try {
+              const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+              const NekhemjlekhModel = NekhemjlekhiinTuukh(tukhainBaaziinKholbolt);
+
+              const unpaidInvoices = await NekhemjlekhModel.find({
+                gereeniiId: guilgee.gereeniiId,
+                tuluv: { $nin: ["Төлсөн", "Хүчингүй"] },
+              }).lean();
+
+              for (const invoice of unpaidInvoices) {
+                const newNiitTulbur = (invoice.niitTulbur || 0) + dun;
+                const newUldegdel = (invoice.uldegdel || 0) + dun;
+
+                const zardluud = (invoice.medeelel?.zardluud || []).map((z) => {
+                  if (z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл") {
+                    return {
+                      ...z,
+                      tariff: (z.tariff || 0) + dun,
+                      dun: (z.dun || 0) + dun,
+                      tailbar: guilgee.tailbar || "Гараар нэмсэн эхний үлдэгдэл",
+                    };
+                  }
+                  return z;
+                });
+
+                await NekhemjlekhModel.findByIdAndUpdate(invoice._id, {
+                  $set: {
+                    niitTulbur: newNiitTulbur,
+                    uldegdel: newUldegdel,
+                    ekhniiUldegdel: (invoice.ekhniiUldegdel || 0) + dun,
+                    "medeelel.zardluud": zardluud,
+                  },
+                });
+              }
+              console.log(`✅ [GEREE AVLAGA] Updated ${unpaidInvoices.length} unpaid invoice(s) with initial balance ${dun}`);
+            } catch (invoiceUpdateError) {
+              console.error("❌ [GEREE AVLAGA] Error updating unpaid invoices with initial balance:", invoiceUpdateError.message);
+            }
+          }
         } else if (guilgee.turul === "tulult" || guilgee.turul === "ashiglalt") {
           // TULULT/ASHIGLALT: Store in GereeniiTulsunAvlaga (payment record)
           const tulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);
