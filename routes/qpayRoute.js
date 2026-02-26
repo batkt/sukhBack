@@ -1306,13 +1306,22 @@ router.get(
         nekhemjlekh.qpayPaymentId = paymentTransactionId;
       }
 
-      nekhemjlekh.tuluv = "Төлсөн";
+      // Calculate uldegdel properly based on actual paid amount
+      const paidAmount = nekhemjlekh.niitTulbur || 0;
+      const currentUldegdel = (typeof nekhemjlekh.uldegdel === 'number' && !isNaN(nekhemjlekh.uldegdel) && nekhemjlekh.uldegdel > 0)
+        ? nekhemjlekh.uldegdel
+        : paidAmount;
+      const newUldegdel = Math.max(0, currentUldegdel - paidAmount);
+      const isFullyPaid = newUldegdel <= 0.01;
+
+      nekhemjlekh.tuluv = isFullyPaid ? "Төлсөн" : "Хэсэгчлэн төлсөн";
       nekhemjlekh.tulsunOgnoo = new Date();
+      nekhemjlekh.uldegdel = isFullyPaid ? 0 : newUldegdel;
 
       nekhemjlekh.paymentHistory = nekhemjlekh.paymentHistory || [];
       nekhemjlekh.paymentHistory.push({
         ognoo: new Date(),
-        dun: nekhemjlekh.niitTulbur,
+        dun: paidAmount,
         turul: "qpay",
         guilgeeniiId:
           paymentTransactionId || nekhemjlekh.qpayInvoiceId || "unknown",
@@ -1429,6 +1438,86 @@ router.get(
 
         await bankGuilgee.save();
       } catch (bankErr) {
+      }
+
+      // Create gereeniiTulsunAvlaga record to register QPay payment
+      try {
+        const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+        const tulsunDoc = new GereeniiTulsunAvlaga(kholbolt)({
+          baiguullagiinId: String(nekhemjlekh.baiguullagiinId),
+          baiguullagiinNer: nekhemjlekh.baiguullagiinNer || "",
+          barilgiinId: nekhemjlekh.barilgiinId || "",
+          gereeniiId: String(nekhemjlekh.gereeniiId),
+          gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
+          orshinSuugchId: nekhemjlekh.orshinSuugchId || "",
+          nekhemjlekhId: nekhemjlekh._id?.toString() || null,
+          ognoo: new Date(),
+          tulsunDun: paidAmount,
+          tulsunAldangi: 0,
+          turul: "invoice_payment",
+          zardliinTurul: "",
+          zardliinId: "",
+          zardliinNer: "",
+          tailbar: `QPay төлбөр - ${nekhemjlekh.gereeniiDugaar || ""}`,
+          source: "nekhemjlekh",
+          guilgeeKhiisenAjiltniiNer: null,
+          guilgeeKhiisenAjiltniiId: null,
+        });
+        await tulsunDoc.save();
+      } catch (tulsunErr) {
+        console.error("❌ [QPAY CALLBACK] Error creating gereeniiTulsunAvlaga:", tulsunErr.message);
+      }
+
+      // Update gereeniiTulukhAvlaga uldegdel (reduce outstanding balance)
+      try {
+        const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+        let remainingForGeree = paidAmount;
+        const openTulukhRows = await GereeniiTulukhAvlaga(kholbolt).find({
+          gereeniiId: String(nekhemjlekh.gereeniiId),
+          baiguullagiinId: String(baiguullagiinId),
+          uldegdel: { $gt: 0 },
+        }).sort({ ognoo: 1, createdAt: 1 }).lean();
+
+        for (const row of openTulukhRows) {
+          if (remainingForGeree <= 0) break;
+          const rowUldegdel = row.uldegdel || 0;
+          if (rowUldegdel <= 0) continue;
+          const applyHere = Math.min(remainingForGeree, rowUldegdel);
+          const newRowUldegdel = rowUldegdel - applyHere;
+          await GereeniiTulukhAvlaga(kholbolt).updateOne(
+            { _id: row._id },
+            { $set: { uldegdel: newRowUldegdel } }
+          );
+          remainingForGeree -= applyHere;
+        }
+      } catch (tulukhErr) {
+        console.error("❌ [QPAY CALLBACK] Error updating gereeniiTulukhAvlaga:", tulukhErr.message);
+      }
+
+      // Recalculate globalUldegdel on the geree
+      try {
+        const gereeForGlobal = await Geree(kholbolt).findById(nekhemjlekh.gereeniiId);
+        if (gereeForGlobal) {
+          const unpaidInvoices = await nekhemjlekhiinTuukh(kholbolt).find({
+            baiguullagiinId: String(baiguullagiinId),
+            gereeniiId: String(nekhemjlekh.gereeniiId),
+            tuluv: { $ne: "Төлсөн" },
+          }).select("niitTulbur uldegdel").lean();
+
+          let globalUldegdel = 0;
+          unpaidInvoices.forEach((inv) => {
+            const unpaid = (typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel))
+              ? inv.uldegdel
+              : inv.niitTulbur || 0;
+            globalUldegdel += unpaid;
+          });
+
+          const positive = gereeForGlobal.positiveBalance || 0;
+          gereeForGlobal.globalUldegdel = globalUldegdel - positive;
+          await gereeForGlobal.save();
+        }
+      } catch (recalcErr) {
+        console.error("❌ [QPAY CALLBACK] Error recalculating globalUldegdel:", recalcErr.message);
       }
 
       try {
@@ -1696,13 +1785,22 @@ router.get(
           ).findByIdAndUpdate(
             nekhemjlekh._id,
             {
-              $set: {
-                tuluv: "Төлсөн",
-                tulsunOgnoo: new Date(),
-                ...(paymentTransactionId && {
-                  qpayPaymentId: paymentTransactionId,
-                }),
-              },
+              $set: (() => {
+                const multiPaidAmount = nekhemjlekh.niitTulbur || 0;
+                const multiCurrentUldegdel = (typeof nekhemjlekh.uldegdel === 'number' && !isNaN(nekhemjlekh.uldegdel) && nekhemjlekh.uldegdel > 0)
+                  ? nekhemjlekh.uldegdel
+                  : multiPaidAmount;
+                const multiNewUldegdel = Math.max(0, multiCurrentUldegdel - multiPaidAmount);
+                const multiIsFullyPaid = multiNewUldegdel <= 0.01;
+                return {
+                  tuluv: multiIsFullyPaid ? "Төлсөн" : "Хэсэгчлэн төлсөн",
+                  tulsunOgnoo: new Date(),
+                  uldegdel: multiIsFullyPaid ? 0 : multiNewUldegdel,
+                  ...(paymentTransactionId && {
+                    qpayPaymentId: paymentTransactionId,
+                  }),
+                };
+              })(),
               $push: {
                 paymentHistory: {
                   ognoo: new Date(),
@@ -1801,6 +1899,88 @@ router.get(
               await bankGuilgee.save();
             }
           } catch (bankErr) {
+          }
+
+          // Create gereeniiTulsunAvlaga record to register QPay payment
+          try {
+            const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+            const multiPaidAmt = nekhemjlekh.niitTulbur || 0;
+            const tulsunDoc = new GereeniiTulsunAvlaga(kholbolt)({
+              baiguullagiinId: String(nekhemjlekh.baiguullagiinId),
+              baiguullagiinNer: nekhemjlekh.baiguullagiinNer || "",
+              barilgiinId: nekhemjlekh.barilgiinId || "",
+              gereeniiId: String(nekhemjlekh.gereeniiId),
+              gereeniiDugaar: nekhemjlekh.gereeniiDugaar || "",
+              orshinSuugchId: nekhemjlekh.orshinSuugchId || "",
+              nekhemjlekhId: nekhemjlekh._id?.toString() || null,
+              ognoo: new Date(),
+              tulsunDun: multiPaidAmt,
+              tulsunAldangi: 0,
+              turul: "invoice_payment",
+              zardliinTurul: "",
+              zardliinId: "",
+              zardliinNer: "",
+              tailbar: `QPay төлбөр (Олон нэхэмжлэх) - ${nekhemjlekh.gereeniiDugaar || ""}`,
+              source: "nekhemjlekh",
+              guilgeeKhiisenAjiltniiNer: null,
+              guilgeeKhiisenAjiltniiId: null,
+            });
+            await tulsunDoc.save();
+          } catch (tulsunErr) {
+            console.error("❌ [QPAY MULTI CALLBACK] Error creating gereeniiTulsunAvlaga:", tulsunErr.message);
+          }
+
+          // Update gereeniiTulukhAvlaga uldegdel
+          try {
+            const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+            const multiPaidAmt2 = nekhemjlekh.niitTulbur || 0;
+            let remainingForGeree = multiPaidAmt2;
+            const openTulukhRows = await GereeniiTulukhAvlaga(kholbolt).find({
+              gereeniiId: String(nekhemjlekh.gereeniiId),
+              baiguullagiinId: String(baiguullagiinId),
+              uldegdel: { $gt: 0 },
+            }).sort({ ognoo: 1, createdAt: 1 }).lean();
+
+            for (const row of openTulukhRows) {
+              if (remainingForGeree <= 0) break;
+              const rowUldegdel = row.uldegdel || 0;
+              if (rowUldegdel <= 0) continue;
+              const applyHere = Math.min(remainingForGeree, rowUldegdel);
+              const newRowUldegdel = rowUldegdel - applyHere;
+              await GereeniiTulukhAvlaga(kholbolt).updateOne(
+                { _id: row._id },
+                { $set: { uldegdel: newRowUldegdel } }
+              );
+              remainingForGeree -= applyHere;
+            }
+          } catch (tulukhErr) {
+            console.error("❌ [QPAY MULTI CALLBACK] Error updating gereeniiTulukhAvlaga:", tulukhErr.message);
+          }
+
+          // Recalculate globalUldegdel on the geree
+          try {
+            const gereeForGlobal = await Geree(kholbolt).findById(nekhemjlekh.gereeniiId);
+            if (gereeForGlobal) {
+              const unpaidInvoices = await nekhemjlekhiinTuukh(kholbolt).find({
+                baiguullagiinId: String(baiguullagiinId),
+                gereeniiId: String(nekhemjlekh.gereeniiId),
+                tuluv: { $ne: "Төлсөн" },
+              }).select("niitTulbur uldegdel").lean();
+
+              let globalUldegdel = 0;
+              unpaidInvoices.forEach((inv) => {
+                const unpaid = (typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel))
+                  ? inv.uldegdel
+                  : inv.niitTulbur || 0;
+                globalUldegdel += unpaid;
+              });
+
+              const positive = gereeForGlobal.positiveBalance || 0;
+              gereeForGlobal.globalUldegdel = globalUldegdel - positive;
+              await gereeForGlobal.save();
+            }
+          } catch (recalcErr) {
+            console.error("❌ [QPAY MULTI CALLBACK] Error recalculating globalUldegdel:", recalcErr.message);
           }
 
           // Create ebarimt for each invoice
