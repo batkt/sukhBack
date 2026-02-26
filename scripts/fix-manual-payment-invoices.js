@@ -14,8 +14,7 @@
  *
  * Usage (Linux):
  *   DRY_RUN=true node scripts/fix-manual-payment-invoices.js          # dry-run, show what would happen
- *   node scripts/fix-manual-payment-invoices.js                        # fix invoices only
- *   SAVE_AS_POSITIVE=true node scripts/fix-manual-payment-invoices.js  # also save orphaned payments as positiveBalance
+ *   node scripts/fix-manual-payment-invoices.js                        # apply fixes
  *   ORG_ID=697723dc3e77b46e52ccf577 DRY_RUN=true node scripts/fix-manual-payment-invoices.js
  */
 
@@ -35,9 +34,6 @@ const BaiguullagaModel = require(path.join(projectRoot, "models", "baiguullaga")
 
 const DRY_RUN = process.env.DRY_RUN === "true";
 const ORG_ID = process.env.ORG_ID || null;
-// If true, orphaned prepayments (no unpaid invoice, not in paymentHistory) are
-// added to geree.positiveBalance so they remain visible and reduce globalUldegdel correctly.
-const SAVE_AS_POSITIVE = process.env.SAVE_AS_POSITIVE === "true";
 
 // Initialize database connection
 const app = express();
@@ -128,117 +124,29 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
 
         // Not yet in paymentHistory — check if there are any unpaid invoices to apply to
         if (unpaidInvoices.length === 0) {
-          // No unpaid invoices. The real bug: invoice niitTulbur was too low (missing
-          // ekhniiUldegdel), so it was marked Төлсөн after a small QPay payment.
-          // The manual payment for the REAL amount has nowhere to go.
-          //
-          // Fix: find the paid invoice, correct its niitTulbur/uldegdel, apply this payment.
-          const paidInvoices = await NekhemjlekhModel.find({
-            gereeniiId: gereeniiId,
-            tuluv: "Төлсөн",
-          }).sort({ createdAt: 1 }).lean();
+          // Orphaned prepayment: this payment was already counted in geree.positiveBalance
+          // by the original code path. The gereeniiTulsunAvlaga record just has
+          // nekhemjlekhId=null (dangling bookkeeping). No need to change niitTulbur.
+          const geree = await Geree.findById(gereeniiId).select("positiveBalance globalUldegdel gereeniiDugaar").lean();
+          const positiveBalance = geree?.positiveBalance || 0;
+          const globalUldegdel = geree?.globalUldegdel ?? "?";
+          const gereeniiDugaar = geree?.gereeniiDugaar || gereeniiId;
 
-          let appliedToOrphan = false;
+          console.log(
+            `  [ORPHAN-LINKED] Payment ${tulsunId} (${payment.tulsunDun}₮, date: ${payment.ognoo?.toISOString().slice(0, 10)}) ` +
+            `— geree ${gereeniiDugaar}: already in positiveBalance (${positiveBalance}₮). ` +
+            `${DRY_RUN ? "Would mark" : "Marking"} as processed.`
+          );
 
-          for (const paidInv of paidInvoices) {
-            // Check if this invoice had ekhniiUldegdel in zardluud
-            const ekhniiRow = (paidInv.medeelel?.zardluud || []).find(
-              (z) => z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл"
-            );
-            const invoiceEkhnii = ekhniiRow?.dun || paidInv.ekhniiUldegdel || 0;
-
-            // The invoice already includes ekhniiUldegdel in niitTulbur if > 0
-            // If ekhnii is 0 but payment.tulsunDun > remaining, this invoice is not the target
-            // Check: does this invoice's real total match what should be owed?
-            const currentNiitTulbur = paidInv.niitTulbur || 0;
-
-            // Calculate what was actually paid via paymentHistory
-            const totalPaidViaHistory = (paidInv.paymentHistory || []).reduce(
-              (sum, p) => sum + (p.dun || 0), 0
-            );
-
-            // If the invoice was marked Төлсөн but niitTulbur is very small compared to
-            // this payment, the payment was meant for the real amount (ekhniiUldegdel was missing)
-            // Approach: Add payment.tulsunDun to the invoice → update niitTulbur and uldegdel
-            const expectedTotal = currentNiitTulbur + payment.tulsunDun;
-            const newUldegdel = expectedTotal - totalPaidViaHistory - payment.tulsunDun;
-            // Simpler: newUldegdel = currentNiitTulbur - totalPaidViaHistory
-            // (because we're adding payment.tulsunDun to niitTulbur AND applying payment.tulsunDun)
-            const correctedUldegdel = currentNiitTulbur - totalPaidViaHistory;
-            const isFullyPaid = correctedUldegdel <= 0.01;
-
-            console.log(
-              `  [FIX-NIITTULBUR] Invoice ${paidInv.nekhemjlekhiinDugaar} (${paidInv.gereeniiDugaar}): ` +
-              `niitTulbur ${currentNiitTulbur} → ${expectedTotal} (+${payment.tulsunDun}₮), ` +
-              `paid via history: ${totalPaidViaHistory}₮, ` +
-              `applying manual: ${payment.tulsunDun}₮, ` +
-              `uldegdel → ${isFullyPaid ? 0 : correctedUldegdel} ` +
-              `(${isFullyPaid ? "Төлсөн" : "Хэсэгчлэн төлсөн"})` +
-              (DRY_RUN ? " [DRY RUN]" : "")
-            );
-
-            if (!DRY_RUN) {
-              const updateSet = {
-                niitTulbur: expectedTotal,
-                uldegdel: isFullyPaid ? 0 : correctedUldegdel,
-                tuluv: isFullyPaid ? "Төлсөн" : "Хэсэгчлэн төлсөн",
-              };
-
-              // Also fix ekhniiUldegdel field on the invoice
-              if (invoiceEkhnii === 0) {
-                updateSet.ekhniiUldegdel = payment.tulsunDun;
-              }
-
-              // Update zardluud: fix the ekhniiUldegdel row if it exists
-              const updatedZardluud = (paidInv.medeelel?.zardluud || []).map((z) => {
-                if (z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл") {
-                  return {
-                    ...z,
-                    tariff: (z.tariff || 0) + payment.tulsunDun,
-                    dun: (z.dun || 0) + payment.tulsunDun,
-                  };
-                }
-                return z;
-              });
-
-              if (updatedZardluud.length > 0) {
-                updateSet["medeelel.zardluud"] = updatedZardluud;
-              }
-
-              await NekhemjlekhModel.findByIdAndUpdate(paidInv._id, {
-                $set: updateSet,
-                $push: {
-                  paymentHistory: {
-                    ognoo: payment.ognoo || new Date(),
-                    dun: payment.tulsunDun,
-                    turul: "manual",
-                    guilgeeniiId: tulsunId,
-                    tailbar: payment.tailbar || "Гараар орсон төлбөр (migration)",
-                  },
-                },
-              });
-
-              // Link the gereeniiTulsunAvlaga to this invoice
-              await GereeniiTulsunAvlaga.findByIdAndUpdate(payment._id, {
-                $set: { nekhemjlekhId: paidInv._id.toString() },
-              });
-            }
-
-            fixed++;
-            affectedGerees.add(gereeniiId);
-            appliedToOrphan = true;
-            break; // Applied to first matching paid invoice
+          if (!DRY_RUN) {
+            // Mark this record as processed so it's not picked up again
+            await GereeniiTulsunAvlaga.findByIdAndUpdate(payment._id, {
+              $set: { nekhemjlekhId: "orphan-positiveBalance" },
+            });
           }
 
-          if (!appliedToOrphan) {
-            const geree = await Geree.findById(gereeniiId).select("positiveBalance globalUldegdel gereeniiDugaar").lean();
-            console.log(
-              `  [ORPHAN] Payment ${tulsunId} (${payment.tulsunDun}₮, date: ${payment.ognoo?.toISOString().slice(0, 10)}) ` +
-              `— geree ${geree?.gereeniiDugaar || gereeniiId}: no paid invoice found to fix niitTulbur. ` +
-              `positiveBalance=${geree?.positiveBalance || 0}₮, globalUldegdel=${geree?.globalUldegdel ?? "?"}₮`
-            );
-            skipped++;
-          }
+          fixed++;
+          affectedGerees.add(gereeniiId);
           continue;
         }
 
@@ -357,7 +265,6 @@ async function main() {
   console.log("║   Fix Invoices: Manual Payments Not Applied             ║");
   console.log("╚══════════════════════════════════════════════════════════╝");
   console.log(DRY_RUN ? "🔍 MODE: DRY RUN (no changes will be saved)" : "⚡ MODE: LIVE (changes will be applied)");
-  if (SAVE_AS_POSITIVE) console.log("💰 SAVE_AS_POSITIVE=true: orphaned payments will be added to positiveBalance");
   if (ORG_ID) console.log(`🏢 Filtering by ORG_ID: ${ORG_ID}`);
   console.log(`📊 Available connections: ${db.kholboltuud?.length || 0}`);
 
