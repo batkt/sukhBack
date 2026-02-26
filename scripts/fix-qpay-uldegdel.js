@@ -13,122 +13,56 @@
  *      c) Updates gereeniiTulukhAvlaga uldegdel
  *      d) Recalculates globalUldegdel on affected geree
  *
- * Usage:
- *   DRY_RUN=true node scripts/fix-qpay-uldegdel.js          # preview only
- *   node scripts/fix-qpay-uldegdel.js                        # apply fixes
- *   ORG_ID=<orgId> node scripts/fix-qpay-uldegdel.js         # fix specific org only
- *
- * Env vars:
- *   MONGO_URI     - MongoDB connection string (default: from tokhirgoo.env)
- *   DRY_RUN       - set to "true" to preview changes without writing (default: false)
- *   ORG_ID        - optional: fix only this organization
+ * Usage (Linux):
+ *   DRY_RUN=true node scripts/fix-qpay-uldegdel.js                              # preview
+ *   node scripts/fix-qpay-uldegdel.js                                            # apply all orgs
+ *   ORG_ID=697c70e81e782d8110d3b064 node scripts/fix-qpay-uldegdel.js            # specific org
+ *   DRY_RUN=true ORG_ID=697c70e81e782d8110d3b064 node scripts/fix-qpay-uldegdel.js  # preview specific org
  */
 
-const mongoose = require("mongoose");
 const path = require("path");
+const express = require("express");
+const dotenv = require("dotenv");
 
-// Load env
-require("dotenv").config({
-  path: path.resolve(__dirname, "../tokhirgoo/tokhirgoo.env"),
-});
+// Change to project root
+const projectRoot = path.resolve(__dirname, "..");
+process.chdir(projectRoot);
 
-const MONGO_URI =
-  process.env.MONGO_URI ||
-  "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin";
+// Load environment variables
+dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
+
+const { db } = require("zevbackv2");
+const NekhemjlekhiinTuukhModel = require(path.join(projectRoot, "models", "nekhemjlekhiinTuukh"));
+const GereeModel = require(path.join(projectRoot, "models", "geree"));
+const GereeniiTulsunAvlagaModel = require(path.join(projectRoot, "models", "gereeniiTulsunAvlaga"));
+const GereeniiTulukhAvlagaModel = require(path.join(projectRoot, "models", "gereeniiTulukhAvlaga"));
+const BaiguullagaModel = require(path.join(projectRoot, "models", "baiguullaga"));
+
 const DRY_RUN = process.env.DRY_RUN === "true";
 const ORG_ID = process.env.ORG_ID || null;
 
-// ─── Schema stubs (minimal, just the fields we need) ──────────────────────
-const nekhemjlekhiinTuukhSchema = new mongoose.Schema(
-  {
-    baiguullagiinId: String,
-    baiguullagiinNer: String,
-    barilgiinId: String,
-    gereeniiId: String,
-    gereeniiDugaar: String,
-    orshinSuugchId: String,
-    niitTulbur: Number,
-    uldegdel: Number,
-    tuluv: String,
-    tulsunOgnoo: Date,
-    paymentHistory: [mongoose.Schema.Types.Mixed],
-    qpayInvoiceId: String,
-    qpayPaymentId: String,
-  },
-  { strict: false, collection: "nekhemjlekhiinTuukh" }
+// Initialize database connection (same as index.js)
+const app = express();
+db.kholboltUusgey(
+  app,
+  process.env.MONGODB_URI ||
+    "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
 );
 
-const gereeniiTulsunAvlagaSchema = new mongoose.Schema(
-  {
-    baiguullagiinId: String,
-    baiguullagiinNer: String,
-    barilgiinId: String,
-    gereeniiId: String,
-    gereeniiDugaar: String,
-    orshinSuugchId: String,
-    nekhemjlekhId: String,
-    ognoo: Date,
-    tulsunDun: Number,
-    tulsunAldangi: Number,
-    turul: String,
-    zardliinTurul: String,
-    zardliinId: String,
-    zardliinNer: String,
-    tailbar: String,
-    source: String,
-    guilgeeKhiisenAjiltniiNer: String,
-    guilgeeKhiisenAjiltniiId: String,
-  },
-  { strict: false, collection: "gereeniiTulsunAvlaga", timestamps: true }
-);
+async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
+  const NekhemjlekhiinTuukh = NekhemjlekhiinTuukhModel(kholbolt);
+  const Geree = GereeModel(kholbolt);
+  const GereeniiTulsunAvlaga = GereeniiTulsunAvlagaModel(kholbolt);
+  const GereeniiTulukhAvlaga = GereeniiTulukhAvlagaModel(kholbolt);
 
-const gereeniiTulukhAvlagaSchema = new mongoose.Schema(
-  {
-    baiguullagiinId: String,
-    barilgiinId: String,
-    gereeniiId: String,
-    ognoo: Date,
-    undsenDun: Number,
-    tulukhDun: Number,
-    uldegdel: Number,
-  },
-  { strict: false, collection: "gereeniiTulukhAvlaga" }
-);
+  let fixedUldegdel = 0;
+  let createdTulsun = 0;
+  let updatedTulukh = 0;
+  let errors = 0;
+  const affectedGerees = new Set();
 
-const gereeSchema = new mongoose.Schema(
-  {
-    baiguullagiinId: String,
-    gereeniiDugaar: String,
-    globalUldegdel: Number,
-    positiveBalance: Number,
-    orshinSuugchId: String,
-  },
-  { strict: false, collection: "geree" }
-);
-
-// ─── Main ─────────────────────────────────────────────────────────────────
-async function main() {
-  console.log("╔══════════════════════════════════════════════════════════╗");
-  console.log("║   QPay Uldegdel Fix Migration Script                    ║");
-  console.log("╚══════════════════════════════════════════════════════════╝");
-  console.log(DRY_RUN ? "🔍 MODE: DRY RUN (no changes will be saved)" : "⚡ MODE: LIVE (changes will be applied)");
-  if (ORG_ID) console.log(`🏢 Filtering by ORG_ID: ${ORG_ID}`);
-  console.log("");
-
-  // Connect
-  const conn = await mongoose.createConnection(MONGO_URI).asPromise();
-  console.log("✅ Connected to MongoDB");
-
-  // Register models on this connection
-  const NekhemjlekhiinTuukh = conn.model("NekhemjlekhiinTuukh", nekhemjlekhiinTuukhSchema);
-  const GereeniiTulsunAvlaga = conn.model("GereeniiTulsunAvlaga", gereeniiTulsunAvlagaSchema);
-  const GereeniiTulukhAvlaga = conn.model("GereeniiTulukhAvlaga", gereeniiTulukhAvlagaSchema);
-  const Geree = conn.model("Geree", gereeSchema);
-
-  // ─── Step 1: Find broken invoices ───────────────────────────────────
-  console.log("\n── Step 1: Finding invoices with QPay payments but uldegdel not updated ──");
-
-  const invoiceQuery = {
+  // ─── Step 1: Find broken invoices (tuluv=Төлсөн + qpay payment + uldegdel > 0) ──
+  const brokenInvoices = await NekhemjlekhiinTuukh.find({
     tuluv: "Төлсөн",
     "paymentHistory.turul": "qpay",
     $or: [
@@ -136,46 +70,34 @@ async function main() {
       { uldegdel: { $exists: false } },
       { uldegdel: null },
     ],
-  };
+  }).lean();
 
-  if (ORG_ID) {
-    invoiceQuery.baiguullagiinId = ORG_ID;
-  }
+  console.log(`  📄 Invoices with uldegdel not zeroed: ${brokenInvoices.length}`);
 
-  const brokenInvoices = await NekhemjlekhiinTuukh.find(invoiceQuery).lean();
-  console.log(`Found ${brokenInvoices.length} invoices with uldegdel not properly set`);
-
-  // ─── Step 2: Find invoices missing gereeniiTulsunAvlaga records ─────
-  console.log("\n── Step 2: Finding invoices missing gereeniiTulsunAvlaga records ──");
-
-  const paidQpayQuery = {
+  // ─── Step 2: Find invoices missing gereeniiTulsunAvlaga records ──
+  const allPaidQpayInvoices = await NekhemjlekhiinTuukh.find({
     tuluv: "Төлсөн",
     "paymentHistory.turul": "qpay",
-  };
-  if (ORG_ID) paidQpayQuery.baiguullagiinId = ORG_ID;
-
-  const allPaidQpayInvoices = await NekhemjlekhiinTuukh.find(paidQpayQuery)
+  })
     .select("_id baiguullagiinId baiguullagiinNer barilgiinId gereeniiId gereeniiDugaar orshinSuugchId niitTulbur uldegdel paymentHistory tulsunOgnoo")
     .lean();
 
-  console.log(`Found ${allPaidQpayInvoices.length} total paid QPay invoices`);
+  console.log(`  📄 Total paid QPay invoices found: ${allPaidQpayInvoices.length}`);
 
-  // Check which ones are missing tulsunAvlaga records
   const invoicesMissingTulsun = [];
   for (const inv of allPaidQpayInvoices) {
     const existingTulsun = await GereeniiTulsunAvlaga.findOne({
       nekhemjlekhId: inv._id.toString(),
       turul: "invoice_payment",
     }).lean();
-
     if (!existingTulsun) {
       invoicesMissingTulsun.push(inv);
     }
   }
 
-  console.log(`Found ${invoicesMissingTulsun.length} invoices missing gereeniiTulsunAvlaga records`);
+  console.log(`  📄 Invoices missing gereeniiTulsunAvlaga: ${invoicesMissingTulsun.length}`);
 
-  // ─── Combine unique invoices to fix ─────────────────────────────────
+  // ─── Combine unique invoices ──
   const allInvoiceIds = new Set();
   const allInvoicesToFix = [];
 
@@ -190,39 +112,24 @@ async function main() {
     }
   }
 
-  console.log(`\n📋 Total unique invoices to fix: ${allInvoicesToFix.length}`);
+  console.log(`  📋 Total unique invoices to fix: ${allInvoicesToFix.length}`);
 
   if (allInvoicesToFix.length === 0) {
-    console.log("\n✅ No broken data found. Everything looks good!");
-    await conn.close();
-    return;
+    console.log(`  ✅ No broken data for ${orgName}`);
+    return { fixedUldegdel, createdTulsun, updatedTulukh, recalculated: 0, errors };
   }
 
-  // ─── Step 3: Fix each invoice ───────────────────────────────────────
-  console.log("\n── Step 3: Applying fixes ──");
-
-  let fixedUldegdel = 0;
-  let createdTulsun = 0;
-  let updatedTulukh = 0;
-  const affectedGerees = new Set();
-  let errors = 0;
-
+  // ─── Step 3: Fix each invoice ──
   for (let i = 0; i < allInvoicesToFix.length; i++) {
     const inv = allInvoicesToFix[i];
     const invoiceId = inv._id.toString();
     const gereeniiId = inv.gereeniiId;
 
     try {
-      // Calculate total QPay payments from paymentHistory
-      const qpayPayments = (inv.paymentHistory || []).filter(
-        (p) => p.turul === "qpay"
-      );
-      const totalQpayPaid = qpayPayments.reduce(
-        (sum, p) => sum + (p.dun || 0),
-        0
-      );
+      const qpayPayments = (inv.paymentHistory || []).filter((p) => p.turul === "qpay");
+      const totalQpayPaid = qpayPayments.reduce((sum, p) => sum + (p.dun || 0), 0);
 
-      // ─── Fix 3a: Update uldegdel ───────
+      // ─── Fix 3a: Update uldegdel ───
       const currentUldegdel = inv.uldegdel;
       const needsUldegdelFix =
         typeof currentUldegdel !== "number" ||
@@ -244,14 +151,12 @@ async function main() {
         }
         fixedUldegdel++;
 
-        if ((i + 1) % 50 === 0 || allInvoicesToFix.length <= 20) {
-          console.log(
-            `  [${i + 1}/${allInvoicesToFix.length}] Invoice ${invoiceId}: uldegdel ${currentUldegdel} → ${newUldegdel} (paid: ${totalQpayPaid})`
-          );
+        if (allInvoicesToFix.length <= 20 || (i + 1) % 50 === 0) {
+          console.log(`    [${i + 1}/${allInvoicesToFix.length}] ${invoiceId}: uldegdel ${currentUldegdel} → ${newUldegdel} (paid: ${totalQpayPaid})`);
         }
       }
 
-      // ─── Fix 3b: Create missing gereeniiTulsunAvlaga ───────
+      // ─── Fix 3b: Create missing gereeniiTulsunAvlaga ───
       const existingTulsun = await GereeniiTulsunAvlaga.findOne({
         nekhemjlekhId: invoiceId,
         turul: "invoice_payment",
@@ -264,9 +169,9 @@ async function main() {
             : inv.tulsunOgnoo || new Date();
 
         if (!DRY_RUN) {
-          await GereeniiTulsunAvlaga.create({
-            baiguullagiinId: String(inv.baiguullagiinId),
-            baiguullagiinNer: inv.baiguullagiinNer || "",
+          const tulsunDoc = new GereeniiTulsunAvlaga({
+            baiguullagiinId: String(inv.baiguullagiinId || baiguullagiinId),
+            baiguullagiinNer: inv.baiguullagiinNer || orgName || "",
             barilgiinId: inv.barilgiinId || "",
             gereeniiId: String(gereeniiId),
             gereeniiDugaar: inv.gereeniiDugaar || "",
@@ -284,16 +189,16 @@ async function main() {
             guilgeeKhiisenAjiltniiNer: null,
             guilgeeKhiisenAjiltniiId: null,
           });
+          await tulsunDoc.save();
         }
         createdTulsun++;
       }
 
-      // ─── Fix 3c: Update gereeniiTulukhAvlaga uldegdel ───────
+      // ─── Fix 3c: Update gereeniiTulukhAvlaga uldegdel ───
       if (gereeniiId && totalQpayPaid > 0) {
-        // Check if there are open tulukh rows that should have been reduced
         const openTulukhRows = await GereeniiTulukhAvlaga.find({
           gereeniiId: String(gereeniiId),
-          baiguullagiinId: String(inv.baiguullagiinId),
+          baiguullagiinId: String(inv.baiguullagiinId || baiguullagiinId),
           uldegdel: { $gt: 0 },
         })
           .sort({ ognoo: 1, createdAt: 1 })
@@ -318,29 +223,20 @@ async function main() {
         }
       }
 
-      // Track affected gerees for globalUldegdel recalculation
       if (gereeniiId) {
-        affectedGerees.add(`${inv.baiguullagiinId}::${gereeniiId}`);
+        affectedGerees.add(gereeniiId);
       }
     } catch (err) {
       errors++;
-      console.error(
-        `  ❌ Error fixing invoice ${invoiceId}:`,
-        err.message
-      );
+      console.error(`    ❌ Error fixing invoice ${invoiceId}:`, err.message);
     }
   }
 
-  // ─── Step 4: Recalculate globalUldegdel for affected gerees ─────────
-  console.log(`\n── Step 4: Recalculating globalUldegdel for ${affectedGerees.size} affected contracts ──`);
-
+  // ─── Step 4: Recalculate globalUldegdel ──
   let recalculated = 0;
-  for (const key of affectedGerees) {
-    const [baiguullagiinId, gereeniiId] = key.split("::");
-
+  for (const gereeniiId of affectedGerees) {
     try {
       const unpaidInvoices = await NekhemjlekhiinTuukh.find({
-        baiguullagiinId: String(baiguullagiinId),
         gereeniiId: String(gereeniiId),
         tuluv: { $ne: "Төлсөн" },
       })
@@ -366,31 +262,87 @@ async function main() {
           await geree.save();
         }
         recalculated++;
-
-        if (recalculated % 50 === 0 || affectedGerees.size <= 20) {
-          console.log(
-            `  Geree ${gereeniiId}: globalUldegdel → ${newGlobalUldegdel} (unpaid: ${globalUldegdel}, positive: ${positive})`
-          );
-        }
       }
     } catch (err) {
-      console.error(
-        `  ❌ Error recalculating geree ${gereeniiId}:`,
-        err.message
-      );
+      console.error(`    ❌ Error recalculating geree ${gereeniiId}:`, err.message);
     }
   }
 
-  // ─── Summary ────────────────────────────────────────────────────────
+  console.log(`  🔄 Recalculated globalUldegdel for ${recalculated} gerees`);
+
+  return { fixedUldegdel, createdTulsun, updatedTulukh, recalculated, errors };
+}
+
+async function main() {
+  // Wait for zevbackv2 to establish all connections
+  console.log("⏳ Waiting for database connections to initialize...");
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+
+  console.log("╔══════════════════════════════════════════════════════════╗");
+  console.log("║   QPay Uldegdel Fix Migration Script                    ║");
+  console.log("╚══════════════════════════════════════════════════════════╝");
+  console.log(DRY_RUN ? "🔍 MODE: DRY RUN (no changes will be saved)" : "⚡ MODE: LIVE (changes will be applied)");
+  if (ORG_ID) console.log(`🏢 Filtering by ORG_ID: ${ORG_ID}`);
+  console.log(`📊 Available connections: ${db.kholboltuud?.length || 0}`);
+  console.log("");
+
+  if (!db.kholboltuud || db.kholboltuud.length === 0) {
+    console.error("❌ No database connections found! Make sure zevbackv2 is initialized.");
+    process.exit(1);
+  }
+
+  // Get organizations to process
+  let kholboltuudToProcess = db.kholboltuud;
+
+  if (ORG_ID) {
+    kholboltuudToProcess = db.kholboltuud.filter(
+      (k) => String(k.baiguullagiinId) === String(ORG_ID)
+    );
+    if (kholboltuudToProcess.length === 0) {
+      console.error(`❌ No connection found for ORG_ID: ${ORG_ID}`);
+      console.log("Available org IDs:");
+      db.kholboltuud.forEach((k) => console.log(`  - ${k.baiguullagiinId}`));
+      process.exit(1);
+    }
+  }
+
+  let totalFixed = { fixedUldegdel: 0, createdTulsun: 0, updatedTulukh: 0, recalculated: 0, errors: 0 };
+
+  for (const kholbolt of kholboltuudToProcess) {
+    const baiguullagiinId = kholbolt.baiguullagiinId;
+
+    // Try to get org name
+    let orgName = baiguullagiinId;
+    try {
+      const baiguullaga = await BaiguullagaModel(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
+      if (baiguullaga) orgName = baiguullaga.ner || baiguullagiinId;
+    } catch (e) {}
+
+    console.log(`\n── Processing: ${orgName} (${baiguullagiinId}) ──`);
+
+    try {
+      const result = await fixOrgData(kholbolt, baiguullagiinId, orgName);
+      totalFixed.fixedUldegdel += result.fixedUldegdel;
+      totalFixed.createdTulsun += result.createdTulsun;
+      totalFixed.updatedTulukh += result.updatedTulukh;
+      totalFixed.recalculated += result.recalculated;
+      totalFixed.errors += result.errors;
+    } catch (err) {
+      console.error(`  ❌ Error processing org ${baiguullagiinId}:`, err.message);
+      totalFixed.errors++;
+    }
+  }
+
+  // ─── Summary ──
   console.log("\n╔══════════════════════════════════════════════════════════╗");
   console.log("║   Migration Summary                                     ║");
   console.log("╚══════════════════════════════════════════════════════════╝");
   console.log(`  ${DRY_RUN ? "🔍 DRY RUN" : "⚡ APPLIED"}`);
-  console.log(`  📄 Invoices with uldegdel fixed:       ${fixedUldegdel}`);
-  console.log(`  📝 gereeniiTulsunAvlaga records created: ${createdTulsun}`);
-  console.log(`  📉 gereeniiTulukhAvlaga rows updated:   ${updatedTulukh}`);
-  console.log(`  🔄 Geree globalUldegdel recalculated:   ${recalculated}`);
-  console.log(`  ❌ Errors:                               ${errors}`);
+  console.log(`  📄 Invoices with uldegdel fixed:        ${totalFixed.fixedUldegdel}`);
+  console.log(`  📝 gereeniiTulsunAvlaga records created: ${totalFixed.createdTulsun}`);
+  console.log(`  📉 gereeniiTulukhAvlaga rows updated:   ${totalFixed.updatedTulukh}`);
+  console.log(`  🔄 Geree globalUldegdel recalculated:   ${totalFixed.recalculated}`);
+  console.log(`  ❌ Errors:                               ${totalFixed.errors}`);
   console.log("");
 
   if (DRY_RUN) {
@@ -398,8 +350,8 @@ async function main() {
     console.log("   node scripts/fix-qpay-uldegdel.js");
   }
 
-  await conn.close();
-  console.log("\n✅ Done. MongoDB connection closed.");
+  console.log("\n✅ Done.");
+  process.exit(0);
 }
 
 main().catch((err) => {
