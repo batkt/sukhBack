@@ -294,9 +294,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 console.log(`[2ND FLOOR DISCOUNT] gereeNeesNekhemjlekhUusgekh electricity update path: Applied discount. New total: ${newTotal}`);
               }
 
+              // Recalculate uldegdel and status based on payments already made
+              const tulsunDun = (existingInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
               existingInvoice.niitTulbur = newTotal;
               existingInvoice.tsahilgaanNekhemjlekh = newZaaltDun;
-              existingInvoice.uldegdel = newTotal;
+              existingInvoice.uldegdel = Math.max(0, newTotal - tulsunDun);
+              
+              if (existingInvoice.uldegdel <= 0.01) {
+                existingInvoice.tuluv = "Төлсөн";
+              } else if (tulsunDun > 0) {
+                existingInvoice.tuluv = "Хэсэгчлэн төлсөн";
+              } else {
+                existingInvoice.tuluv = "Төлөөгүй";
+              }
 
               await existingInvoice.save();
 
@@ -325,10 +335,22 @@ const gereeNeesNekhemjlekhUusgekh = async (
           const discountedTotal = Math.max(0, zardluudTotal - 4495.42);
           // Only update if the current niitTulbur doesn't already have the discount
           if (Math.abs(existingInvoice.niitTulbur - discountedTotal) > 1) {
+            // Recalculate uldegdel and status based on payments already made
+            const tulsunDun = (existingInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
             existingInvoice.niitTulbur = discountedTotal;
-            existingInvoice.uldegdel = discountedTotal;
+            existingInvoice.uldegdel = Math.max(0, discountedTotal - tulsunDun);
+            
+            if (existingInvoice.uldegdel <= 0.01) {
+              existingInvoice.tuluv = "Төлсөн";
+            } else if (tulsunDun > 0) {
+              existingInvoice.tuluv = "Хэсэгчлэн төлсөн";
+            } else {
+              existingInvoice.tuluv = "Төлөөгүй";
+            }
+            
             existingInvoice.markModified("niitTulbur");
             existingInvoice.markModified("uldegdel");
+            existingInvoice.markModified("tuluv");
             await existingInvoice.save();
             console.log(`[2ND FLOOR DISCOUNT] gereeNeesNekhemjlekhUusgekh existing invoice path: Applied discount. Old: ${zardluudTotal}, New: ${discountedTotal}`);
           }
