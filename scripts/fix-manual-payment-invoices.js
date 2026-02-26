@@ -89,31 +89,46 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
       tuluv: { $nin: ["Төлсөн", "Хүчингүй"] },
     }).sort({ createdAt: 1 }).lean();
 
-    if (unpaidInvoices.length === 0) {
-      skipped += payments.length;
-      continue;
-    }
-
     // Apply each prepayment in order
     for (const payment of payments) {
       const tulsunId = payment._id.toString();
 
       try {
         // Check if this payment is already in any invoice's paymentHistory
+        // (search ALL invoices for this geree — including fully paid ones)
         const alreadyApplied = await NekhemjlekhModel.findOne({
           gereeniiId: gereeniiId,
           "paymentHistory.guilgeeniiId": tulsunId,
         }).lean();
 
         if (alreadyApplied) {
-          // Already applied — update gereeniiTulsunAvlaga nekhemjlekhId if missing
+          // Already applied — fix nekhemjlekhId backlink if missing
           if (!payment.nekhemjlekhId) {
+            console.log(
+              `  [${alreadyApplied.gereeniiDugaar}] Payment ${tulsunId} already in paymentHistory ` +
+              `of invoice ${alreadyApplied.nekhemjlekhiinDugaar} — ${
+                DRY_RUN ? "would fix" : "fixing"
+              } nekhemjlekhId backlink`
+            );
             if (!DRY_RUN) {
               await GereeniiTulsunAvlaga.findByIdAndUpdate(payment._id, {
                 $set: { nekhemjlekhId: alreadyApplied._id.toString() },
               });
             }
+          } else {
+            console.log(
+              `  [SKIP] Payment ${tulsunId} already fully linked (nekhemjlekhId=${payment.nekhemjlekhId})`
+            );
           }
+          skipped++;
+          continue;
+        }
+
+        // Not yet in paymentHistory — check if there are any unpaid invoices to apply to
+        if (unpaidInvoices.length === 0) {
+          console.log(
+            `  [SKIP] Payment ${tulsunId} (${payment.tulsunDun}₮): no unpaid invoices and not in paymentHistory`
+          );
           skipped++;
           continue;
         }
