@@ -68,7 +68,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 nekhemjlekhiinTuukhSchema.virtual("canPay").get(function () {
@@ -93,8 +93,44 @@ nekhemjlekhiinTuukhSchema.set("toJSON", { virtuals: true });
 // Add unique index on nekhemjlekhiinDugaar
 nekhemjlekhiinTuukhSchema.index(
   { nekhemjlekhiinDugaar: 1 },
-  { unique: true, sparse: true }
+  { unique: true, sparse: true },
 );
+
+// Ensure tuluv and uldegdel always stay consistent with payments
+nekhemjlekhiinTuukhSchema.pre("save", function (next) {
+  try {
+    const invoice = this;
+
+    if (typeof invoice.niitTulbur === "number") {
+      const totalPaid = (invoice.paymentHistory || []).reduce(
+        (sum, p) => sum + (p.dun || 0),
+        0,
+      );
+
+      const remaining = Math.max(0, invoice.niitTulbur - totalPaid);
+      invoice.uldegdel = remaining;
+
+      if (remaining <= 0.01) {
+        // Fully paid
+        invoice.tuluv = "Төлсөн";
+      } else {
+        // Not fully paid → NEVER keep as "Төлсөн"
+        if (invoice.tuluv === "Хугацаа хэтэрсэн") {
+          // Keep overdue if it was already overdue and still has balance
+          invoice.tuluv = "Хугацаа хэтэрсэн";
+        } else if (totalPaid > 0) {
+          invoice.tuluv = "Хэсэгчлэн төлсөн";
+        } else {
+          invoice.tuluv = "Төлөөгүй";
+        }
+      }
+    }
+
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Post-query hooks to populate zardal based on tailbar
 nekhemjlekhiinTuukhSchema.post("find", async function (docs) {
@@ -122,7 +158,7 @@ nekhemjlekhiinTuukhSchema.post("find", async function (docs) {
     // Fetch all matching zardluud
     for (const [key, { baiguullagiinId, tailbar, barilgiinId }] of tailbarMap) {
       const kholbolt = db.kholboltuud.find(
-        (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
       );
 
       if (kholbolt) {
@@ -164,7 +200,7 @@ nekhemjlekhiinTuukhSchema.post("findOne", async function (doc) {
     const AshiglaltiinZardluud = require("./ashiglaltiinZardluud");
 
     const kholbolt = db.kholboltuud.find(
-      (k) => String(k.baiguullagiinId) === String(doc.baiguullagiinId)
+      (k) => String(k.baiguullagiinId) === String(doc.baiguullagiinId),
     );
 
     if (kholbolt) {
@@ -196,51 +232,74 @@ const handleBalanceOnDelete = async function (doc) {
       const GereeniiTulukhAvlaga = require("./gereeniiTulukhAvlaga");
 
       const kholbolt = db.kholboltuud.find(
-        (k) => String(k.baiguullagiinId) === String(doc.baiguullagiinId)
+        (k) => String(k.baiguullagiinId) === String(doc.baiguullagiinId),
       );
 
       if (kholbolt) {
         // Update globalUldegdel only by the UNPAID amount (uldegdel)
         // This prevents double-deduction when a paid/partially paid invoice is deleted
-        const unpaidAmount = typeof doc.uldegdel === "number" ? Math.max(0, doc.uldegdel) : (doc.tuluv === "Төлсөн" ? 0 : doc.niitTulbur);
+        const unpaidAmount =
+          typeof doc.uldegdel === "number"
+            ? Math.max(0, doc.uldegdel)
+            : doc.tuluv === "Төлсөн"
+              ? 0
+              : doc.niitTulbur;
 
         if (unpaidAmount > 0) {
           await Geree(kholbolt).findByIdAndUpdate(doc.gereeniiId, {
             $inc: { globalUldegdel: -unpaidAmount },
           });
-          console.log(`📉 [Middleware] Decremented globalUldegdel by ${unpaidAmount} (unpaid) for invoice ${doc.nekhemjlekhiinDugaar || doc._id}`);
+          console.log(
+            `📉 [Middleware] Decremented globalUldegdel by ${unpaidAmount} (unpaid) for invoice ${doc.nekhemjlekhiinDugaar || doc._id}`,
+          );
         } else {
-          console.log(`ℹ️ [Middleware] No globalUldegdel decrement needed for ${doc.tuluv} invoice ${doc.nekhemjlekhiinDugaar || doc._id}`);
+          console.log(
+            `ℹ️ [Middleware] No globalUldegdel decrement needed for ${doc.tuluv} invoice ${doc.nekhemjlekhiinDugaar || doc._id}`,
+          );
         }
 
         // Cascade delete related records from gereeniiTulsunAvlaga
         try {
-          const tulsunDeleteResult = await GereeniiTulsunAvlaga(kholbolt).deleteMany({
+          const tulsunDeleteResult = await GereeniiTulsunAvlaga(
+            kholbolt,
+          ).deleteMany({
             $or: [
               { nekhemjlekhId: String(doc._id) },
-              { nekhemjlekhId: doc._id }
-            ]
+              { nekhemjlekhId: doc._id },
+            ],
           });
           if (tulsunDeleteResult.deletedCount > 0) {
-            console.log(`🗑️ [Middleware] Cascade deleted ${tulsunDeleteResult.deletedCount} gereeniiTulsunAvlaga records for nekhemjlekh ${doc._id}`);
+            console.log(
+              `🗑️ [Middleware] Cascade deleted ${tulsunDeleteResult.deletedCount} gereeniiTulsunAvlaga records for nekhemjlekh ${doc._id}`,
+            );
           }
         } catch (tulsunError) {
-          console.error("Error cascade deleting gereeniiTulsunAvlaga:", tulsunError.message);
+          console.error(
+            "Error cascade deleting gereeniiTulsunAvlaga:",
+            tulsunError.message,
+          );
         }
 
         // Cascade delete related records from gereeniiTulukhAvlaga
         try {
-          const tulukhDeleteResult = await GereeniiTulukhAvlaga(kholbolt).deleteMany({
+          const tulukhDeleteResult = await GereeniiTulukhAvlaga(
+            kholbolt,
+          ).deleteMany({
             $or: [
               { nekhemjlekhId: String(doc._id) },
-              { nekhemjlekhId: doc._id }
-            ]
+              { nekhemjlekhId: doc._id },
+            ],
           });
           if (tulukhDeleteResult.deletedCount > 0) {
-            console.log(`🗑️ [Middleware] Cascade deleted ${tulukhDeleteResult.deletedCount} gereeniiTulukhAvlaga records for nekhemjlekh ${doc._id}`);
+            console.log(
+              `🗑️ [Middleware] Cascade deleted ${tulukhDeleteResult.deletedCount} gereeniiTulukhAvlaga records for nekhemjlekh ${doc._id}`,
+            );
           }
         } catch (tulukhError) {
-          console.error("Error cascade deleting gereeniiTulukhAvlaga:", tulukhError.message);
+          console.error(
+            "Error cascade deleting gereeniiTulukhAvlaga:",
+            tulukhError.message,
+          );
         }
       }
     } catch (error) {
@@ -249,14 +308,18 @@ const handleBalanceOnDelete = async function (doc) {
   }
 };
 
-nekhemjlekhiinTuukhSchema.pre("deleteOne", { document: true, query: true }, async function () {
-  if (this instanceof mongoose.Document) {
-    await handleBalanceOnDelete(this);
-  } else {
-    const doc = await this.model.findOne(this.getQuery());
-    await handleBalanceOnDelete(doc);
-  }
-});
+nekhemjlekhiinTuukhSchema.pre(
+  "deleteOne",
+  { document: true, query: true },
+  async function () {
+    if (this instanceof mongoose.Document) {
+      await handleBalanceOnDelete(this);
+    } else {
+      const doc = await this.model.findOne(this.getQuery());
+      await handleBalanceOnDelete(doc);
+    }
+  },
+);
 
 nekhemjlekhiinTuukhSchema.pre("findOneAndDelete", async function () {
   const doc = await this.model.findOne(this.getQuery());
