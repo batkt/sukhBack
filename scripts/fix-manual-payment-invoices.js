@@ -8,16 +8,15 @@
  *
  * This script:
  *   1. Finds gereeniiTulsunAvlaga records with turul='prepayment' and nekhemjlekhId=null
- *   2. Checks if the contract has unpaid invoices whose paymentHistory does NOT already
- *      contain an entry with the same guilgeeniiId (to avoid double-applying)
- *   3. Applies the payment to unpaid invoices oldest-first
- *   4. Updates uldegdel and tuluv on the invoice
- *   5. Adds paymentHistory entry to the invoice
+ *   2. Checks if the payment is already in any invoice's paymentHistory → fixes backlink only
+ *   3. If not applied yet: applies to oldest unpaid invoice first
+ *   4. If no unpaid invoices: orphaned payment — either log (dry-run) or save as positiveBalance
  *
  * Usage (Linux):
- *   DRY_RUN=true node scripts/fix-manual-payment-invoices.js
+ *   DRY_RUN=true node scripts/fix-manual-payment-invoices.js          # dry-run, show what would happen
+ *   node scripts/fix-manual-payment-invoices.js                        # fix invoices only
+ *   SAVE_AS_POSITIVE=true node scripts/fix-manual-payment-invoices.js  # also save orphaned payments as positiveBalance
  *   ORG_ID=697723dc3e77b46e52ccf577 DRY_RUN=true node scripts/fix-manual-payment-invoices.js
- *   node scripts/fix-manual-payment-invoices.js
  */
 
 const path = require("path");
@@ -36,6 +35,9 @@ const BaiguullagaModel = require(path.join(projectRoot, "models", "baiguullaga")
 
 const DRY_RUN = process.env.DRY_RUN === "true";
 const ORG_ID = process.env.ORG_ID || null;
+// If true, orphaned prepayments (no unpaid invoice, not in paymentHistory) are
+// added to geree.positiveBalance so they remain visible and reduce globalUldegdel correctly.
+const SAVE_AS_POSITIVE = process.env.SAVE_AS_POSITIVE === "true";
 
 // Initialize database connection
 const app = express();
@@ -126,10 +128,36 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
 
         // Not yet in paymentHistory — check if there are any unpaid invoices to apply to
         if (unpaidInvoices.length === 0) {
-          console.log(
-            `  [SKIP] Payment ${tulsunId} (${payment.tulsunDun}₮): no unpaid invoices and not in paymentHistory`
-          );
-          skipped++;
+          // Orphaned prepayment: money was received but all invoices are already paid
+          // (likely paid via QPay/bank transfer). Show diagnostic info.
+          const geree = await Geree.findById(gereeniiId).select("positiveBalance globalUldegdel gereeniiDugaar").lean();
+          const positiveBalance = geree?.positiveBalance || 0;
+          const globalUldegdel = geree?.globalUldegdel ?? "?";
+          const gereeniiDugaar = geree?.gereeniiDugaar || gereeniiId;
+
+          if (SAVE_AS_POSITIVE) {
+            // Add orphaned amount to positiveBalance so it's not lost
+            console.log(
+              `  [${gereeniiDugaar}] Orphaned payment ${tulsunId} (${payment.tulsunDun}₮) → ${
+                DRY_RUN ? "would add" : "adding"
+              } to positiveBalance (was ${positiveBalance}₮, globalUldegdel=${globalUldegdel}₮)`
+            );
+            if (!DRY_RUN) {
+              await Geree.findByIdAndUpdate(gereeniiId, {
+                $inc: { positiveBalance: payment.tulsunDun },
+              });
+              // Link the gereeniiTulsunAvlaga to the geree (nekhemjlekhId stays null = positiveBalance)
+            }
+            fixed++;
+            affectedGerees.add(gereeniiId);
+          } else {
+            console.log(
+              `  [ORPHAN] Payment ${tulsunId} (${payment.tulsunDun}₮, date: ${payment.ognoo?.toISOString().slice(0, 10)}) ` +
+              `— geree ${gereeniiDugaar}: positiveBalance=${positiveBalance}₮, globalUldegdel=${globalUldegdel}₮. ` +
+              `Run with SAVE_AS_POSITIVE=true to add to positiveBalance.`
+            );
+            skipped++;
+          }
           continue;
         }
 
@@ -248,6 +276,7 @@ async function main() {
   console.log("║   Fix Invoices: Manual Payments Not Applied             ║");
   console.log("╚══════════════════════════════════════════════════════════╝");
   console.log(DRY_RUN ? "🔍 MODE: DRY RUN (no changes will be saved)" : "⚡ MODE: LIVE (changes will be applied)");
+  if (SAVE_AS_POSITIVE) console.log("💰 SAVE_AS_POSITIVE=true: orphaned payments will be added to positiveBalance");
   if (ORG_ID) console.log(`🏢 Filtering by ORG_ID: ${ORG_ID}`);
   console.log(`📊 Available connections: ${db.kholboltuud?.length || 0}`);
 
