@@ -1390,7 +1390,7 @@ router.get(
           ) {
             await QuickQpayObject(kholbolt).findByIdAndUpdate(
               qpayObject._id,
-              { sukhNekhemjlekh: sukhemjlekhData },
+              { sukhNekhemjlekh: sukhemjlekhData, tulsunEsekh: true },
               { new: true }
             );
           }
