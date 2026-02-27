@@ -158,9 +158,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 (z) =>
                   z.zaalt === true &&
                   z.ner &&
-                  z.ner.toLowerCase().includes("Ñ†Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½") &&
-                  !z.ner.toLowerCase().includes("Ð´ÑƒÐ½Ð´Ñ‹Ð½") &&
-                  !z.ner.toLowerCase().includes("Ó©Ð¼Ñ‡Ð»Ó©Ð»"),
+                  z.ner.toLowerCase().includes("цахилгаан") &&
+                  !z.ner.toLowerCase().includes("дүндйн") &&
+                  !z.ner.toLowerCase().includes("өмчлөл"),
               );
 
             const existingElectricity =
@@ -193,7 +193,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   ...existingInvoice.medeelel.zardluud[existingElectricityIdx],
                   tariff: newZaaltDun,
                   dun: newZaaltDun,
-                  tariffUsgeer: "â‚®",
+                  tariffUsgeer: "₮",
                   zoruu: zoruu,
                   zaaltDefaultDun: defaultDun,
                   zaaltTariff: tariff,
@@ -206,12 +206,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 // No electricity entry existed in this month's invoice â€“ create one instead of creating a new invoice
                 const zaaltMeta = existingInvoice.medeelel.zaalt || {};
                 const newElectricityEntry = {
-                  ner: zaaltMeta.tariffName || "Ð¦Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½",
-                  zardliinTurul: zaaltMeta.tariffType || "Ð­Ð½Ð³Ð¸Ð¹Ð½",
+                  ner: zaaltMeta.tariffName || "Цахилгаан",
+                  zardliinTurul: zaaltMeta.tariffType || "Эрчим хүч",
                   zaalt: true,
                   tariff: newZaaltDun,
                   dun: newZaaltDun,
-                  tariffUsgeer: "â‚®",
+                  tariffUsgeer: "₮",
                   zoruu: zoruu,
                   zaaltDefaultDun: defaultDun,
                   zaaltTariff: tariff,
@@ -377,7 +377,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       // Error fetching geree positiveBalance - silently continue
     }
 
-    // Ð“ÑÑ€ÑÑÐ½Ð¸Ð¹ Ð¼ÑÐ´ÑÑÐ»Ð»Ð¸Ð¹Ð³ Ð½ÑÑ…ÑÐ¼Ð¶Ð»ÑÑ… Ñ€Ò¯Ò¯ Ñ…ÑƒÑƒÐ»Ð°Ñ…
+    // Гэрээний мэдээллийг нэхэмжлэх рүү хуулах
     tuukh.baiguullagiinNer = tempData.baiguullagiinNer || org.ner;
     const orgUtas = Array.isArray(org?.utas) ? org.utas[0] : org?.utas || "";
     tuukh.baiguullagiinUtas =
@@ -422,15 +422,18 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.dans || tempData.dansniiDugaar || dansInfo.dugaar || "";
     tuukh.gereeniiZagvariinId = tempData.gereeniiZagvariinId || "";
     tuukh.tulukhUdur = tempData.tulukhUdur || [];
-    tuukh.tuluv = tempData.tuluv || 1;
+    tuukh.tuluv =
+      typeof tempData.tuluv === "string" && tempData.tuluv
+        ? tempData.tuluv
+        : "Төлөөгүй";
     tuukh.ognoo = tempData.ognoo || new Date();
     tuukh.mailKhayagTo = tempData.mail;
     tuukh.maililgeesenAjiltniiId =
       tempData.maililgeesenAjiltniiId || tempData.burtgesenAjiltan;
-    // When auto-sent by system (creating resident, cron), show "Ð¡Ð¸ÑÑ‚ÐµÐ¼" not resident name
+    // When auto-sent by system (creating resident, cron), show "Систем" not resident name
     tuukh.maililgeesenAjiltniiNer =
       uusgegsenEsekh === "automataar" || uusgegsenEsekh === "cron"
-        ? "Ð¡Ð¸ÑÑ‚ÐµÐ¼"
+        ? "Систем"
         : tempData.maililgeesenAjiltniiNer || tempData.ner;
     tuukh.nekhemjlekhiinZagvarId = tempData.nekhemjlekhiinZagvarId || "";
 
@@ -506,8 +509,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       liftZardalFromBuilding =
         targetBarilga?.tokhirgoo?.ashiglaltiinZardluud?.find(
           (z) =>
-            z.zardliinTurul === "Ð›Ð¸Ñ„Ñ‚" ||
-            (z.ner && z.ner.includes("Ð›Ð¸Ñ„Ñ‚")),
+            z.zardliinTurul === "Лифт" || (z.ner && z.ner.includes("Лифт")),
         );
       if (liftZardalFromBuilding) {
         liftTariff =
@@ -559,9 +561,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         filteredZardluud = filteredZardluud.filter(
           (zardal) =>
-            zardal.zardliinTurul !== "Ð›Ð¸Ñ„Ñ‚" &&
-            !(zardal.ner && zardal.ner.trim() === "Ð›Ð¸Ñ„Ñ‚") &&
-            !(zardal.ner && zardal.ner.includes("Ð›Ð¸Ñ„Ñ‚")),
+            zardal.zardliinTurul !== "Лифт" &&
+            !(zardal.ner && zardal.ner.trim() === "Лифт") &&
+            !(zardal.ner && zardal.ner.includes("Лифт")),
         );
       }
     }
@@ -700,8 +702,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     if (finalNiitTulbur === 0 && guilgeenuudTotal === 0 && !hasEkhniiUldegdel) {
       return {
         success: false,
-        error:
-          "ÐÐ¸Ð¹Ñ‚ Ñ‚Ó©Ð»Ð±Ó©Ñ€ 0â‚® Ð±Ð°Ð¹Ð½Ð°. ÐÑÑ…ÑÐ¼Ð¶Ð»ÑÑ… Ò¯Ò¯ÑÐ³ÑÑ… ÑˆÐ°Ð°Ñ€Ð´Ð»Ð°Ð³Ð°Ð³Ò¯Ð¹.",
+        error: "Нийт төлбөр 0₮ байна. Нэхэмжлэх үүсгэх шаардлагаагүй.",
         gereeniiId: tempData._id,
         gereeniiDugaar: tempData.gereeniiDugaar,
         skipReason: "zero_amount",
@@ -726,16 +727,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
           (b) => String(b._id) === String(tempData.barilgiinId),
         );
         // Helper to check if an expense is a VARIABLE electricity charge (meter-based)
-        // "Ð”ÑƒÐ½Ð´Ñ‹Ð½ Ó©Ð¼Ñ‡Ð»Ó©Ð» Ð¦Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½" is FIXED - should NOT be processed as zaalt
-        // Only "Ð¦Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½" (without "Ð´ÑƒÐ½Ð´Ñ‹Ð½" or "Ó©Ð¼Ñ‡Ð»Ó©Ð»") should be processed as zaalt
+        // "Дүндйн өмчлөл Цахилгаан" is FIXED - should NOT be processed as zaalt
+        // Only "Цахилгаан" (without "дүндйн" or "өмчлөл") should be processed as zaalt
         const isVariableElectricity = (z) => {
           if (!z.zaalt) return false;
           const nameLower = (z.ner || "").toLowerCase();
           // Exclude fixed electricity charges from zaalt processing
-          if (
-            nameLower.includes("Ð´ÑƒÐ½Ð´Ñ‹Ð½") ||
-            nameLower.includes("Ó©Ð¼Ñ‡Ð»Ó©Ð»")
-          ) {
+          if (nameLower.includes("дүндйн") || nameLower.includes("өмчлөл")) {
             return false;
           }
           return true;
@@ -759,7 +757,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           // Keep only unique zaalt entries by name (first occurrence wins = contract priority)
           const seenNames = new Set();
           const zaaltZardluudToProcess = combinedZaaltZardluud.filter((z) => {
-            const key = z.ner || z.zardliinTurul || "Ð¦Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½";
+            const key = z.ner || z.zardliinTurul || "Цахилгаан";
             if (seenNames.has(key)) {
               return false;
             }
@@ -792,29 +790,29 @@ const gereeNeesNekhemjlekhUusgekh = async (
             let isFixedCharge = false;
             let kwhTariff = zaaltTariff; // from orshinSuugch.tsahilgaaniiZaalt
 
-            // Variable electricity = zaalt + Ñ†Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½ (not Ð´ÑƒÐ½Ð´Ñ‹Ð½ Ó©Ð¼Ñ‡Ð»Ó©Ð») - needs Excel, don't show suuriKhuraamj alone
+            // Variable electricity = zaalt + цахилгаан (not дүндйн өмчлөл) - needs Excel, don't show suuriKhuraamj alone
             const nameLower = (gereeZaaltZardal.ner || "").toLowerCase();
             const isVariableElectricityZardal =
               gereeZaaltZardal.zaalt &&
-              nameLower.includes("Ñ†Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½") &&
-              !nameLower.includes("Ð´ÑƒÐ½Ð´Ñ‹Ð½") &&
-              !nameLower.includes("Ó©Ð¼Ñ‡Ð»Ó©Ð»");
+              nameLower.includes("цахилгаан") &&
+              !nameLower.includes("дүндйн") &&
+              !nameLower.includes("өмчлөл");
 
-            // For variable Ñ†Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½: when no Excel (zoruu=0), skip - match Excel behavior (don't show suuriKhuraamj/tariff)
+            // For variable цахилгаан: when no Excel (zoruu=0), skip - match Excel behavior (don't show suuriKhuraamj/tariff)
             if (isVariableElectricityZardal && zoruu === 0) {
               continue;
             }
 
             // Determine if this is a FIXED or CALCULATED electricity charge:
-            // FIXED: tariffUsgeer = "â‚®" -> use tariff directly as the total amount
-            // CALCULATED: tariffUsgeer = "ÐºÐ’Ñ‚" -> tariff is kWh rate, suuriKhuraamj is base fee from Excel
+            // FIXED: tariffUsgeer = "₮" -> use tariff directly as the total amount
+            // CALCULATED: tariffUsgeer = "кВт" -> tariff is kWh rate, suuriKhuraamj is base fee from Excel
             //
             // Key distinction:
-            // - "Ð”ÑƒÐ½Ð´Ñ‹Ð½ Ó©Ð¼Ñ‡Ð»Ó©Ð» Ð¦Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½": tariffUsgeer="â‚®", tariff=6883.44 -> FIXED (use tariff directly)
-            // - "Ð¦Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½": tariffUsgeer="ÐºÐ’Ñ‚", tariff=2000 (ÐºÐ’Ñ‚ rate), suuriKhuraamj=Excel imported amount -> CALCULATED
+            // - "Дүндйн өмчлөл Цахилгаан": tariffUsgeer="₮", tariff=6883.44 -> FIXED (use tariff directly)
+            // - "Цахилгаан": tariffUsgeer="кВт", tariff=2000 (кВт rate), suuriKhuraamj=Excel imported amount -> CALCULATED
 
-            // If tariffUsgeer is "ÐºÐ’Ñ‚", it's ALWAYS a calculated type (per-kWh billing)
-            const isCalculatedType = gereeZaaltZardal.tariffUsgeer === "ÐºÐ’Ñ‚";
+            // If tariffUsgeer is "кВт", it's ALWAYS a calculated type (per-kWh billing)
+            const isCalculatedType = gereeZaaltZardal.tariffUsgeer === "кВт";
 
             if (!isCalculatedType) {
               // This is a FIXED electricity charge - use tariff directly
@@ -822,7 +820,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
               zaaltDun = gereeZaaltZardal.tariff || gereeZaaltZardal.dun || 0;
             } else {
               // This is a CALCULATED electricity charge - needs Excel reading
-              // For calculated: tariff = ÐºÐ’Ñ‚ rate, suuriKhuraamj = base fee
+              // For calculated: tariff = кВт rate, suuriKhuraamj = base fee
               // If no kWh rate from orshinSuugch, use tariff from zardal as kWh rate
               if (!kwhTariff || kwhTariff === 0) {
                 kwhTariff = gereeZaaltZardal.tariff || 0;
@@ -890,7 +888,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                     zaaltDun = readingZoruu * kwhTariff + zaaltDefaultDun;
                   }
                 } else {
-                  // For Ñ†Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½ (ÐºÐ’Ñ‚): do NOT show suuriKhuraamj when no Excel - match Excel behavior
+                  // For цахилгаан (кВт): do NOT show suuriKhuraamj when no Excel - match Excel behavior
                   if (zoruu === 0) {
                     continue;
                   }
@@ -915,8 +913,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 zaaltDun = zoruu * kwhTariff + zaaltDefaultDun;
               }
 
-              // For calculated Ñ†Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½ (tariffUsgeer="ÐºÐ’Ñ‚"): do NOT show suuriKhuraamj alone when no Excel
-              // Excel does not add a Ñ†Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½ row when there's no import - match that behavior
+              // For calculated цахилгаан (tariffUsgeer="кВт"): do NOT show suuriKhuraamj alone when no Excel
+              // Excel does not add a цахилгаан row when there's no import - match that behavior
               if (zaaltDun === 0 && zoruu === 0) {
                 const wouldUseSuuriKhuraamj =
                   Number(gereeZaaltZardal.suuriKhuraamj) ||
@@ -951,19 +949,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
             const finalZaaltTariff = zaaltDun;
 
             const electricityZardalEntry = {
-              ner: gereeZaaltZardal.ner || "Ð¦Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½",
-              turul: normalizeTurul(gereeZaaltZardal.turul) || "Ð¢Ð¾Ð³Ñ‚Ð¼Ð¾Ð»",
+              ner: gereeZaaltZardal.ner || "Цахилгаан",
+              turul: normalizeTurul(gereeZaaltZardal.turul) || "Тогтмол",
               tariff: finalZaaltTariff,
               tariffUsgeer:
                 zoruu === 0 || zaaltDun === 0
                   ? gereeZaaltZardal?.tariffUsgeer ||
                     buildingZaaltZardal?.tariffUsgeer ||
-                    "â‚®"
-                  : "â‚®",
-              zardliinTurul: gereeZaaltZardal.zardliinTurul || "Ð­Ð½Ð³Ð¸Ð¹Ð½",
+                    "₮"
+                  : "₮",
+              zardliinTurul: gereeZaaltZardal.zardliinTurul || "Эрчим хүч",
               barilgiinId: tempData.barilgiinId,
               dun: finalZaaltTariff,
-              bodokhArga: gereeZaaltZardal.bodokhArga || "Ñ‚Ð¾Ð³Ñ‚Ð¼Ð¾Ð»",
+              bodokhArga: gereeZaaltZardal.bodokhArga || "тогтмол",
               tseverUsDun: 0,
               bokhirUsDun: 0,
               usKhalaasniiDun: 0,
@@ -999,7 +997,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   z.ner === gz.ner && z.zardliinTurul === gz.zardliinTurul,
               );
             }
-            if (z.zardliinTurul === "Ð›Ð¸Ñ„Ñ‚" && tempData.davkhar) {
+            if (z.zardliinTurul === "Лифт" && tempData.davkhar) {
               const davkharStr = String(tempData.davkhar);
               const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
                 String(d),
@@ -1042,15 +1040,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
             tariffUsgeer:
               firstElectricityEntry?.tariffUsgeer ||
               firstBuildingZaaltZardal?.tariffUsgeer ||
-              "ÐºÐ’Ñ‚",
+              "кВт",
             tariffType:
               firstElectricityEntry?.zardliinTurul ||
               firstBuildingZaaltZardal?.zardliinTurul ||
-              "Ð­Ð½Ð³Ð¸Ð¹Ð½",
+              "Эрчим хүч",
             tariffName:
               firstElectricityEntry?.ner ||
               firstBuildingZaaltZardal?.ner ||
-              "Ð¦Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½",
+              "Цахилгаан",
             defaultDun: firstElectricityEntry?.zaaltDefaultDun || 0,
             zaaltDun: tsahilgaanNekhemjlekh,
           };
@@ -1070,7 +1068,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       const result = {
         ...zardal,
         dun: dun,
-        zardliinTurul: zardal.zardliinTurul || "Ð­Ð½Ð³Ð¸Ð¹Ð½",
+        zardliinTurul: zardal.zardliinTurul || "Эрчим хүч",
       };
       if (result.dun === 0 && result.tariff > 0) {
         result.dun = result.tariff;
@@ -1085,9 +1083,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
       );
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         zardluudWithDun = zardluudWithDun.filter((zardal) => {
-          if (zardal.zardliinTurul === "Ð›Ð¸Ñ„Ñ‚") return false;
-          if (zardal.ner && zardal.ner.trim() === "Ð›Ð¸Ñ„Ñ‚") return false;
-          if (zardal.ner && zardal.ner.includes("Ð›Ð¸Ñ„Ñ‚")) return false;
+          if (zardal.zardliinTurul === "Лифт") return false;
+          if (zardal.ner && zardal.ner.trim() === "Лифт") return false;
+          if (zardal.ner && zardal.ner.includes("Лифт")) return false;
           if (
             liftTariff !== null &&
             (zardal.dun === liftTariff || zardal.tariff === liftTariff)
@@ -1126,8 +1124,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
       );
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         const liftCountBefore = zardluudWithDun.filter((z) => {
-          if (z.zardliinTurul === "Ð›Ð¸Ñ„Ñ‚") return true;
-          if (z.ner && z.ner.includes("Ð›Ð¸Ñ„Ñ‚")) return true;
+          if (z.zardliinTurul === "Лифт") return true;
+          if (z.ner && z.ner.includes("Лифт")) return true;
           if (
             liftTariff !== null &&
             (z.dun === liftTariff || z.tariff === liftTariff)
@@ -1137,9 +1135,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }).length;
         if (liftCountBefore > 0) {
           zardluudWithDun = zardluudWithDun.filter((z) => {
-            if (z.zardliinTurul === "Ð›Ð¸Ñ„Ñ‚") return false;
-            if (z.ner && z.ner.trim() === "Ð›Ð¸Ñ„Ñ‚") return false;
-            if (z.ner && z.ner.includes("Ð›Ð¸Ñ„Ñ‚")) return false;
+            if (z.zardliinTurul === "Лифт") return false;
+            if (z.ner && z.ner.trim() === "Лифт") return false;
+            if (z.ner && z.ner.includes("Лифт")) return false;
             if (
               liftTariff !== null &&
               (z.dun === liftTariff || z.tariff === liftTariff)
@@ -1160,12 +1158,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
     zardluudWithDun.push({
       _id:
         ekhniiUldegdelRecordId || ekhniiUldegdelId || `init-${Math.random()}`,
-      ner: "Ð­Ñ…Ð½Ð¸Ð¹ Ò¯Ð»Ð´ÑÐ³Ð´ÑÐ»",
-      turul: "Ð¢Ð¾Ð³Ñ‚Ð¼Ð¾Ð»",
-      bodokhArga: "Ñ‚Ð¾Ð³Ñ‚Ð¼Ð¾Ð»",
-      zardliinTurul: "Ð­Ð½Ð³Ð¸Ð¹Ð½",
+      ner: "Эхний үлдэгдэл",
+      turul: "Тогтмол",
+      bodokhArga: "тогтмол",
+      zardliinTurul: "Эрчим хүч",
       tariff: ekhniiUldegdelAmount,
-      tariffUsgeer: tempData.ekhniiUldegdelUsgeer || "â‚®",
+      tariffUsgeer: tempData.ekhniiUldegdelUsgeer || "₮",
       dun: ekhniiUldegdelAmount,
       zaalt: false,
       ognoonuud: [],
@@ -1203,27 +1201,26 @@ const gereeNeesNekhemjlekhUusgekh = async (
     tuukh.nekhemjlekh =
       tempData.nekhemjlekh ||
       (uusgegsenEsekh === "automataar"
-        ? "ÐÐ²Ñ‚Ð¾Ð¼Ð°Ñ‚Ð°Ð°Ñ€ Ò¯Ò¯ÑÑÑÐ½ Ð½ÑÑ…ÑÐ¼Ð¶Ð»ÑÑ…"
-        : "Ð“Ð°Ñ€Ð°Ð½ Ò¯Ò¯ÑÑÑÐ½ Ð½ÑÑ…ÑÐ¼Ð¶Ð»ÑÑ…");
+        ? "Автоматаар үүсгэсэн нэхэмжлэх"
+        : "Гараар үүсгэсэн нэхэмжлэх");
     tuukh.zagvariinNer = tempData.zagvariinNer || org.ner;
 
     const tailbarText =
       tempData.temdeglel &&
-      tempData.temdeglel !==
-        "Excel Ñ„Ð°Ð¹Ð»Ð°Ð°Ñ Ð°Ð²Ñ‚Ð¾Ð¼Ð°Ñ‚Ð°Ð°Ñ€ Ò¯Ò¯ÑÑÑÐ½ Ð³ÑÑ€ÑÑ"
-        ? `\nÐ¢Ð°Ð¹Ð»Ð±Ð°Ñ€: ${tempData.temdeglel}`
+      tempData.temdeglel !== "Excel файлаас автоматаар үүсгэсэн гэрээ"
+        ? `\nТайлбар: ${tempData.temdeglel}`
         : "";
 
     const zaaltText = zaaltMedeelel
-      ? `\nÐ¦Ð°Ñ…Ð¸Ð»Ð³Ð°Ð°Ð½: Ó¨Ð¼Ð½Ó©: ${zaaltMedeelel.umnukhZaalt}, Ó¨Ð´Ó©Ñ€: ${zaaltMedeelel.zaaltTog}, Ð¨Ó©Ð½Ó©: ${zaaltMedeelel.zaaltUs}, ÐÐ¸Ð¹Ñ‚: ${zaaltMedeelel.suuliinZaalt}`
+      ? `\nЦахилгаан: Умнө: ${zaaltMedeelel.umnukhZaalt}, Өдөр: ${zaaltMedeelel.zaaltTog}, Шөнө: ${zaaltMedeelel.zaaltUs}, Нийт: ${zaaltMedeelel.suuliinZaalt}`
       : "";
 
     const positiveBalanceText =
       positiveBalanceUsed > 0
-        ? `\nÐ­ÐµÑ€ÑÐ³ Ò¯Ð»Ð´ÑÐ³Ð´ÑÐ» Ð°ÑˆÐ¸Ð³Ð»Ð°ÑÐ°Ð½: ${positiveBalanceUsed}â‚®${remainingPositiveBalance > 0 ? `, Ò®Ð»Ð´ÑÑÐ½: ${remainingPositiveBalance}â‚®` : ""}`
+        ? `\nЭергий үлдэгдэл ашигласан: ${positiveBalanceUsed}₮${remainingPositiveBalance > 0 ? `, үлдсэн: ${remainingPositiveBalance}₮` : ""}`
         : "";
 
-    tuukh.content = `Ð“ÑÑ€ÑÑÐ½Ð¸Ð¹ Ð´ÑƒÐ³Ð°Ð°Ñ€: ${tempData.gereeniiDugaar}, ÐÐ¸Ð¹Ñ‚ Ñ‚Ó©Ð»Ð±Ó©Ñ€: ${correctedFinalNiitTulbur}â‚®${tailbarText}${zaaltText}${positiveBalanceText}`;
+    tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮${tailbarText}${zaaltText}${positiveBalanceText}`;
     tuukh.nekhemjlekhiinDans =
       tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
     tuukh.nekhemjlekhiinDansniiNer =
@@ -1260,7 +1257,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
       const todayInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
         .find({
-          nekhemjlekhiinDugaar: { $regex: `^ÐÐ­Ð¥-${datePrefix}-` },
+          nekhemjlekhiinDugaar: { $regex: `^НЭХ-${datePrefix}-` },
         })
         .sort({ nekhemjlekhiinDugaar: -1 })
         .limit(1)
@@ -1269,13 +1266,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
       let sequence = 1;
       if (todayInvoices.length > 0 && todayInvoices[0].nekhemjlekhiinDugaar) {
         const lastDugaar = todayInvoices[0].nekhemjlekhiinDugaar;
-        const match = lastDugaar.match(/^ÐÐ­Ð¥-\d{8}-(\d+)$/);
+        const match = lastDugaar.match(/^НЭХ-\d{8}-(\d+)$/);
         if (match) {
           sequence = parseInt(match[1], 10) + 1;
         }
       }
 
-      return `ÐÐ­Ð¥-${datePrefix}-${String(sequence).padStart(4, "0")}`;
+      return `НЭХ-${datePrefix}-${String(sequence).padStart(4, "0")}`;
     };
 
     const saveInvoiceWithRetry = async (maxRetries = 10) => {
@@ -1378,10 +1375,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
           medegdel.orshinSuugchId = tempData.orshinSuugchId;
           medegdel.baiguullagiinId = baiguullagiinId;
           medegdel.barilgiinId = tempData.barilgiinId || "";
-          medegdel.title = "Ð¨Ð¸Ð½Ñ Ð½ÑÑ…ÑÐ¼Ð¶Ð»ÑÑ… Ò¯Ò¯ÑÑÑÐ½";
-          medegdel.message = `Ð“ÑÑ€ÑÑÐ½Ð¸Ð¹ Ð´ÑƒÐ³Ð°Ð°Ñ€: ${tempData.gereeniiDugaar}, ÐÐ¸Ð¹Ñ‚ Ñ‚Ó©Ð»Ð±Ó©Ñ€: ${correctedFinalNiitTulbur}â‚®`;
+          medegdel.title = "Шинэ нэхэмжлэх үүсгэсэн";
+          medegdel.message = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮`;
           medegdel.kharsanEsekh = false;
-          medegdel.turul = "Ð¼ÑÐ´ÑÐ³Ð´ÑÐ»";
+          medegdel.turul = "мэдэгдэл";
           medegdel.ognoo = new Date();
 
           await medegdel.save();
