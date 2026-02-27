@@ -359,9 +359,13 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
       const start = ekhlekhOgnoo
         ? new Date(ekhlekhOgnoo)
         : new Date("1970-01-01");
+      if (ekhlekhOgnoo) start.setHours(0, 0, 0, 0);
+
       const end = duusakhOgnoo
         ? new Date(duusakhOgnoo)
         : new Date("2999-12-31");
+      if (duusakhOgnoo) end.setHours(23, 59, 59, 999);
+
       dateFilter = { $gte: start, $lte: end };
     }
 
@@ -654,9 +658,13 @@ exports.tailanSariinTulbur = asyncHandler(async (req, res, next) => {
       const start = ekhlekhOgnoo
         ? new Date(ekhlekhOgnoo)
         : new Date("1970-01-01");
+      if (ekhlekhOgnoo) start.setHours(0, 0, 0, 0);
+
       const end = duusakhOgnoo
         ? new Date(duusakhOgnoo)
         : new Date("2999-12-31");
+      if (duusakhOgnoo) end.setHours(23, 59, 59, 999);
+
       match.ognoo = { $gte: start, $lte: end };
     }
 
@@ -910,9 +918,13 @@ exports.tailanNekhemjlekhiinTuukh = asyncHandler(async (req, res, next) => {
       const start = ekhlekhOgnoo
         ? new Date(ekhlekhOgnoo)
         : new Date("1970-01-01");
+      if (ekhlekhOgnoo) start.setHours(0, 0, 0, 0);
+
       const end = duusakhOgnoo
         ? new Date(duusakhOgnoo)
         : new Date("2999-12-31");
+      if (duusakhOgnoo) end.setHours(23, 59, 59, 999);
+
       dateFilter = { $gte: start, $lte: end };
     }
 
