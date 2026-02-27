@@ -249,6 +249,7 @@ async function markInvoicesAsPaid(options) {
         },
         $set: {
           uldegdel: isFullyPaid ? 0 : newUldegdel,
+          niitTulbur: isFullyPaid ? 0 : newUldegdel, // Update niitTulbur to match remaining
           tuluv: isFullyPaid ? "Төлсөн" : "Төлөөгүй", // tuluv stays Төлөөгүй until uldegdel reaches 0
         },
       };

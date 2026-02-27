@@ -270,6 +270,8 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 });
 
                 invoice.uldegdel = isFullyPaid ? 0 : newUldegdel;
+                // Update niitTulbur to match remaining so the app shows correct amount
+                invoice.niitTulbur = invoice.uldegdel;
 
                 // IMPORTANT: Do NOT update tuluv until uldegdel reaches 0
                 if (isFullyPaid) {

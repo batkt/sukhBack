@@ -101,17 +101,10 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
   try {
     const invoice = this;
 
-    // If tuluv was explicitly set by manualSendInvoice, skip recalculation
+    // If tuluv was explicitly set by manualSendInvoice or payment logic, skip recalculation
+    // The caller already set niitTulbur, uldegdel, and tuluv correctly
     if (invoice._skipTuluvRecalc) {
       delete invoice._skipTuluvRecalc;
-      // Still recalculate uldegdel for consistency
-      if (typeof invoice.niitTulbur === "number") {
-        const totalPaid = (invoice.paymentHistory || []).reduce(
-          (sum, p) => sum + (p.dun || 0),
-          0,
-        );
-        invoice.uldegdel = Math.max(0, invoice.niitTulbur - totalPaid);
-      }
       return next();
     }
 
