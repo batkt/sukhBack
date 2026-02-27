@@ -298,25 +298,28 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
     }
 
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+    const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+    const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+    const Geree = require("../models/geree");
 
-    // Build match filter
-    const match = { baiguullagiinId: String(baiguullagiinId) };
-
-    if (barilgiinId) match.barilgiinId = String(barilgiinId);
-    if (bairNer) match.bairNer = bairNer;
-    if (orts) match.orts = orts;
+    // Build common filters for Geree metadata
+    const metadataMatch = { baiguullagiinId: String(baiguullagiinId) };
+    if (barilgiinId) metadataMatch.barilgiinId = String(barilgiinId);
+    if (bairNer) metadataMatch.bairNer = bairNer;
+    if (orts) metadataMatch.orts = orts;
     if (davkhar) {
       const v = String(davkhar).trim();
-      if (v) match.davkhar = { $regex: escapeRegex(v), $options: "i" };
+      if (v) metadataMatch.davkhar = { $regex: escapeRegex(v), $options: "i" };
     }
     if (toot) {
       const tootVal = String(toot).trim();
       if (tootVal) {
         const re = escapeRegex(tootVal);
-        match.$and = match.$and || [];
-        match.$and.push({
+        metadataMatch.$and = metadataMatch.$and || [];
+        metadataMatch.$and.push({
           $or: [
             { toot: { $regex: re, $options: "i" } },
+            { "toots.toot": { $regex: re, $options: "i" } }, // Check in toots array if applicable
             { "medeelel.toot": { $regex: re, $options: "i" } },
           ],
         });
@@ -324,13 +327,17 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
     }
     if (gereeniiDugaar) {
       const v = String(gereeniiDugaar).trim();
-      if (v) match.gereeniiDugaar = { $regex: escapeRegex(v), $options: "i" };
+      if (v)
+        metadataMatch.gereeniiDugaar = {
+          $regex: escapeRegex(v),
+          $options: "i",
+        };
     }
     if (orshinSuugch) {
       const val = String(orshinSuugch).trim();
       if (val) {
         const re = escapeRegex(val);
-        match.$or = [
+        metadataMatch.$or = [
           { ovog: { $regex: re, $options: "i" } },
           { ner: { $regex: re, $options: "i" } },
         ];
@@ -338,15 +345,16 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
     } else {
       if (ovog) {
         const v = String(ovog).trim();
-        if (v) match.ovog = { $regex: escapeRegex(v), $options: "i" };
+        if (v) metadataMatch.ovog = { $regex: escapeRegex(v), $options: "i" };
       }
       if (ner) {
         const v = String(ner).trim();
-        if (v) match.ner = { $regex: escapeRegex(v), $options: "i" };
+        if (v) metadataMatch.ner = { $regex: escapeRegex(v), $options: "i" };
       }
     }
 
     // Date range filter
+    let dateFilter = {};
     if (ekhlekhOgnoo || duusakhOgnoo) {
       const start = ekhlekhOgnoo
         ? new Date(ekhlekhOgnoo)
@@ -354,21 +362,73 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
       const end = duusakhOgnoo
         ? new Date(duusakhOgnoo)
         : new Date("2999-12-31");
-      match.ognoo = { $gte: start, $lte: end };
+      dateFilter = { $gte: start, $lte: end };
     }
 
-    const docs = await NekhemjlekhiinTuukh(kholbolt)
-      .find(match)
-      .lean()
-      .sort({ ognoo: -1 });
+    // 1. Get Invoices (NekhemjlekhiinTuukh)
+    const invoiceMatch = { ...metadataMatch };
+    if (dateFilter.$gte) invoiceMatch.ognoo = dateFilter;
+
+    // 2. Get Standalone Tulukh (Receivables)
+    const tulukhMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      nekhemjlekhId: { $in: [null, ""] },
+    };
+    if (barilgiinId) tulukhMatch.barilgiinId = String(barilgiinId);
+    if (dateFilter.$gte) tulukhMatch.ognoo = dateFilter;
+    if (gereeniiDugaar) {
+      tulukhMatch.gereeniiDugaar = {
+        $regex: escapeRegex(gereeniiDugaar),
+        $options: "i",
+      };
+    }
+
+    // 3. Get Standalone Tulsun (Payments/Income)
+    const tulsunMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      nekhemjlekhId: { $in: [null, ""] },
+    };
+    if (barilgiinId) tulsunMatch.barilgiinId = String(barilgiinId);
+    if (dateFilter.$gte) tulsunMatch.ognoo = dateFilter;
+    if (gereeniiDugaar) {
+      tulsunMatch.gereeniiDugaar = {
+        $regex: escapeRegex(gereeniiDugaar),
+        $options: "i",
+      };
+    }
+
+    const [invoices, standaloneTulukh, standaloneTulsun] = await Promise.all([
+      NekhemjlekhiinTuukh(kholbolt).find(invoiceMatch).lean().sort({ ognoo: -1 }),
+      GereeniiTulukhAvlaga(kholbolt).find(tulukhMatch).lean(),
+      GereeniiTulsunAvlaga(kholbolt).find(tulsunMatch).lean(),
+    ]);
+
+    // Gather all gereeIds from standalone records to fetch their metadata if metadata filters are used
+    const standaloneGereeniiIds = new Set([
+      ...standaloneTulukh.map((s) => String(s.gereeniiId)),
+      ...standaloneTulsun.map((s) => String(s.gereeniiId)),
+    ]);
+
+    // Fetch contracts for standalone records to filter and get metadata
+    const standaloneGereeMetadata = await Geree(kholbolt)
+      .find({
+        _id: { $in: Array.from(standaloneGereeniiIds) },
+        ...metadataMatch,
+      })
+      .lean();
+
+    const gereeMap = {};
+    standaloneGereeMetadata.forEach((g) => {
+      gereeMap[String(g._id)] = g;
+    });
 
     const paid = [];
     const unpaid = [];
     let paidSum = 0;
     let unpaidSum = 0;
 
-    for (const d of docs) {
-      // Extract supplementary information from medeelel
+    // Process Invoices
+    for (const d of invoices) {
       const nememjlekh = {
         zardluud: d.medeelel?.zardluud || [],
         guilgeenuud: d.medeelel?.guilgeenuud || [],
@@ -395,7 +455,6 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
         tuluv: d.tuluv || "Төлөөгүй",
         dugaalaltDugaar: d.dugaalaltDugaar || null,
         gereeniiId: d.gereeniiId || "",
-        // Нэмэмжлэлийн тайлан (Supplementary report)
         nememjlekh: nememjlekh,
       };
 
@@ -406,6 +465,77 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
         unpaid.push(row);
         unpaidSum += d.niitTulbur || 0;
       }
+    }
+
+    // Process Standalone Receivables (e.g., Initial Balance)
+    for (const s of standaloneTulukh) {
+      const g = gereeMap[String(s.gereeniiId)];
+      if (!g) continue; // Filtered out by metadataMatch
+
+      const row = {
+        gereeniiDugaar: s.gereeniiDugaar || g.gereeniiDugaar || "",
+        ovog: g.ovog || "",
+        ner: g.ner || "",
+        utas: g.utas || [],
+        toot: g.toot || "",
+        davkhar: g.davkhar || "",
+        bairNer: g.bairNer || "",
+        orts: g.orts || "1",
+        ognoo: s.ognoo || s.createdAt || null,
+        tulukhOgnoo: s.ognoo || s.createdAt || null,
+        niitTulbur: s.tulukhDun || s.undsenDun || 0,
+        uldegdel: s.uldegdel || 0,
+        tuluv: "Төлөөгүй",
+        gereeniiId: String(s.gereeniiId),
+        nememjlekh: {
+          zardluud: [
+            {
+              ner: s.zardliinNer || "Авлага",
+              dun: s.undsenDun || 0,
+              tulukhDun: s.tulukhDun || 0,
+              tailbar: s.tailbar || "",
+              isEkhniiUldegdel: s.ekhniiUldegdelEsekh,
+            },
+          ],
+          guilgeenuud: [],
+        },
+      };
+      unpaid.push(row);
+      unpaidSum += row.niitTulbur;
+    }
+
+    // Process Standalone Payments (Income)
+    for (const p of standaloneTulsun) {
+      const g = gereeMap[String(p.gereeniiId)];
+      if (!g) continue;
+
+      const row = {
+        gereeniiDugaar: p.gereeniiDugaar || g.gereeniiDugaar || "",
+        ovog: g.ovog || "",
+        ner: g.ner || "",
+        utas: g.utas || [],
+        toot: g.toot || "",
+        davkhar: g.davkhar || "",
+        bairNer: g.bairNer || "",
+        orts: g.orts || "1",
+        ognoo: p.ognoo || p.tulsunOgnoo || p.createdAt || null,
+        tulukhOgnoo: p.ognoo || null,
+        niitTulbur: p.tulsunDun || 0,
+        tuluv: "Төлсөн",
+        gereeniiId: String(p.gereeniiId),
+        nememjlekh: {
+          zardluud: [],
+          guilgeenuud: [
+            {
+              tailbar: p.tailbar || "Төлөлт (Нэхэмжлэхгүй)",
+              tulsunDun: p.tulsunDun || 0,
+              ognoo: p.ognoo || p.createdAt,
+            },
+          ],
+        },
+      };
+      paid.push(row);
+      paidSum += row.niitTulbur;
     }
 
     res.json({
@@ -422,7 +552,7 @@ exports.tailanOrlogoAvlaga = asyncHandler(async (req, res, next) => {
         ekhlekhOgnoo: ekhlekhOgnoo || null,
         duusakhOgnoo: duusakhOgnoo || null,
       },
-      total: docs.length,
+      total: paid.length + unpaid.length,
       paid: {
         count: paid.length,
         sum: paidSum,
@@ -697,7 +827,6 @@ exports.tailanSariinTulbur = asyncHandler(async (req, res, next) => {
   }
 });
 
-// Нэхэмжлэлийн түүх (Бүх үүссэн нэхэмжлэлийн жагсаалтыг хянах)
 exports.tailanNekhemjlekhiinTuukh = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
@@ -741,20 +870,42 @@ exports.tailanNekhemjlekhiinTuukh = asyncHandler(async (req, res, next) => {
     }
 
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+    const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+    const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+    const Geree = require("../models/geree");
 
-    // Build match filter
-    const match = { baiguullagiinId: String(baiguullagiinId) };
+    // 1. Build Metadata Match
+    const metadataMatch = { baiguullagiinId: String(baiguullagiinId) };
+    if (barilgiinId) metadataMatch.barilgiinId = String(barilgiinId);
+    if (bairNer) metadataMatch.bairNer = bairNer;
+    if (toot) {
+      const re = escapeRegex(String(toot).trim());
+      metadataMatch.$and = metadataMatch.$and || [];
+      metadataMatch.$and.push({
+        $or: [
+          { toot: { $regex: re, $options: "i" } },
+          { "toots.toot": { $regex: re, $options: "i" } },
+          { "medeelel.toot": { $regex: re, $options: "i" } },
+        ],
+      });
+    }
+    if (davkhar) {
+      metadataMatch.davkhar = {
+        $regex: escapeRegex(String(davkhar).trim()),
+        $options: "i",
+      };
+    }
+    if (gereeniiDugaar) {
+      metadataMatch.gereeniiDugaar = {
+        $regex: escapeRegex(String(gereeniiDugaar).trim()),
+        $options: "i",
+      };
+    }
+    if (ovog) metadataMatch.ovog = { $regex: escapeRegex(ovog), $options: "i" };
+    if (ner) metadataMatch.ner = { $regex: escapeRegex(ner), $options: "i" };
 
-    if (barilgiinId) match.barilgiinId = String(barilgiinId);
-    if (tuluv) match.tuluv = tuluv;
-    if (gereeniiDugaar) match.gereeniiDugaar = gereeniiDugaar;
-    if (bairNer) match.bairNer = bairNer;
-    if (davkhar) match.davkhar = String(davkhar);
-    if (toot) match.toot = String(toot);
-    if (ovog) match.ovog = { $regex: ovog, $options: "i" };
-    if (ner) match.ner = { $regex: ner, $options: "i" };
-
-    // Date range filter
+    // 2. Build Date Filter
+    let dateFilter = {};
     if (ekhlekhOgnoo || duusakhOgnoo) {
       const start = ekhlekhOgnoo
         ? new Date(ekhlekhOgnoo)
@@ -762,125 +913,185 @@ exports.tailanNekhemjlekhiinTuukh = asyncHandler(async (req, res, next) => {
       const end = duusakhOgnoo
         ? new Date(duusakhOgnoo)
         : new Date("2999-12-31");
-      match.ognoo = { $gte: start, $lte: end };
+      dateFilter = { $gte: start, $lte: end };
     }
 
-    const skip = (Number(khuudasniiDugaar) - 1) * Number(khuudasniiKhemjee);
+    // 3. Find matching contracts to handle standalone records metadata
+    const matchingGerees = await Geree(kholbolt)
+      .find(metadataMatch)
+      .select("_id gereeniiDugaar ovog ner utas toot davkhar bairNer orts")
+      .lean();
 
-    // Get invoices with pagination
-    const [list, niitMur] = await Promise.all([
-      NekhemjlekhiinTuukh(kholbolt)
-        .find(match)
-        .sort({ ognoo: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(Number(khuudasniiKhemjee))
-        .lean(),
-      NekhemjlekhiinTuukh(kholbolt).countDocuments(match),
-    ]);
+    const gereeIds = matchingGerees.map((g) => String(g._id));
+    const gereeMap = {};
+    matchingGerees.forEach((g) => (gereeMap[String(g._id)] = g));
 
-    const niitKhuudas = Math.ceil(niitMur / Number(khuudasniiKhemjee));
+    // 4. Construct Queries
+    const invoiceMatch = { ...metadataMatch };
+    if (dateFilter.$gte) invoiceMatch.ognoo = dateFilter;
+    if (tuluv) invoiceMatch.tuluv = tuluv;
 
-    // Calculate totals and statistics
-    const totals = await NekhemjlekhiinTuukh(kholbolt).aggregate([
-      { $match: match },
-      {
-        $group: {
-          _id: null,
-          niitTulbur: { $sum: { $ifNull: ["$niitTulbur", 0] } },
-          tulsenTulbur: {
-            $sum: {
-              $cond: [
-                { $eq: ["$tuluv", "Төлсөн"] },
-                { $ifNull: ["$niitTulbur", 0] },
-                0,
-              ],
-            },
-          },
-          tulsenCount: {
-            $sum: {
-              $cond: [{ $eq: ["$tuluv", "Төлсөн"] }, 1, 0],
-            },
-          },
-          tuluuguiTulbur: {
-            $sum: {
-              $cond: [
-                { $ne: ["$tuluv", "Төлсөн"] },
-                { $ifNull: ["$niitTulbur", 0] },
-                0,
-              ],
-            },
-          },
-          tuluuguiCount: {
-            $sum: {
-              $cond: [{ $ne: ["$tuluv", "Төлсөн"] }, 1, 0],
-            },
-          },
-          khugatsaaKhetersenTulbur: {
-            $sum: {
-              $cond: [
-                { $eq: ["$tuluv", "Хугацаа хэтэрсэн"] },
-                { $ifNull: ["$niitTulbur", 0] },
-                0,
-              ],
-            },
-          },
-          khugatsaaKhetersenCount: {
-            $sum: {
-              $cond: [{ $eq: ["$tuluv", "Хугацаа хэтэрсэн"] }, 1, 0],
-            },
-          },
-        },
-      },
-    ]);
-
-    const stats = totals[0] || {
-      niitTulbur: 0,
-      tulsenTulbur: 0,
-      tulsenCount: 0,
-      tuluuguiTulbur: 0,
-      tuluuguiCount: 0,
-      khugatsaaKhetersenTulbur: 0,
-      khugatsaaKhetersenCount: 0,
+    const tulukhMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      gereeniiId: { $in: gereeIds },
+      nekhemjlekhId: { $in: [null, ""] },
     };
+    if (dateFilter.$gte) tulukhMatch.ognoo = dateFilter;
+    if (tuluv && tuluv !== "Төлөөгүй") {
+      // Standalone Tulukh is always "Төлөөгүй"
+      tulukhMatch._id = null; // Forces empty result if searching specifically for paid
+    }
 
-    // Format invoice list
-    const formattedList = list.map((invoice) => {
-      // Extract supplementary information from medeelel
-      const nememjlekh = {
-        zardluud: invoice.medeelel?.zardluud || [],
-        guilgeenuud: invoice.medeelel?.guilgeenuud || [],
-        segmentuud: invoice.medeelel?.segmentuud || [],
-        khungulultuud: invoice.medeelel?.khungulultuud || [],
-      };
+    const tulsunMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      gereeniiId: { $in: gereeIds },
+      nekhemjlekhId: { $in: [null, ""] },
+    };
+    if (dateFilter.$gte) tulsunMatch.ognoo = dateFilter;
+    if (tuluv && tuluv !== "Төлсөн") {
+      tulsunMatch._id = null; // Forces empty result if searching specifically for unpaid
+    }
 
-      return {
-        _id: invoice._id,
-        gereeniiDugaar: invoice.gereeniiDugaar || "",
-        gereeniiId: invoice.gereeniiId || "",
-        ovog: invoice.ovog || "",
-        ner: invoice.ner || "",
-        utas: Array.isArray(invoice.utas) ? invoice.utas : invoice.utas || [],
-        toot: invoice.toot || "",
-        davkhar: invoice.davkhar || "",
-        bairNer: invoice.bairNer || "",
-        orts: invoice.orts || "",
-        ognoo: invoice.ognoo || null,
-        tulukhOgnoo: invoice.tulukhOgnoo || null,
-        tulsunOgnoo: invoice.tulsunOgnoo || null,
-        niitTulbur: invoice.niitTulbur || 0,
-        ekhniiUldegdel: invoice.ekhniiUldegdel,
-        tuluv: invoice.tuluv || "Төлөөгүй",
-        dugaalaltDugaar: invoice.dugaalaltDugaar || null,
-        zagvariinNer: invoice.zagvariinNer || "",
-        nekhemjlekh: invoice.nekhemjlekh || "",
-        paymentHistory: invoice.paymentHistory || [],
-        qpayInvoiceId: invoice.qpayInvoiceId || null,
-        qpayUrl: invoice.qpayUrl || null,
-        nememjlekh: nememjlekh,
-        createdAt: invoice.createdAt || null,
-        updatedAt: invoice.updatedAt || null,
-      };
+    // 5. Execute Queries (For history, we fetch all and then paginate manually to handle merging)
+    // Alternatively, we could query just the invoices if stats are the main concern, 
+    // but for "Tuukh" users expect to see everything.
+    const [invoices, standaloneTulukh, standaloneTulsun] = await Promise.all([
+      NekhemjlekhiinTuukh(kholbolt).find(invoiceMatch).lean().sort({ ognoo: -1 }),
+      GereeniiTulukhAvlaga(kholbolt).find(tulukhMatch).lean().sort({ ognoo: -1 }),
+      GereeniiTulsunAvlaga(kholbolt).find(tulsunMatch).lean().sort({ ognoo: -1 }),
+    ]);
+
+    // Merge and format
+    const combinedList = [];
+
+    // Add Invoices
+    for (const d of invoices) {
+      combinedList.push({
+        _id: d._id,
+        gereeniiDugaar: d.gereeniiDugaar || "",
+        gereeniiId: d.gereeniiId || "",
+        ovog: d.ovog || "",
+        ner: d.ner || "",
+        utas: d.utas || [],
+        toot: d.medeelel?.toot || d.toot || "",
+        davkhar: d.davkhar || "",
+        bairNer: d.bairNer || "",
+        orts: d.orts || "",
+        ognoo: d.ognoo || null,
+        tulukhOgnoo: d.tulukhOgnoo || null,
+        tulsunOgnoo: d.tulsunOgnoo || null,
+        niitTulbur: d.niitTulbur || 0,
+        ekhniiUldegdel: d.ekhniiUldegdel,
+        tuluv: d.tuluv || "Төлөөгүй",
+        nememjlekh: {
+          zardluud: d.medeelel?.zardluud || [],
+          guilgeenuud: d.medeelel?.guilgeenuud || [],
+        },
+        type: "invoice",
+      });
+    }
+
+    // Add Standalone Receivables
+    for (const s of standaloneTulukh) {
+      const g = gereeMap[String(s.gereeniiId)];
+      if (!g) continue;
+      combinedList.push({
+        _id: s._id,
+        gereeniiDugaar: s.gereeniiDugaar || g.gereeniiDugaar || "",
+        gereeniiId: String(s.gereeniiId),
+        ovog: g.ovog || "",
+        ner: g.ner || "",
+        utas: g.utas || [],
+        toot: g.toot || "",
+        davkhar: g.davkhar || "",
+        bairNer: g.bairNer || "",
+        orts: g.orts || "1",
+        ognoo: s.ognoo || s.createdAt || null,
+        tulukhOgnoo: s.ognoo || null,
+        niitTulbur: s.undsenDun || 0,
+        uldegdel: s.uldegdel || 0,
+        tuluv: "Төлөөгүй",
+        nememjlekh: {
+          zardluud: [
+            {
+              ner: s.zardliinNer || "Авлага",
+              dun: s.undsenDun || 0,
+              tulukhDun: s.tulukhDun || 0,
+              tailbar: s.tailbar || "",
+              isEkhniiUldegdel: s.ekhniiUldegdelEsekh,
+            },
+          ],
+          guilgeenuud: [],
+        },
+        type: "receivable",
+      });
+    }
+
+    // Add Standalone Payments
+    for (const p of standaloneTulsun) {
+      const g = gereeMap[String(p.gereeniiId)];
+      if (!g) continue;
+      combinedList.push({
+        _id: p._id,
+        gereeniiDugaar: p.gereeniiDugaar || g.gereeniiDugaar || "",
+        gereeniiId: String(p.gereeniiId),
+        ovog: g.ovog || "",
+        ner: g.ner || "",
+        utas: g.utas || [],
+        toot: g.toot || "",
+        davkhar: g.davkhar || "",
+        bairNer: g.bairNer || "",
+        orts: g.orts || "1",
+        ognoo: p.ognoo || p.tulsunOgnoo || p.createdAt || null,
+        tulsunOgnoo: p.tulsunOgnoo || p.createdAt || null,
+        niitTulbur: p.tulsunDun || 0,
+        tuluv: "Төлсөн",
+        nememjlekh: {
+          zardluud: [],
+          guilgeenuud: [
+            {
+              tailbar: p.tailbar || "Төлөлт (Нэхэмжлэхгүй)",
+              tulsunDun: p.tulsunDun || 0,
+              ognoo: p.ognoo || p.createdAt,
+            },
+          ],
+        },
+        type: "payment",
+      });
+    }
+
+    // Sort combined list
+    combinedList.sort((a, b) => {
+      const da = a.ognoo ? new Date(a.ognoo).getTime() : 0;
+      const db = b.ognoo ? new Date(b.ognoo).getTime() : 0;
+      return db - da;
     });
+
+    // Calculate total sums for stats
+    let totalTulbur = 0;
+    let totalTulsen = 0;
+    let countTulsen = 0;
+    let totalTuluugui = 0;
+    let countTuluugui = 0;
+
+    combinedList.forEach((item) => {
+      const amt = Number(item.niitTulbur) || 0;
+      totalTulbur += amt;
+      if (item.tuluv === "Төлсөн") {
+        totalTulsen += amt;
+        countTulsen++;
+      } else {
+        totalTuluugui += amt;
+        countTuluugui++;
+      }
+    });
+
+    // Paginate
+    const skip = (Number(khuudasniiDugaar) - 1) * Number(khuudasniiKhemjee);
+    const paginatedList = combinedList.slice(
+      skip,
+      skip + Number(khuudasniiKhemjee),
+    );
 
     res.json({
       success: true,
@@ -900,25 +1111,21 @@ exports.tailanNekhemjlekhiinTuukh = asyncHandler(async (req, res, next) => {
       pagination: {
         khuudasniiDugaar: Number(khuudasniiDugaar),
         khuudasniiKhemjee: Number(khuudasniiKhemjee),
-        niitMur,
-        niitKhuudas,
+        niitMur: combinedList.length,
+        niitKhuudas: Math.ceil(combinedList.length / Number(khuudasniiKhemjee)),
       },
       stats: {
-        niitTulbur: stats.niitTulbur || 0,
+        niitTulbur: totalTulbur,
         tulsen: {
-          total: stats.tulsenTulbur || 0,
-          count: stats.tulsenCount || 0,
+          total: totalTulsen,
+          count: countTulsen,
         },
         tuluugui: {
-          total: stats.tuluuguiTulbur || 0,
-          count: stats.tuluuguiCount || 0,
-        },
-        khugatsaaKhetersen: {
-          total: stats.khugatsaaKhetersenTulbur || 0,
-          count: stats.khugatsaaKhetersenCount || 0,
+          total: totalTuluugui,
+          count: countTuluugui,
         },
       },
-      list: formattedList,
+      list: paginatedList,
     });
   } catch (error) {
     next(error);
