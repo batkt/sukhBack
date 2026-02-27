@@ -92,7 +92,9 @@ function run() {
   console.log("\nAll smoke tests passed.");
 }
 
-run().catch((err) => {
+try {
+  run();
+} catch (err) {
   console.error(err);
   process.exit(1);
-});
+}
