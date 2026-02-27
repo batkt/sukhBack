@@ -1366,6 +1366,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
         : "";
 
     tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮${tailbarText}${zaaltText}${positiveBalanceText}`;
+    // Ensure uldegdel reflects the full amount for a new invoice
+    tuukh.uldegdel = correctedFinalNiitTulbur;
     tuukh.nekhemjlekhiinDans =
       tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
     tuukh.nekhemjlekhiinDansniiNer =
@@ -1522,7 +1524,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           medegdel.baiguullagiinId = baiguullagiinId;
           medegdel.barilgiinId = tempData.barilgiinId || "";
           medegdel.title = "Шинэ нэхэмжлэх үүссэн";
-          medegdel.message = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮`;
+          medegdel.message = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${tuukh.uldegdel}₮`;
           medegdel.kharsanEsekh = false;
           medegdel.turul = "мэдэгдэл";
           medegdel.ognoo = new Date();
@@ -1705,7 +1707,7 @@ async function sendInvoiceSmsToOrshinSuugch(
     var msgIlgeekhDugaar = "72002002";
 
     const smsText = `Tany ${nekhemjlekh.gereeniiDugaar} gereend, ${
-      nekhemjlekh.niitTulbur
+      nekhemjlekh.uldegdel || nekhemjlekh.niitTulbur
     }₮ nekhemjlekh uuslee, tulukh ognoo ${new Date(
       nekhemjlekh.tulukhOgnoo,
     ).toLocaleDateString("mn-MN")}`;
@@ -2699,14 +2701,34 @@ const manualSendInvoice = async (
         );
 
         // Preserve ekhniiUldegdel entries from the old invoice (if any)
-        const oldEkhniiUldegdelEntries = oldZardluud.filter(
+        // If there were payments (totalPaid > 0), we should update the amount in the row 
+        // to reflect what's actually left to pay of that original balance.
+        const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce(
+          (sum, p) => sum + (p.dun || 0),
+          0,
+        );
+
+        let oldEkhniiUldegdelEntries = oldZardluud.filter(
           (z) =>
             z.isEkhniiUldegdel ||
             z.ner === "Эхний үлдэгдэл" ||
             (z.ner && z.ner.includes("Эхний үлдэгдэл")),
         );
 
-        // Combine: new zardluud (without ekhniiUldegdel) + preserved ekhniiUldegdel from old invoice
+        if (totalPaid > 0 && oldEkhniiUldegdelEntries.length > 0) {
+          // Flatten the payments into the first ekhniiUldegdel entry
+          // This ensures the breakdown matches the new niitTulbur
+          oldEkhniiUldegdelEntries = oldEkhniiUldegdelEntries.map((z, idx) => {
+            if (idx === 0) {
+              const currentAmount = z.dun || z.tariff || 0;
+              const newAmount = Math.max(0, currentAmount - totalPaid);
+              return { ...z, dun: newAmount, tariff: newAmount };
+            }
+            return z;
+          });
+        }
+        
+        // Combine: new zardluud (without ekhniiUldegdel) + preserved/recalculated ekhniiUldegdel from old invoice
         const updatedZardluud = [
           ...newZardluudWithoutEkhniiUldegdel,
           ...oldEkhniiUldegdelEntries,
@@ -2735,17 +2757,34 @@ const manualSendInvoice = async (
         oldestUnsentInvoice.niitTulbur = newNiitTulbur;
 
         // Recalculate uldegdel: preserve existing uldegdel ratio or recalculate based on payments
-        const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce(
-          (sum, p) => sum + (p.dun || 0),
-          0,
-        );
         if (totalPaid > 0) {
           // If there were payments, recalculate uldegdel
           oldestUnsentInvoice.uldegdel = Math.max(0, newNiitTulbur - totalPaid);
+          // NEW: niitTulbur should get uldegdel value to show correct remaining balance
+          oldestUnsentInvoice.niitTulbur = oldestUnsentInvoice.uldegdel;
+          // Clear payment history since it's now "absorbed" into the new total
+          // This prevents double-deduction during pre-save hooks
+          oldestUnsentInvoice.paymentHistory = [];
         } else {
           // No payments - keep uldegdel = niitTulbur (full amount due)
           oldestUnsentInvoice.uldegdel = newNiitTulbur;
+          oldestUnsentInvoice.niitTulbur = newNiitTulbur;
         }
+
+        // Update content to reflect the latest total and balance
+        const updatedTailbarText =
+          geree.temdeglel &&
+          geree.temdeglel !== "Excel файлаас автоматаар үүссэн гэрээ"
+            ? `\nТайлбар: ${geree.temdeglel}`
+            : "";
+        
+        // Use zaalt info from the update logic if available
+        const zaaltMeta = oldestUnsentInvoice.medeelel?.zaalt;
+        const updatedZaaltText = zaaltMeta
+          ? `\nЦахилгаан: Өмнө: ${zaaltMeta.umnukhZaalt || 0}, Өдөр: ${zaaltMeta.zaaltTog || 0}, Шөнө: ${zaaltMeta.zaaltUs || 0}, Нийт: ${zaaltMeta.suuliinZaalt || 0}`
+          : "";
+
+        oldestUnsentInvoice.content = `Гэрээний дугаар: ${geree.gereeniiDugaar}, Нийт төлбөр: ${oldestUnsentInvoice.uldegdel}₮${updatedTailbarText}${updatedZaaltText}`;
 
         // Update zaalt metadata if available
         const zaaltEntry = newZardluudWithoutEkhniiUldegdel.find(
@@ -2824,7 +2863,7 @@ const manualSendInvoice = async (
               medegdel.baiguullagiinId = baiguullagiinId;
               medegdel.barilgiinId = geree.barilgiinId || "";
               medegdel.title = "Шинэ авлага нэмэгдлээ";
-              medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Нийт төлбөр: ${newNiitTulbur}₮`;
+              medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Нийт төлбөр: ${oldestUnsentInvoice.uldegdel}₮`;
               medegdel.kharsanEsekh = false;
               medegdel.turul = "мэдэгдэл";
               medegdel.ognoo = new Date();
