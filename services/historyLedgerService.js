@@ -70,7 +70,7 @@ async function getHistoryLedger(options) {
   /** @type {Array<{ ognoo: Date, createdAt: Date, tulukhDun: number, tulsunDun: number, ner: string, isSystem: boolean, _id: string, ajiltan?: string, khelber?: string, tailbar?: string, burtgesenOgnoo?: string, parentInvoiceId?: string, sourceCollection: string }>} */
   const rawRows = [];
 
-  // 1) Invoice charge lines (zardluud)
+  // 1) Invoice charge lines (zardluud) — every line (Lift, dundiin omch, tseverlegee, etc.)
   for (const inv of invoices) {
     const invId = inv._id.toString();
     const invOgnoo = inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
@@ -80,8 +80,7 @@ async function getHistoryLedger(options) {
     const zardluud = inv.medeelel?.zardluud || [];
     for (let i = 0; i < zardluud.length; i++) {
       const z = zardluud[i];
-      const tulukhDun = typeof z.tulukhDun === "number" ? z.tulukhDun : (z.dun != null ? Number(z.dun) : 0);
-      if (tulukhDun === 0 && (z.dun == null || z.dun === 0)) continue;
+      const tulukhDun = typeof z.tulukhDun === "number" ? z.tulukhDun : (z.dun != null ? Number(z.dun) : (z.tariff != null ? Number(z.tariff) : 0));
       rawRows.push({
         ognoo: invOgnoo ? new Date(invOgnoo) : new Date(0),
         createdAt: invCreated,
@@ -91,6 +90,7 @@ async function getHistoryLedger(options) {
         isSystem: true,
         _id: (z._id && z._id.toString()) || `inv-${invId}-z-${i}`,
         ajiltan,
+        khelber: "Нэхэмжлэх",
         tailbar: z.tailbar || "",
         burtgesenOgnoo,
         parentInvoiceId: invId,
@@ -102,7 +102,6 @@ async function getHistoryLedger(options) {
     for (let i = 0; i < guilgeenuud.length; i++) {
       const g = guilgeenuud[i];
       const tulsunDun = typeof g.tulsunDun === "number" ? g.tulsunDun : (g.dun != null ? Number(g.dun) : 0);
-      if (tulsunDun === 0) continue;
       const gOgnoo = g.ognoo || invOgnoo;
       rawRows.push({
         ognoo: gOgnoo ? new Date(gOgnoo) : new Date(0),
@@ -113,6 +112,7 @@ async function getHistoryLedger(options) {
         isSystem: false,
         _id: `inv-${invId}-g-${i}`,
         ajiltan,
+        khelber: "Төлбөр",
         tailbar: g.tailbar || "",
         burtgesenOgnoo,
         parentInvoiceId: invId,
@@ -121,7 +121,7 @@ async function getHistoryLedger(options) {
     }
   }
 
-  // 2) GereeniiTulukhAvlaga (receivables / charges)
+  // 2) GereeniiTulukhAvlaga (every avlaga / receivable — Эхний үлдэгдэл, Авлага, etc.)
   for (const s of tulukhList) {
     const tulukhDun = typeof s.tulukhDun === "number" ? s.tulukhDun : (s.undsenDun != null ? Number(s.undsenDun) : 0);
     const ognoo = s.ognoo || s.createdAt;
@@ -133,16 +133,17 @@ async function getHistoryLedger(options) {
       ner: s.zardliinNer || s.tailbar || "Авлага",
       isSystem: !!s.ekhniiUldegdelEsekh,
       _id: s._id.toString(),
+      ajiltan: s.guilgeeKhiisenAjiltniiNer || "",
+      khelber: "Авлага",
       tailbar: s.tailbar || "",
       burtgesenOgnoo: s.createdAt ? new Date(s.createdAt).toISOString() : undefined,
       sourceCollection: "gereeniiTulukhAvlaga",
     });
   }
 
-  // 3) GereeniiTulsunAvlaga (payments)
+  // 3) GereeniiTulsunAvlaga (every payment — Төлбөр, ashiglalt, tulult, QPay, etc.)
   for (const p of tulsunList) {
     const tulsunDun = typeof p.tulsunDun === "number" ? p.tulsunDun : 0;
-    if (tulsunDun === 0) continue;
     const ognoo = p.ognoo || p.createdAt;
     rawRows.push({
       ognoo: ognoo ? new Date(ognoo) : new Date(0),

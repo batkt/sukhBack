@@ -30,7 +30,7 @@ router.get("/qpayBankAccountsView", async (req, res, next) => {
     }
 
     var kholbolt = db.kholboltuud.find(
-      (a) => String(a.baiguullagiinId) === String(baiguullagiinId)
+      (a) => String(a.baiguullagiinId) === String(baiguullagiinId),
     );
 
     if (!kholbolt) {
@@ -47,7 +47,11 @@ router.get("/qpayBankAccountsView", async (req, res, next) => {
       })
       .lean();
 
-    if (!qpayConfig || !qpayConfig.salbaruud || !Array.isArray(qpayConfig.salbaruud)) {
+    if (
+      !qpayConfig ||
+      !qpayConfig.salbaruud ||
+      !Array.isArray(qpayConfig.salbaruud)
+    ) {
       return res.send({
         success: true,
         bank_accounts: [],
@@ -58,7 +62,7 @@ router.get("/qpayBankAccountsView", async (req, res, next) => {
     // If salbariinId is provided, get bank_accounts for that specific salbar
     if (salbariinId) {
       const targetSalbar = qpayConfig.salbaruud.find(
-        (salbar) => String(salbar.salbariinId) === String(salbariinId)
+        (salbar) => String(salbar.salbariinId) === String(salbariinId),
       );
 
       if (targetSalbar && targetSalbar.bank_accounts) {
@@ -79,7 +83,9 @@ router.get("/qpayBankAccountsView", async (req, res, next) => {
 
     // If no salbariinId, return all bank_accounts from all salbaruud with salbar info
     const result = qpayConfig.salbaruud
-      .filter((salbar) => salbar.bank_accounts && salbar.bank_accounts.length > 0)
+      .filter(
+        (salbar) => salbar.bank_accounts && salbar.bank_accounts.length > 0,
+      )
       .map((salbar) => ({
         salbariinId: salbar.salbariinId,
         salbariinNer: salbar.salbariinNer,
@@ -128,7 +134,7 @@ router.get(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 router.get(
   "/qpaycallbackGadaaSticker/:baiguullagiinId/:barilgiinId/:mashiniiDugaar/:cameraIP/:zakhialgiinDugaar",
@@ -173,7 +179,7 @@ router.get(
               mashiniiDugaar: req.params.mashiniiDugaar,
               cameraIP: req.params.cameraIP,
               uilchluulegchiinId: qpayObject.zogsoolUilchluulegch.uId,
-            }
+            },
           );
         }
       }
@@ -181,12 +187,12 @@ router.get(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 router.get("/qpayObjectAvya", tokenShalgakh, async (req, res, next) => {
   try {
     const qpayObject = await QuickQpayObject(
-      req.body.tukhainBaaziinKholbolt
+      req.body.tukhainBaaziinKholbolt,
     ).findOne({
       invoice_id: req.query.invoice_id,
     });
@@ -210,7 +216,7 @@ router.get("/accountNumbers", async (req, res, next) => {
     }
 
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
     );
 
     if (!tukhainBaaziinKholbolt) {
@@ -256,14 +262,19 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           if (token) {
             const tokenObject = jwt.verify(token, process.env.APP_SECRET);
             if (tokenObject?.id && tokenObject.id !== "zochin") {
-              const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id).lean();
+              const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+                .findById(tokenObject.id)
+                .lean();
               if (orshinSuugch) {
                 userPhoneNumber = orshinSuugch.utas;
                 // If user has baiguullagiinId, it's OWN_ORG address - use custom QPay
                 // If user doesn't have baiguullagiinId, it's Wallet API address - use Wallet QPay
                 if (orshinSuugch.baiguullagiinId) {
                   detectedSource = "CUSTOM";
-                } else if (orshinSuugch.walletUserId || orshinSuugch.walletBairId) {
+                } else if (
+                  orshinSuugch.walletUserId ||
+                  orshinSuugch.walletBairId
+                ) {
                   detectedSource = "WALLET_API";
                   useWalletQPay = true;
                 }
@@ -280,13 +291,17 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
     // If useWalletQPay is true, route to Wallet API QPay
     if (useWalletQPay && userPhoneNumber) {
       try {
-        
         // Create a safe copy of request body for logging (exclude Mongoose objects)
         const safeBody = {};
         for (const key in req.body) {
-          if (key !== 'tukhainBaaziinKholbolt' && key !== 'erunkhiiKholbolt' && 
-              typeof req.body[key] !== 'object' || req.body[key] === null || 
-              Array.isArray(req.body[key]) || req.body[key].constructor?.name === 'String') {
+          if (
+            (key !== "tukhainBaaziinKholbolt" &&
+              key !== "erunkhiiKholbolt" &&
+              typeof req.body[key] !== "object") ||
+            req.body[key] === null ||
+            Array.isArray(req.body[key]) ||
+            req.body[key].constructor?.name === "String"
+          ) {
             try {
               JSON.stringify(req.body[key]);
               safeBody[key] = req.body[key];
@@ -294,117 +309,166 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
               safeBody[key] = `[${typeof req.body[key]}]`;
             }
           } else {
-            safeBody[key] = `[${req.body[key]?.constructor?.name || typeof req.body[key]}]`;
+            safeBody[key] =
+              `[${req.body[key]?.constructor?.name || typeof req.body[key]}]`;
           }
         }
-        
+
         let invoiceId = req.body.invoiceId || req.body.walletInvoiceId;
-        
+
         // If invoiceId is not provided, but billingId and billIds are provided, create invoice first
-        if (!invoiceId && req.body.billingId && req.body.billIds && Array.isArray(req.body.billIds) && req.body.billIds.length > 0) {
-          
+        if (
+          !invoiceId &&
+          req.body.billingId &&
+          req.body.billIds &&
+          Array.isArray(req.body.billIds) &&
+          req.body.billIds.length > 0
+        ) {
           const invoiceData = {
             billingId: req.body.billingId,
             billIds: req.body.billIds,
             vatReceiveType: req.body.vatReceiveType || "CITIZEN",
             vatCompanyReg: req.body.vatCompanyReg || "",
           };
-          
+
           try {
-            const invoiceResult = await walletApiService.createInvoice(userPhoneNumber, invoiceData);
-            
+            const invoiceResult = await walletApiService.createInvoice(
+              userPhoneNumber,
+              invoiceData,
+            );
+
             if (invoiceResult && invoiceResult.invoiceId) {
               invoiceId = invoiceResult.invoiceId;
             } else {
-              throw new Error("Failed to create invoice - invoiceId not returned");
+              throw new Error(
+                "Failed to create invoice - invoiceId not returned",
+              );
             }
           } catch (invoiceError) {
             // If invoice creation fails because bill is already in another invoice
             const errorMessage = invoiceError.message || "";
-            
+
             // Check if error indicates bill is already being paid
-            const isBillAlreadyInInvoice = 
-              errorMessage.includes("өөр нэхэмжлэлээр төлөлт") || 
-              errorMessage.includes("already") || 
+            const isBillAlreadyInInvoice =
+              errorMessage.includes("өөр нэхэмжлэлээр төлөлт") ||
+              errorMessage.includes("already") ||
               errorMessage.includes("төлөлт хийгдэж") ||
               errorMessage.includes("Билл өөр нэхэмжлэлээр");
-            
+
             if (isBillAlreadyInInvoice) {
-              
               try {
                 // Try to get existing payments for this billing
-                const existingPayments = await walletApiService.getBillingPayments(userPhoneNumber, req.body.billingId);
-                
+                const existingPayments =
+                  await walletApiService.getBillingPayments(
+                    userPhoneNumber,
+                    req.body.billingId,
+                  );
+
                 if (existingPayments && existingPayments.length > 0) {
-                  
                   // Get the most recent payment
-                  const latestPayment = existingPayments[existingPayments.length - 1];
-                  
+                  const latestPayment =
+                    existingPayments[existingPayments.length - 1];
+
                   // Extract paymentId - it might be in different fields
-                  const paymentId = latestPayment.paymentId || latestPayment.id || latestPayment._id;
-                  
+                  const paymentId =
+                    latestPayment.paymentId ||
+                    latestPayment.id ||
+                    latestPayment._id;
+
                   if (paymentId) {
-                    
                     // Fetch full payment details to get bank information
                     try {
-                      const fullPaymentDetails = await walletApiService.getPayment(userPhoneNumber, paymentId);
-                      
+                      const fullPaymentDetails =
+                        await walletApiService.getPayment(
+                          userPhoneNumber,
+                          paymentId,
+                        );
+
                       if (fullPaymentDetails) {
                         // Extract bank details from payment status
                         let bankCode = fullPaymentDetails.receiverBankCode;
                         let accountNo = fullPaymentDetails.receiverAccountNo;
-                        let accountName = fullPaymentDetails.receiverAccountName;
-                        
+                        let accountName =
+                          fullPaymentDetails.receiverAccountName;
+
                         // Check in lines -> billTransactions
-                        if (!bankCode && fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
+                        if (
+                          !bankCode &&
+                          fullPaymentDetails.lines &&
+                          Array.isArray(fullPaymentDetails.lines)
+                        ) {
                           for (const line of fullPaymentDetails.lines) {
-                            if (line.billTransactions && Array.isArray(line.billTransactions) && line.billTransactions.length > 0) {
+                            if (
+                              line.billTransactions &&
+                              Array.isArray(line.billTransactions) &&
+                              line.billTransactions.length > 0
+                            ) {
                               const transaction = line.billTransactions[0];
-                              bankCode = bankCode || transaction.receiverBankCode;
-                              accountNo = accountNo || transaction.receiverAccountNo;
-                              accountName = accountName || transaction.receiverAccountName;
+                              bankCode =
+                                bankCode || transaction.receiverBankCode;
+                              accountNo =
+                                accountNo || transaction.receiverAccountNo;
+                              accountName =
+                                accountName || transaction.receiverAccountName;
                               if (bankCode && accountNo) break;
                             }
                           }
                         }
-                        
+
                         // Return the existing payment with full details
                         return res.status(200).json({
                           success: true,
                           data: {
                             paymentId: paymentId,
-                            paymentAmount: fullPaymentDetails.amount || fullPaymentDetails.totalAmount || fullPaymentDetails.paymentAmount || latestPayment.paymentAmount || latestPayment.amount,
+                            paymentAmount:
+                              fullPaymentDetails.amount ||
+                              fullPaymentDetails.totalAmount ||
+                              fullPaymentDetails.paymentAmount ||
+                              latestPayment.paymentAmount ||
+                              latestPayment.amount,
                             receiverBankCode: bankCode || "",
                             receiverAccountNo: accountNo || "",
                             receiverAccountName: accountName || "",
-                            transactionDescription: fullPaymentDetails.transactionDescription || latestPayment.transactionDescription || "",
+                            transactionDescription:
+                              fullPaymentDetails.transactionDescription ||
+                              latestPayment.transactionDescription ||
+                              "",
                             paymentStatus: fullPaymentDetails.paymentStatus,
-                            paymentStatusText: fullPaymentDetails.paymentStatusText,
+                            paymentStatusText:
+                              fullPaymentDetails.paymentStatusText,
                             message: "Төлбөр аль хэдийн үүссэн байна",
                             existingPayment: true,
                           },
-                          message: "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
+                          message:
+                            "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
                           source: "WALLET_API",
                         });
                       }
                     } catch (getPaymentError) {
                       // Fall through to return basic payment info
                     }
-                    
+
                     // If we couldn't get full details, return what we have
                     return res.status(200).json({
                       success: true,
                       data: {
                         paymentId: paymentId,
-                        paymentAmount: latestPayment.paymentAmount || latestPayment.amount || latestPayment.totalAmount,
+                        paymentAmount:
+                          latestPayment.paymentAmount ||
+                          latestPayment.amount ||
+                          latestPayment.totalAmount,
                         receiverBankCode: latestPayment.receiverBankCode || "",
-                        receiverAccountNo: latestPayment.receiverAccountNo || "",
-                        receiverAccountName: latestPayment.receiverAccountName || "",
-                        transactionDescription: latestPayment.transactionDescription || "",
+                        receiverAccountNo:
+                          latestPayment.receiverAccountNo || "",
+                        receiverAccountName:
+                          latestPayment.receiverAccountName || "",
+                        transactionDescription:
+                          latestPayment.transactionDescription || "",
                         message: "Төлбөр аль хэдийн үүссэн байна",
                         existingPayment: true,
                       },
-                      message: "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
+                      message:
+                        "Төлбөр аль хэдийн үүссэн байна. Дээрх төлбөрийг ашиглана уу.",
                       source: "WALLET_API",
                     });
                   } else {
@@ -414,89 +478,112 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
               } catch (paymentError) {
                 // Don't throw - continue to return error about bill already in invoice
               }
-              
+
               // If no existing payments found, return clear error
               return res.status(400).json({
                 success: false,
                 message: errorMessage,
                 error: "BILL_ALREADY_IN_INVOICE",
                 errorCode: "BILL_ALREADY_IN_INVOICE",
-                suggestion: "Энэ биллийг өөр нэхэмжлэлээр төлөлт хийгдэж байна. Төлбөрийн түүхийг шалгана уу.",
+                suggestion:
+                  "Энэ биллийг өөр нэхэмжлэлээр төлөлт хийгдэж байна. Төлбөрийн түүхийг шалгана уу.",
                 billingId: req.body.billingId,
                 billIds: req.body.billIds,
               });
             }
-            
+
             // For other errors, re-throw
             throw invoiceError;
           }
         } else if (!invoiceId) {
         }
-        
+
         // Check if invoiceId is available (required for Wallet API payment)
         if (!invoiceId) {
-          const errorMsg = "Invoice ID is required for Wallet API QPay payment. " +
+          const errorMsg =
+            "Invoice ID is required for Wallet API QPay payment. " +
             "Please provide one of the following:\n" +
             "1. invoiceId (if invoice already created)\n" +
             "2. billingId + billIds[] (to auto-create invoice)\n\n" +
-            "Current request has: " + Object.keys(req.body).filter(k => 
-              !['tukhainBaaziinKholbolt', 'erunkhiiKholbolt', 'nevtersenAjiltniiToken'].includes(k)
-            ).join(', ');
+            "Current request has: " +
+            Object.keys(req.body)
+              .filter(
+                (k) =>
+                  ![
+                    "tukhainBaaziinKholbolt",
+                    "erunkhiiKholbolt",
+                    "nevtersenAjiltniiToken",
+                  ].includes(k),
+              )
+              .join(", ");
           throw new Error(errorMsg);
         }
-        
+
         const paymentData = {
           invoiceId: invoiceId,
           // paymentMethod is not needed - Wallet API auto-detects QPay
         };
-        
-        const result = await walletApiService.createPayment(userPhoneNumber, paymentData);
-        
-        
+
+        const result = await walletApiService.createPayment(
+          userPhoneNumber,
+          paymentData,
+        );
+
         // Check if bank details are in the initial createPayment response
-        const hasInitialBankDetails = result.receiverBankCode && result.receiverAccountNo;
-        
+        const hasInitialBankDetails =
+          result.receiverBankCode && result.receiverAccountNo;
+
         // If bank details are empty, try to get full payment details
         if (!hasInitialBankDetails) {
-          
           let bankCode = null;
           let accountNo = null;
           let accountName = null;
           let paymentStatus = null;
           let paymentStatusText = null;
-          
+
           const initialDelay = 3000; // Wait 3 seconds for payment to be processed by Wallet API
-          
+
           // Wait for payment to be processed by Wallet API
-          await new Promise(resolve => setTimeout(resolve, initialDelay));
-          
+          await new Promise((resolve) => setTimeout(resolve, initialDelay));
+
           try {
-            
-            const fullPaymentDetails = await walletApiService.getPayment(userPhoneNumber, result.paymentId);
-            
+            const fullPaymentDetails = await walletApiService.getPayment(
+              userPhoneNumber,
+              result.paymentId,
+            );
+
             if (fullPaymentDetails) {
               paymentStatus = fullPaymentDetails.paymentStatus;
               paymentStatusText = fullPaymentDetails.paymentStatusText;
-              
-              
+
               // Try root level first
               bankCode = fullPaymentDetails.receiverBankCode;
               accountNo = fullPaymentDetails.receiverAccountNo;
               accountName = fullPaymentDetails.receiverAccountName;
-              
-              
+
               // Check in lines -> billTransactions (as seen in Postman collection)
-              if ((!bankCode || !accountNo) && fullPaymentDetails.lines && Array.isArray(fullPaymentDetails.lines)) {
-                
-                for (let lineIdx = 0; lineIdx < fullPaymentDetails.lines.length; lineIdx++) {
+              if (
+                (!bankCode || !accountNo) &&
+                fullPaymentDetails.lines &&
+                Array.isArray(fullPaymentDetails.lines)
+              ) {
+                for (
+                  let lineIdx = 0;
+                  lineIdx < fullPaymentDetails.lines.length;
+                  lineIdx++
+                ) {
                   const line = fullPaymentDetails.lines[lineIdx];
-                  
-                  if (line.billTransactions && Array.isArray(line.billTransactions) && line.billTransactions.length > 0) {
-                    
+
+                  if (
+                    line.billTransactions &&
+                    Array.isArray(line.billTransactions) &&
+                    line.billTransactions.length > 0
+                  ) {
                     bankCode = bankCode || transaction.receiverBankCode;
                     accountNo = accountNo || transaction.receiverAccountNo;
-                    accountName = accountName || transaction.receiverAccountName;
-                    
+                    accountName =
+                      accountName || transaction.receiverAccountName;
+
                     if (bankCode && accountNo) {
                       break;
                     }
@@ -507,45 +594,48 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 if (!fullPaymentDetails.lines) {
                 }
               }
-              
+
               if (bankCode && accountNo) {
               } else {
               }
             }
-          } catch (getPaymentError) {
-          }
-          
+          } catch (getPaymentError) {}
+
           // Merge payment details with initial response
           Object.assign(result, {
             receiverBankCode: bankCode || result.receiverBankCode || "",
             receiverAccountNo: accountNo || result.receiverAccountNo || "",
-            receiverAccountName: accountName || result.receiverAccountName || "",
+            receiverAccountName:
+              accountName || result.receiverAccountName || "",
             paymentStatus: paymentStatus || result.paymentStatus,
             paymentStatusText: paymentStatusText || result.paymentStatusText,
           });
-          
+
           if (!bankCode || !accountNo) {
           }
         }
-        
+
         // Check for QR code in response
         if (result.qrText) {
         } else {
         }
-        
+
         // Check if bank details are still missing after retries
-        const hasBankDetails = result.receiverBankCode && result.receiverAccountNo;
-        
+        const hasBankDetails =
+          result.receiverBankCode && result.receiverAccountNo;
+
         return res.status(200).json({
           success: true,
           data: result,
-          message: hasBankDetails 
-            ? "QPay төлбөр амжилттай үүсгэлээ" 
+          message: hasBankDetails
+            ? "QPay төлбөр амжилттай үүсгэлээ"
             : "Төлбөр үүссэн. Банкны мэдээлэл бэлтгэж байна. Түр хүлээнэ үү.",
           source: "WALLET_API",
           invoiceId: invoiceId, // Return invoiceId in case frontend needs it
           needsPolling: !hasBankDetails, // Flag to indicate frontend should poll for bank details
-          pollingEndpoint: hasBankDetails ? null : `/api/payment/${result.paymentId}`, // Endpoint to poll (relative path)
+          pollingEndpoint: hasBankDetails
+            ? null
+            : `/api/payment/${result.paymentId}`, // Endpoint to poll (relative path)
         });
       } catch (walletQPayError) {
         // Fall back to custom QPay if Wallet QPay fails
@@ -557,7 +647,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
     // Continue with custom QPay (OWN_ORG or fallback)
     if (!req.body.tukhainBaaziinKholbolt && req.body.baiguullagiinId) {
       req.body.tukhainBaaziinKholbolt = db.kholboltuud.find(
-        (k) => String(k.baiguullagiinId) === String(req.body.baiguullagiinId)
+        (k) => String(k.baiguullagiinId) === String(req.body.baiguullagiinId),
       );
     }
 
@@ -586,7 +676,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         (req.body.turul ? req.body.turul : "");
       if (!!req.body.gereeniiId) {
         var geree = await Geree(req.body.tukhainBaaziinKholbolt, true).findById(
-          req.body.gereeniiId
+          req.body.gereeniiId,
         );
         tailbar = " " + geree.gereeniiDugaar;
       }
@@ -651,7 +741,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         if (!req.body.tukhainBaaziinKholbolt) {
           req.body.tukhainBaaziinKholbolt = db.kholboltuud.find(
             (k) =>
-              String(k.baiguullagiinId) === String(req.body.baiguullagiinId)
+              String(k.baiguullagiinId) === String(req.body.baiguullagiinId),
           );
         }
 
@@ -660,7 +750,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
 
         // Fetch all invoices
         const invoices = await nekhemjlekhiinTuukh(
-          req.body.tukhainBaaziinKholbolt
+          req.body.tukhainBaaziinKholbolt,
         )
           .find({ _id: { $in: invoiceIds } })
           .lean();
@@ -713,7 +803,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           try {
             const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
             const nekhemjlekh = await nekhemjlekhiinTuukh(
-              req.body.tukhainBaaziinKholbolt
+              req.body.tukhainBaaziinKholbolt,
             )
               .findById(req.body.nekhemjlekhiinId)
               .lean();
@@ -732,8 +822,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
               }
             } else {
             }
-          } catch (err) {
-          }
+          } catch (err) {}
         }
       }
 
@@ -743,7 +832,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         try {
           const { Dans } = require("zevbackv2");
           const qpayKhariltsagch = new QpayKhariltsagch(
-            req.body.tukhainBaaziinKholbolt
+            req.body.tukhainBaaziinKholbolt,
           );
           const qpayConfig = await qpayKhariltsagch
             .findOne({
@@ -759,7 +848,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             // Find the salbar that matches barilgiinId (salbariinId)
             const targetSalbar = qpayConfig.salbaruud.find(
               (salbar) =>
-                String(salbar.salbariinId) === String(req.body.barilgiinId)
+                String(salbar.salbariinId) === String(req.body.barilgiinId),
             );
 
             if (
@@ -787,7 +876,6 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 req.body.dansniiDugaar = newDansniiDugaar;
                 req.body.burtgeliinDugaar =
                   bankAccount.account_bank_code || req.body.burtgeliinDugaar;
-
               } else {
                 // Account doesn't exist in Dans or doesn't have QPay enabled
                 // Try to find a Dans entry for this barilga with QPay enabled
@@ -815,7 +903,6 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                   req.body.dansniiDugaar = fallbackDans.dugaar;
                   req.body.burtgeliinDugaar =
                     bankAccount.account_bank_code || req.body.burtgeliinDugaar;
-
                 } else {
                   // Don't change dansniiDugaar if no valid Dans found
                 }
@@ -834,7 +921,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         khariu = await qpayGargaya(
           req.body,
           callback_url,
-          req.body.tukhainBaaziinKholbolt
+          req.body.tukhainBaaziinKholbolt,
         );
       } catch (qpayError) {
         // Enhanced error logging for QPay errors
@@ -874,11 +961,10 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
           const kholbolt = db.kholboltuud.find(
             (a) =>
-              String(a.baiguullagiinId) === String(req.body.baiguullagiinId)
+              String(a.baiguullagiinId) === String(req.body.baiguullagiinId),
           );
 
           if (!kholbolt) {
-
             throw new Error("Tenant connection not found");
           }
 
@@ -895,18 +981,16 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             {
               qpayInvoiceId: invoiceId,
               qpayUrl: qpayUrl,
-            }
+            },
           );
-
-        } catch (saveErr) {
-        }
+        } catch (saveErr) {}
       } else if (req.body.nekhemjlekhiinId && khariu) {
         // Single invoice payment (existing logic)
         try {
           const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
           const kholbolt = db.kholboltuud.find(
             (a) =>
-              String(a.baiguullagiinId) === String(req.body.baiguullagiinId)
+              String(a.baiguullagiinId) === String(req.body.baiguullagiinId),
           );
 
           if (!kholbolt) {
@@ -921,7 +1005,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             khariu.qr_image;
 
           const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findById(
-            req.body.nekhemjlekhiinId
+            req.body.nekhemjlekhiinId,
           );
 
           if (nekhemjlekh) {
@@ -930,7 +1014,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
               {
                 qpayInvoiceId: invoiceId,
                 qpayUrl: qpayUrl,
-              }
+              },
             );
 
             if (invoiceId && nekhemjlekh._id) {
@@ -952,7 +1036,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                   { invoice_id: invoiceId },
                   { sukhNekhemjlekh: sukhemjlekhData },
-                  { new: true }
+                  { new: true },
                 );
 
                 if (updated) {
@@ -966,7 +1050,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                       "qpay.callback_url": { $regex: nekhemjlekhiinId },
                     },
                     { sukhNekhemjlekh: sukhemjlekhData },
-                    { new: true }
+                    { new: true },
                   );
                   if (updated) {
                     return;
@@ -981,7 +1065,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                       ognoo: { $gte: new Date(Date.now() - 60000) }, // Last minute
                     },
                     { sukhNekhemjlekh: sukhemjlekhData },
-                    { new: true }
+                    { new: true },
                   );
                   if (updated) {
                     return;
@@ -1000,7 +1084,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                     updated = await QuickQpayObject(kholbolt).findByIdAndUpdate(
                       recent._id,
                       { sukhNekhemjlekh: sukhemjlekhData },
-                      { new: true }
+                      { new: true },
                     );
                     if (updated) {
                       return;
@@ -1013,7 +1097,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                   updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                     { invoice_id: invoiceId },
                     { sukhNekhemjlekh: sukhemjlekhData },
-                    { new: true }
+                    { new: true },
                   );
                   if (updated) {
                     return;
@@ -1025,21 +1109,19 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                   updated = await QuickQpayObject(kholbolt).findOneAndUpdate(
                     { invoice_id: invoiceId },
                     { sukhNekhemjlekh: sukhemjlekhData },
-                    { new: true }
+                    { new: true },
                   );
                   if (updated) {
-                    }
+                  }
                 }
               };
 
-              updateNekhemjlekhData().catch((err) => {
-              });
+              updateNekhemjlekhData().catch((err) => {});
             } else {
             }
           } else {
           }
-        } catch (saveErr) {
-        }
+        } catch (saveErr) {}
       } else {
       }
 
@@ -1102,16 +1184,15 @@ router.get(
       const nekhemjlekhiinId = req.params.nekhemjlekhiinId;
 
       const kholbolt = db.kholboltuud.find(
-        (a) => a.baiguullagiinId == baiguullagiinId
+        (a) => a.baiguullagiinId == baiguullagiinId,
       );
 
       if (!kholbolt) {
         return res.status(404).send("Organization not found");
       }
 
-      const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findById(
-        nekhemjlekhiinId
-      );
+      const nekhemjlekh =
+        await nekhemjlekhiinTuukh(kholbolt).findById(nekhemjlekhiinId);
 
       if (!nekhemjlekh) {
         return res.status(404).send("Invoice not found");
@@ -1135,7 +1216,7 @@ router.get(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 router.post(
@@ -1148,7 +1229,7 @@ router.post(
         register: req.body.register,
       });
       var kholbolt = db.kholboltuud.find(
-        (a) => a.baiguullagiinId == baiguullaga._id
+        (a) => a.baiguullagiinId == baiguullaga._id,
       );
       req.body.baiguullagiinId = baiguullaga._id;
       delete req.body.tukhainBaaziinKholbolt;
@@ -1160,7 +1241,7 @@ router.post(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 router.post("/qpayKhariltsagchAvay", tokenShalgakh, async (req, res, next) => {
@@ -1170,7 +1251,7 @@ router.post("/qpayKhariltsagchAvay", tokenShalgakh, async (req, res, next) => {
       register: req.body.register,
     });
     var kholbolt = db.kholboltuud.find(
-      (a) => a.baiguullagiinId == baiguullaga1._id
+      (a) => a.baiguullagiinId == baiguullaga1._id,
     );
     var qpayKhariltsagch = new QpayKhariltsagch(kholbolt);
 
@@ -1198,7 +1279,7 @@ router.get("/qpayBankAccounts", tokenShalgakh, async (req, res, next) => {
     }
 
     var kholbolt = db.kholboltuud.find(
-      (a) => String(a.baiguullagiinId) === String(baiguullagiinId)
+      (a) => String(a.baiguullagiinId) === String(baiguullagiinId),
     );
 
     if (!kholbolt) {
@@ -1215,7 +1296,11 @@ router.get("/qpayBankAccounts", tokenShalgakh, async (req, res, next) => {
       })
       .lean();
 
-    if (!qpayConfig || !qpayConfig.salbaruud || !Array.isArray(qpayConfig.salbaruud)) {
+    if (
+      !qpayConfig ||
+      !qpayConfig.salbaruud ||
+      !Array.isArray(qpayConfig.salbaruud)
+    ) {
       return res.send({
         success: true,
         bank_accounts: [],
@@ -1225,7 +1310,7 @@ router.get("/qpayBankAccounts", tokenShalgakh, async (req, res, next) => {
     // If salbariinId is provided, get bank_accounts for that specific salbar
     if (salbariinId) {
       const targetSalbar = qpayConfig.salbaruud.find(
-        (salbar) => String(salbar.salbariinId) === String(salbariinId)
+        (salbar) => String(salbar.salbariinId) === String(salbariinId),
       );
 
       if (targetSalbar && targetSalbar.bank_accounts) {
@@ -1243,7 +1328,9 @@ router.get("/qpayBankAccounts", tokenShalgakh, async (req, res, next) => {
 
     // If no salbariinId, return all bank_accounts from all salbaruud
     const allBankAccounts = qpayConfig.salbaruud
-      .filter((salbar) => salbar.bank_accounts && salbar.bank_accounts.length > 0)
+      .filter(
+        (salbar) => salbar.bank_accounts && salbar.bank_accounts.length > 0,
+      )
       .flatMap((salbar) => salbar.bank_accounts);
 
     res.send({
@@ -1266,16 +1353,15 @@ router.get(
       const nekhemjlekhiinId = req.params.nekhemjlekhiinId;
 
       const kholbolt = db.kholboltuud.find(
-        (a) => String(a.baiguullagiinId) === String(baiguullagiinId)
+        (a) => String(a.baiguullagiinId) === String(baiguullagiinId),
       );
 
       if (!kholbolt) {
         return res.status(404).send("Organization not found");
       }
 
-      const nekhemjlekh = await nekhemjlekhiinTuukh(kholbolt).findById(
-        nekhemjlekhiinId
-      );
+      const nekhemjlekh =
+        await nekhemjlekhiinTuukh(kholbolt).findById(nekhemjlekhiinId);
 
       if (!nekhemjlekh) {
         return res.status(404).send("Invoice not found");
@@ -1291,14 +1377,13 @@ router.get(
         try {
           const khariu = await qpayShalgay(
             { invoice_id: nekhemjlekh.qpayInvoiceId },
-            kholbolt
+            kholbolt,
           );
           if (khariu?.payments?.[0]?.transactions?.[0]?.id) {
             paymentTransactionId = khariu.payments[0].transactions[0].id;
             nekhemjlekh.qpayPaymentId = paymentTransactionId;
           }
-        } catch (err) {
-        }
+        } catch (err) {}
       }
 
       if (!paymentTransactionId && req.query.qpay_payment_id) {
@@ -1308,9 +1393,12 @@ router.get(
 
       // Calculate uldegdel properly based on actual paid amount
       const paidAmount = nekhemjlekh.niitTulbur || 0;
-      const currentUldegdel = (typeof nekhemjlekh.uldegdel === 'number' && !isNaN(nekhemjlekh.uldegdel) && nekhemjlekh.uldegdel > 0)
-        ? nekhemjlekh.uldegdel
-        : paidAmount;
+      const currentUldegdel =
+        typeof nekhemjlekh.uldegdel === "number" &&
+        !isNaN(nekhemjlekh.uldegdel) &&
+        nekhemjlekh.uldegdel > 0
+          ? nekhemjlekh.uldegdel
+          : paidAmount;
       const newUldegdel = Math.max(0, currentUldegdel - paidAmount);
       const isFullyPaid = newUldegdel <= 0.01;
 
@@ -1334,22 +1422,24 @@ router.get(
       if (nekhemjlekh.ekhniiUldegdel && nekhemjlekh.ekhniiUldegdel > 0) {
         try {
           const gereeForUpdate = await Geree(kholbolt).findById(
-            nekhemjlekh.gereeniiId
+            nekhemjlekh.gereeniiId,
           );
           if (gereeForUpdate) {
             gereeForUpdate.ekhniiUldegdel = 0;
             await gereeForUpdate.save();
           }
-        } catch (ekhniiUldegdelError) {
-        }
+        } catch (ekhniiUldegdelError) {}
       }
 
       // Reset electricity readings to 0 if electricity invoice is paid
       // User will upload new readings for next month
-      if (nekhemjlekh.tsahilgaanNekhemjlekh && nekhemjlekh.tsahilgaanNekhemjlekh > 0) {
+      if (
+        nekhemjlekh.tsahilgaanNekhemjlekh &&
+        nekhemjlekh.tsahilgaanNekhemjlekh > 0
+      ) {
         try {
           const gereeForUpdate = await Geree(kholbolt).findById(
-            nekhemjlekh.gereeniiId
+            nekhemjlekh.gereeniiId,
           );
           if (gereeForUpdate) {
             gereeForUpdate.umnukhZaalt = 0;
@@ -1358,8 +1448,7 @@ router.get(
             gereeForUpdate.zaaltUs = 0;
             await gereeForUpdate.save();
           }
-        } catch (zaaltError) {
-        }
+        } catch (zaaltError) {}
       }
 
       if (nekhemjlekh.qpayInvoiceId && nekhemjlekh._id) {
@@ -1391,11 +1480,10 @@ router.get(
             await QuickQpayObject(kholbolt).findByIdAndUpdate(
               qpayObject._id,
               { sukhNekhemjlekh: sukhemjlekhData, tulsunEsekh: true },
-              { new: true }
+              { new: true },
             );
           }
-        } catch (err) {
-        }
+        } catch (err) {}
       }
 
       try {
@@ -1437,8 +1525,7 @@ router.get(
         bankGuilgee.indexTalbar = `${bankGuilgee.barilgiinId}${bankGuilgee.bank}${bankGuilgee.dansniiDugaar}${bankGuilgee.record}${bankGuilgee.amount}`;
 
         await bankGuilgee.save();
-      } catch (bankErr) {
-      }
+      } catch (bankErr) {}
 
       // Create gereeniiTulsunAvlaga record to register QPay payment
       try {
@@ -1465,18 +1552,24 @@ router.get(
         });
         await tulsunDoc.save();
       } catch (tulsunErr) {
-        console.error("❌ [QPAY CALLBACK] Error creating gereeniiTulsunAvlaga:", tulsunErr.message);
+        console.error(
+          "❌ [QPAY CALLBACK] Error creating gereeniiTulsunAvlaga:",
+          tulsunErr.message,
+        );
       }
 
       // Update gereeniiTulukhAvlaga uldegdel (reduce outstanding balance)
       try {
         const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
         let remainingForGeree = paidAmount;
-        const openTulukhRows = await GereeniiTulukhAvlaga(kholbolt).find({
-          gereeniiId: String(nekhemjlekh.gereeniiId),
-          baiguullagiinId: String(baiguullagiinId),
-          uldegdel: { $gt: 0 },
-        }).sort({ ognoo: 1, createdAt: 1 }).lean();
+        const openTulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+          .find({
+            gereeniiId: String(nekhemjlekh.gereeniiId),
+            baiguullagiinId: String(baiguullagiinId),
+            uldegdel: { $gt: 0 },
+          })
+          .sort({ ognoo: 1, createdAt: 1 })
+          .lean();
 
         for (const row of openTulukhRows) {
           if (remainingForGeree <= 0) break;
@@ -1486,49 +1579,76 @@ router.get(
           const newRowUldegdel = rowUldegdel - applyHere;
           await GereeniiTulukhAvlaga(kholbolt).updateOne(
             { _id: row._id },
-            { $set: { uldegdel: newRowUldegdel } }
+            { $set: { uldegdel: newRowUldegdel } },
           );
           remainingForGeree -= applyHere;
         }
       } catch (tulukhErr) {
-        console.error("❌ [QPAY CALLBACK] Error updating gereeniiTulukhAvlaga:", tulukhErr.message);
+        console.error(
+          "❌ [QPAY CALLBACK] Error updating gereeniiTulukhAvlaga:",
+          tulukhErr.message,
+        );
       }
 
-      // Recalculate globalUldegdel on the geree
+      // Recalculate globalUldegdel on the geree (same formula as manual payment: invoices + standalone avlaga - positiveBalance)
       try {
-        const gereeForGlobal = await Geree(kholbolt).findById(nekhemjlekh.gereeniiId);
+        const gereeForGlobal = await Geree(kholbolt).findById(
+          nekhemjlekh.gereeniiId,
+        );
         if (gereeForGlobal) {
-          const unpaidInvoices = await nekhemjlekhiinTuukh(kholbolt).find({
-            baiguullagiinId: String(baiguullagiinId),
-            gereeniiId: String(nekhemjlekh.gereeniiId),
-            tuluv: { $ne: "Төлсөн" },
-          }).select("niitTulbur uldegdel").lean();
+          const unpaidInvoices = await nekhemjlekhiinTuukh(kholbolt)
+            .find({
+              baiguullagiinId: String(baiguullagiinId),
+              gereeniiId: String(nekhemjlekh.gereeniiId),
+              tuluv: { $ne: "Төлсөн" },
+            })
+            .select("niitTulbur uldegdel")
+            .lean();
 
-          let globalUldegdel = 0;
+          let totalUnpaid = 0;
           unpaidInvoices.forEach((inv) => {
-            const unpaid = (typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel))
-              ? inv.uldegdel
-              : inv.niitTulbur || 0;
-            globalUldegdel += unpaid;
+            const unpaid =
+              typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel)
+                ? inv.uldegdel
+                : inv.niitTulbur || 0;
+            totalUnpaid += unpaid;
+          });
+
+          const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+          const tulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+            .find({
+              baiguullagiinId: String(baiguullagiinId),
+              gereeniiId: String(nekhemjlekh.gereeniiId),
+            })
+            .select("uldegdel")
+            .lean();
+          tulukhRows.forEach((row) => {
+            totalUnpaid +=
+              typeof row.uldegdel === "number" && !isNaN(row.uldegdel)
+                ? row.uldegdel
+                : 0;
           });
 
           const positive = gereeForGlobal.positiveBalance || 0;
-          gereeForGlobal.globalUldegdel = globalUldegdel - positive;
+          gereeForGlobal.globalUldegdel = totalUnpaid - positive;
           await gereeForGlobal.save();
         }
       } catch (recalcErr) {
-        console.error("❌ [QPAY CALLBACK] Error recalculating globalUldegdel:", recalcErr.message);
+        console.error(
+          "❌ [QPAY CALLBACK] Error recalculating globalUldegdel:",
+          recalcErr.message,
+        );
       }
 
       try {
         const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-          nekhemjlekh.baiguullagiinId
+          nekhemjlekh.baiguullagiinId,
         );
 
         let tuxainSalbar = null;
         if (nekhemjlekh.barilgiinId && baiguullaga?.barilguud) {
           tuxainSalbar = baiguullaga.barilguud.find(
-            (e) => e._id.toString() === String(nekhemjlekh.barilgiinId)
+            (e) => e._id.toString() === String(nekhemjlekh.barilgiinId),
           )?.tokhirgoo;
         }
 
@@ -1537,70 +1657,89 @@ router.get(
         }
 
         // Check both eBarimtAshiglakhEsekh and eBarimtShine for backward compatibility
-        const shouldCreateEbarimt = tuxainSalbar && (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
-        
+        const shouldCreateEbarimt =
+          tuxainSalbar &&
+          (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
+
         if (shouldCreateEbarimt) {
-          
           if (!tuxainSalbar.merchantTin) {
             throw new Error("merchantTin is required for e-barimt creation");
           }
-          
+
           // Ebarimt API requires a 4-digit numeric district code
           // Look up the code from tatvariinAlba using city name and district/horoo name
           let ebarimtDistrictCode = null;
-          
+
           try {
             const TatvariinAlba = require("../models/tatvariinAlba");
-            const cityName = tuxainSalbar.EbarimtDuuregNer || tuxainSalbar.duuregNer;
-            const districtCodeString = tuxainSalbar.EbarimtDistrictCode || tuxainSalbar.districtCode || "";
-            
+            const cityName =
+              tuxainSalbar.EbarimtDuuregNer || tuxainSalbar.duuregNer;
+            const districtCodeString =
+              tuxainSalbar.EbarimtDistrictCode ||
+              tuxainSalbar.districtCode ||
+              "";
+
             // Extract horoo/district name from the district code string
             // E.g., "Сонгинохайрхан20-р хороо" -> "20-р хороо"
             // Or use horoo.ner if available
-            const horooName = tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || 
-                              districtCodeString.replace(cityName, "").trim();
-            
-            
+            const horooName =
+              tuxainSalbar.EbarimtDHoroo?.ner ||
+              tuxainSalbar.horoo?.ner ||
+              districtCodeString.replace(cityName, "").trim();
+
             if (cityName && horooName) {
               // Find the city in tatvariinAlba - try exact match first, then case-insensitive
-              let city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
-              
+              let city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({
+                ner: cityName,
+              });
+
               // If not found, try case-insensitive search
               if (!city) {
-                const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({});
-                city = allCities.find(c => c.ner && c.ner.trim().toLowerCase() === cityName.trim().toLowerCase());
+                const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find(
+                  {},
+                );
+                city = allCities.find(
+                  (c) =>
+                    c.ner &&
+                    c.ner.trim().toLowerCase() ===
+                      cityName.trim().toLowerCase(),
+                );
                 if (city) {
                 }
               }
-              
+
               if (city && city.kod) {
-                
                 // Find the district/horoo within the city - try exact match, then partial match
-                let district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
-                
+                let district = city.ded?.find(
+                  (d) => d.ner === horooName || d.ner === horooName.trim(),
+                );
+
                 // If not found, try case-insensitive or partial match
                 if (!district && city.ded) {
-                  district = city.ded.find(d => {
+                  district = city.ded.find((d) => {
                     const dName = d.ner?.trim().toLowerCase() || "";
                     const hName = horooName.trim().toLowerCase();
-                    return dName === hName || dName.includes(hName) || hName.includes(dName);
+                    return (
+                      dName === hName ||
+                      dName.includes(hName) ||
+                      hName.includes(dName)
+                    );
                   });
                   if (district) {
                   }
                 }
-                
+
                 if (district && district.kod) {
                   // Combine city code + district code to create 4-digit code
-                  const cityCode = city.kod.padStart(2, '0');
-                  const districtCode = district.kod.padStart(2, '0');
+                  const cityCode = city.kod.padStart(2, "0");
+                  const districtCode = district.kod.padStart(2, "0");
                   ebarimtDistrictCode = cityCode + districtCode;
-                  
                 } else {
                 }
               } else {
               }
             }
-            
+
             // Fallback: try to extract 4-digit numeric code directly
             if (!ebarimtDistrictCode) {
               const numericMatch = districtCodeString?.match(/\d{4}/);
@@ -1610,13 +1749,16 @@ router.get(
                 ebarimtDistrictCode = districtCodeString;
               }
             }
-            
+
             if (!ebarimtDistrictCode || !/^\d{4}$/.test(ebarimtDistrictCode)) {
-              throw new Error("districtCode must be a 4-digit numeric code for e-barimt creation");
+              throw new Error(
+                "districtCode must be a 4-digit numeric code for e-barimt creation",
+              );
             }
-            
           } catch (lookupError) {
-            throw new Error("Failed to lookup district code for e-barimt creation");
+            throw new Error(
+              "Failed to lookup district code for e-barimt creation",
+            );
           }
 
           const {
@@ -1635,12 +1777,11 @@ router.get(
             tuxainSalbar.merchantTin,
             ebarimtDistrictCode,
             kholbolt,
-            nuatTulukhEsekh
+            nuatTulukhEsekh,
           );
 
           var butsaakhMethod = async function (d, khariuObject) {
             try {
-              
               if (d?.status != "SUCCESS" && !d.success) {
                 return;
               }
@@ -1657,7 +1798,8 @@ router.get(
               if (d.id) shineBarimt.receiptId = d.id;
               if (d.date) shineBarimt.date = d.date;
 
-              shineBarimt.save()
+              shineBarimt
+                .save()
                 .then(() => {
                   // Auto-approve QR for Easy Register if customerNo and qrData are available
                   if (khariuObject.customerNo && d.qrData) {
@@ -1665,17 +1807,18 @@ router.get(
                       khariuObject.customerNo,
                       d.qrData,
                       baiguullagiinId,
-                      kholbolt
+                      kholbolt,
                     ).catch((err) => {
                       // Non-critical error - don't fail the response
-                      console.log("Auto-approveQr failed (non-critical):", err.message);
+                      console.log(
+                        "Auto-approveQr failed (non-critical):",
+                        err.message,
+                      );
                     });
                   }
                 })
-                .catch((saveErr) => {
-                });
-            } catch (err) {
-            }
+                .catch((saveErr) => {});
+            } catch (err) {}
           };
 
           ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
@@ -1696,7 +1839,7 @@ router.get(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 // Callback route for multiple invoice payments
@@ -1720,7 +1863,7 @@ router.get(
       }
 
       const kholbolt = db.kholboltuud.find(
-        (a) => String(a.baiguullagiinId) === String(baiguullagiinId)
+        (a) => String(a.baiguullagiinId) === String(baiguullagiinId),
       );
 
       if (!kholbolt) {
@@ -1738,12 +1881,10 @@ router.get(
         }
       });
 
-
       // Fetch all invoices
       const invoices = await nekhemjlekhiinTuukh(kholbolt).find({
         _id: { $in: invoiceObjectIds },
       });
-
 
       if (invoices.length === 0) {
         return res.status(404).send("Invoices not found");
@@ -1757,14 +1898,13 @@ router.get(
         try {
           const khariu = await qpayShalgay(
             { invoice_id: firstInvoice.qpayInvoiceId },
-            kholbolt
+            kholbolt,
           );
 
           if (khariu?.payments?.[0]?.transactions?.[0]?.id) {
             paymentTransactionId = khariu.payments[0].transactions[0].id;
           }
-        } catch (err) {
-        }
+        } catch (err) {}
       }
 
       if (!paymentTransactionId && req.query.qpay_payment_id) {
@@ -1778,19 +1918,24 @@ router.get(
             return;
           }
 
-
           // Use findByIdAndUpdate to ensure the update is applied
           const updatedInvoice = await nekhemjlekhiinTuukh(
-            kholbolt
+            kholbolt,
           ).findByIdAndUpdate(
             nekhemjlekh._id,
             {
               $set: (() => {
                 const multiPaidAmount = nekhemjlekh.niitTulbur || 0;
-                const multiCurrentUldegdel = (typeof nekhemjlekh.uldegdel === 'number' && !isNaN(nekhemjlekh.uldegdel) && nekhemjlekh.uldegdel > 0)
-                  ? nekhemjlekh.uldegdel
-                  : multiPaidAmount;
-                const multiNewUldegdel = Math.max(0, multiCurrentUldegdel - multiPaidAmount);
+                const multiCurrentUldegdel =
+                  typeof nekhemjlekh.uldegdel === "number" &&
+                  !isNaN(nekhemjlekh.uldegdel) &&
+                  nekhemjlekh.uldegdel > 0
+                    ? nekhemjlekh.uldegdel
+                    : multiPaidAmount;
+                const multiNewUldegdel = Math.max(
+                  0,
+                  multiCurrentUldegdel - multiPaidAmount,
+                );
                 const multiIsFullyPaid = multiNewUldegdel <= 0.01;
                 return {
                   tuluv: multiIsFullyPaid ? "Төлсөн" : "Хэсэгчлэн төлсөн",
@@ -1814,13 +1959,12 @@ router.get(
                 },
               },
             },
-            { new: true }
+            { new: true },
           );
 
           if (!updatedInvoice) {
             return;
           }
-
 
           // Use the updated invoice for further operations
           nekhemjlekh = updatedInvoice;
@@ -1829,22 +1973,24 @@ router.get(
           if (nekhemjlekh.ekhniiUldegdel && nekhemjlekh.ekhniiUldegdel > 0) {
             try {
               const gereeForUpdate = await Geree(kholbolt).findById(
-                nekhemjlekh.gereeniiId
+                nekhemjlekh.gereeniiId,
               );
               if (gereeForUpdate) {
                 gereeForUpdate.ekhniiUldegdel = 0;
                 await gereeForUpdate.save();
               }
-            } catch (ekhniiUldegdelError) {
-            }
+            } catch (ekhniiUldegdelError) {}
           }
 
           // Reset electricity readings to 0 if electricity invoice is paid
           // User will upload new readings for next month
-          if (nekhemjlekh.tsahilgaanNekhemjlekh && nekhemjlekh.tsahilgaanNekhemjlekh > 0) {
+          if (
+            nekhemjlekh.tsahilgaanNekhemjlekh &&
+            nekhemjlekh.tsahilgaanNekhemjlekh > 0
+          ) {
             try {
               const gereeForUpdate = await Geree(kholbolt).findById(
-                nekhemjlekh.gereeniiId
+                nekhemjlekh.gereeniiId,
               );
               if (gereeForUpdate) {
                 gereeForUpdate.umnukhZaalt = 0;
@@ -1853,8 +1999,7 @@ router.get(
                 gereeForUpdate.zaaltUs = 0;
                 await gereeForUpdate.save();
               }
-            } catch (zaaltError) {
-            }
+            } catch (zaaltError) {}
           }
 
           // Create bank payment record for each invoice
@@ -1898,8 +2043,7 @@ router.get(
 
               await bankGuilgee.save();
             }
-          } catch (bankErr) {
-          }
+          } catch (bankErr) {}
 
           // Create gereeniiTulsunAvlaga record to register QPay payment
           try {
@@ -1927,7 +2071,10 @@ router.get(
             });
             await tulsunDoc.save();
           } catch (tulsunErr) {
-            console.error("❌ [QPAY MULTI CALLBACK] Error creating gereeniiTulsunAvlaga:", tulsunErr.message);
+            console.error(
+              "❌ [QPAY MULTI CALLBACK] Error creating gereeniiTulsunAvlaga:",
+              tulsunErr.message,
+            );
           }
 
           // Update gereeniiTulukhAvlaga uldegdel
@@ -1935,11 +2082,14 @@ router.get(
             const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
             const multiPaidAmt2 = nekhemjlekh.niitTulbur || 0;
             let remainingForGeree = multiPaidAmt2;
-            const openTulukhRows = await GereeniiTulukhAvlaga(kholbolt).find({
-              gereeniiId: String(nekhemjlekh.gereeniiId),
-              baiguullagiinId: String(baiguullagiinId),
-              uldegdel: { $gt: 0 },
-            }).sort({ ognoo: 1, createdAt: 1 }).lean();
+            const openTulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+              .find({
+                gereeniiId: String(nekhemjlekh.gereeniiId),
+                baiguullagiinId: String(baiguullagiinId),
+                uldegdel: { $gt: 0 },
+              })
+              .sort({ ognoo: 1, createdAt: 1 })
+              .lean();
 
             for (const row of openTulukhRows) {
               if (remainingForGeree <= 0) break;
@@ -1949,50 +2099,77 @@ router.get(
               const newRowUldegdel = rowUldegdel - applyHere;
               await GereeniiTulukhAvlaga(kholbolt).updateOne(
                 { _id: row._id },
-                { $set: { uldegdel: newRowUldegdel } }
+                { $set: { uldegdel: newRowUldegdel } },
               );
               remainingForGeree -= applyHere;
             }
           } catch (tulukhErr) {
-            console.error("❌ [QPAY MULTI CALLBACK] Error updating gereeniiTulukhAvlaga:", tulukhErr.message);
+            console.error(
+              "❌ [QPAY MULTI CALLBACK] Error updating gereeniiTulukhAvlaga:",
+              tulukhErr.message,
+            );
           }
 
-          // Recalculate globalUldegdel on the geree
+          // Recalculate globalUldegdel on the geree (same formula as manual payment: invoices + standalone avlaga - positiveBalance)
           try {
-            const gereeForGlobal = await Geree(kholbolt).findById(nekhemjlekh.gereeniiId);
+            const gereeForGlobal = await Geree(kholbolt).findById(
+              nekhemjlekh.gereeniiId,
+            );
             if (gereeForGlobal) {
-              const unpaidInvoices = await nekhemjlekhiinTuukh(kholbolt).find({
-                baiguullagiinId: String(baiguullagiinId),
-                gereeniiId: String(nekhemjlekh.gereeniiId),
-                tuluv: { $ne: "Төлсөн" },
-              }).select("niitTulbur uldegdel").lean();
+              const unpaidInvoices = await nekhemjlekhiinTuukh(kholbolt)
+                .find({
+                  baiguullagiinId: String(baiguullagiinId),
+                  gereeniiId: String(nekhemjlekh.gereeniiId),
+                  tuluv: { $ne: "Төлсөн" },
+                })
+                .select("niitTulbur uldegdel")
+                .lean();
 
-              let globalUldegdel = 0;
+              let totalUnpaid = 0;
               unpaidInvoices.forEach((inv) => {
-                const unpaid = (typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel))
-                  ? inv.uldegdel
-                  : inv.niitTulbur || 0;
-                globalUldegdel += unpaid;
+                const unpaid =
+                  typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel)
+                    ? inv.uldegdel
+                    : inv.niitTulbur || 0;
+                totalUnpaid += unpaid;
+              });
+
+              const GereeniiTulukhAvlagaRecalc = require("../models/gereeniiTulukhAvlaga");
+              const tulukhRowsMulti = await GereeniiTulukhAvlagaRecalc(kholbolt)
+                .find({
+                  baiguullagiinId: String(baiguullagiinId),
+                  gereeniiId: String(nekhemjlekh.gereeniiId),
+                })
+                .select("uldegdel")
+                .lean();
+              tulukhRowsMulti.forEach((row) => {
+                totalUnpaid +=
+                  typeof row.uldegdel === "number" && !isNaN(row.uldegdel)
+                    ? row.uldegdel
+                    : 0;
               });
 
               const positive = gereeForGlobal.positiveBalance || 0;
-              gereeForGlobal.globalUldegdel = globalUldegdel - positive;
+              gereeForGlobal.globalUldegdel = totalUnpaid - positive;
               await gereeForGlobal.save();
             }
           } catch (recalcErr) {
-            console.error("❌ [QPAY MULTI CALLBACK] Error recalculating globalUldegdel:", recalcErr.message);
+            console.error(
+              "❌ [QPAY MULTI CALLBACK] Error recalculating globalUldegdel:",
+              recalcErr.message,
+            );
           }
 
           // Create ebarimt for each invoice
           try {
             const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-              updatedInvoice.baiguullagiinId
+              updatedInvoice.baiguullagiinId,
             );
 
             let tuxainSalbar = null;
             if (updatedInvoice.barilgiinId && baiguullaga?.barilguud) {
               tuxainSalbar = baiguullaga.barilguud.find(
-                (e) => e._id.toString() === String(updatedInvoice.barilgiinId)
+                (e) => e._id.toString() === String(updatedInvoice.barilgiinId),
               )?.tokhirgoo;
             }
 
@@ -2001,66 +2178,86 @@ router.get(
             }
 
             // Check both eBarimtAshiglakhEsekh and eBarimtShine for backward compatibility
-            const shouldCreateEbarimt = tuxainSalbar && (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
-            
+            const shouldCreateEbarimt =
+              tuxainSalbar &&
+              (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
+
             if (shouldCreateEbarimt) {
-              
               if (!tuxainSalbar.merchantTin) {
               } else {
                 // Ebarimt API requires a 4-digit numeric district code
                 // Look up the code from tatvariinAlba using city name and district/horoo name
                 let ebarimtDistrictCode = null;
-                
+
                 try {
                   const TatvariinAlba = require("../models/tatvariinAlba");
-                  const cityName = tuxainSalbar.EbarimtDuuregNer || tuxainSalbar.duuregNer;
-                  const districtCodeString = tuxainSalbar.EbarimtDistrictCode || tuxainSalbar.districtCode || "";
-                  
+                  const cityName =
+                    tuxainSalbar.EbarimtDuuregNer || tuxainSalbar.duuregNer;
+                  const districtCodeString =
+                    tuxainSalbar.EbarimtDistrictCode ||
+                    tuxainSalbar.districtCode ||
+                    "";
+
                   // Extract horoo/district name from the district code string
-                  const horooName = tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || 
-                                    districtCodeString.replace(cityName, "").trim();
-                  
-                  
+                  const horooName =
+                    tuxainSalbar.EbarimtDHoroo?.ner ||
+                    tuxainSalbar.horoo?.ner ||
+                    districtCodeString.replace(cityName, "").trim();
+
                   if (cityName && horooName) {
                     // Find the city in tatvariinAlba - try exact match first, then case-insensitive
-                    let city = await TatvariinAlba(db.erunkhiiKholbolt).findOne({ ner: cityName });
-                    
+                    let city = await TatvariinAlba(db.erunkhiiKholbolt).findOne(
+                      { ner: cityName },
+                    );
+
                     // If not found, try case-insensitive search
                     if (!city) {
-                      const allCities = await TatvariinAlba(db.erunkhiiKholbolt).find({});
-                      city = allCities.find(c => c.ner && c.ner.trim().toLowerCase() === cityName.trim().toLowerCase());
+                      const allCities = await TatvariinAlba(
+                        db.erunkhiiKholbolt,
+                      ).find({});
+                      city = allCities.find(
+                        (c) =>
+                          c.ner &&
+                          c.ner.trim().toLowerCase() ===
+                            cityName.trim().toLowerCase(),
+                      );
                       if (city) {
                       }
                     }
-                    
+
                     if (city && city.kod) {
-                      
                       // Find the district/horoo within the city - try exact match, then partial match
-                      let district = city.ded?.find(d => d.ner === horooName || d.ner === horooName.trim());
-                      
+                      let district = city.ded?.find(
+                        (d) =>
+                          d.ner === horooName || d.ner === horooName.trim(),
+                      );
+
                       // If not found, try case-insensitive or partial match
                       if (!district && city.ded) {
-                        district = city.ded.find(d => {
+                        district = city.ded.find((d) => {
                           const dName = d.ner?.trim().toLowerCase() || "";
                           const hName = horooName.trim().toLowerCase();
-                          return dName === hName || dName.includes(hName) || hName.includes(dName);
+                          return (
+                            dName === hName ||
+                            dName.includes(hName) ||
+                            hName.includes(dName)
+                          );
                         });
                         if (district) {
                         }
                       }
-                      
+
                       if (district && district.kod) {
                         // Combine city code + district code to create 4-digit code
-                        const cityCode = city.kod.padStart(2, '0');
-                        const districtCode = district.kod.padStart(2, '0');
+                        const cityCode = city.kod.padStart(2, "0");
+                        const districtCode = district.kod.padStart(2, "0");
                         ebarimtDistrictCode = cityCode + districtCode;
-                        
                       } else {
                       }
                     } else {
                     }
                   }
-                  
+
                   // Fallback: try to extract 4-digit numeric code directly
                   if (!ebarimtDistrictCode) {
                     const numericMatch = districtCodeString?.match(/\d{4}/);
@@ -2070,10 +2267,12 @@ router.get(
                       ebarimtDistrictCode = districtCodeString;
                     }
                   }
-                  
-                  if (!ebarimtDistrictCode || !/^\d{4}$/.test(ebarimtDistrictCode)) {
+
+                  if (
+                    !ebarimtDistrictCode ||
+                    !/^\d{4}$/.test(ebarimtDistrictCode)
+                  ) {
                   } else {
-                  
                     const {
                       nekhemjlekheesEbarimtShineUusgye,
                       ebarimtDuudya,
@@ -2090,7 +2289,7 @@ router.get(
                       tuxainSalbar.merchantTin,
                       ebarimtDistrictCode,
                       kholbolt,
-                      nuatTulukhEsekh
+                      nuatTulukhEsekh,
                     );
 
                     // The ebarimt object already has invoice data set in nekhemjlekheesEbarimtShineUusgye
@@ -2104,9 +2303,11 @@ router.get(
                         var shineBarimt = new EbarimtShine(kholbolt)(d);
                         shineBarimt.nekhemjlekhiinId =
                           ebarimtObject.nekhemjlekhiinId;
-                        shineBarimt.baiguullagiinId = ebarimtObject.baiguullagiinId;
+                        shineBarimt.baiguullagiinId =
+                          ebarimtObject.baiguullagiinId;
                         shineBarimt.barilgiinId = ebarimtObject.barilgiinId;
-                        shineBarimt.gereeniiDugaar = ebarimtObject.gereeniiDugaar;
+                        shineBarimt.gereeniiDugaar =
+                          ebarimtObject.gereeniiDugaar;
                         shineBarimt.utas = ebarimtObject.utas;
 
                         if (d.qrData) shineBarimt.qrData = d.qrData;
@@ -2114,7 +2315,8 @@ router.get(
                         if (d.id) shineBarimt.receiptId = d.id;
                         if (d.date) shineBarimt.date = d.date;
 
-                        shineBarimt.save()
+                        shineBarimt
+                          .save()
                           .then(() => {
                             // Auto-approve QR for Easy Register if customerNo and qrData are available
                             if (ebarimtObject.customerNo && d.qrData) {
@@ -2122,30 +2324,29 @@ router.get(
                                 ebarimtObject.customerNo,
                                 d.qrData,
                                 baiguullagiinId,
-                                kholbolt
+                                kholbolt,
                               ).catch((err) => {
                                 // Non-critical error - don't fail the response
-                                console.log("Auto-approveQr failed (non-critical):", err.message);
+                                console.log(
+                                  "Auto-approveQr failed (non-critical):",
+                                  err.message,
+                                );
                               });
                             }
                           })
-                          .catch((saveErr) => {
-                          });
-                      } catch (err) {
-                      }
+                          .catch((saveErr) => {});
+                      } catch (err) {}
                     };
 
                     // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
                     // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
                     ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
                   }
-                } catch (lookupError) {
-                }
+                } catch (lookupError) {}
               }
             } else {
             }
-          } catch (ebarimtError) {
-          }
+          } catch (ebarimtError) {}
 
           // Emit socket event for each invoice
           const io = req.app.get("socketio");
@@ -2156,14 +2357,12 @@ router.get(
               tuluv: "Төлсөн",
               tulsunOgnoo: updatedInvoice.tulsunOgnoo,
               paymentId: updatedInvoice.qpayPaymentId,
-            }
+            },
           );
-        } catch (invoiceErr) {
-        }
+        } catch (invoiceErr) {}
       });
 
       await Promise.all(updatePromises);
-
 
       req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
 
@@ -2171,7 +2370,7 @@ router.get(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 module.exports = router;

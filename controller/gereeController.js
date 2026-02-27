@@ -47,23 +47,27 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
       for (const conn of allConnections) {
         try {
-          const tempGeree = await Geree(conn, true).findById(guilgee.gereeniiId).select("baiguullagiinId");
+          const tempGeree = await Geree(conn, true)
+            .findById(guilgee.gereeniiId)
+            .select("baiguullagiinId");
           if (tempGeree) {
             foundGeree = tempGeree;
             baiguullagiinId = tempGeree.baiguullagiinId;
             break;
           }
-        } catch (err) {
-        }
+        } catch (err) {}
       }
 
       if (!baiguullagiinId) {
-        throw new Error("Байгууллагын ID олдсонгүй! Гэрээ олдсонгүй эсвэл байгууллагын ID-г body-д оруулна уу.");
+        throw new Error(
+          "Байгууллагын ID олдсонгүй! Гэрээ олдсонгүй эсвэл байгууллагын ID-г body-д оруулна уу.",
+        );
       }
     }
 
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
+      (kholbolt) =>
+        String(kholbolt.baiguullagiinId) === String(baiguullagiinId),
     );
 
     if (!tukhainBaaziinKholbolt) {
@@ -71,12 +75,12 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     }
 
     if (guilgee.guilgeeniiId) {
-      var shalguur = await BankniiGuilgee(
-        tukhainBaaziinKholbolt, true
-      ).findOne({
-        "guilgee.guilgeeniiId": guilgee.guilgeeniiId,
-        kholbosonGereeniiId: guilgee.gereeniiId,
-      });
+      var shalguur = await BankniiGuilgee(tukhainBaaziinKholbolt, true).findOne(
+        {
+          "guilgee.guilgeeniiId": guilgee.guilgeeniiId,
+          kholbosonGereeniiId: guilgee.gereeniiId,
+        },
+      );
       if (shalguur)
         throw new Error("Тухайн гүйлгээ тухайн гэрээнд холбогдсон байна!");
     }
@@ -108,9 +112,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       // These types pay - reduce the balance (use tulsunDun)
       inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
     } else if (guilgee.turul == "avlaga") {
-      // Normal avlaga creates invoice - SKIP manual increment here as it will be handled by nekhemjlekh service
-      inc = {};
-      console.log("ℹ️ [GEREE] Skipping manual globalUldegdel increment for avlaga - handled by invoice service");
+      // Standalone avlaga (GereeniiTulukhAvlaga) adds debt; no invoice is created here.
+      // Increase globalUldegdel by the charge so uldegdel reflects the new receivable.
+      inc.globalUldegdel = +(guilgee?.tulukhDun ?? dun ?? 0);
     } else {
       // Default behavior for other types (barter, etc.)
       inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
@@ -120,23 +124,32 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     let newAvlagaId = null;
 
     // Use count from newly created collection logic later or just query it
-    const GereeniiTulukhAvlagaModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
-    const count = await GereeniiTulukhAvlagaModel.countDocuments({ gereeniiId: guilgee.gereeniiId });
+    const GereeniiTulukhAvlagaModel = GereeniiTulukhAvlaga(
+      tukhainBaaziinKholbolt,
+    );
+    const count = await GereeniiTulukhAvlagaModel.countDocuments({
+      gereeniiId: guilgee.gereeniiId,
+    });
 
     // Store in appropriate model based on turul type
     // We do this BEFORE updating the Geree so we have the ID for the queue
     try {
       const freshGereeForAvlaga = await Geree(tukhainBaaziinKholbolt, true)
         .findById(guilgee.gereeniiId)
-        .select("gereeniiDugaar orshinSuugchId baiguullagiinId baiguullagiinNer barilgiinId")
+        .select(
+          "gereeniiDugaar orshinSuugchId baiguullagiinId baiguullagiinNer barilgiinId",
+        )
         .lean();
 
       if (freshGereeForAvlaga) {
         if (guilgee.turul === "avlaga") {
           // Create standalone GereeniiTulukhAvlaga record immediately for history visibility
-          const TulukhAvlagaModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
+          const TulukhAvlagaModel = GereeniiTulukhAvlaga(
+            tukhainBaaziinKholbolt,
+          );
           const newAvlaga = new TulukhAvlagaModel({
-            baiguullagiinId: freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
+            baiguullagiinId:
+              freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
             baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
             barilgiinId: freshGereeForAvlaga.barilgiinId || "",
             gereeniiId: guilgee.gereeniiId,
@@ -147,23 +160,34 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             tulukhDun: dun,
             uldegdel: dun,
             turul: "avlaga",
-            zardliinNer: guilgee.ekhniiUldegdelEsekh ? "Эхний үлдэгдэл" : (guilgee.zardliinNer || "Авлага"),
+            zardliinNer: guilgee.ekhniiUldegdelEsekh
+              ? "Эхний үлдэгдэл"
+              : guilgee.zardliinNer || "Авлага",
             ekhniiUldegdelEsekh: guilgee.ekhniiUldegdelEsekh === true,
             source: "gar",
-            tailbar: guilgee.tailbar || (guilgee.ekhniiUldegdelEsekh ? "Гараар нэмсэн эхний үлдэгдэл" : ""),
+            tailbar:
+              guilgee.tailbar ||
+              (guilgee.ekhniiUldegdelEsekh
+                ? "Гараар нэмсэн эхний үлдэгдэл"
+                : ""),
             guilgeeKhiisenAjiltniiNer: guilgee.guilgeeKhiisenAjiltniiNer || "",
             guilgeeKhiisenAjiltniiId: guilgee.guilgeeKhiisenAjiltniiId || "",
           });
           const savedAvlaga = await newAvlaga.save();
           newAvlagaId = savedAvlaga._id;
-          console.log("✅ [GEREE AVLAGA] Created standalone debt record:", newAvlagaId);
+          console.log(
+            "✅ [GEREE AVLAGA] Created standalone debt record:",
+            newAvlagaId,
+          );
 
           // If this is an initial balance (ekhniiUldegdelEsekh), also update any
           // existing unpaid invoices for this contract immediately — don't wait for next invoice
           if (guilgee.ekhniiUldegdelEsekh === true && dun > 0) {
             try {
               const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
-              const NekhemjlekhModel = NekhemjlekhiinTuukh(tukhainBaaziinKholbolt);
+              const NekhemjlekhModel = NekhemjlekhiinTuukh(
+                tukhainBaaziinKholbolt,
+              );
 
               const unpaidInvoices = await NekhemjlekhModel.find({
                 gereeniiId: guilgee.gereeniiId,
@@ -180,7 +204,8 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                       ...z,
                       tariff: (z.tariff || 0) + dun,
                       dun: (z.dun || 0) + dun,
-                      tailbar: guilgee.tailbar || "Гараар нэмсэн эхний үлдэгдэл",
+                      tailbar:
+                        guilgee.tailbar || "Гараар нэмсэн эхний үлдэгдэл",
                     };
                   }
                   return z;
@@ -195,17 +220,26 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                   },
                 });
               }
-              console.log(`✅ [GEREE AVLAGA] Updated ${unpaidInvoices.length} unpaid invoice(s) with initial balance ${dun}`);
+              console.log(
+                `✅ [GEREE AVLAGA] Updated ${unpaidInvoices.length} unpaid invoice(s) with initial balance ${dun}`,
+              );
             } catch (invoiceUpdateError) {
-              console.error("❌ [GEREE AVLAGA] Error updating unpaid invoices with initial balance:", invoiceUpdateError.message);
+              console.error(
+                "❌ [GEREE AVLAGA] Error updating unpaid invoices with initial balance:",
+                invoiceUpdateError.message,
+              );
             }
           }
-        } else if (guilgee.turul === "tulult" || guilgee.turul === "ashiglalt") {
+        } else if (
+          guilgee.turul === "tulult" ||
+          guilgee.turul === "ashiglalt"
+        ) {
           // TULULT/ASHIGLALT: Store in GereeniiTulsunAvlaga (payment record)
           const tulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);
 
           const tulsunDoc = new tulsunModel({
-            baiguullagiinId: freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
+            baiguullagiinId:
+              freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
             baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
             barilgiinId: freshGereeForAvlaga.barilgiinId || "",
             gereeniiId: guilgee.gereeniiId,
@@ -230,12 +264,16 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
           });
 
           const savedTulsun = await tulsunDoc.save();
-          console.log(`✅ [GEREE ${guilgee.turul.toUpperCase()}] Created gereeniiTulsunAvlaga record for ${guilgee.turul}`);
+          console.log(
+            `✅ [GEREE ${guilgee.turul.toUpperCase()}] Created gereeniiTulsunAvlaga record for ${guilgee.turul}`,
+          );
 
           // ALSO apply payment to unpaid invoices for this contract
           try {
             const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
-            const NekhemjlekhModel = NekhemjlekhiinTuukh(tukhainBaaziinKholbolt);
+            const NekhemjlekhModel = NekhemjlekhiinTuukh(
+              tukhainBaaziinKholbolt,
+            );
             const paymentAmount = guilgee.tulsunDun || 0;
 
             if (paymentAmount > 0) {
@@ -249,13 +287,17 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               for (const invoice of unpaidInvoices) {
                 if (remainingPayment <= 0) break;
 
-                const currentUldegdel = (typeof invoice.uldegdel === "number" && invoice.uldegdel > 0)
-                  ? invoice.uldegdel
-                  : invoice.niitTulbur || 0;
+                const currentUldegdel =
+                  typeof invoice.uldegdel === "number" && invoice.uldegdel > 0
+                    ? invoice.uldegdel
+                    : invoice.niitTulbur || 0;
 
                 if (currentUldegdel <= 0) continue;
 
-                const amountToApply = Math.min(remainingPayment, currentUldegdel);
+                const amountToApply = Math.min(
+                  remainingPayment,
+                  currentUldegdel,
+                );
                 const newUldegdel = currentUldegdel - amountToApply;
                 const isFullyPaid = newUldegdel <= 0.01;
 
@@ -266,7 +308,11 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                   dun: amountToApply,
                   turul: "manual",
                   guilgeeniiId: savedTulsun._id.toString(),
-                  tailbar: guilgee.tailbar || (isFullyPaid ? "Төлбөр хийгдлээ" : `Хэсэгчилсэн төлбөр: ${amountToApply}₮`),
+                  tailbar:
+                    guilgee.tailbar ||
+                    (isFullyPaid
+                      ? "Төлбөр хийгдлээ"
+                      : `Хэсэгчилсэн төлбөр: ${amountToApply}₮`),
                 });
 
                 // Ensure original total is preserved before we change niitTulbur
@@ -281,7 +327,8 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 // IMPORTANT: Do NOT update tuluv until uldegdel reaches 0
                 if (isFullyPaid) {
                   invoice.tuluv = "Төлсөн";
-                  invoice.tulsunOgnoo = guilgee.guilgeeKhiisenOgnoo || new Date();
+                  invoice.tulsunOgnoo =
+                    guilgee.guilgeeKhiisenOgnoo || new Date();
                 } else {
                   invoice.tuluv = "Төлөөгүй";
                 }
@@ -291,26 +338,39 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 await invoice.save();
 
                 remainingPayment -= amountToApply;
-                console.log(`✅ [GEREE PAYMENT] Applied ${amountToApply}₮ to invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}, uldegdel: ${invoice.uldegdel}`);
+                console.log(
+                  `✅ [GEREE PAYMENT] Applied ${amountToApply}₮ to invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}, uldegdel: ${invoice.uldegdel}`,
+                );
               }
 
               if (remainingPayment > 0) {
                 // Save remaining as positiveBalance on the geree
-                const gereeForBalance = await Geree(tukhainBaaziinKholbolt).findById(guilgee.gereeniiId);
+                const gereeForBalance = await Geree(
+                  tukhainBaaziinKholbolt,
+                ).findById(guilgee.gereeniiId);
                 if (gereeForBalance) {
-                  gereeForBalance.positiveBalance = (gereeForBalance.positiveBalance || 0) + remainingPayment;
+                  gereeForBalance.positiveBalance =
+                    (gereeForBalance.positiveBalance || 0) + remainingPayment;
                   await gereeForBalance.save();
-                  console.log(`✅ [GEREE PAYMENT] Saved ${remainingPayment}₮ as positiveBalance`);
+                  console.log(
+                    `✅ [GEREE PAYMENT] Saved ${remainingPayment}₮ as positiveBalance`,
+                  );
                 }
               }
             }
           } catch (invoicePayError) {
-            console.error("❌ [GEREE PAYMENT] Error applying payment to invoices:", invoicePayError.message);
+            console.error(
+              "❌ [GEREE PAYMENT] Error applying payment to invoices:",
+              invoicePayError.message,
+            );
           }
         }
       }
     } catch (recordError) {
-      console.error("❌ [GEREE] Error creating avlaga/tulsun record:", recordError.message);
+      console.error(
+        "❌ [GEREE] Error creating avlaga/tulsun record:",
+        recordError.message,
+      );
     }
 
     // Now update the Geree object
@@ -320,24 +380,20 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     const guilgeeForNekhemjlekh = {
       ...guilgee,
       _id: newAvlagaId || `manual-${Date.now()}`, // Link to the standalone record
-      avlagaGuilgeeIndex: count
+      avlagaGuilgeeIndex: count,
     };
 
     // ALWAYS push to guilgeenuudForNekhemjlekh for manual adjustments
     // We want them to be merged into the next invoice automatically
     updateData.$push = { guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh };
 
-    const result = await Geree(tukhainBaaziinKholbolt)
-      .findByIdAndUpdate(
-        { _id: guilgee.gereeniiId },
-        updateData,
-        { new: true } // Return updated document
-      );
-
-    await daraagiinTulukhOgnooZasya(
-      guilgee.gereeniiId,
-      tukhainBaaziinKholbolt
+    const result = await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
+      { _id: guilgee.gereeniiId },
+      updateData,
+      { new: true }, // Return updated document
     );
+
+    await daraagiinTulukhOgnooZasya(guilgee.gereeniiId, tukhainBaaziinKholbolt);
 
     try {
       if (guilgee.turul === "avlaga" && result && result.orshinSuugchId) {
@@ -359,7 +415,10 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         }
       }
     } catch (notificationError) {
-      console.error("Error sending notification for avlaga:", notificationError);
+      console.error(
+        "Error sending notification for avlaga:",
+        notificationError,
+      );
     }
 
     // NOTE: Removed automatic call to gereeNeesNekhemjlekhUusgekh here.
@@ -368,16 +427,15 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     // This prevents redundant invoice documents and the cascade-delete bug.
 
     if (guilgee.guilgeeniiId) {
-      const result1 = await BankniiGuilgee(tukhainBaaziinKholbolt)
-        .updateOne(
-          { _id: guilgee.guilgeeniiId },
-          {
-            $set: {
-              kholbosonGereeniiId: guilgee.gereeniiId,
-              kholbosonTalbainId: result.talbainDugaar,
-            },
-          }
-        );
+      const result1 = await BankniiGuilgee(tukhainBaaziinKholbolt).updateOne(
+        { _id: guilgee.guilgeeniiId },
+        {
+          $set: {
+            kholbosonGereeniiId: guilgee.gereeniiId,
+            kholbosonTalbainId: result.talbainDugaar,
+          },
+        },
+      );
       res.send(result1);
     } else {
       res.send(result);
@@ -386,4 +444,3 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     next(aldaa);
   }
 });
-
