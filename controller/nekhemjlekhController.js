@@ -2685,18 +2685,14 @@ const manualSendInvoice = async (
         const shouldApply2ndFloorDiscount = skipIsSecondFloor && skipOrgMatches;
         const secondFloorDiscountAmount = 4495.42;
 
-        // If zardluud amounts are effectively equal and item counts match, skip update entirely
-        // This preserves the existing invoice with its uldegdel intact
-        // BUT: if 2nd floor discount should apply and hasn't been applied yet, force the update
-        const discountAlreadyApplied = shouldApply2ndFloorDiscount && 
-          Math.abs(oldestUnsentInvoice.niitTulbur - (oldZardluudOnlyTotal - secondFloorDiscountAmount)) < 1;
-        const discountNeedsApplying = shouldApply2ndFloorDiscount && !discountAlreadyApplied;
+        // TARGET TOTAL for comparison (Monthly + Initial Balance)
+        const targetGrossTotal = zardluudOnlyTotal + Number(previewResult.preview.ekhniiUldegdel || 0);
+        const targetNetTotal = shouldApply2ndFloorDiscount ? Math.max(0, targetGrossTotal - secondFloorDiscountAmount) : targetGrossTotal;
 
         if (
           Math.abs(zardluudOnlyTotal - oldZardluudOnlyTotal) < 0.5 &&
           newZardluudCount === oldZardluudCount &&
-          !discountNeedsApplying &&
-          oldestUnsentInvoice.niitTulbur === oldestUnsentInvoice.uldegdel // If they match, it's already netted
+          Math.abs(oldestUnsentInvoice.uldegdel - targetNetTotal) < 1 // Compare current balance to preview target
         ) {
           // Still delete any DUPLICATE unsent invoices for this month
           if (existingUnsentInvoices.length > 1) {
@@ -2722,7 +2718,7 @@ const manualSendInvoice = async (
             nekhemjlekh: oldestUnsentInvoice,
             gereeniiId: geree._id,
             gereeniiDugaar: geree.gereeniiDugaar,
-            tulbur: oldestUnsentInvoice.uldegdel, // Use uldegdel consistently for return
+            tulbur: oldestUnsentInvoice.uldegdel,
           };
         }
 
@@ -2746,12 +2742,13 @@ const manualSendInvoice = async (
 
         if (totalPaid > 0) {
             // mode: GROSS -> NET (Absorb payments)
-            // Use original gross Initial Balance if available, otherwise fallback to current row
-            const grossBase = Math.max(
-                Number(previewResult.preview.ekhniiUldegdel || 0),
-                Number(oldestUnsentInvoice.ekhniiUldegdel || 0),
-                currentNetInitialBalanceFromRow + totalPaid
-            );
+            // Sum all sources of gross initial balance to avoid missing anything
+            const previewInit = Number(previewResult.preview.ekhniiUldegdel || 0);
+            const savedInit = Number(oldestUnsentInvoice.ekhniiUldegdel || 0);
+            const currentTotalDue = currentNetInitialBalanceFromRow + totalPaid;
+            
+            // If the DB now shows a HUGE new avlaga (like 300k), previewInit will be > currentTotalDue
+            const grossBase = Math.max(previewInit, savedInit, currentTotalDue);
             
             finalGrossNiitTulbur = zardluudOnlyTotal + grossBase;
             if (shouldApply2ndFloorDiscount) {
