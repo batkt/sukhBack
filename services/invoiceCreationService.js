@@ -159,7 +159,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   z.zaalt === true &&
                   z.ner &&
                   z.ner.toLowerCase().includes("цахилгаан") &&
-                  !z.ner.toLowerCase().includes("дүндйн") &&
+                  !z.ner.toLowerCase().includes("дундын") &&
                   !z.ner.toLowerCase().includes("өмчлөл"),
               );
 
@@ -727,13 +727,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
           (b) => String(b._id) === String(tempData.barilgiinId),
         );
         // Helper to check if an expense is a VARIABLE electricity charge (meter-based)
-        // "Дүндйн өмчлөл Цахилгаан" is FIXED - should NOT be processed as zaalt
-        // Only "Цахилгаан" (without "дүндйн" or "өмчлөл") should be processed as zaalt
+        // "дундын өмчлөл Цахилгаан" is FIXED - should NOT be processed as zaalt
+        // Only "Цахилгаан" (without "дундын" or "өмчлөл") should be processed as zaalt
         const isVariableElectricity = (z) => {
           if (!z.zaalt) return false;
           const nameLower = (z.ner || "").toLowerCase();
           // Exclude fixed electricity charges from zaalt processing
-          if (nameLower.includes("дүндйн") || nameLower.includes("өмчлөл")) {
+          if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) {
             return false;
           }
           return true;
@@ -790,12 +790,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
             let isFixedCharge = false;
             let kwhTariff = zaaltTariff; // from orshinSuugch.tsahilgaaniiZaalt
 
-            // Variable electricity = zaalt + цахилгаан (not дүндйн өмчлөл) - needs Excel, don't show suuriKhuraamj alone
+            // Variable electricity = zaalt + цахилгаан (not дундын өмчлөл) - needs Excel, don't show suuriKhuraamj alone
             const nameLower = (gereeZaaltZardal.ner || "").toLowerCase();
             const isVariableElectricityZardal =
               gereeZaaltZardal.zaalt &&
               nameLower.includes("цахилгаан") &&
-              !nameLower.includes("дүндйн") &&
+              !nameLower.includes("дундын") &&
               !nameLower.includes("өмчлөл");
 
             // For variable цахилгаан: when no Excel (zoruu=0), skip - match Excel behavior (don't show suuriKhuraamj/tariff)
@@ -808,7 +808,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
             // CALCULATED: tariffUsgeer = "кВт" -> tariff is kWh rate, suuriKhuraamj is base fee from Excel
             //
             // Key distinction:
-            // - "Дүндйн өмчлөл Цахилгаан": tariffUsgeer="₮", tariff=6883.44 -> FIXED (use tariff directly)
+            // - "дундын өмчлөл Цахилгаан": tariffUsgeer="₮", tariff=6883.44 -> FIXED (use tariff directly)
             // - "Цахилгаан": tariffUsgeer="кВт", tariff=2000 (кВт rate), suuriKhuraamj=Excel imported amount -> CALCULATED
 
             // If tariffUsgeer is "кВт", it's ALWAYS a calculated type (per-kWh billing)
@@ -1326,24 +1326,28 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     }
 
-    // Update geree with latest invoice date and increment globalUldegdel
+    // Update geree: latest invoice date, globalUldegdel, and deduct used overpayment (positiveBalance)
     try {
+      const gereeInc = {
+        globalUldegdel: tuukh.niitTulbur || 0,
+      };
+      if (positiveBalanceUsed > 0) {
+        gereeInc.positiveBalance = -positiveBalanceUsed;
+      }
       await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
         tempData._id,
         {
           $set: {
             nekhemjlekhiinOgnoo: new Date(),
           },
-          $inc: {
-            globalUldegdel: tuukh.niitTulbur || 0,
-          },
+          $inc: gereeInc,
         },
         {
           runValidators: false,
         },
       );
     } catch (gereeUpdateError) {
-      // Error updating geree.globalUldegdel after invoice creation - silently continue
+      // Error updating geree after invoice creation - silently continue
     }
 
     // TEMPORARILY DISABLED: Send SMS to orshinSuugch when invoice is created

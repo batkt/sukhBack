@@ -214,7 +214,8 @@ async function deleteInvoiceZardal(invoiceId, zardalId, baiguullagiinId) {
 }
 
 /**
- * Recalculate geree globalUldegdel and positiveBalance. Returns result shape for API.
+ * Recalculate geree globalUldegdel from unpaid invoice uldegdels minus positiveBalance (overpayment).
+ * Does not overwrite positiveBalance; uses existing geree.positiveBalance. Returns result shape for API.
  */
 async function recalculateGereeBalance(gereeId, baiguullagiinId) {
   const kholbolt = getKholboltByBaiguullagiinId(baiguullagiinId);
@@ -229,7 +230,6 @@ async function recalculateGereeBalance(gereeId, baiguullagiinId) {
 
   const NekhemjlekhiinTuukhModel = nekhemjlekhiinTuukh(kholbolt);
   const GereeModel = Geree(kholbolt);
-  const TulsunModel = GereeniiTulsunAvlaga(kholbolt);
 
   const unpaidInvoices = await NekhemjlekhiinTuukhModel.find({
     gereeniiId: String(gereeId),
@@ -244,33 +244,16 @@ async function recalculateGereeBalance(gereeId, baiguullagiinId) {
     totalUnpaid += inv.uldegdel ?? inv.niitTulbur ?? 0;
   });
 
-  const unappliedPayments = await TulsunModel.find({
-    gereeniiId: String(gereeId),
-    baiguullagiinId: String(baiguullagiinId),
-    $or: [
-      { nekhemjlekhId: { $exists: false } },
-      { nekhemjlekhId: "" },
-      { nekhemjlekhId: null },
-    ],
-  })
-    .select("tulsunDun")
+  // Use geree.positiveBalance (overpayment from payment flow); do NOT overwrite it
+  const geree = await GereeModel.findById(gereeId)
+    .select("positiveBalance")
     .lean();
-
-  let totalPrepayments = 0;
-  unappliedPayments.forEach((p) => {
-    totalPrepayments += p.tulsunDun || 0;
-  });
-
-  const finalGlobalUldegdel = totalUnpaid - totalPrepayments;
+  const positiveBalance = (geree && geree.positiveBalance) || 0;
+  const finalGlobalUldegdel = totalUnpaid - positiveBalance;
 
   await GereeModel.findByIdAndUpdate(
     gereeId,
-    {
-      $set: {
-        globalUldegdel: finalGlobalUldegdel,
-        positiveBalance: totalPrepayments,
-      },
-    },
+    { $set: { globalUldegdel: finalGlobalUldegdel } },
     { new: true },
   );
 
@@ -279,6 +262,8 @@ async function recalculateGereeBalance(gereeId, baiguullagiinId) {
     gereeId,
     "totalUnpaid",
     totalUnpaid,
+    "positiveBalance",
+    positiveBalance,
     "finalGlobalUldegdel",
     finalGlobalUldegdel,
   );
@@ -287,7 +272,7 @@ async function recalculateGereeBalance(gereeId, baiguullagiinId) {
     message: "Balance recalculated successfully",
     data: {
       globalUldegdel: finalGlobalUldegdel,
-      positiveBalance: totalPrepayments,
+      positiveBalance,
     },
   };
 }
