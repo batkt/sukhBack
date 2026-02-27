@@ -43,6 +43,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     nekhemjlekhiinDugaar: String, // Unique invoice number
     dugaalaltDugaar: Number,
     niitTulbur: Number,
+    niitTulburOriginal: Number, // Stores the original total before any payments
     tuluv: {
       type: String,
       enum: ["Төлөөгүй", "Төлсөн", "Хугацаа хэтэрсэн", "Хэсэгчлэн төлсөн"],
@@ -109,12 +110,20 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
     }
 
     if (typeof invoice.niitTulbur === "number") {
+      // If we don't have original total yet, set it now from initial niitTulbur
+      if (typeof invoice.niitTulburOriginal !== "number") {
+        invoice.niitTulburOriginal = invoice.niitTulbur;
+      }
+
       const totalPaid = (invoice.paymentHistory || []).reduce(
         (sum, p) => sum + (p.dun || 0),
         0,
       );
 
-      const remaining = Math.max(0, invoice.niitTulbur - totalPaid);
+      // Use original total for calculation if we have it
+      const baseTotal = invoice.niitTulburOriginal;
+      const remaining = Math.max(0, baseTotal - totalPaid);
+      
       invoice.uldegdel = remaining;
 
       if (remaining <= 0.01) {
@@ -125,9 +134,8 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
         if (invoice.tuluv === "Хугацаа хэтэрсэн") {
           // Keep overdue if it was already overdue and still has balance
           invoice.tuluv = "Хугацаа хэтэрсэн";
-        } else if (totalPaid > 0) {
-          invoice.tuluv = "Хэсэгчлэн төлсөн";
         } else {
+          // Per user request: Stay "Төлөөгүй" even if partially paid
           invoice.tuluv = "Төлөөгүй";
         }
       }

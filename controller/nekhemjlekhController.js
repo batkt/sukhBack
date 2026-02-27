@@ -2710,6 +2710,11 @@ const manualSendInvoice = async (
             : oldestUnsentInvoice.medeelel),
           zardluud: updatedZardluud,
         };
+        // Ensure original total is preserved
+        if (typeof oldestUnsentInvoice.niitTulburOriginal !== "number") {
+          oldestUnsentInvoice.niitTulburOriginal = oldestUnsentInvoice.niitTulbur;
+        }
+        
         oldestUnsentInvoice.niitTulbur = newNiitTulbur;
 
         // Recalculate uldegdel based on payments

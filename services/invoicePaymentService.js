@@ -254,6 +254,11 @@ async function markInvoicesAsPaid(options) {
         },
       };
 
+      // Ensure original total is preserved
+      if (typeof invoice.niitTulburOriginal !== "number") {
+        updateData.$set.niitTulburOriginal = invoice.niitTulbur;
+      }
+
       if (isFullyPaid) {
         updateData.$set.tulsunOgnoo = paymentDate;
       }

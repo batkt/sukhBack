@@ -269,6 +269,11 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                   tailbar: guilgee.tailbar || (isFullyPaid ? "Төлбөр хийгдлээ" : `Хэсэгчилсэн төлбөр: ${amountToApply}₮`),
                 });
 
+                // Ensure original total is preserved before we change niitTulbur
+                if (typeof invoice.niitTulburOriginal !== "number") {
+                  invoice.niitTulburOriginal = invoice.niitTulbur;
+                }
+
                 invoice.uldegdel = isFullyPaid ? 0 : newUldegdel;
                 // Update niitTulbur to match remaining so the app shows correct amount
                 invoice.niitTulbur = invoice.uldegdel;
