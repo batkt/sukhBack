@@ -2712,18 +2712,26 @@ const manualSendInvoice = async (
         };
         oldestUnsentInvoice.niitTulbur = newNiitTulbur;
 
-        // Recalculate uldegdel: preserve existing uldegdel ratio or recalculate based on payments
+        // Recalculate uldegdel based on payments
         const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce(
           (sum, p) => sum + (p.dun || 0),
           0,
         );
         if (totalPaid > 0) {
-          // If there were payments, recalculate uldegdel
           oldestUnsentInvoice.uldegdel = Math.max(0, newNiitTulbur - totalPaid);
         } else {
-          // No payments - keep uldegdel = niitTulbur (full amount due)
           oldestUnsentInvoice.uldegdel = newNiitTulbur;
         }
+
+        // IMPORTANT: Do NOT update tuluv until uldegdel or niitTulbur reaches 0.
+        // tuluv stays "Төлөөгүй" on manual send updates unless fully paid.
+        if (oldestUnsentInvoice.uldegdel <= 0.01 || newNiitTulbur <= 0.01) {
+          oldestUnsentInvoice.tuluv = "Төлсөн";
+        } else {
+          oldestUnsentInvoice.tuluv = "Төлөөгүй";
+        }
+        // Flag to skip the pre-save hook from overriding tuluv
+        oldestUnsentInvoice._skipTuluvRecalc = true;
 
         // Update zaalt metadata if available
         const zaaltEntry = newZardluudWithoutEkhniiUldegdel.find(
