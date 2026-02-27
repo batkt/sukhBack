@@ -375,6 +375,44 @@ const gereeNeesNekhemjlekhUusgekh = async (
           }
         }
 
+        // GENERAL UPDATE: If niitTulbur doesn't match uldegdel (partially paid), fix it now
+        if (existingInvoice.niitTulbur !== existingInvoice.uldegdel) {
+          const tulsunDun = (existingInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
+          
+          if (tulsunDun > 0) {
+            existingInvoice.uldegdel = Math.max(0, existingInvoice.niitTulbur - tulsunDun);
+            existingInvoice.niitTulbur = existingInvoice.uldegdel;
+            
+            // Update breakdown (zardluud) so the math matches for the resident
+            if (existingInvoice.medeelel && Array.isArray(existingInvoice.medeelel.zardluud)) {
+              let found = false;
+              existingInvoice.medeelel.zardluud = existingInvoice.medeelel.zardluud.map((z) => {
+                if (!found && (z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл" || (z.ner && z.ner.includes("Эхний үлдэгдэл")))) {
+                  found = true;
+                  const currentAmount = z.dun || z.tariff || 0;
+                  const newAmount = Math.max(0, currentAmount - tulsunDun);
+                  return { ...z, dun: newAmount, tariff: newAmount };
+                }
+                return z;
+              });
+              existingInvoice.markModified("medeelel");
+            }
+
+            // Update content string
+            if (existingInvoice.content && typeof existingInvoice.content === "string") {
+              const regex = /Нийт төлбөр: ([\d,]+(\.\d+)?)₮/;
+              existingInvoice.content = existingInvoice.content.replace(regex, `Нийт төлбөр: ${existingInvoice.uldegdel}₮`);
+            }
+
+            existingInvoice.paymentHistory = []; // Clear for netting
+            
+            existingInvoice.markModified("niitTulbur");
+            existingInvoice.markModified("uldegdel");
+            existingInvoice.markModified("content");
+            await existingInvoice.save();
+          }
+        }
+
         return {
           success: true,
           nekhemjlekh: existingInvoice,
@@ -2584,9 +2622,12 @@ const manualSendInvoice = async (
     // This prevented resending/creating invoices when a month was already fully paid.
     // Now we allow creating/sending again regardless of existing paid invoices.
 
-    // Filter for UNSENT/UNPAID invoices for update logic
+    // Filter for UNSENT/UNPAID/PARTIAL invoices for update logic
     const existingUnsentInvoices = allExistingInvoices.filter(
-      (inv) => inv.tuluv === "Төлөөгүй" || inv.tuluv === "Хугацаа хэтэрсэн",
+      (inv) =>
+        inv.tuluv === "Төлөөгүй" ||
+        inv.tuluv === "Хугацаа хэтэрсэн" ||
+        inv.tuluv === "Хэсэгчлэн төлсөн",
     );
 
     if (override) {
