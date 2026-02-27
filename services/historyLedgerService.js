@@ -83,7 +83,7 @@ async function getHistoryLedger(options) {
       .lean()
       .sort({ ognoo: 1, createdAt: 1 }),
     GereeModel.findById(gereeniiId)
-      .select("ekhniiUldegdel gereeniiOgnoo createdAt zardluud")
+      .select("ekhniiUldegdel gereeniiOgnoo createdAt zardluud globalUldegdel")
       .lean(),
   ]);
 
@@ -288,17 +288,23 @@ async function getHistoryLedger(options) {
     });
   }
 
-  // Sort by date (oldest first), then by createdAt for same day
+  // Sort by date (oldest first), then createdAt, then charges before payments (stable order for running balance)
   rawRows.sort((a, b) => {
     const ta = a.ognoo.getTime();
     const tb = b.ognoo.getTime();
     if (ta !== tb) return ta - tb;
-    return a.createdAt.getTime() - b.createdAt.getTime();
+    const ca = a.createdAt.getTime();
+    const cb = b.createdAt.getTime();
+    if (ca !== cb) return ca - cb;
+    const chargeFirstA = (a.tulukhDun ?? 0) > 0 ? 0 : 1;
+    const chargeFirstB = (b.tulukhDun ?? 0) > 0 ? 0 : 1;
+    if (chargeFirstA !== chargeFirstB) return chargeFirstA - chargeFirstB;
+    return String(a._id).localeCompare(String(b._id));
   });
 
   // Running balance: uldegdel = cumulative charges - cumulative payments after this row
   let runningBalance = 0;
-  const jagsaalt = rawRows.map((row) => {
+  let jagsaalt = rawRows.map((row) => {
     const charge = row.tulukhDun ?? 0;
     const pay = row.tulsunDun ?? 0;
     runningBalance += charge - pay;
@@ -310,17 +316,33 @@ async function getHistoryLedger(options) {
       tulsunDun: row.tulsunDun ?? 0,
       uldegdel: runningBalance,
       isSystem: !!row.isSystem,
+      tailbar: row.tailbar ?? "",
       ...(row.ajiltan != null &&
         row.ajiltan !== "" && { ajiltan: row.ajiltan }),
       ...(row.khelber != null &&
         row.khelber !== "" && { khelber: row.khelber }),
-      ...(row.tailbar != null &&
-        row.tailbar !== "" && { tailbar: row.tailbar }),
       ...(row.burtgesenOgnoo && { burtgesenOgnoo: row.burtgesenOgnoo }),
       ...(row.parentInvoiceId && { parentInvoiceId: row.parentInvoiceId }),
       sourceCollection: row.sourceCollection,
     };
   });
+
+  // Normalize so last row's uldegdel matches geree.globalUldegdel (contract list and History stay in sync)
+  if (
+    jagsaalt.length > 0 &&
+    gereeDoc &&
+    typeof gereeDoc.globalUldegdel === "number"
+  ) {
+    const targetBalance = gereeDoc.globalUldegdel;
+    const lastBalance = jagsaalt[jagsaalt.length - 1].uldegdel;
+    const delta = targetBalance - lastBalance;
+    if (delta !== 0) {
+      jagsaalt = jagsaalt.map((row) => ({
+        ...row,
+        uldegdel: row.uldegdel + delta,
+      }));
+    }
+  }
 
   return { jagsaalt };
 }
