@@ -69,14 +69,8 @@ async function markInvoicesAsPaid(options) {
     query.barilgiinId = String(barilgiinId);
   }
 
-  // If markEkhniiUldegdel is false, exclude invoices with ekhniiUldegdel
-  if (!markEkhniiUldegdel) {
-    query.$or = [
-      { ekhniiUldegdel: { $exists: false } },
-      { ekhniiUldegdel: 0 },
-      { ekhniiUldegdel: null },
-    ];
-  }
+  // NOTE: Previously excluded invoices with ekhniiUldegdel when markEkhniiUldegdel=false.
+  // Removed: all unpaid invoices should be payable regardless of ekhniiUldegdel.
 
   if (nekhemjlekhiinIds && nekhemjlekhiinIds.length > 0) {
     // Mark specific invoices by IDs
@@ -255,7 +249,7 @@ async function markInvoicesAsPaid(options) {
         },
         $set: {
           uldegdel: isFullyPaid ? 0 : newUldegdel,
-          tuluv: isFullyPaid ? "Төлсөн" : "Хэсэгчлэн төлсөн",
+          tuluv: isFullyPaid ? "Төлсөн" : "Төлөөгүй", // tuluv stays Төлөөгүй until uldegdel reaches 0
         },
       };
 

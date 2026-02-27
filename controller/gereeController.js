@@ -28,8 +28,11 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       guilgee.tulsunDun = dun;
       guilgee.tulukhDun = 0;
     } else {
-      // Default (barter, etc.)
+      // Default: treat as payment (tulult) when dun > 0 and no turul specified
       guilgee.tulsunDun = dun;
+      if (!guilgee.turul && dun > 0) {
+        guilgee.turul = "tulult";
+      }
     }
 
     if (!guilgee.gereeniiId) {
@@ -228,6 +231,75 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
           const savedTulsun = await tulsunDoc.save();
           console.log(`✅ [GEREE ${guilgee.turul.toUpperCase()}] Created gereeniiTulsunAvlaga record for ${guilgee.turul}`);
+
+          // ALSO apply payment to unpaid invoices for this contract
+          try {
+            const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+            const NekhemjlekhModel = NekhemjlekhiinTuukh(tukhainBaaziinKholbolt);
+            const paymentAmount = guilgee.tulsunDun || 0;
+
+            if (paymentAmount > 0) {
+              const unpaidInvoices = await NekhemjlekhModel.find({
+                gereeniiId: guilgee.gereeniiId,
+                tuluv: { $nin: ["Төлсөн"] },
+              }).sort({ ognoo: -1, createdAt: -1 });
+
+              let remainingPayment = paymentAmount;
+
+              for (const invoice of unpaidInvoices) {
+                if (remainingPayment <= 0) break;
+
+                const currentUldegdel = (typeof invoice.uldegdel === "number" && invoice.uldegdel > 0)
+                  ? invoice.uldegdel
+                  : invoice.niitTulbur || 0;
+
+                if (currentUldegdel <= 0) continue;
+
+                const amountToApply = Math.min(remainingPayment, currentUldegdel);
+                const newUldegdel = currentUldegdel - amountToApply;
+                const isFullyPaid = newUldegdel <= 0.01;
+
+                // Push to paymentHistory and update uldegdel
+                invoice.paymentHistory = invoice.paymentHistory || [];
+                invoice.paymentHistory.push({
+                  ognoo: guilgee.guilgeeKhiisenOgnoo || new Date(),
+                  dun: amountToApply,
+                  turul: "manual",
+                  guilgeeniiId: savedTulsun._id.toString(),
+                  tailbar: guilgee.tailbar || (isFullyPaid ? "Төлбөр хийгдлээ" : `Хэсэгчилсэн төлбөр: ${amountToApply}₮`),
+                });
+
+                invoice.uldegdel = isFullyPaid ? 0 : newUldegdel;
+
+                // IMPORTANT: Do NOT update tuluv until uldegdel reaches 0
+                if (isFullyPaid) {
+                  invoice.tuluv = "Төлсөн";
+                  invoice.tulsunOgnoo = guilgee.guilgeeKhiisenOgnoo || new Date();
+                } else {
+                  invoice.tuluv = "Төлөөгүй";
+                }
+
+                // Skip pre-save hook tuluv recalculation
+                invoice._skipTuluvRecalc = true;
+                await invoice.save();
+
+                remainingPayment -= amountToApply;
+                console.log(`✅ [GEREE PAYMENT] Applied ${amountToApply}₮ to invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}, uldegdel: ${invoice.uldegdel}`);
+              }
+
+              if (remainingPayment > 0) {
+                // Save remaining as positiveBalance on the geree
+                const gereeForBalance = await Geree(tukhainBaaziinKholbolt).findById(guilgee.gereeniiId);
+                if (gereeForBalance) {
+                  gereeForBalance.positiveBalance = (gereeForBalance.positiveBalance || 0) + remainingPayment;
+                  await gereeForBalance.save();
+                  console.log(`✅ [GEREE PAYMENT] Saved ${remainingPayment}₮ as positiveBalance`);
+                }
+              }
+            }
+          } catch (invoicePayError) {
+            console.error("❌ [GEREE PAYMENT] Error applying payment to invoices:", invoicePayError.message);
+          }
         }
       }
     } catch (recordError) {
