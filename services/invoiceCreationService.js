@@ -1241,7 +1241,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tuukh.tsahilgaanNekhemjlekh = tsahilgaanNekhemjlekh;
     }
 
-    tuukh.tuluv = "Ð¢Ó©Ð»Ó©Ó©Ð³Ò¯Ð¹";
+    tuukh.tuluv = "Төлөөгүй";
 
     const suuliinNekhemjlekh = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
       .findOne()
