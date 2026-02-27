@@ -93,10 +93,38 @@ async function deleteAllInvoicesForOrg(baiguullagiinId) {
     }
   }
 
+  const orgId = String(baiguullagiinId);
+  let tulsunDeleted = 0;
+  let tulukhDeleted = 0;
+  try {
+    const tulsunResult = await GereeniiTulsunAvlaga(kholbolt).deleteMany({
+      baiguullagiinId: orgId,
+    });
+    tulsunDeleted = tulsunResult.deletedCount ?? 0;
+  } catch (e) {
+    console.error(
+      "[NEKHEMJLEKH] deleteAllInvoicesForOrg GereeniiTulsunAvlaga deleteMany error:",
+      e.message,
+    );
+  }
+  try {
+    const tulukhResult = await GereeniiTulukhAvlaga(kholbolt).deleteMany({
+      baiguullagiinId: orgId,
+    });
+    tulukhDeleted = tulukhResult.deletedCount ?? 0;
+  } catch (e) {
+    console.error(
+      "[NEKHEMJLEKH] deleteAllInvoicesForOrg GereeniiTulukhAvlaga deleteMany error:",
+      e.message,
+    );
+  }
+
   return {
     success: true,
     deletedCount,
-    message: `${deletedCount} нэхэмжлэх устгагдлаа`,
+    deletedTulsunAvlaga: tulsunDeleted,
+    deletedTulukhAvlaga: tulukhDeleted,
+    message: `${deletedCount} нэхэмжлэх, ${tulsunDeleted} түлсүн авлага, ${tulukhDeleted} төлөх авлага устгагдлаа`,
   };
 }
 

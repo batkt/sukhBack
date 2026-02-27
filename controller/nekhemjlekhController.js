@@ -168,6 +168,12 @@ const deleteInvoice = asyncHandler(async (req, res) => {
           ...(result.deletedCount !== undefined && {
             deletedCount: result.deletedCount,
           }),
+          ...(result.deletedTulsunAvlaga !== undefined && {
+            deletedTulsunAvlaga: result.deletedTulsunAvlaga,
+          }),
+          ...(result.deletedTulukhAvlaga !== undefined && {
+            deletedTulukhAvlaga: result.deletedTulukhAvlaga,
+          }),
         }
       : { success: false, error: result.error },
   );
