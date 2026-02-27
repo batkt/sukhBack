@@ -296,9 +296,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
               // Recalculate uldegdel and status based on payments already made
               const tulsunDun = (existingInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
-              existingInvoice.niitTulbur = newTotal;
-              existingInvoice.tsahilgaanNekhemjlekh = newZaaltDun;
               existingInvoice.uldegdel = Math.max(0, newTotal - tulsunDun);
+              existingInvoice.niitTulbur = existingInvoice.uldegdel;
+              if (tulsunDun > 0) {
+                existingInvoice.paymentHistory = [];
+              }
+              existingInvoice.tsahilgaanNekhemjlekh = newZaaltDun;
               
               if (existingInvoice.uldegdel <= 0.01) {
                 existingInvoice.tuluv = "Төлсөн";
@@ -308,6 +311,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 existingInvoice.tuluv = "Төлөөгүй";
               }
 
+              // Update content for existing invoice
+              const currentTailbarText = (existingInvoice.medeelel?.tailbar || existingInvoice.medeelel?.temdeglel || "").trim();
+              const tailbarPart = currentTailbarText ? `\nТайлбар: ${currentTailbarText}` : "";
+              const zaaltPart = `\nЦахилгаан: Өмнө: ${latestReading.umnukhZaalt || 0}, Өдөр: ${latestReading.zaaltTog || 0}, Шөнө: ${latestReading.zaaltUs || 0}, Нийт: ${latestReading.suuliinZaalt || 0}`;
+              existingInvoice.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${existingInvoice.uldegdel}₮${tailbarPart}${zaaltPart}`;
+
               await existingInvoice.save();
 
               return {
@@ -315,7 +324,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 nekhemjlekh: existingInvoice,
                 gereeniiId: tempData._id,
                 gereeniiDugaar: tempData.gereeniiDugaar,
-                tulbur: newTotal,
+                tulbur: existingInvoice.uldegdel,
                 alreadyExists: true,
                 updated: true,
               };
@@ -337,8 +346,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
           if (Math.abs(existingInvoice.niitTulbur - discountedTotal) > 1) {
             // Recalculate uldegdel and status based on payments already made
             const tulsunDun = (existingInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
-            existingInvoice.niitTulbur = discountedTotal;
             existingInvoice.uldegdel = Math.max(0, discountedTotal - tulsunDun);
+            existingInvoice.niitTulbur = existingInvoice.uldegdel;
+            if (tulsunDun > 0) {
+              existingInvoice.paymentHistory = [];
+            }
             
             if (existingInvoice.uldegdel <= 0.01) {
               existingInvoice.tuluv = "Төлсөн";
@@ -347,6 +359,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
             } else {
               existingInvoice.tuluv = "Төлөөгүй";
             }
+
+            // Update content to reflect new total/balance
+            const currentTailbarText = (existingInvoice.medeelel?.tailbar || existingInvoice.medeelel?.temdeglel || "").trim();
+            const tailbarPart = currentTailbarText ? `\nТайлбар: ${currentTailbarText}` : "";
+            const zaaltMeta = existingInvoice.medeelel?.zaalt || {};
+            const zaaltPart = zaaltMeta.suuliinZaalt ? `\nЦахилгаан: Өмнө: ${zaaltMeta.umnukhZaalt || 0}, Өдөр: ${zaaltMeta.zaaltTog || 0}, Шөнө: ${zaaltMeta.zaaltUs || 0}, Нийт: ${zaaltMeta.suuliinZaalt || 0}` : "";
+            existingInvoice.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${existingInvoice.uldegdel}₮${tailbarPart}${zaaltPart}`;
             
             existingInvoice.markModified("niitTulbur");
             existingInvoice.markModified("uldegdel");
@@ -361,7 +380,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           nekhemjlekh: existingInvoice,
           gereeniiId: tempData._id,
           gereeniiDugaar: tempData.gereeniiDugaar,
-          tulbur: existingInvoice.niitTulbur,
+          tulbur: existingInvoice.uldegdel || existingInvoice.niitTulbur,
           alreadyExists: true,
         };
       }
@@ -1366,7 +1385,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
         : "";
 
     tuukh.content = `Гэрээний дугаар: ${tempData.gereeniiDugaar}, Нийт төлбөр: ${correctedFinalNiitTulbur}₮${tailbarText}${zaaltText}${positiveBalanceText}`;
-    // Ensure uldegdel reflects the full amount for a new invoice
+    // Ensure niitTulbur matches the balance (correctedFinalNiitTulbur already has positiveBalance deducted)
+    tuukh.niitTulbur = correctedFinalNiitTulbur;
     tuukh.uldegdel = correctedFinalNiitTulbur;
     tuukh.nekhemjlekhiinDans =
       tempData.nekhemjlekhiinDans || dansInfo.dugaar || "";
@@ -1565,7 +1585,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       nekhemjlekh: tuukh,
       gereeniiId: tempData._id,
       gereeniiDugaar: tempData.gereeniiDugaar,
-      tulbur: correctedFinalNiitTulbur,
+      tulbur: tuukh.uldegdel || tuukh.niitTulbur,
       medegdel: savedMedegdel,
     };
   } catch (error) {
@@ -2661,7 +2681,8 @@ const manualSendInvoice = async (
         if (
           Math.abs(zardluudOnlyTotal - oldZardluudOnlyTotal) < 0.5 &&
           newZardluudCount === oldZardluudCount &&
-          !discountNeedsApplying
+          !discountNeedsApplying &&
+          oldestUnsentInvoice.niitTulbur === oldestUnsentInvoice.uldegdel
         ) {
           // Still delete any DUPLICATE unsent invoices for this month
           if (existingUnsentInvoices.length > 1) {
@@ -2885,9 +2906,9 @@ const manualSendInvoice = async (
           nekhemjlekh: oldestUnsentInvoice,
           gereeniiId: geree._id,
           gereeniiDugaar: geree.gereeniiDugaar,
-          tulbur: newNiitTulbur,
-          alreadyExists: true,
-          updated: true,
+                tulbur: oldestUnsentInvoice.niitTulbur, // niitTulbur is now equal to uldegdel
+                alreadyExists: true,
+                updated: true,
           preservedPayments: hasPayments,
         };
       }
