@@ -36,17 +36,25 @@ async function markInvoicesAsPaid(options) {
   }
 
   if (!dun || dun <= 0) {
-    throw new Error("dun (payment amount) is required and must be greater than 0");
+    throw new Error(
+      "dun (payment amount) is required and must be greater than 0",
+    );
   }
 
   // Validate that at least one identifier is provided
-  if (!orshinSuugchId && !gereeniiId && (!nekhemjlekhiinIds || nekhemjlekhiinIds.length === 0)) {
-    throw new Error("Either orshinSuugchId, gereeniiId, or nekhemjlekhiinIds must be provided");
+  if (
+    !orshinSuugchId &&
+    !gereeniiId &&
+    (!nekhemjlekhiinIds || nekhemjlekhiinIds.length === 0)
+  ) {
+    throw new Error(
+      "Either orshinSuugchId, gereeniiId, or nekhemjlekhiinIds must be provided",
+    );
   }
 
   // Get database connection
   const kholbolt = db.kholboltuud.find(
-    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
   );
 
   if (!kholbolt) {
@@ -112,6 +120,13 @@ async function markInvoicesAsPaid(options) {
     .sort({ ognoo: -1, createdAt: -1 }) // Latest month first
     .lean();
 
+  if (invoices.length > 0) {
+    console.log(
+      "[NEKHEMJLEKH] markInvoicesAsPaid invoices found",
+      invoices.length,
+      invoices.map((i) => i._id),
+    );
+  }
   if (invoices.length === 0) {
     // No invoices found - save entire payment as positiveBalance
     let gereeToUpdate = null;
@@ -132,10 +147,11 @@ async function markInvoicesAsPaid(options) {
     }
 
     if (gereeToUpdate) {
-      gereeToUpdate.positiveBalance = (gereeToUpdate.positiveBalance || 0) + dun;
+      gereeToUpdate.positiveBalance =
+        (gereeToUpdate.positiveBalance || 0) + dun;
       await gereeToUpdate.save();
 
-      // NEW: Also create a history record for this prepayment so it's visible and counts 
+      // NEW: Also create a history record for this prepayment so it's visible and counts
       // towards the dashboard balance reduction.
       try {
         const paymentDate = ognoo ? new Date(ognoo) : new Date();
@@ -165,7 +181,10 @@ async function markInvoicesAsPaid(options) {
         });
         await prepayDoc.save();
       } catch (historyError) {
-        console.error(`❌ [INVOICE PAYMENT] Error creating prepayment history:`, historyError.message);
+        console.error(
+          `❌ [INVOICE PAYMENT] Error creating prepayment history:`,
+          historyError.message,
+        );
       }
     }
 
@@ -196,9 +215,12 @@ async function markInvoicesAsPaid(options) {
     try {
       const invoiceAmount = invoice.niitTulbur || 0;
       // Use uldegdel if it exists and is valid, otherwise use full amount
-      const existingUldegdel = (typeof invoice.uldegdel === 'number' && !isNaN(invoice.uldegdel) && invoice.uldegdel > 0) 
-        ? invoice.uldegdel 
-        : invoiceAmount;
+      const existingUldegdel =
+        typeof invoice.uldegdel === "number" &&
+        !isNaN(invoice.uldegdel) &&
+        invoice.uldegdel > 0
+          ? invoice.uldegdel
+          : invoiceAmount;
       const unpaidAmount = existingUldegdel;
 
       if (unpaidAmount <= 0) {
@@ -212,24 +234,28 @@ async function markInvoicesAsPaid(options) {
 
       // Calculate per-item (zardluud) payment distribution
       let zardluudUpdate = null;
-      if (invoice.medeelel && invoice.medeelel.zardluud && invoice.medeelel.zardluud.length > 0) {
+      if (
+        invoice.medeelel &&
+        invoice.medeelel.zardluud &&
+        invoice.medeelel.zardluud.length > 0
+      ) {
         let remainingToDistribute = amountToApply;
-        const updatedZardluud = invoice.medeelel.zardluud.map(z => {
+        const updatedZardluud = invoice.medeelel.zardluud.map((z) => {
           const itemDun = z.dun || 0;
           const itemTulsunDun = z.tulsunDun || 0;
           const itemUldegdel = itemDun - itemTulsunDun;
-          
+
           if (remainingToDistribute <= 0 || itemUldegdel <= 0) {
             return { ...z };
           }
-          
+
           const applyToItem = Math.min(remainingToDistribute, itemUldegdel);
           remainingToDistribute -= applyToItem;
-          
+
           return {
             ...z,
             tulsunDun: itemTulsunDun + applyToItem,
-            tulsenEsekh: (itemTulsunDun + applyToItem) >= (itemDun - 0.01),
+            tulsenEsekh: itemTulsunDun + applyToItem >= itemDun - 0.01,
           };
         });
         zardluudUpdate = updatedZardluud;
@@ -244,7 +270,11 @@ async function markInvoicesAsPaid(options) {
             dun: amountToApply,
             turul: "manual",
             guilgeeniiId: `payment_${Date.now()}_${invoice._id}`,
-            tailbar: tailbar || (isFullyPaid ? "Төлбөр хийгдлээ" : `Хэсэгчилсэн төлбөр: ${amountToApply}₮`),
+            tailbar:
+              tailbar ||
+              (isFullyPaid
+                ? "Төлбөр хийгдлээ"
+                : `Хэсэгчилсэн төлбөр: ${amountToApply}₮`),
           },
         },
         $set: {
@@ -265,17 +295,19 @@ async function markInvoicesAsPaid(options) {
 
       // Update zardluud with per-item payment tracking
       if (zardluudUpdate) {
-        updateData.$set['medeelel.zardluud'] = zardluudUpdate;
+        updateData.$set["medeelel.zardluud"] = zardluudUpdate;
       }
 
       const updatedInvoice = await NekhemjlekhiinTuukh.findByIdAndUpdate(
         invoice._id,
         updateData,
-        { new: true }
+        { new: true },
       );
 
       if (!updatedInvoice) {
-        console.error(`❌ [INVOICE PAYMENT] Failed to update invoice ${invoice._id}`);
+        console.error(
+          `❌ [INVOICE PAYMENT] Failed to update invoice ${invoice._id}`,
+        );
         continue;
       }
 
@@ -297,19 +329,31 @@ async function markInvoicesAsPaid(options) {
       // NOTE: Do NOT create gereeniiTulsunAvlaga per invoice here - we create ONE consolidated record after the loop
 
       // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel and is fully paid
-      if (isFullyPaid && updatedInvoice.ekhniiUldegdel && updatedInvoice.ekhniiUldegdel > 0) {
+      if (
+        isFullyPaid &&
+        updatedInvoice.ekhniiUldegdel &&
+        updatedInvoice.ekhniiUldegdel > 0
+      ) {
         try {
-          const gereeForUpdate = await GereeModel.findById(updatedInvoice.gereeniiId);
+          const gereeForUpdate = await GereeModel.findById(
+            updatedInvoice.gereeniiId,
+          );
           if (gereeForUpdate) {
             gereeForUpdate.ekhniiUldegdel = 0;
             await gereeForUpdate.save();
           }
         } catch (error) {
-          console.error(`❌ [INVOICE PAYMENT] Error updating geree.ekhniiUldegdel:`, error.message);
+          console.error(
+            `❌ [INVOICE PAYMENT] Error updating geree.ekhniiUldegdel:`,
+            error.message,
+          );
         }
       }
     } catch (error) {
-      console.error(`❌ [INVOICE PAYMENT] Error updating invoice ${invoice._id}:`, error.message);
+      console.error(
+        `❌ [INVOICE PAYMENT] Error updating invoice ${invoice._id}:`,
+        error.message,
+      );
     }
   }
 
@@ -317,7 +361,8 @@ async function markInvoicesAsPaid(options) {
   // so one user payment shows as one entry in HistoryModal, not split across invoices
   if (dun > 0 && (updatedInvoices.length > 0 || invoices.length > 0)) {
     const paymentDate = ognoo ? new Date(ognoo) : new Date();
-    const firstInvoice = updatedInvoices.length > 0 ? updatedInvoices[0].invoice : invoices[0];
+    const firstInvoice =
+      updatedInvoices.length > 0 ? updatedInvoices[0].invoice : invoices[0];
     try {
       const tulsunDoc = new GereeniiTulsunAvlagaModel({
         baiguullagiinId: String(firstInvoice.baiguullagiinId),
@@ -349,7 +394,7 @@ async function markInvoicesAsPaid(options) {
     } catch (tulsunError) {
       console.error(
         "❌ [INVOICE PAYMENT] Error creating gereeniiTulsunAvlaga:",
-        tulsunError.message
+        tulsunError.message,
       );
     }
   }
@@ -373,14 +418,16 @@ async function markInvoicesAsPaid(options) {
       }
 
       const gerees = await GereeModel.find(gereeQuery).select("_id").lean();
-      gerees.forEach(g => gereesToUpdate.add(g._id.toString()));
+      gerees.forEach((g) => gereesToUpdate.add(g._id.toString()));
     } else if (nekhemjlekhiinIds && nekhemjlekhiinIds.length > 0) {
       // Get gerees from invoices
       const invoiceGerees = await NekhemjlekhiinTuukh.find({
-        _id: { $in: nekhemjlekhiinIds }
-      }).select("gereeniiId").lean();
+        _id: { $in: nekhemjlekhiinIds },
+      })
+        .select("gereeniiId")
+        .lean();
 
-      invoiceGerees.forEach(inv => {
+      invoiceGerees.forEach((inv) => {
         if (inv.gereeniiId) gereesToUpdate.add(inv.gereeniiId);
       });
     }
@@ -394,7 +441,8 @@ async function markInvoicesAsPaid(options) {
         try {
           const geree = await GereeModel.findById(gereeId);
           if (geree) {
-            geree.positiveBalance = (geree.positiveBalance || 0) + balancePerGeree;
+            geree.positiveBalance =
+              (geree.positiveBalance || 0) + balancePerGeree;
             await geree.save();
             gereePositiveBalanceMap.set(gereeId, geree.positiveBalance);
 
@@ -410,7 +458,10 @@ async function markInvoicesAsPaid(options) {
             gereePaymentMap.set(key, prev + balancePerGeree);
           }
         } catch (error) {
-          console.error(`❌ [INVOICE PAYMENT] Error updating positiveBalance for geree ${gereeId}:`, error.message);
+          console.error(
+            `❌ [INVOICE PAYMENT] Error updating positiveBalance for geree ${gereeId}:`,
+            error.message,
+          );
         }
       }
     }
@@ -440,7 +491,7 @@ async function markInvoicesAsPaid(options) {
 
         await GereeniiTulukhAvlagaModel.updateOne(
           { _id: row._id },
-          { $set: { uldegdel: newUldegdel } }
+          { $set: { uldegdel: newUldegdel } },
         );
 
         remainingForGeree -= applyHere;
@@ -449,7 +500,7 @@ async function markInvoicesAsPaid(options) {
   } catch (tulukhUpdateError) {
     console.error(
       "❌ [INVOICE PAYMENT] Error updating gereeniiTulukhAvlaga uldegdel:",
-      tulukhUpdateError.message
+      tulukhUpdateError.message,
     );
   }
 
@@ -486,12 +537,15 @@ async function markInvoicesAsPaid(options) {
       } catch (recalcError) {
         console.error(
           `❌ [INVOICE PAYMENT] Error recalculating globalUldegdel for geree ${gereeId}:`,
-          recalcError.message
+          recalcError.message,
         );
       }
     }
   } catch (outerRecalcError) {
-    console.error("❌ [INVOICE PAYMENT] Error in globalUldegdel recalculation loop:", outerRecalcError.message);
+    console.error(
+      "❌ [INVOICE PAYMENT] Error in globalUldegdel recalculation loop:",
+      outerRecalcError.message,
+    );
   }
 
   return {
@@ -501,18 +555,20 @@ async function markInvoicesAsPaid(options) {
     paymentAmount: dun,
     remainingBalance: remainingPayment,
     positiveBalanceAdded: remainingPayment > 0 ? remainingPayment : 0,
-    message: `Applied ${dun - remainingPayment}₮ to ${updatedInvoices.length} invoice(s)${remainingPayment > 0 ? `, saved ${remainingPayment}₮ as positive balance` : ''}`,
-    invoices: updatedInvoices.map(({ invoice, amountApplied, isFullyPaid }) => ({
-      _id: invoice._id,
-      nekhemjlekhiinDugaar: invoice.nekhemjlekhiiDugaar,
-      gereeniiDugaar: invoice.gereeniiDugaar,
-      niitTulbur: invoice.niitTulbur,
-      amountApplied,
-      isFullyPaid,
-      uldegdel: invoice.uldegdel || 0,
-      tuluv: invoice.tuluv,
-      tulsunOgnoo: invoice.tulsunOgnoo,
-    })),
+    message: `Applied ${dun - remainingPayment}₮ to ${updatedInvoices.length} invoice(s)${remainingPayment > 0 ? `, saved ${remainingPayment}₮ as positive balance` : ""}`,
+    invoices: updatedInvoices.map(
+      ({ invoice, amountApplied, isFullyPaid }) => ({
+        _id: invoice._id,
+        nekhemjlekhiinDugaar: invoice.nekhemjlekhiiDugaar,
+        gereeniiDugaar: invoice.gereeniiDugaar,
+        niitTulbur: invoice.niitTulbur,
+        amountApplied,
+        isFullyPaid,
+        uldegdel: invoice.uldegdel || 0,
+        tuluv: invoice.tuluv,
+        tulsunOgnoo: invoice.tulsunOgnoo,
+      }),
+    ),
     // NEW: high‑level view of payment projection rows created
     tulsunAvlaga: tulsunAvlagaDocs.map((doc) => ({
       _id: doc._id,
@@ -524,10 +580,12 @@ async function markInvoicesAsPaid(options) {
       source: doc.source,
       ognoo: doc.ognoo,
     })),
-    positiveBalance: Array.from(gereePositiveBalanceMap.entries()).map(([gereeId, balance]) => ({
-      gereeniiId: gereeId,
-      positiveBalance: balance,
-    })),
+    positiveBalance: Array.from(gereePositiveBalanceMap.entries()).map(
+      ([gereeId, balance]) => ({
+        gereeniiId: gereeId,
+        positiveBalance: balance,
+      }),
+    ),
   };
 }
 
@@ -541,7 +599,13 @@ async function markInvoicesAsPaid(options) {
  * @param {String} options.gereeniiId - Contract ID (required)
  */
 async function getGereeniiTulsunSummary(options) {
-  const { baiguullagiinId, gereeniiId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = options || {};
+  const {
+    baiguullagiinId,
+    gereeniiId,
+    barilgiinId,
+    ekhlekhOgnoo,
+    duusakhOgnoo,
+  } = options || {};
 
   if (!baiguullagiinId) {
     throw new Error("baiguullagiinId is required");
@@ -551,7 +615,7 @@ async function getGereeniiTulsunSummary(options) {
   }
 
   const kholbolt = db.kholboltuud.find(
-    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
   );
 
   if (!kholbolt) {
@@ -580,11 +644,7 @@ async function getGereeniiTulsunSummary(options) {
         totalTulsunDun: { $sum: "$tulsunDun" },
         totalInvoicePayment: {
           $sum: {
-            $cond: [
-              { $eq: ["$turul", "invoice_payment"] },
-              "$tulsunDun",
-              0,
-            ],
+            $cond: [{ $eq: ["$turul", "invoice_payment"] }, "$tulsunDun", 0],
           },
         },
         totalPrepayment: {

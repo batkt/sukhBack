@@ -961,8 +961,7 @@ router.post(
         baiguullaga,
         kholbolt,
         "garan",
-        false, // skipDuplicateCheck = false → reuse/update existing monthly invoice when present
-        false, // includeEkhniiUldegdel = false (unchanged)
+        false, // includeEkhniiUldegdel = false
       );
 
       if (!invoiceResult.success) {

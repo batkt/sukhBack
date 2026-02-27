@@ -123,7 +123,7 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
       // Use original total for calculation if we have it
       const baseTotal = invoice.niitTulburOriginal;
       const remaining = Math.max(0, baseTotal - totalPaid);
-      
+
       invoice.uldegdel = remaining;
 
       if (remaining <= 0.01) {
@@ -238,89 +238,10 @@ nekhemjlekhiinTuukhSchema.post("findOne", async function (doc) {
 });
 // Update global balance on deletion and cascade delete related avlaga records
 // This covers both doc.deleteOne() and Query.deleteOne() / Query.findOneAndDelete()
+const { runDeleteSideEffects } = require("../services/invoiceDeletionService");
+
 const handleBalanceOnDelete = async function (doc) {
-  if (doc && doc.gereeniiId && doc.baiguullagiinId) {
-    try {
-      const { db } = require("zevbackv2");
-      const Geree = require("./geree");
-      const GereeniiTulsunAvlaga = require("./gereeniiTulsunAvlaga");
-      const GereeniiTulukhAvlaga = require("./gereeniiTulukhAvlaga");
-
-      const kholbolt = db.kholboltuud.find(
-        (k) => String(k.baiguullagiinId) === String(doc.baiguullagiinId),
-      );
-
-      if (kholbolt) {
-        // Update globalUldegdel only by the UNPAID amount (uldegdel)
-        // This prevents double-deduction when a paid/partially paid invoice is deleted
-        const unpaidAmount =
-          typeof doc.uldegdel === "number"
-            ? Math.max(0, doc.uldegdel)
-            : doc.tuluv === "Төлсөн"
-              ? 0
-              : doc.niitTulbur;
-
-        if (unpaidAmount > 0) {
-          await Geree(kholbolt).findByIdAndUpdate(doc.gereeniiId, {
-            $inc: { globalUldegdel: -unpaidAmount },
-          });
-          console.log(
-            `📉 [Middleware] Decremented globalUldegdel by ${unpaidAmount} (unpaid) for invoice ${doc.nekhemjlekhiinDugaar || doc._id}`,
-          );
-        } else {
-          console.log(
-            `ℹ️ [Middleware] No globalUldegdel decrement needed for ${doc.tuluv} invoice ${doc.nekhemjlekhiinDugaar || doc._id}`,
-          );
-        }
-
-        // Cascade delete related records from gereeniiTulsunAvlaga
-        try {
-          const tulsunDeleteResult = await GereeniiTulsunAvlaga(
-            kholbolt,
-          ).deleteMany({
-            $or: [
-              { nekhemjlekhId: String(doc._id) },
-              { nekhemjlekhId: doc._id },
-            ],
-          });
-          if (tulsunDeleteResult.deletedCount > 0) {
-            console.log(
-              `🗑️ [Middleware] Cascade deleted ${tulsunDeleteResult.deletedCount} gereeniiTulsunAvlaga records for nekhemjlekh ${doc._id}`,
-            );
-          }
-        } catch (tulsunError) {
-          console.error(
-            "Error cascade deleting gereeniiTulsunAvlaga:",
-            tulsunError.message,
-          );
-        }
-
-        // Cascade delete related records from gereeniiTulukhAvlaga
-        try {
-          const tulukhDeleteResult = await GereeniiTulukhAvlaga(
-            kholbolt,
-          ).deleteMany({
-            $or: [
-              { nekhemjlekhId: String(doc._id) },
-              { nekhemjlekhId: doc._id },
-            ],
-          });
-          if (tulukhDeleteResult.deletedCount > 0) {
-            console.log(
-              `🗑️ [Middleware] Cascade deleted ${tulukhDeleteResult.deletedCount} gereeniiTulukhAvlaga records for nekhemjlekh ${doc._id}`,
-            );
-          }
-        } catch (tulukhError) {
-          console.error(
-            "Error cascade deleting gereeniiTulukhAvlaga:",
-            tulukhError.message,
-          );
-        }
-      }
-    } catch (error) {
-      console.error("Error in handleBalanceOnDelete middleware:", error);
-    }
-  }
+  await runDeleteSideEffects(doc);
 };
 
 nekhemjlekhiinTuukhSchema.pre(
