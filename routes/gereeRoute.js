@@ -60,32 +60,38 @@ router.post("/zaaltExcelDataAvya", tokenShalgakh, zaaltExcelDataAvya);
 router.post(
   "/guilgeeniiTuukhExcelDownload",
   tokenShalgakh,
-  downloadGuilgeeniiTuukhExcel
+  downloadGuilgeeniiTuukhExcel,
 );
 
 // Initial Balance Excel routes
 router.post(
   "/generateInitialBalanceTemplate",
   tokenShalgakh,
-  generateInitialBalanceTemplate
+  generateInitialBalanceTemplate,
 );
 router.post(
   "/importInitialBalanceFromExcel",
   uploadFile.single("file"),
   tokenShalgakh,
-  importInitialBalanceFromExcel
+  importInitialBalanceFromExcel,
 );
 
 // Payment summary for a single geree (from gereeniiTulsunAvlaga)
 router.post("/tulsunSummary", tokenShalgakh, async (req, res, next) => {
   try {
-    const { baiguullagiinId, gereeniiId, barilgiinId, ekhlekhOgnoo, duusakhOgnoo } = req.body || {};
+    const {
+      baiguullagiinId,
+      gereeniiId,
+      barilgiinId,
+      ekhlekhOgnoo,
+      duusakhOgnoo,
+    } = req.body || {};
     const result = await getGereeniiTulsunSummary({
       baiguullagiinId,
       gereeniiId,
       barilgiinId,
       ekhlekhOgnoo,
-      duusakhOgnoo
+      duusakhOgnoo,
     });
     res.json(result);
   } catch (err) {
@@ -104,19 +110,19 @@ router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
     if (!baiguullagiinId || !barilgiinId) {
       return res.status(400).json({
         success: false,
-        message: "baiguullagiinId and barilgiinId are required"
+        message: "baiguullagiinId and barilgiinId are required",
       });
     }
 
     // Find connection
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
     );
 
     if (!tukhainBaaziinKholbolt) {
       return res.status(404).json({
         success: false,
-        message: "Байгууллагын холболт олдсонгүй"
+        message: "Байгууллагын холболт олдсонгүй",
       });
     }
 
@@ -125,15 +131,18 @@ router.post("/liftShalgaya", tokenShalgakh, async (req, res, next) => {
     const filter = { baiguullagiinId, barilgiinId };
     const update = {
       $set: {
-        choloolugdokhDavkhar: choloolugdokhDavkhar || []
-      }
+        choloolugdokhDavkhar: choloolugdokhDavkhar || [],
+      },
     };
     const options = { new: true, upsert: true, setDefaultsOnInsert: true };
 
-    const result = await LiftShalgayaModel.findOneAndUpdate(filter, update, options);
+    const result = await LiftShalgayaModel.findOneAndUpdate(
+      filter,
+      update,
+      options,
+    );
 
     res.json(result);
-
   } catch (error) {
     next(error);
   }
@@ -147,12 +156,15 @@ const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 // Emit tulburUpdated on delete of avlaga records so web clients refresh
 router.use((req, res, next) => {
   const isAvlagaDelete =
-    (req.method === "DELETE" || (req.method === "POST" && req.path?.includes("delete"))) &&
-    (req.path?.includes("gereeniiTulsunAvlaga") || req.path?.includes("gereeniiTulukhAvlaga"));
+    (req.method === "DELETE" ||
+      (req.method === "POST" && req.path?.includes("delete"))) &&
+    (req.path?.includes("gereeniiTulsunAvlaga") ||
+      req.path?.includes("gereeniiTulukhAvlaga"));
   if (!isAvlagaDelete) return next();
   const originalJson = res.json.bind(res);
   res.json = function (data) {
-    const baiguullagiinId = req.query?.baiguullagiinId || req.body?.baiguullagiinId;
+    const baiguullagiinId =
+      req.query?.baiguullagiinId || req.body?.baiguullagiinId;
     if (baiguullagiinId && req.app) {
       try {
         req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
@@ -174,7 +186,8 @@ crud(
     try {
       const { db } = require("zevbackv2");
       const tukhainBaaziinKholbolt = db.kholboltuud.find(
-        (kholbolt) => String(kholbolt.baiguullagiinId) === String(req.body.baiguullagiinId)
+        (kholbolt) =>
+          String(kholbolt.baiguullagiinId) === String(req.body.baiguullagiinId),
       );
 
       if (!tukhainBaaziinKholbolt) {
@@ -183,7 +196,10 @@ crud(
 
       // Normalize utas field: convert array to string for OrshinSuugch model
       const orshinSuugchData = { ...req.body };
-      if (Array.isArray(orshinSuugchData.utas) && orshinSuugchData.utas.length > 0) {
+      if (
+        Array.isArray(orshinSuugchData.utas) &&
+        orshinSuugchData.utas.length > 0
+      ) {
         orshinSuugchData.utas = orshinSuugchData.utas[0];
       } else if (!orshinSuugchData.utas) {
         orshinSuugchData.utas = "";
@@ -191,7 +207,9 @@ crud(
 
       // 1. Check if resident already exists by phone number (cross-org check in main DB)
       const phoneNumber = orshinSuugchData.utas;
-      let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas: phoneNumber });
+      let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+        utas: phoneNumber,
+      });
 
       if (orshinSuugch) {
         // User already exists - preserve their "primary" org/building at top level
@@ -200,7 +218,9 @@ crud(
         if (orshinSuugchData.ovog) orshinSuugch.ovog = orshinSuugchData.ovog;
         if (orshinSuugchData.mail) orshinSuugch.mail = orshinSuugchData.mail;
 
-        console.log(`ℹ️ [GEREE] Existing resident found (${phoneNumber}). Preserving primary org: ${orshinSuugch.baiguullagiinId}`);
+        console.log(
+          `ℹ️ [GEREE] Existing resident found (${phoneNumber}). Preserving primary org: ${orshinSuugch.baiguullagiinId}`,
+        );
       } else {
         // Create NEW resident document
         orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(orshinSuugchData);
@@ -208,7 +228,9 @@ crud(
         orshinSuugch.baiguullagiinId = req.body.baiguullagiinId;
         orshinSuugch.baiguullagiinNer = req.body.baiguullagiinNer; // Assuming it's in body or will be fetched
         orshinSuugch.barilgiinId = req.body.barilgiinId;
-        console.log(`ℹ️ [GEREE] Creating new resident for org: ${req.body.baiguullagiinId}`);
+        console.log(
+          `ℹ️ [GEREE] Creating new resident for org: ${req.body.baiguullagiinId}`,
+        );
       }
 
       // 2. Add/Update the specific building association in the toots array
@@ -219,7 +241,8 @@ crud(
         const barilgiinIdStr = String(req.body.barilgiinId);
 
         const existingTootIndex = orshinSuugch.toots.findIndex(
-          t => t.toot === targetToot && String(t.barilgiinId) === barilgiinIdStr
+          (t) =>
+            t.toot === targetToot && String(t.barilgiinId) === barilgiinIdStr,
         );
 
         const tootEntry = {
@@ -228,11 +251,14 @@ crud(
           baiguullagiinId: String(req.body.baiguullagiinId),
           davkhar: req.body.davkhar || orshinSuugchData.davkhar || "",
           orts: req.body.orts || orshinSuugchData.orts || "1",
-          source: "OWN_ORG"
+          source: "OWN_ORG",
         };
 
         if (existingTootIndex >= 0) {
-          orshinSuugch.toots[existingTootIndex] = { ...orshinSuugch.toots[existingTootIndex], ...tootEntry };
+          orshinSuugch.toots[existingTootIndex] = {
+            ...orshinSuugch.toots[existingTootIndex],
+            ...tootEntry,
+          };
         } else {
           orshinSuugch.toots.push(tootEntry);
         }
@@ -243,7 +269,7 @@ crud(
       unuudur = new Date(
         unuudur.getFullYear(),
         unuudur.getMonth(),
-        unuudur.getDate()
+        unuudur.getDate(),
       );
 
       var maxDugaar = 1;
@@ -314,7 +340,9 @@ crud(
         }
 
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          (kholbolt) => kholbolt && String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
+          (kholbolt) =>
+            kholbolt &&
+            String(kholbolt.baiguullagiinId) === String(baiguullagiinId),
         );
 
         if (!tukhainBaaziinKholbolt) {
@@ -327,7 +355,7 @@ crud(
         // Initialize body.query if it doesn't exist
         if (!body.query) {
           body.query = {};
-        } else if (typeof body.query === 'string') {
+        } else if (typeof body.query === "string") {
           body.query = JSON.parse(body.query);
         }
 
@@ -353,7 +381,10 @@ crud(
         }
 
         // Debug: Log the query
-        console.log("🔍 [geree GET] Query:", JSON.stringify(body.query, null, 2));
+        console.log(
+          "🔍 [geree GET] Query:",
+          JSON.stringify(body.query, null, 2),
+        );
 
         let jagsaalt = await Geree(tukhainBaaziinKholbolt)
           .find(body.query)
@@ -364,7 +395,7 @@ crud(
           .limit(khuudasniiKhemjee);
 
         let niitMur = await Geree(tukhainBaaziinKholbolt).countDocuments(
-          body.query
+          body.query,
         );
         let niitKhuudas =
           niitMur % khuudasniiKhemjee == 0
@@ -374,13 +405,18 @@ crud(
         console.log("✅ [geree GET] Found", niitMur, "records");
 
         // Normalize horoo field to always be an object format for consistency
+        // Set uldegdel = globalUldegdel so frontend "Үлдэгдэл" shows contract balance (including positiveBalance/credit)
         if (jagsaalt != null) {
           jagsaalt.forEach((mur) => {
             mur.key = mur._id;
+            mur.uldegdel =
+              typeof mur.globalUldegdel === "number"
+                ? mur.globalUldegdel
+                : (mur.globalUldegdel ?? 0);
             // Normalize horoo field: convert string to object if needed
-            if (mur.horoo && typeof mur.horoo === 'string') {
+            if (mur.horoo && typeof mur.horoo === "string") {
               mur.horoo = { ner: mur.horoo, kod: mur.horoo };
-            } else if (!mur.horoo || typeof mur.horoo !== 'object') {
+            } else if (!mur.horoo || typeof mur.horoo !== "object") {
               mur.horoo = {};
             }
           });
@@ -417,7 +453,9 @@ crud(
 
             for (const conn of allConnections) {
               try {
-                const tempGeree = await Geree(conn, true).findById(req.params.id).select("baiguullagiinId");
+                const tempGeree = await Geree(conn, true)
+                  .findById(req.params.id)
+                  .select("baiguullagiinId");
                 if (tempGeree) {
                   foundGeree = tempGeree;
                   req.body.baiguullagiinId = tempGeree.baiguullagiinId;
@@ -430,50 +468,69 @@ crud(
           }
 
           if (!req.body.baiguullagiinId) {
-            console.log("⚠️ [GEREE PUT] baiguullagiinId not found, skipping automatic electricity update");
+            console.log(
+              "⚠️ [GEREE PUT] baiguullagiinId not found, skipping automatic electricity update",
+            );
             return next();
           }
         }
 
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          (kholbolt) => String(kholbolt.baiguullagiinId) === String(req.body.baiguullagiinId)
+          (kholbolt) =>
+            String(kholbolt.baiguullagiinId) ===
+            String(req.body.baiguullagiinId),
         );
 
         if (!tukhainBaaziinKholbolt) {
-          console.log("⚠️ [GEREE PUT] Connection not found, skipping automatic electricity update");
+          console.log(
+            "⚠️ [GEREE PUT] Connection not found, skipping automatic electricity update",
+          );
           return next();
         }
 
         // Parse tsahilgaaniiZaalt (default to 0 if invalid)
-        const tsahilgaaniiZaalt = req.body.tsahilgaaniiZaalt !== undefined
-          ? parseFloat(req.body.tsahilgaaniiZaalt) || 0
-          : 0;
+        const tsahilgaaniiZaalt =
+          req.body.tsahilgaaniiZaalt !== undefined
+            ? parseFloat(req.body.tsahilgaaniiZaalt) || 0
+            : 0;
 
         // Automatically update electricity readings in req.body
         req.body.umnukhZaalt = tsahilgaaniiZaalt;
         req.body.suuliinZaalt = tsahilgaaniiZaalt;
-        req.body.zaaltTog = req.body.zaaltTog !== undefined ? req.body.zaaltTog : 0;
-        req.body.zaaltUs = req.body.zaaltUs !== undefined ? req.body.zaaltUs : 0;
+        req.body.zaaltTog =
+          req.body.zaaltTog !== undefined ? req.body.zaaltTog : 0;
+        req.body.zaaltUs =
+          req.body.zaaltUs !== undefined ? req.body.zaaltUs : 0;
 
-        console.log("⚡ [GEREE PUT] Automatically updated electricity readings from tsahilgaaniiZaalt:", {
-          tsahilgaaniiZaalt: tsahilgaaniiZaalt,
-          umnukhZaalt: req.body.umnukhZaalt,
-          suuliinZaalt: req.body.suuliinZaalt,
-          zaaltTog: req.body.zaaltTog,
-          zaaltUs: req.body.zaaltUs
-        });
+        console.log(
+          "⚡ [GEREE PUT] Automatically updated electricity readings from tsahilgaaniiZaalt:",
+          {
+            tsahilgaaniiZaalt: tsahilgaaniiZaalt,
+            umnukhZaalt: req.body.umnukhZaalt,
+            suuliinZaalt: req.body.suuliinZaalt,
+            zaaltTog: req.body.zaaltTog,
+            zaaltUs: req.body.zaaltUs,
+          },
+        );
 
         // Remove tsahilgaaniiZaalt from body as it's not a geree field
         delete req.body.tsahilgaaniiZaalt;
       } catch (error) {
-        console.error("⚠️ [GEREE PUT] Error updating electricity readings:", error);
+        console.error(
+          "⚠️ [GEREE PUT] Error updating electricity readings:",
+          error,
+        );
         // Don't block the request, just log the error
       }
     }
 
     // IMPORTANT: When cancelling a geree (tuluv: "Цуцалсан"), preserve the original barilgiinId
     // Do NOT allow barilgiinId to be changed when cancelling a contract
-    if (req.method === "PUT" && req.body.tuluv === "Цуцалсан" && req.params.id) {
+    if (
+      req.method === "PUT" &&
+      req.body.tuluv === "Цуцалсан" &&
+      req.params.id
+    ) {
       try {
         const { db } = require("zevbackv2");
         const allConnections = db.kholboltuud || [];
@@ -482,7 +539,9 @@ crud(
         // Find the original geree to preserve its barilgiinId
         for (const conn of allConnections) {
           try {
-            const tempGeree = await Geree(conn, true).findById(req.params.id).select("barilgiinId");
+            const tempGeree = await Geree(conn, true)
+              .findById(req.params.id)
+              .select("barilgiinId");
             if (tempGeree) {
               originalGeree = tempGeree;
               break;
@@ -495,7 +554,9 @@ crud(
         // If original geree found, preserve its barilgiinId
         if (originalGeree && originalGeree.barilgiinId) {
           req.body.barilgiinId = originalGeree.barilgiinId;
-          console.log(`🔒 [GEREE PUT] Preserving original barilgiinId: ${originalGeree.barilgiinId} when cancelling contract`);
+          console.log(
+            `🔒 [GEREE PUT] Preserving original barilgiinId: ${originalGeree.barilgiinId} when cancelling contract`,
+          );
         }
       } catch (error) {
         console.error("⚠️ [GEREE PUT] Error preserving barilgiinId:", error);
@@ -504,7 +565,7 @@ crud(
     }
 
     next();
-  }
+  },
 );
 
 // router
@@ -608,84 +669,89 @@ crud(
 //     }
 //   });
 
-router.route("/gereeKhadgalya").post(
-  tokenShalgakh,
-  shalguurFieldValidate(["register", "customerTin"]),
-  async (req, res, next) => {
-    const { db } = require("zevbackv2");
-    const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(req.body);
-    orshinSuugch.id = orshinSuugch.register
-      ? orshinSuugch.register
-      : orshinSuugch.customerTin;
-    if (req.body.gereeniiDugaar === `ГД${moment(new Date()).format("YYMMDD")}`) {
-      var unuudur = new Date();
-      unuudur = new Date(
-        unuudur.getFullYear(),
-        unuudur.getMonth(),
-        unuudur.getDate()
-      );
-      var maxDugaar = 1;
-      await Dugaarlalt(req.body.tukhainBaaziinKholbolt)
-        .find({
+router
+  .route("/gereeKhadgalya")
+  .post(
+    tokenShalgakh,
+    shalguurFieldValidate(["register", "customerTin"]),
+    async (req, res, next) => {
+      const { db } = require("zevbackv2");
+      const orshinSuugch = new OrshinSuugch(db.erunkhiiKholbolt)(req.body);
+      orshinSuugch.id = orshinSuugch.register
+        ? orshinSuugch.register
+        : orshinSuugch.customerTin;
+      if (
+        req.body.gereeniiDugaar === `ГД${moment(new Date()).format("YYMMDD")}`
+      ) {
+        var unuudur = new Date();
+        unuudur = new Date(
+          unuudur.getFullYear(),
+          unuudur.getMonth(),
+          unuudur.getDate(),
+        );
+        var maxDugaar = 1;
+        await Dugaarlalt(req.body.tukhainBaaziinKholbolt)
+          .find({
+            baiguullagiinId: req.body.baiguullagiinId,
+            barilgiinId: req.body.barilgiinId,
+            turul: "geree",
+            ognoo: unuudur,
+          })
+          .sort({
+            dugaar: -1,
+          })
+          .limit(1)
+          .then((result) => {
+            if (result != 0) maxDugaar = result[0].dugaar + 1;
+          });
+        var dugaarlalt = new Dugaarlalt(req.body.tukhainBaaziinKholbolt)({
           baiguullagiinId: req.body.baiguullagiinId,
           barilgiinId: req.body.barilgiinId,
+          dugaar: maxDugaar,
           turul: "geree",
           ognoo: unuudur,
-        })
-        .sort({
-          dugaar: -1,
-        })
-        .limit(1)
-        .then((result) => {
-          if (result != 0) maxDugaar = result[0].dugaar + 1;
+          isNew: true,
         });
-      var dugaarlalt = new Dugaarlalt(req.body.tukhainBaaziinKholbolt)({
-        baiguullagiinId: req.body.baiguullagiinId,
-        barilgiinId: req.body.barilgiinId,
-        dugaar: maxDugaar,
-        turul: "geree",
-        ognoo: unuudur,
-        isNew: true,
-      });
-      // Only append maxDugaar suffix if it's greater than 1 (multiple contracts on same day)
-      // This prevents "-0" or "-1" suffixes from appearing
-      if (maxDugaar && maxDugaar > 1) {
-        req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
+        // Only append maxDugaar suffix if it's greater than 1 (multiple contracts on same day)
+        // This prevents "-0" or "-1" suffixes from appearing
+        if (maxDugaar && maxDugaar > 1) {
+          req.body.gereeniiDugaar = req.body.gereeniiDugaar + "-" + maxDugaar;
+        }
+        dugaarlalt.save();
       }
-      dugaarlalt.save();
-    }
 
-    var orshinSuugchShalguur;
-    if (!!orshinSuugch.register) {
-      orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-        register: orshinSuugch.register,
-        barilgiinId: req.body.barilgiinId,
+      var orshinSuugchShalguur;
+      if (!!orshinSuugch.register) {
+        orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+          register: orshinSuugch.register,
+          barilgiinId: req.body.barilgiinId,
+        });
+      } else if (!!orshinSuugch.customerTin) {
+        orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+          customerTin: orshinSuugch.customerTin,
+          barilgiinId: req.body.barilgiinId,
+        });
+      }
+      if (!orshinSuugchShalguur) await orshinSuugch.save();
+      var geree = new Geree(req.body.tukhainBaaziinKholbolt)(req.body);
+      var daraagiinTulukhOgnoo = geree.duusakhOgnoo;
+      try {
+        if (geree.avlaga.guilgeenuud && geree.avlaga.guilgeenuud.length > 0)
+          daraagiinTulukhOgnoo = geree.avlaga.guilgeenuud[0].ognoo;
+      } catch (err) {
+        if (!!next) next(err);
+      }
+      geree.daraagiinTulukhOgnoo = daraagiinTulukhOgnoo;
+      geree.tuluv = 1;
+      await geree.save().then((result) => {
+        talbaiKhariltsagchiinTuluvUurchluy(
+          [result._id],
+          req.body.tukhainBaaziinKholbolt,
+        );
       });
-    } else if (!!orshinSuugch.customerTin) {
-      orshinSuugchShalguur = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-        customerTin: orshinSuugch.customerTin,
-        barilgiinId: req.body.barilgiinId,
-      });
-    }
-    if (!orshinSuugchShalguur) await orshinSuugch.save();
-    var geree = new Geree(req.body.tukhainBaaziinKholbolt)(req.body);
-    var daraagiinTulukhOgnoo = geree.duusakhOgnoo;
-    try {
-      if (geree.avlaga.guilgeenuud && geree.avlaga.guilgeenuud.length > 0)
-        daraagiinTulukhOgnoo = geree.avlaga.guilgeenuud[0].ognoo;
-    } catch (err) {
-      if (!!next) next(err);
-    }
-    geree.daraagiinTulukhOgnoo = daraagiinTulukhOgnoo;
-    geree.tuluv = 1;
-    await geree.save().then((result) => {
-      talbaiKhariltsagchiinTuluvUurchluy(
-        [result._id],
-        req.body.tukhainBaaziinKholbolt
-      );
-    });
-    res.send("Amjilttai");
-  });
+      res.send("Amjilttai");
+    },
+  );
 
 router
   .route("/gereeniiGuilgeeKhadgalya")
@@ -697,10 +763,10 @@ router
     try {
       const { db } = require("zevbackv2");
       var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-        req.body.baiguullagiinId
+        req.body.baiguullagiinId,
       );
       var ashiglaltiinZardal = await AshiglaltiinZardluud(
-        req.body.tukhainBaaziinKholbolt
+        req.body.tukhainBaaziinKholbolt,
       ).findById(req.body.ashiglaltiinId);
       const jagsaalt = req.body.jagsaalt;
       var talbainDugaaruud = [];
@@ -722,11 +788,11 @@ router
           oldooguiGeree = [];
           talbainDugaaruud.forEach((a) => {
             var oldsonGeree = gereenuud.find((b) =>
-              b.talbainIdnuud.includes(a)
+              b.talbainIdnuud.includes(a),
             );
             if (!oldsonGeree)
               oldooguiGeree.push(
-                jagsaalt.find((x) => x.talbainId == a).talbainDugaar
+                jagsaalt.find((x) => x.talbainId == a).talbainDugaar,
               );
           });
           if (oldooguiGeree.length > 0) {
@@ -742,7 +808,7 @@ router
       if (niitGereenuud.length > 0) {
         for await (const tukhainZardal of jagsaalt) {
           var geree = niitGereenuud.find((x) =>
-            x.talbainIdnuud.includes(tukhainZardal.talbainId)
+            x.talbainIdnuud.includes(tukhainZardal.talbainId),
           );
           updateObject = {};
           if (
@@ -763,7 +829,7 @@ router
               suuliinGuilgee = lodash.orderBy(
                 suuliinGuilgee,
                 ["ognoo"],
-                ["asc"]
+                ["asc"],
               );
               suuliinGuilgee = suuliinGuilgee[suuliinGuilgee.length - 1];
             }
@@ -785,11 +851,11 @@ router
             chadalDun =
               baiguullaga?.tokhirgoo?.bichiltKhonog > 0 && tsakhilgaanKBTST > 0
                 ? (tsakhilgaanKBTST /
-                  baiguullaga?.tokhirgoo?.bichiltKhonog /
-                  12) *
-                (req.body.baiguullagiinId === "679aea9032299b7ba8462a77"
-                  ? 11520
-                  : 15500)
+                    baiguullaga?.tokhirgoo?.bichiltKhonog /
+                    12) *
+                  (req.body.baiguullagiinId === "679aea9032299b7ba8462a77"
+                    ? 11520
+                    : 15500)
                 : 0;
             tsekhDun = ashiglaltiinZardal.tariff * tsakhilgaanKBTST;
             if (baiguullaga?.tokhirgoo?.sekhDemjikhTulburAvakhEsekh) {
@@ -806,12 +872,12 @@ router
           var tempDun =
             (ashiglaltiinZardal.ner?.includes("Хүйтэн ус") ||
               ashiglaltiinZardal.ner?.includes("Халуун ус")) &&
-              ashiglaltiinZardal.bodokhArga === "Khatuu"
+            ashiglaltiinZardal.bodokhArga === "Khatuu"
               ? ashiglaltiinZardal.tseverUsDun * zoruuDun +
-              ashiglaltiinZardal.bokhirUsDun * zoruuDun +
-              (ashiglaltiinZardal.ner?.includes("Халуун ус")
-                ? ashiglaltiinZardal.usKhalaasniiDun * zoruuDun
-                : 0)
+                ashiglaltiinZardal.bokhirUsDun * zoruuDun +
+                (ashiglaltiinZardal.ner?.includes("Халуун ус")
+                  ? ashiglaltiinZardal.usKhalaasniiDun * zoruuDun
+                  : 0)
               : tsakhilgaanDun;
           updateObject = {
             turul: "avlaga",
@@ -893,12 +959,12 @@ router
               source: "excel_import",
 
               // Fields from updateObject that map to schema
-              nuatBodokhEsekh: updateObject.nuatBodokhEsekh
+              nuatBodokhEsekh: updateObject.nuatBodokhEsekh,
             };
 
             let upsertDoc = {
               insertOne: {
-                document: avlagaDoc
+                document: avlagaDoc,
               },
             };
             bulkOps.push(upsertDoc);
@@ -911,14 +977,14 @@ router
           .bulkWrite(bulkOps)
           .then((bulkWriteOpResult) => {
             // Also need to insert into AshiglaltiinExcel (existing code)
-            const AshiglaltiinExcel = require("../models/ashiglaltiinExcel"); // Ensure this is imported if not already on top, but existing code used it? 
+            const AshiglaltiinExcel = require("../models/ashiglaltiinExcel"); // Ensure this is imported if not already on top, but existing code used it?
             // Existing code used `AshiglaltiinExcel(req.body.tukhainBaaziinKholbolt).insertMany(jagsaalt)`
             // I should check if AshiglaltiinExcel is defined in the file.
             // If not, I should define it or assume it's available. The snippet showed it being used.
             // Let's assume it requires the model.
             const AshiglaltiinExcelModel = require("../models/ashiglaltiinExcel");
             AshiglaltiinExcelModel(req.body.tukhainBaaziinKholbolt).insertMany(
-              jagsaalt
+              jagsaalt,
             );
             res.status(200).send("Amjilttai");
           })
@@ -933,21 +999,21 @@ router
 router.get(
   "/tootBurtgelExcelTemplate",
   tokenShalgakh,
-  generateTootBurtgelExcelTemplate
+  generateTootBurtgelExcelTemplate,
 );
 
 router.post(
   "/tootBurtgelExcelImport",
   tokenShalgakh,
   uploadFile.single("excelFile"),
-  importTootBurtgelFromExcel
+  importTootBurtgelFromExcel,
 );
 
 router.put(
   "/tootBurtgelExcelImport",
   tokenShalgakh,
   uploadFile.single("excelFile"),
-  importTootBurtgelFromExcel
+  importTootBurtgelFromExcel,
 );
 
 module.exports = router;

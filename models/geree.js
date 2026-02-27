@@ -105,7 +105,7 @@ const gereeSchema = new Schema(
     ashiglaltiinZardalUsgeer: String,
     niitTulbur: Number,
     niitTulburUsgeer: String,
-    ekhniiUldegdel : Number,
+    ekhniiUldegdel: Number,
     ekhniiUldegdelUsgeer: String,
     avlaga: { type: avlagiinTurul, select: false },
     bairNer: String,
@@ -240,8 +240,16 @@ const gereeSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+    toJSON: { virtuals: true },
+  },
 );
+
+// Frontend expects "uldegdel" for balance; expose globalUldegdel (contract balance including credit) as uldegdel
+gereeSchema.virtual("uldegdel").get(function () {
+  return typeof this.globalUldegdel === "number"
+    ? this.globalUldegdel
+    : (this.globalUldegdel ?? 0);
+});
 
 // Post-save hook to track guilgeenuud for nekhemjlekh (one-time)
 // When a guilgee is added to avlaga.guilgeenuud, add it to guilgeenuudForNekhemjlekh
@@ -272,19 +280,20 @@ async function handleGuilgeeForNekhemjlekh(doc, GereeModel) {
     const { db } = require("zevbackv2");
 
     const kholbolt = db.kholboltuud.find(
-      (a) => a.baiguullagiinId == doc.baiguullagiinId
+      (a) => a.baiguullagiinId == doc.baiguullagiinId,
     );
 
     if (!kholbolt) return;
 
     // Get the latest geree document to check guilgeenuudForNekhemjlekh
-    const latestGeree = await GereeModel
-      .findById(doc._id)
-      .select("+avlaga +guilgeenuudForNekhemjlekh");
+    const latestGeree = await GereeModel.findById(doc._id).select(
+      "+avlaga +guilgeenuudForNekhemjlekh",
+    );
 
     if (!latestGeree) return;
 
-    const guilgeenuudForNekhemjlekh = latestGeree.guilgeenuudForNekhemjlekh || [];
+    const guilgeenuudForNekhemjlekh =
+      latestGeree.guilgeenuudForNekhemjlekh || [];
     const avlagaGuilgeenuud = latestGeree.avlaga?.guilgeenuud || [];
 
     // Find new guilgeenuud that aren't yet in guilgeenuudForNekhemjlekh
