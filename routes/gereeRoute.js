@@ -125,7 +125,7 @@ router.get(
     } catch (err) {
       next(err);
     }
-  }
+  },
 );
 
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
