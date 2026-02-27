@@ -35,6 +35,7 @@ const {
   markInvoicesAsPaid,
   getGereeniiTulsunSummary,
 } = require("../services/invoicePaymentService");
+const { getHistoryLedger } = require("../services/historyLedgerService");
 
 const storage = multer.memoryStorage();
 const uploadFile = multer({ storage: storage });
@@ -98,6 +99,34 @@ router.post("/tulsunSummary", tokenShalgakh, async (req, res, next) => {
     next(err);
   }
 });
+
+// History ledger with backend-calculated running balance (Үлдэгдэл)
+// GET /geree/:gereeniiId/history-ledger?baiguullagiinId=...&barilgiinId=...
+router.get(
+  "/geree/:gereeniiId/history-ledger",
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      const gereeniiId = req.params.gereeniiId;
+      const baiguullagiinId = req.query.baiguullagiinId;
+      const barilgiinId = req.query.barilgiinId || null;
+      if (!baiguullagiinId) {
+        return res.status(400).json({
+          success: false,
+          message: "baiguullagiinId заавал шаардлагатай",
+        });
+      }
+      const result = await getHistoryLedger({
+        gereeniiId,
+        baiguullagiinId,
+        barilgiinId,
+      });
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
 crud(router, "uilchilgeeniiZardluud", uilchilgeeniiZardluud, UstsanBarimt);
