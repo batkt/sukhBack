@@ -120,45 +120,6 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
           invoice.tuluv = "Хугацаа хэтэрсэн";
         } else if (totalPaid > 0) {
           invoice.tuluv = "Хэсэгчлэн төлсөн";
-
-          // NEW: niitTulbur should get uldegdel value to show correct remaining balance
-          invoice.niitTulbur = remaining;
-
-          // Update breakdown (zardluud) so the math matches for the resident
-          if (invoice.medeelel && Array.isArray(invoice.medeelel.zardluud)) {
-            // Find the "Initial Balance" record to subtract the payment from it
-            // This ensures the line items sum correctly to the new niitTulbur
-            let found = false;
-            invoice.medeelel.zardluud = invoice.medeelel.zardluud.map((z) => {
-              if (
-                !found &&
-                (z.isEkhniiUldegdel ||
-                  z.ner === "Эхний үлдэгдэл" ||
-                  (z.ner && z.ner.includes("Эхний үлдэгдэл")))
-              ) {
-                found = true;
-                const currentAmount = z.dun || z.tariff || 0;
-                const newAmount = Math.max(0, currentAmount - totalPaid);
-                return { ...z, dun: newAmount, tariff: newAmount };
-              }
-              return z;
-            });
-            // Mark modified for mixed types
-            invoice.markModified("medeelel");
-          }
-
-          // Update content string if it contains the old total
-          if (invoice.content && typeof invoice.content === "string") {
-            const regex = /Нийт төлбөр: ([\d,]+(\.\d+)?)₮/;
-            invoice.content = invoice.content.replace(
-              regex,
-              `Нийт төлбөр: ${remaining}₮`,
-            );
-          }
-
-          // Clear payment history since it's now "absorbed" into the new total (gross becomes net)
-          // This prevents double-deduction on future saves
-          invoice.paymentHistory = [];
         } else {
           invoice.tuluv = "Төлөөгүй";
         }

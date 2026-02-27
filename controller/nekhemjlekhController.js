@@ -325,6 +325,43 @@ const gereeNeesNekhemjlekhUusgekh = async (
           // Error checking for electricity update - silently continue
         }
 
+        // GENERAL UPDATE: If niitTulbur doesn't match uldegdel (partially paid), fix it now
+        if (existingInvoice.niitTulbur !== existingInvoice.uldegdel && existingInvoice.paymentHistory && existingInvoice.paymentHistory.length > 0) {
+          const tulsunDun = (existingInvoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0);
+          
+          if (tulsunDun > 0) {
+            existingInvoice.uldegdel = Math.max(0, existingInvoice.niitTulbur - tulsunDun);
+            existingInvoice.niitTulbur = existingInvoice.uldegdel;
+            
+            // Update breakdown (zardluud) so the math matches
+            if (existingInvoice.medeelel && Array.isArray(existingInvoice.medeelel.zardluud)) {
+              let found = false;
+              existingInvoice.medeelel.zardluud = existingInvoice.medeelel.zardluud.map((z) => {
+                if (!found && (z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл" || (z.ner && z.ner.includes("Эхний үлдэгдэл")))) {
+                  found = true;
+                  const currentAmount = z.dun || z.tariff || 0;
+                  const newAmount = Math.max(0, currentAmount - tulsunDun);
+                  return { ...z, dun: newAmount, tariff: newAmount };
+                }
+                return z;
+              });
+              existingInvoice.markModified("medeelel");
+            }
+
+            // Update content string
+            if (existingInvoice.content && typeof existingInvoice.content === "string") {
+              const regex = /Нийт төлбөр: ([\d,]+(\.\d+)?)₮/;
+              existingInvoice.content = existingInvoice.content.replace(regex, `Нийт төлбөр: ${existingInvoice.uldegdel}₮`);
+            }
+
+            existingInvoice.paymentHistory = []; // Flatten
+            
+            existingInvoice.markModified("niitTulbur");
+            existingInvoice.markModified("uldegdel");
+            existingInvoice.markModified("content");
+            await existingInvoice.save();
+          }
+        }
         // Apply 2nd floor discount for org 697c70e81e782d8110d3b064 (existing invoice, no electricity update needed)
         const existDavkharStr2 = tempData.davkhar ? String(tempData.davkhar).trim() : "";
         const existIsSecondFloor2 = existDavkharStr2 === "2" || Number(existDavkharStr2) === 2;
@@ -390,7 +427,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }
       }
 
-      if (!barilgaDans && tempData.baiguullagiinId && tempData.barilgiinId) {
+      if (!barilgaDans && !dansInfo.dugaar && tempData.baiguullagiinId) {
         try {
           const { QpayKhariltsagch } = require("quickqpaypackvSukh");
           const qpayKhariltsagch = new QpayKhariltsagch(tukhainBaaziinKholbolt);
@@ -758,7 +795,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           .find({
             gereeniiId: String(tempData.gereeniiId || tempData._id),
             baiguullagiinId: String(tempData.baiguullagiinId),
-            ekhniiUldegdelEsekh: true,
+            uldegdel: { $gt: 0 },
           })
           .lean();
 
@@ -2087,7 +2124,7 @@ const previewInvoice = async (
         .find({
           gereeniiId: String(gereeId),
           baiguullagiinId: String(baiguullagiinId),
-          ekhniiUldegdelEsekh: true,
+          uldegdel: { $gt: 0 },
         })
         .lean();
 
@@ -2596,7 +2633,6 @@ const manualSendInvoice = async (
           oldestUnsentInvoice.uldegdel < oldestUnsentInvoice.niitTulbur);
 
       // SMART UPDATE CHECK: Calculate what the new invoice WOULD look like
-      // NOTE: previewInvoice includes ekhniiUldegdel, but we DON'T want to include it in manual send
       const previewResult = await previewInvoice(
         gereeId,
         baiguullagiinId,
@@ -2659,7 +2695,8 @@ const manualSendInvoice = async (
         if (
           Math.abs(zardluudOnlyTotal - oldZardluudOnlyTotal) < 0.5 &&
           newZardluudCount === oldZardluudCount &&
-          !discountNeedsApplying
+          !discountNeedsApplying &&
+          oldestUnsentInvoice.niitTulbur === oldestUnsentInvoice.uldegdel // If they match, it's already netted
         ) {
           // Still delete any DUPLICATE unsent invoices for this month
           if (existingUnsentInvoices.length > 1) {
@@ -2685,12 +2722,75 @@ const manualSendInvoice = async (
             nekhemjlekh: oldestUnsentInvoice,
             gereeniiId: geree._id,
             gereeniiDugaar: geree.gereeniiDugaar,
-            tulbur: oldestUnsentInvoice.niitTulbur,
+            tulbur: oldestUnsentInvoice.uldegdel, // Use uldegdel consistently for return
           };
         }
 
-        // ALWAYS update in place to preserve uldegdel and payment history
-        // Filter out ekhniiUldegdel from the new zardluud since we don't want to add it via manual send
+        // Calculate currently paid amount on the existing invoice
+        const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce(
+          (sum, p) => sum + (p.dun || 0),
+          0,
+        );
+
+        const currentInitialBalanceRow = oldZardluud.find(
+          (z) =>
+            z.isEkhniiUldegdel ||
+            z.ner === "Эхний үлдэгдэл" ||
+            (z.ner && z.ner.includes("Эхний үлдэгдэл")),
+        );
+        const currentNetInitialBalanceFromRow = currentInitialBalanceRow ? (currentInitialBalanceRow.dun || currentInitialBalanceRow.tariff || 0) : 0;
+
+        let finalNetBalance;
+        let finalGrossNiitTulbur;
+        let finalEkhniiUldegdelEntries = [];
+
+        if (totalPaid > 0) {
+            // mode: GROSS -> NET (Absorb payments)
+            // Use original gross Initial Balance if available, otherwise fallback to current row
+            const grossBase = Math.max(
+                Number(previewResult.preview.ekhniiUldegdel || 0),
+                Number(oldestUnsentInvoice.ekhniiUldegdel || 0),
+                currentNetInitialBalanceFromRow + totalPaid
+            );
+            
+            finalGrossNiitTulbur = zardluudOnlyTotal + grossBase;
+            if (shouldApply2ndFloorDiscount) {
+                finalGrossNiitTulbur = Math.max(0, finalGrossNiitTulbur - secondFloorDiscountAmount);
+            }
+            finalNetBalance = Math.max(0, finalGrossNiitTulbur - totalPaid);
+
+            // Calculate formatted row for breakdown (using preview entries as source of truth for metadata)
+            const previewInitEntries = previewZardluud.filter(z => z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл");
+            if (previewInitEntries.length > 0) {
+                finalEkhniiUldegdelEntries = previewInitEntries.map((z, idx) => {
+                    if (idx === 0) {
+                        const newAmount = Math.max(0, grossBase - totalPaid);
+                        return { ...z, dun: newAmount, tariff: newAmount };
+                    }
+                    return z;
+                });
+            } else if (currentInitialBalanceRow) {
+                // Fallback to updating the old row
+                const newAmount = Math.max(0, (currentInitialBalanceRow.dun || currentInitialBalanceRow.tariff || 0) + totalPaid - totalPaid); // simplified: (current+totalPaid) is gross, - totalPaid is net
+                // Actually, if we are in totalPaid > 0 mode, the currentInitialBalanceRow might still be gross or partially netted.
+                // Let's use the safer newAmount = grossBase - totalPaid.
+                const saferNewAmount = Math.max(0, grossBase - totalPaid);
+                finalEkhniiUldegdelEntries = [{ ...currentInitialBalanceRow, dun: saferNewAmount, tariff: saferNewAmount }];
+            }
+        } else {
+            // mode: NET -> NET (Preserve existing netted balance)
+            finalNetBalance = zardluudOnlyTotal + currentNetInitialBalanceFromRow;
+            if (shouldApply2ndFloorDiscount) {
+              // Note: If discount was already applied to niitTulbur, it's already in finalNetBalance row sum?
+              // previewResult and oldZardluudOnlyTotal match, so we just stick with the sum.
+            }
+            finalGrossNiitTulbur = finalNetBalance;
+            if (currentInitialBalanceRow) {
+              finalEkhniiUldegdelEntries = [currentInitialBalanceRow];
+            }
+        }
+        
+        // Filter out ekhniiUldegdel from the new monthly charges
         const newZardluudWithoutEkhniiUldegdel = previewZardluud.filter(
           (z) =>
             !z.isEkhniiUldegdel &&
@@ -2698,53 +2798,44 @@ const manualSendInvoice = async (
             !(z.ner && z.ner.includes("Эхний үлдэгдэл")),
         );
 
-        // Preserve ekhniiUldegdel entries from the old invoice (if any)
-        const oldEkhniiUldegdelEntries = oldZardluud.filter(
-          (z) =>
-            z.isEkhniiUldegdel ||
-            z.ner === "Эхний үлдэгдэл" ||
-            (z.ner && z.ner.includes("Эхний үлдэгдэл")),
-        );
-
-        // Combine: new zardluud (without ekhniiUldegdel) + preserved ekhniiUldegdel from old invoice
+        // Combine: new monthly charges + preserved/recalculated ekhniiUldegdel
         const updatedZardluud = [
           ...newZardluudWithoutEkhniiUldegdel,
-          ...oldEkhniiUldegdelEntries,
+          ...finalEkhniiUldegdelEntries,
         ];
 
-        // Calculate new total (zardluud only, ekhniiUldegdel stays separate)
-        let newNiitTulbur = updatedZardluud.reduce(
-          (sum, z) => sum + (z.dun || z.tariff || 0),
-          0,
-        );
-
-        // Apply 2nd floor discount for org 697c70e81e782d8110d3b064
-        if (shouldApply2ndFloorDiscount) {
-          newNiitTulbur = Math.max(0, newNiitTulbur - secondFloorDiscountAmount);
-          console.log(`[2ND FLOOR DISCOUNT] manualSend update path: Applied discount of ${secondFloorDiscountAmount}. New total: ${newNiitTulbur}`);
-        }
-
-        // Update the existing invoice
-        // IMPORTANT: Create a new medeelel object to ensure Mongoose detects the change
+        // Update the invoice document fields
         oldestUnsentInvoice.medeelel = {
           ...(oldestUnsentInvoice.medeelel.toObject
             ? oldestUnsentInvoice.medeelel.toObject()
             : oldestUnsentInvoice.medeelel),
           zardluud: updatedZardluud,
         };
-        oldestUnsentInvoice.niitTulbur = newNiitTulbur;
+        
+        oldestUnsentInvoice.niitTulbur = finalNetBalance;
+        oldestUnsentInvoice.uldegdel = finalNetBalance;
 
-        // Recalculate uldegdel: preserve existing uldegdel ratio or recalculate based on payments
-        const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce(
-          (sum, p) => sum + (p.dun || 0),
-          0,
-        );
+        // Update content string
+        if (oldestUnsentInvoice.content && typeof oldestUnsentInvoice.content === "string") {
+          const regex = /Нийт төлбөр: ([\d,]+(\.\d+)?)₮/;
+          oldestUnsentInvoice.content = oldestUnsentInvoice.content.replace(
+            regex,
+            `Нийт төлбөр: ${finalNetBalance}₮`,
+          );
+        }
+
         if (totalPaid > 0) {
-          // If there were payments, recalculate uldegdel
-          oldestUnsentInvoice.uldegdel = Math.max(0, newNiitTulbur - totalPaid);
+            oldestUnsentInvoice.paymentHistory = []; // Flattening successful
+        }
+
+        // Update status based on uldegdel
+        if (oldestUnsentInvoice.uldegdel <= 0.01) {
+          oldestUnsentInvoice.tuluv = "Төлсөн";
+        } else if (totalPaid > 0 || finalNetBalance < (finalGrossNiitTulbur || finalNetBalance)) {
+          // If we had payments or if it was netted, mark as partial
+          oldestUnsentInvoice.tuluv = "Хэсэгчлэн төлсөн";
         } else {
-          // No payments - keep uldegdel = niitTulbur (full amount due)
-          oldestUnsentInvoice.uldegdel = newNiitTulbur;
+          oldestUnsentInvoice.tuluv = "Төлөөгүй";
         }
 
         // Update zaalt metadata if available
@@ -2776,12 +2867,13 @@ const manualSendInvoice = async (
 
         await oldestUnsentInvoice.save();
 
-        // Update Geree.globalUldegdel by delta (new - old) so home/nekhemjlekh show correct total
-        const oldNiitTulbur = (oldZardluud || []).reduce(
+        // Update Geree.globalUldegdel by delta so home/nekhemjlekh show correct total
+        const newTotalPayment = finalNetBalance;
+        const oldTotalPayment = (oldZardluud || []).reduce(
           (s, z) => s + (z.dun || z.tariff || 0),
           0,
         );
-        const delta = newNiitTulbur - oldNiitTulbur;
+        const delta = newTotalPayment - oldTotalPayment;
         if (Math.abs(delta) > 0.01) {
           try {
             await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
@@ -2824,7 +2916,7 @@ const manualSendInvoice = async (
               medegdel.baiguullagiinId = baiguullagiinId;
               medegdel.barilgiinId = geree.barilgiinId || "";
               medegdel.title = "Шинэ авлага нэмэгдлээ";
-              medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Нийт төлбөр: ${newNiitTulbur}₮`;
+              medegdel.message = `Гэрээний дугаар: ${geree.gereeniiDugaar || "N/A"}, Нийт төлбөр: ${oldestUnsentInvoice.uldegdel}₮`;
               medegdel.kharsanEsekh = false;
               medegdel.turul = "мэдэгдэл";
               medegdel.ognoo = new Date();
@@ -2846,7 +2938,7 @@ const manualSendInvoice = async (
           nekhemjlekh: oldestUnsentInvoice,
           gereeniiId: geree._id,
           gereeniiDugaar: geree.gereeniiDugaar,
-          tulbur: newNiitTulbur,
+          tulbur: oldestUnsentInvoice.uldegdel,
           alreadyExists: true,
           updated: true,
           preservedPayments: hasPayments,
