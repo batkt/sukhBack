@@ -1355,6 +1355,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = correctedFinalNiitTulbur;
+    tuukh.niitTulburOriginal = correctedFinalNiitTulbur;
 
     if (tsahilgaanNekhemjlekh > 0) {
       tuukh.tsahilgaanNekhemjlekh = tsahilgaanNekhemjlekh;
