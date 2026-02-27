@@ -149,6 +149,8 @@ async function markInvoicesAsPaid(options) {
     if (gereeToUpdate) {
       gereeToUpdate.positiveBalance =
         (gereeToUpdate.positiveBalance || 0) + dun;
+      // No unpaid invoices: globalUldegdel = 0 - positiveBalance (negative = credit)
+      gereeToUpdate.globalUldegdel = -(gereeToUpdate.positiveBalance || 0);
       await gereeToUpdate.save();
 
       // NEW: Also create a history record for this prepayment so it's visible and counts
