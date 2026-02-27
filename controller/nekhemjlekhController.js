@@ -287,12 +287,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
               );
 
               // Apply 2nd floor discount for org 697c70e81e782d8110d3b064
-              const existDavkharStr1 = tempData.davkhar ? String(tempData.davkhar).trim() : "";
-              const existIsSecondFloor1 = existDavkharStr1 === "2" || Number(existDavkharStr1) === 2;
-              if (existIsSecondFloor1 && tempData.baiguullagiinId && String(tempData.baiguullagiinId).trim() === "697c70e81e782d8110d3b064") {
-                newTotal = Math.max(0, newTotal - 4495.42);
-                console.log(`[2ND FLOOR DISCOUNT] gereeNeesNekhemjlekhUusgekh electricity update path: Applied discount. New total: ${newTotal}`);
-              }
+              // const existDavkharStr1 = tempData.davkhar ? String(tempData.davkhar).trim() : "";
+              // const existIsSecondFloor1 = existDavkharStr1 === "2" || Number(existDavkharStr1) === 2;
+              // if (existIsSecondFloor1 && tempData.baiguullagiinId && String(tempData.baiguullagiinId).trim() === "697c70e81e782d8110d3b064") {
+              //   newTotal = Math.max(0, newTotal - 4495.42);
+              //   console.log(`[2ND FLOOR DISCOUNT] gereeNeesNekhemjlekhUusgekh electricity update path: Applied discount. New total: ${newTotal}`);
+              // }
 
               existingInvoice.niitTulbur = newTotal;
               existingInvoice.tsahilgaanNekhemjlekh = newZaaltDun;
