@@ -2,7 +2,12 @@ const { getKholboltByBaiguullagiinId } = require("../utils/dbConnection");
 const Geree = require("../models/geree");
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
-const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+
+function getNekhemjlekhiinTuukhModel(kholbolt) {
+  const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+  const conn = kholbolt && kholbolt.kholbolt ? kholbolt : { kholbolt };
+  return nekhemjlekhiinTuukh(conn);
+}
 
 /**
  * Delete an invoice and all connected data for a specific org only.
@@ -30,7 +35,7 @@ async function deleteInvoice(invoiceId, baiguullagiinId) {
     };
   }
 
-  const Model = nekhemjlekhiinTuukh(kholbolt);
+  const Model = getNekhemjlekhiinTuukhModel(kholbolt);
   const invoiceDoc = await Model.findOne({
     _id: invoiceId,
     baiguullagiinId: String(baiguullagiinId),
@@ -74,7 +79,7 @@ async function deleteAllInvoicesForOrg(baiguullagiinId) {
     };
   }
 
-  const Model = nekhemjlekhiinTuukh(kholbolt);
+  const Model = getNekhemjlekhiinTuukhModel(kholbolt);
   const docs = await Model.find({
     baiguullagiinId: String(baiguullagiinId),
   }).lean();
