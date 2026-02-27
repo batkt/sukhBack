@@ -47,6 +47,60 @@ router.use((req, res, next) => {
   next();
 });
 
+// For invoice list responses: set uldegdel = geree.globalUldegdel so "Үлдэгдэл" shows contract balance (including credit)
+router.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  res.json = function (data) {
+    const jagsaalt = data?.jagsaalt;
+    if (!Array.isArray(jagsaalt) || jagsaalt.length === 0) {
+      return originalJson(data);
+    }
+    const baiguullagiinId =
+      req.body?.baiguullagiinId || req.query?.baiguullagiinId;
+    if (!baiguullagiinId || !db?.kholboltuud) {
+      return originalJson(data);
+    }
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
+    );
+    if (!kholbolt) {
+      return originalJson(data);
+    }
+    const gereeIds = [
+      ...new Set(
+        jagsaalt
+          .map((inv) => inv?.gereeniiId)
+          .filter((id) => id != null && String(id).length > 0),
+      ),
+    ];
+    if (gereeIds.length === 0) {
+      return originalJson(data);
+    }
+    const GereeModel = Geree(kholbolt);
+    GereeModel.find({ _id: { $in: gereeIds } })
+      .select("globalUldegdel")
+      .lean()
+      .then((gerees) => {
+        const byId = {};
+        gerees.forEach((g) => {
+          byId[String(g._id)] =
+            typeof g.globalUldegdel === "number"
+              ? g.globalUldegdel
+              : (g.globalUldegdel ?? 0);
+        });
+        jagsaalt.forEach((inv) => {
+          const gid = inv?.gereeniiId != null ? String(inv.gereeniiId) : null;
+          if (gid && byId[gid] !== undefined) {
+            inv.uldegdel = byId[gid];
+          }
+        });
+        originalJson(data);
+      })
+      .catch(() => originalJson(data));
+  };
+  next();
+});
+
 crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
 router.get(
