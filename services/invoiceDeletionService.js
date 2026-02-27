@@ -10,6 +10,52 @@ function getNekhemjlekhiinTuukhModel(kholbolt) {
 }
 
 /**
+ * Recalculate and set geree.globalUldegdel for one contract.
+ * totalUnpaid = sum(unpaid invoices' uldegdel) + sum(gereeniiTulukhAvlaga.uldegdel); globalUldegdel = totalUnpaid - positiveBalance.
+ * @param {string} gereeniiId - Contract ID
+ * @param {string} baiguullagiinId - Org ID
+ * @param {object} kholbolt - DB connection
+ * @param {{ excludeInvoiceId?: string }} [opts] - If set, exclude this invoice from unpaid sum (e.g. when it is about to be deleted)
+ */
+async function recalculateGereeGlobalUldegdel(gereeniiId, baiguullagiinId, kholbolt, opts = {}) {
+  const NekhemjlekhiinTuukh = getNekhemjlekhiinTuukhModel(kholbolt);
+  const gid = String(gereeniiId);
+  const oid = String(baiguullagiinId);
+
+  const invoiceQuery = {
+    baiguullagiinId: oid,
+    gereeniiId: gid,
+    tuluv: { $ne: "Төлсөн" },
+  };
+  if (opts.excludeInvoiceId) {
+    invoiceQuery._id = { $ne: opts.excludeInvoiceId };
+  }
+  const unpaidInvoices = await NekhemjlekhiinTuukh.find(invoiceQuery)
+    .select("niitTulbur uldegdel")
+    .lean();
+
+  let totalUnpaid = 0;
+  unpaidInvoices.forEach((inv) => {
+    const u = typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel) ? inv.uldegdel : inv.niitTulbur || 0;
+    totalUnpaid += u;
+  });
+
+  const tulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+    .find({ baiguullagiinId: oid, gereeniiId: gid })
+    .select("uldegdel")
+    .lean();
+  tulukhRows.forEach((row) => {
+    totalUnpaid += typeof row.uldegdel === "number" && !isNaN(row.uldegdel) ? row.uldegdel : 0;
+  });
+
+  const geree = await Geree(kholbolt).findById(gereeniiId).select("positiveBalance").lean();
+  const positive = geree && typeof geree.positiveBalance === "number" ? geree.positiveBalance : 0;
+  const newGlobal = totalUnpaid - positive;
+
+  await Geree(kholbolt).findByIdAndUpdate(gereeniiId, { $set: { globalUldegdel: newGlobal } });
+}
+
+/**
  * Delete an invoice and all connected data for a specific org only.
  * 1. Decrements Geree.globalUldegdel by unpaid amount
  * 2. Deletes GereeniiTulsunAvlaga records for this invoice (org-scoped)
@@ -119,18 +165,38 @@ async function deleteAllInvoicesForOrg(baiguullagiinId) {
     );
   }
 
+  const GereeModel = Geree(kholbolt);
+  const gereesInOrg = await GereeModel.find({ baiguullagiinId: orgId })
+    .select("_id positiveBalance")
+    .lean();
+  for (const g of gereesInOrg) {
+    const positive = typeof g.positiveBalance === "number" ? g.positiveBalance : 0;
+    await GereeModel.findByIdAndUpdate(g._id, {
+      $set: {
+        globalUldegdel: -positive,
+        guilgeenuudForNekhemjlekh: [],
+      },
+    });
+  }
+  if (gereesInOrg.length > 0) {
+    console.log(
+      `📉 [deleteAllInvoicesForOrg] Reset globalUldegdel and cleared guilgeenuudForNekhemjlekh for ${gereesInOrg.length} geree(s) in org ${orgId}`,
+    );
+  }
+
   return {
     success: true,
     deletedCount,
     deletedTulsunAvlaga: tulsunDeleted,
     deletedTulukhAvlaga: tulukhDeleted,
-    message: `${deletedCount} нэхэмжлэх, ${tulsunDeleted} түлсүн авлага, ${tulukhDeleted} төлөх авлага устгагдлаа`,
+    gereeUpdatedCount: gereesInOrg.length,
+    message: `${deletedCount} нэхэмжлэх, ${tulsunDeleted} түлсүн авлага, ${tulukhDeleted} төлөх авлага устгагдлаа; ${gereesInOrg.length} гэрээний үлдэгдэл шинэчлэгдлээ`,
   };
 }
 
 /**
- * Runs side effects when an invoice (nekhemjlekh) is deleted: update geree globalUldegdel
- * and cascade-delete related gereeniiTulsunAvlaga and gereeniiTulukhAvlaga records.
+ * Runs side effects when an invoice (nekhemjlekh) is deleted: cascade-delete related
+ * gereeniiTulsunAvlaga and gereeniiTulukhAvlaga, then recalculate geree.globalUldegdel.
  * Called from nekhemjlekhiinTuukh model pre-delete hooks only.
  * @param {Object} doc - The invoice document being deleted (must have gereeniiId, baiguullagiinId)
  */
@@ -146,70 +212,47 @@ async function runDeleteSideEffects(doc) {
 
   try {
     const kholbolt = getKholboltByBaiguullagiinId(doc.baiguullagiinId);
+    if (!kholbolt) return;
 
-    if (!kholbolt) {
-      return;
-    }
-
-    const unpaidAmount =
-      typeof doc.uldegdel === "number"
-        ? Math.max(0, doc.uldegdel)
-        : doc.tuluv === "Төлсөн"
-          ? 0
-          : doc.niitTulbur;
-
-    if (unpaidAmount > 0) {
-      await Geree(kholbolt).findByIdAndUpdate(doc.gereeniiId, {
-        $inc: { globalUldegdel: -unpaidAmount },
-      });
-      console.log(
-        `📉 [Middleware] Decremented globalUldegdel by ${unpaidAmount} (unpaid) for invoice ${doc.nekhemjlekhiinDugaar || doc._id}`,
-      );
-    } else {
-      console.log(
-        `ℹ️ [Middleware] No globalUldegdel decrement needed for ${doc.tuluv} invoice ${doc.nekhemjlekhiinDugaar || doc._id}`,
-      );
-    }
+    const oid = String(doc.baiguullagiinId);
+    const invId = doc._id;
 
     try {
-      const tulsunDeleteResult = await GereeniiTulsunAvlaga(
-        kholbolt,
-      ).deleteMany({
-        baiguullagiinId: String(doc.baiguullagiinId),
-        $or: [{ nekhemjlekhId: String(doc._id) }, { nekhemjlekhId: doc._id }],
+      const tulsunDeleteResult = await GereeniiTulsunAvlaga(kholbolt).deleteMany({
+        baiguullagiinId: oid,
+        $or: [{ nekhemjlekhId: String(invId) }, { nekhemjlekhId: invId }],
       });
       if (tulsunDeleteResult.deletedCount > 0) {
         console.log(
-          `🗑️ [Middleware] Cascade deleted ${tulsunDeleteResult.deletedCount} gereeniiTulsunAvlaga records for nekhemjlekh ${doc._id}`,
+          `🗑️ [Middleware] Cascade deleted ${tulsunDeleteResult.deletedCount} gereeniiTulsunAvlaga for nekhemjlekh ${invId}`,
         );
       }
     } catch (tulsunError) {
-      console.error(
-        "Error cascade deleting gereeniiTulsunAvlaga:",
-        tulsunError.message,
-      );
+      console.error("Error cascade deleting gereeniiTulsunAvlaga:", tulsunError.message);
     }
 
     try {
-      const tulukhDeleteResult = await GereeniiTulukhAvlaga(
-        kholbolt,
-      ).deleteMany({
-        baiguullagiinId: String(doc.baiguullagiinId),
-        $or: [{ nekhemjlekhId: String(doc._id) }, { nekhemjlekhId: doc._id }],
+      const tulukhDeleteResult = await GereeniiTulukhAvlaga(kholbolt).deleteMany({
+        baiguullagiinId: oid,
+        $or: [{ nekhemjlekhId: String(invId) }, { nekhemjlekhId: invId }],
       });
       if (tulukhDeleteResult.deletedCount > 0) {
         console.log(
-          `🗑️ [Middleware] Cascade deleted ${tulukhDeleteResult.deletedCount} gereeniiTulukhAvlaga records for nekhemjlekh ${doc._id}`,
+          `🗑️ [Middleware] Cascade deleted ${tulukhDeleteResult.deletedCount} gereeniiTulukhAvlaga for nekhemjlekh ${invId}`,
         );
       }
     } catch (tulukhError) {
-      console.error(
-        "Error cascade deleting gereeniiTulukhAvlaga:",
-        tulukhError.message,
-      );
+      console.error("Error cascade deleting gereeniiTulukhAvlaga:", tulukhError.message);
     }
+
+    await recalculateGereeGlobalUldegdel(doc.gereeniiId, oid, kholbolt, {
+      excludeInvoiceId: invId,
+    });
+    console.log(
+      `📉 [Middleware] Recalculated geree.globalUldegdel for contract ${doc.gereeniiId} after invoice delete`,
+    );
   } catch (error) {
-    console.error("Error in handleBalanceOnDelete middleware:", error);
+    console.error("Error in runDeleteSideEffects:", error);
   }
 }
 
