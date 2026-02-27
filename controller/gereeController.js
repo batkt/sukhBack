@@ -5,7 +5,6 @@ const Medegdel = require("../models/medegdel");
 const { daraagiinTulukhOgnooZasya } = require("./tulbur");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
-const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 
 exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
   try {
@@ -229,57 +228,6 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
           const savedTulsun = await tulsunDoc.save();
           console.log(`✅ [GEREE ${guilgee.turul.toUpperCase()}] Created gereeniiTulsunAvlaga record for ${guilgee.turul}`);
-
-          // Apply payment to unpaid invoices: reduce uldegdel, update tuluv
-          // Only mark invoice as Төлсөн when uldegdel reaches 0 (or <= 0.01 for float precision)
-          try {
-            const NekhemjlekhModel = NekhemjlekhiinTuukh(tukhainBaaziinKholbolt);
-            const unpaidInvoices = await NekhemjlekhModel.find({
-              gereeniiId: guilgee.gereeniiId,
-              tuluv: { $nin: ["Төлсөн", "Хүчингүй"] },
-            }).sort({ createdAt: 1 }).lean();
-
-            let remainingPayment = dun;
-            for (const invoice of unpaidInvoices) {
-              if (remainingPayment <= 0) break;
-
-              // If uldegdel is 0 or missing, fall back to niitTulbur
-              const invoiceUldegdel =
-                typeof invoice.uldegdel === "number" && !isNaN(invoice.uldegdel) && invoice.uldegdel > 0
-                  ? invoice.uldegdel
-                  : invoice.niitTulbur || 0;
-
-              if (invoiceUldegdel <= 0) continue;
-
-              const amountToApply = Math.min(remainingPayment, invoiceUldegdel);
-              const newUldegdel = invoiceUldegdel - amountToApply;
-              const isFullyPaid = newUldegdel <= 0.01;
-
-              const updateSet = {
-                uldegdel: isFullyPaid ? 0 : newUldegdel,
-                tuluv: isFullyPaid ? "Төлсөн" : "Хэсэгчлэн төлсөн",
-              };
-              if (isFullyPaid) updateSet.tulsunOgnoo = guilgee.guilgeeKhiisenOgnoo || new Date();
-
-              await NekhemjlekhModel.findByIdAndUpdate(invoice._id, {
-                $set: updateSet,
-                $push: {
-                  paymentHistory: {
-                    ognoo: guilgee.guilgeeKhiisenOgnoo || new Date(),
-                    dun: amountToApply,
-                    turul: "manual",
-                    guilgeeniiId: savedTulsun._id.toString(),
-                    tailbar: guilgee.tailbar || "Гараар орсон төлбөр",
-                  },
-                },
-              });
-
-              remainingPayment -= amountToApply;
-            }
-            console.log(`✅ [GEREE ${guilgee.turul.toUpperCase()}] Applied payment to invoices, remaining: ${remainingPayment}`);
-          } catch (invoiceUpdateError) {
-            console.error(`❌ [GEREE ${guilgee.turul.toUpperCase()}] Error updating invoices with payment:`, invoiceUpdateError.message);
-          }
         }
       }
     } catch (recordError) {
