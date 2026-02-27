@@ -45,7 +45,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     niitTulbur: Number,
     tuluv: {
       type: String,
-      enum: ["Төлөөгүй", "Төлсөн", "Хугацаа хэтэрсэн"],
+      enum: ["Төлөөгүй", "Төлсөн", "Хугацаа хэтэрсэн", "Хэсэгчлэн төлсөн"],
       default: "Төлөөгүй",
     },
     qpayPaymentId: String,
