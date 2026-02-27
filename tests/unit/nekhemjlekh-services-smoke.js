@@ -68,6 +68,7 @@ function run() {
   );
   assert(typeof deletion.runDeleteSideEffects === "function");
   assert(typeof deletion.deleteInvoice === "function");
+  assert(typeof deletion.deleteAllInvoicesForOrg === "function");
   console.log("  invoiceDeletionService OK");
 
   console.log("Loading nekhemjlekhController...");

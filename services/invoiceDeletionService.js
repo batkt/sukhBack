@@ -51,6 +51,51 @@ async function deleteInvoice(invoiceId, baiguullagiinId) {
 }
 
 /**
+ * Delete all invoices (nekhemjlekhiinTuukh) for a given organization.
+ * Each document is deleted individually so pre-delete hooks run and cascade
+ * (Geree globalUldegdel, GereeniiTulsunAvlaga, GereeniiTulukhAvlaga) is applied.
+ * Body: { baiguullagiinId }. Returns { success, deletedCount, message }.
+ */
+async function deleteAllInvoicesForOrg(baiguullagiinId) {
+  if (!baiguullagiinId) {
+    return {
+      success: false,
+      statusCode: 400,
+      error: "baiguullagiinId is required",
+    };
+  }
+
+  const kholbolt = getKholboltByBaiguullagiinId(baiguullagiinId);
+  if (!kholbolt) {
+    return {
+      success: false,
+      statusCode: 404,
+      error: "Холболтын мэдээлэл олдсонгүй (baiguullagiinId)",
+    };
+  }
+
+  const Model = nekhemjlekhiinTuukh(kholbolt);
+  const docs = await Model.find({
+    baiguullagiinId: String(baiguullagiinId),
+  }).lean();
+
+  let deletedCount = 0;
+  for (const doc of docs) {
+    const fullDoc = await Model.findById(doc._id);
+    if (fullDoc) {
+      await fullDoc.deleteOne();
+      deletedCount++;
+    }
+  }
+
+  return {
+    success: true,
+    deletedCount,
+    message: `${deletedCount} нэхэмжлэх устгагдлаа`,
+  };
+}
+
+/**
  * Runs side effects when an invoice (nekhemjlekh) is deleted: update geree globalUldegdel
  * and cascade-delete related gereeniiTulsunAvlaga and gereeniiTulukhAvlaga records.
  * Called from nekhemjlekhiinTuukh model pre-delete hooks only.
@@ -135,4 +180,8 @@ async function runDeleteSideEffects(doc) {
   }
 }
 
-module.exports = { runDeleteSideEffects, deleteInvoice };
+module.exports = {
+  runDeleteSideEffects,
+  deleteInvoice,
+  deleteAllInvoicesForOrg,
+};

@@ -88,7 +88,7 @@ router.get(
   },
 );
 
-// Delete invoice and all connected data (org-scoped). POST body: { invoiceId, baiguullagiinId }
+// Delete invoice(s): body { baiguullagiinId } = delete ALL invoices for org; { invoiceId, baiguullagiinId } = delete one
 router.post("/deleteInvoice", tokenShalgakh, deleteInvoice);
 
 // Mark invoices as paid
