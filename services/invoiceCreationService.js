@@ -1086,11 +1086,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
           if (zardal.zardliinTurul === "Лифт") return false;
           if (zardal.ner && zardal.ner.trim() === "Лифт") return false;
           if (zardal.ner && zardal.ner.includes("Лифт")) return false;
-          if (
-            liftTariff !== null &&
-            (zardal.dun === liftTariff || zardal.tariff === liftTariff)
-          )
-            return false;
           return true;
         });
       }
@@ -1126,11 +1121,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
         const liftCountBefore = zardluudWithDun.filter((z) => {
           if (z.zardliinTurul === "Лифт") return true;
           if (z.ner && z.ner.includes("Лифт")) return true;
-          if (
-            liftTariff !== null &&
-            (z.dun === liftTariff || z.tariff === liftTariff)
-          )
-            return true;
           return false;
         }).length;
         if (liftCountBefore > 0) {
@@ -1138,11 +1128,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
             if (z.zardliinTurul === "Лифт") return false;
             if (z.ner && z.ner.trim() === "Лифт") return false;
             if (z.ner && z.ner.includes("Лифт")) return false;
-            if (
-              liftTariff !== null &&
-              (z.dun === liftTariff || z.tariff === liftTariff)
-            )
-              return false;
             return true;
           });
           const correctedZardluudTotalAfter = sumZardalDun(zardluudWithDun);
