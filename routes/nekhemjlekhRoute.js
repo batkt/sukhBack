@@ -13,6 +13,7 @@ const {
   manualSendSelectedInvoices,
   deleteInvoiceZardal,
   recalculateGereeBalance,
+  deleteInvoice,
 } = require("../controller/nekhemjlekhController");
 const { markInvoicesAsPaid } = require("../services/invoicePaymentService");
 const Geree = require("../models/geree");
@@ -87,10 +88,10 @@ router.get(
   },
 );
 
+// Delete invoice and all connected data (org-scoped). POST body: { invoiceId, baiguullagiinId }
+router.post("/deleteInvoice", tokenShalgakh, deleteInvoice);
+
 // Mark invoices as paid
-// markEkhniiUldegdel: true to include ekhniiUldegdel invoices, false (default) to only mark regular ashiglaltiinZardluud invoices
-// Mark invoices as paid
-// markEkhniiUldegdel: true to include ekhniiUldegdel invoices, false (default) to only mark regular ashiglaltiinZardluud invoices
 router.post("/markInvoicesAsPaid", tokenShalgakh, async (req, res, next) => {
   try {
     // Extract barilgiinId from body
@@ -160,10 +161,18 @@ router.get("/preview", tokenShalgakh, async (req, res, next) => {
   }
 });
 
-// Manual send invoices for selected/checked contracts
-// POST /nekhemjlekh/manualSend
-// Body: { gereeIds: ["id1", "id2", ...], baiguullagiinId, override: true/false, targetMonth: 1, targetYear: 2026 }
-// Supports both single contract (array with one item) or multiple contracts
+/**
+ * Manual invoice creation – one or more contracts.
+ * POST /nekhemjlekh/manualSend
+ * Headers: Authorization (token)
+ * Body (JSON):
+ *   - gereeIds (required): string[] – contract IDs, e.g. ["507f1f77bcf86cd799439011"]
+ *   - baiguullagiinId (required): string – organization ID
+ *   - gereeId (optional): string – single contract ID (alternative to gereeIds)
+ *   - override (optional): boolean – if true, delete existing invoices for the month before creating (default: false)
+ *   - targetMonth (optional): number – month 1–12 (default: current month)
+ *   - targetYear (optional): number – year (default: current year)
+ */
 router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
   try {
     const {
@@ -240,9 +249,17 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
   }
 });
 
-// Manual send mass invoices
-// POST /nekhemjlekh/manualSendMass
-// Body: { baiguullagiinId, barilgiinId (optional), override: true/false, targetMonth: 1, targetYear: 2026 }
+/**
+ * Manual invoice creation – all active contracts in org (optionally filtered by building).
+ * POST /nekhemjlekh/manualSendMass
+ * Headers: Authorization (token)
+ * Body (JSON):
+ *   - baiguullagiinId (required): string – organization ID
+ *   - barilgiinId (optional): string – limit to contracts in this building
+ *   - override (optional): boolean – if true, delete existing invoices for the month before creating (default: false)
+ *   - targetMonth (optional): number – month 1–12 (default: current month)
+ *   - targetYear (optional): number – year (default: current year)
+ */
 router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
   try {
     const {

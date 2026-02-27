@@ -67,6 +67,7 @@ function run() {
     path.join(projectRoot, "services/invoiceDeletionService.js"),
   );
   assert(typeof deletion.runDeleteSideEffects === "function");
+  assert(typeof deletion.deleteInvoice === "function");
   console.log("  invoiceDeletionService OK");
 
   console.log("Loading nekhemjlekhController...");
@@ -83,6 +84,7 @@ function run() {
     "manualSendSelectedInvoices",
     "deleteInvoiceZardal",
     "recalculateGereeBalance",
+    "deleteInvoice",
   ];
   for (const name of expectedExports) {
     assert(controller[name] !== undefined, `Controller should export ${name}`);

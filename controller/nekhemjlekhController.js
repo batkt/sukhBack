@@ -30,6 +30,9 @@ const {
   deleteInvoiceZardal: deleteInvoiceZardalLogic,
   recalculateGereeBalance: recalculateGereeBalanceLogic,
 } = require("../services/invoiceZardalService");
+const {
+  deleteInvoice: deleteInvoiceLogic,
+} = require("../services/invoiceDeletionService");
 
 const markInvoicesAsPaid = asyncHandler(async (req, res, next) => {
   try {
@@ -141,6 +144,22 @@ const recalculateGereeBalance = asyncHandler(async (req, res) => {
   });
 });
 
+const deleteInvoice = asyncHandler(async (req, res) => {
+  const { invoiceId, baiguullagiinId } = req.body;
+  const result = await deleteInvoiceLogic(invoiceId, baiguullagiinId);
+  const statusCode = result.statusCode || (result.success ? 200 : 400);
+  if (result.success && baiguullagiinId && req.app?.get("socketio")) {
+    req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
+  }
+  res
+    .status(statusCode)
+    .json(
+      result.success
+        ? { success: true, message: result.message }
+        : { success: false, error: result.error },
+    );
+});
+
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
   updateGereeAndNekhemjlekhFromZardluud,
@@ -151,4 +170,5 @@ module.exports = {
   manualSendSelectedInvoices,
   deleteInvoiceZardal,
   recalculateGereeBalance,
+  deleteInvoice,
 };
