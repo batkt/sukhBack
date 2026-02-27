@@ -129,14 +129,11 @@ async function getHistoryLedger(options) {
     const zardluud = inv.medeelel?.zardluud || [];
     for (let i = 0; i < zardluud.length; i++) {
       const z = zardluud[i];
+      const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
+      const d = z.dun != null ? Number(z.dun) : null;
+      const tariff = z.tariff != null ? Number(z.tariff) : 0;
       const tulukhDun =
-        typeof z.tulukhDun === "number"
-          ? z.tulukhDun
-          : z.dun != null
-            ? Number(z.dun)
-            : z.tariff != null
-              ? Number(z.tariff)
-              : 0;
+        t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
       rawRows.push({
         ognoo: invOgnoo ? new Date(invOgnoo) : new Date(0),
         createdAt: invCreated,
