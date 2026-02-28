@@ -95,8 +95,7 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
         tukhainBaaziinKholbolt
       )
         .find(query)
-        .lean()
-        .sort({ createdAt: -1 });
+        .lean();
 
       if (!nekhemjlekhiinTuukhList || nekhemjlekhiinTuukhList.length === 0) {
         return res.status(404).json({
@@ -121,6 +120,36 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
           gereeMap[geree._id.toString()] = geree;
         });
       }
+
+      // Sort invoices by apartment number (toot) in ascending order
+      // Helper function to parse toot as number for proper numeric sorting
+      const parseToot = (toot) => {
+        if (!toot || toot === "") return Infinity; // Empty toot goes to end
+        const num = parseFloat(toot);
+        return isNaN(num) ? toot : num; // If not a number, keep as string for comparison
+      };
+
+      nekhemjlekhiinTuukhList.sort((a, b) => {
+        const gereeA = a.gereeniiId ? gereeMap[a.gereeniiId.toString()] : null;
+        const gereeB = b.gereeniiId ? gereeMap[b.gereeniiId.toString()] : null;
+        
+        const tootA = gereeA ? (gereeA.toot || "") : "";
+        const tootB = gereeB ? (gereeB.toot || "") : "";
+        
+        const numA = parseToot(tootA);
+        const numB = parseToot(tootB);
+        
+        // Compare as numbers if both are numbers, otherwise as strings
+        if (typeof numA === "number" && typeof numB === "number") {
+          return numA - numB; // Ascending: 1, 2, 3... 21
+        } else if (typeof numA === "number") {
+          return -1; // Numbers come before strings
+        } else if (typeof numB === "number") {
+          return 1; // Numbers come before strings
+        } else {
+          return String(tootA).localeCompare(String(tootB)); // String comparison
+        }
+      });
 
       // Get latest uldegdel from ledger for each contract
       const { getHistoryLedger } = require("../services/historyLedgerService");
