@@ -374,8 +374,6 @@ async function getHistoryLedger(options) {
       ? gereeDoc.positiveBalance
       : 0;
 
-  // Reverse: newest entries first for display
-  jagsaalt.reverse();
 
   return { jagsaalt, globalUldegdel, positiveBalance };
 }
