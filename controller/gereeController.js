@@ -198,6 +198,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 await NekhemjlekhModel.findByIdAndUpdate(invoice._id, {
                   $set: {
                     niitTulbur: newNiitTulbur,
+                    niitTulburOriginal: (invoice.niitTulburOriginal || invoice.niitTulbur || 0) + dun,
                     uldegdel: newUldegdel,
                     ekhniiUldegdel: (invoice.ekhniiUldegdel || 0) + dun,
                     "medeelel.zardluud": zardluud,
