@@ -34,7 +34,7 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   // HARDCODED: Connect directly to amarSukh database - NO turees connection
   const AMARSUKH_CONNECTION_STRING = "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin";
   
-  console.log(`📊 Connecting directly to amarSukh database...`);
+  console.log(`📊 Connecting to amarSukh database to get tenant connection...`);
   
   // Create mongoose connection directly to amarSukh
   const amarSukhConnection = mongoose.createConnection(AMARSUKH_CONNECTION_STRING, {
@@ -59,15 +59,81 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
     }
   });
 
-  // Create a mock kholbolt object that matches what the models expect
+  // Query tenant connections from amarSukh database
+  // Tenant connections are stored in a collection (likely "kholboltuud" or similar)
+  const tenantConnections = await amarSukhConnection.db.collection("kholboltuud").find({
+    baiguullagiinId: baiguullagiinId
+  }).toArray();
+
+  // Try ObjectId comparison if string comparison fails
+  let tenantConnection = tenantConnections.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+
+  if (!tenantConnection && mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
+    const baiguullagiinObjectId = new mongoose.Types.ObjectId(baiguullagiinId);
+    tenantConnection = tenantConnections.find((k) => {
+      const kId = k.baiguullagiinId;
+      if (mongoose.Types.ObjectId.isValid(kId)) {
+        return new mongoose.Types.ObjectId(kId).equals(baiguullagiinObjectId);
+      }
+      return String(kId) === String(baiguullagiinId);
+    });
+  }
+
+  if (!tenantConnection) {
+    // Try querying all connections to see what's available
+    const allConnections = await amarSukhConnection.db.collection("kholboltuud").find({}).toArray();
+    console.error("Available tenant connections in amarSukh:");
+    allConnections.forEach((k) => {
+      console.error(`  - baiguullagiinId: ${k.baiguullagiinId}, dbName: ${k.dbName || k.baaziinNer || "N/A"}`);
+    });
+    throw new Error(`Tenant connection not found in amarSukh for baiguullagiinId: ${baiguullagiinId}`);
+  }
+
+  console.log(`📊 Found tenant connection: ${tenantConnection.dbName || tenantConnection.baaziinNer || "N/A"}`);
+
+  // Build connection string for tenant database
+  const clusterUrl = tenantConnection.clusterUrl || "127.0.0.1:27017";
+  const userName = tenantConnection.userName || "admin";
+  const password = tenantConnection.password || "Br1stelback1";
+  const tenantDbName = tenantConnection.dbName || tenantConnection.baaziinNer;
+  
+  const tenantConnectionString = `mongodb://${userName}:${password}@${clusterUrl}/${tenantDbName}?authSource=admin`;
+  
+  console.log(`📊 Connecting to tenant database: ${tenantDbName}...`);
+
+  // Create connection to actual tenant database
+  const tenantDbConnection = mongoose.createConnection(tenantConnectionString, {
+    keepAlive: true,
+    keepAliveInitialDelay: 300000,
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+
+  // Wait for tenant connection
+  await new Promise((resolve, reject) => {
+    tenantDbConnection.once('connected', () => {
+      console.log(`✅ Connected to tenant database: ${tenantDbName}`);
+      resolve();
+    });
+    tenantDbConnection.once('error', (err) => {
+      reject(err);
+    });
+    if (tenantDbConnection.readyState === 1) {
+      resolve();
+    }
+  });
+
+  // Create kholbolt object for models
   const tukhainBaaziinKholbolt = {
-    kholbolt: amarSukhConnection,
+    kholbolt: tenantDbConnection,
     baiguullagiinId: baiguullagiinId,
-    dbName: "amarSukh",
-    baaziinNer: "amarSukh"
+    dbName: tenantDbName,
+    baaziinNer: tenantDbName
   };
 
-  console.log(`📊 Database: amarSukh`);
+  console.log(`📊 Using tenant database: ${tenantDbName}`);
 
   // Initialize models with tenant connection (tukhainBaaziinKholbolt)
   // NOTE: We do NOT query Baiguullaga to avoid connecting to wrong database
