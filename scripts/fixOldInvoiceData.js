@@ -15,7 +15,6 @@
 const { db } = require("zevbackv2");
 const { getHistoryLedger } = require("../services/historyLedgerService");
 const NekhemjlekhModel = require("../models/nekhemjlekhiinTuukh");
-const BaiguullagaModel = require("../models/baiguullaga");
 
 async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   const { dryRun = false, barilgiinId = null, invoiceId = null } = options;
@@ -35,7 +34,8 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   await db.kholboltUusgey();
 
   // Get organization name
-  const baiguullaga = await BaiguullagaModel.findById(baiguullagiinId).lean();
+  const Baiguullaga = require("../models/baiguullaga");
+  const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
   if (baiguullaga) {
     console.log(`📋 Organization: ${baiguullaga.ner || "N/A"}`);
   }
