@@ -469,8 +469,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
         (b) => String(b._id) === String(tempData.barilgiinId || ""),
       );
 
-      const ashiglaltiinZardluud =
+      let ashiglaltiinZardluud =
         targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
+
+      // Fallback: if building config has no ashiglaltiinZardluud, use geree.zardluud
+      // (ashiglaltiinZardluud may be stored in the standalone collection and synced
+      // to geree.zardluud but not to baiguullaga embedded array)
+      if (ashiglaltiinZardluud.length === 0 && tempData.zardluud && tempData.zardluud.length > 0) {
+        ashiglaltiinZardluud = tempData.zardluud;
+      }
 
       filteredZardluud = ashiglaltiinZardluud
         .filter((zardal) => zardal.zaalt !== true)

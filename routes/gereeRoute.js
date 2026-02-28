@@ -989,6 +989,9 @@ router
 
               // Fields from updateObject that map to schema
               nuatBodokhEsekh: updateObject.nuatBodokhEsekh,
+
+              guilgeeKhiisenAjiltniiNer: updateObject.guilgeeKhiisenAjiltniiNer || "",
+              guilgeeKhiisenAjiltniiId: updateObject.guilgeeKhiisenAjiltniiId || "",
             };
 
             let upsertDoc = {
@@ -1005,12 +1008,7 @@ router
         await GereeniiTulukhAvlaga(req.body.tukhainBaaziinKholbolt)
           .bulkWrite(bulkOps)
           .then((bulkWriteOpResult) => {
-            // Also need to insert into AshiglaltiinExcel (existing code)
-            const AshiglaltiinExcel = require("../models/ashiglaltiinExcel"); // Ensure this is imported if not already on top, but existing code used it?
-            // Existing code used `AshiglaltiinExcel(req.body.tukhainBaaziinKholbolt).insertMany(jagsaalt)`
-            // I should check if AshiglaltiinExcel is defined in the file.
-            // If not, I should define it or assume it's available. The snippet showed it being used.
-            // Let's assume it requires the model.
+            const AshiglaltiinExcel = require("../models/ashiglaltiinExcel");
             const AshiglaltiinExcelModel = require("../models/ashiglaltiinExcel");
             AshiglaltiinExcelModel(req.body.tukhainBaaziinKholbolt).insertMany(
               jagsaalt,

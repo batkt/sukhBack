@@ -49,8 +49,15 @@ const previewInvoice = async (
       (b) => String(b._id) === String(barilgiinId || geree.barilgiinId || ""),
     );
 
-    const ashiglaltiinZardluud =
+    let ashiglaltiinZardluud =
       targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
+
+    // Fallback: if building config has no ashiglaltiinZardluud, use geree.zardluud
+    // (ashiglaltiinZardluud may be stored in the standalone collection and synced
+    // to geree.zardluud but not to baiguullaga embedded array)
+    if (ashiglaltiinZardluud.length === 0 && geree.zardluud && geree.zardluud.length > 0) {
+      ashiglaltiinZardluud = geree.zardluud;
+    }
 
     let filteredZardluud = ashiglaltiinZardluud
       .filter((zardal) => zardal.zaalt !== true)

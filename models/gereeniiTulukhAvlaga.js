@@ -42,9 +42,11 @@ const gereeniiTulukhAvlagaSchema = new Schema(
     // Book-keeping
     source: {
       type: String,
-      enum: ["geree", "nekhemjlekh", "gar", "busad"],
+      enum: ["geree", "nekhemjlekh", "gar", "busad", "excel_import"],
       default: "geree",
     },
+    guilgeeKhiisenAjiltniiNer: String,
+    guilgeeKhiisenAjiltniiId: String,
     // Хэрвээ geree.avlaga.guilgeenuud-ээс хөрвүүлсэн бол тухайн индексийг хадгалж болно
     avlagaGuilgeeIndex: Number,
   },

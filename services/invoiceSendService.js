@@ -182,6 +182,25 @@ const manualSendInvoice = async (
           };
         }
 
+        // Safety guard: if preview returned 0 non-ekhnii zardluud but old invoice
+        // had some, the building config may be out of sync — preserve old zardluud
+        // to avoid accidentally wiping invoice line items.
+        if (newZardluudCount === 0 && oldZardluudCount > 0) {
+          await deleteDuplicateUnsentInvoices(
+            existingUnsentInvoices,
+            tukhainBaaziinKholbolt,
+          );
+          return {
+            success: true,
+            message: "Нэхэмжлэх хэвийн байна. Өөрчлөлт ороогүй.",
+            skipped: true,
+            nekhemjlekh: oldestUnsentInvoice,
+            gereeniiId: geree._id,
+            gereeniiDugaar: geree.gereeniiDugaar,
+            tulbur: oldestUnsentInvoice.niitTulbur,
+          };
+        }
+
         // Update in place: new zardluud (no ekhniiUldegdel) + preserved ekhniiUldegdel from old invoice
         const newZardluudWithoutEkhniiUldegdel = newZardluudOnly;
         const oldEkhniiUldegdelEntries = oldZardluud.filter(

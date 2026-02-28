@@ -83,7 +83,7 @@ async function getHistoryLedger(options) {
       .lean()
       .sort({ ognoo: 1, createdAt: 1 }),
     GereeModel.findById(gereeniiId)
-      .select("ekhniiUldegdel gereeniiOgnoo createdAt zardluud globalUldegdel positiveBalance")
+      .select("ekhniiUldegdel gereeniiOgnoo createdAt zardluud globalUldegdel positiveBalance burtgesenAjiltan")
       .lean(),
   ]);
 
@@ -108,6 +108,7 @@ async function getHistoryLedger(options) {
       ner: "Эхний үлдэгдэл",
       isSystem: true,
       _id: `geree-ekhnii-${gid}`,
+      ajiltan: gereeDoc.burtgesenAjiltan || "Систем",
       khelber: "Авлага",
       tailbar: "Эхний үлдэгдэл",
       burtgesenOgnoo: gereeDoc.createdAt
@@ -263,6 +264,7 @@ async function getHistoryLedger(options) {
         ner: z.ner || "Нэхэмжлэх",
         isSystem: true,
         _id: (z._id && z._id.toString()) || `geree-zard-${gid}-${i}`,
+        ajiltan: "Систем",
         khelber: "Нэхэмжлэх",
         tailbar: z.tailbar || z.ner || "",
         burtgesenOgnoo,
@@ -285,6 +287,7 @@ async function getHistoryLedger(options) {
       ner: "Эхний үлдэгдэл",
       isSystem: true,
       _id: `geree-empty-${gid}`,
+      ajiltan: "Систем",
       khelber: "Нэхэмжлэх",
       tailbar: "",
       sourceCollection: "geree",
