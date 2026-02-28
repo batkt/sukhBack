@@ -140,23 +140,25 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
         // Update invoice to ensure it's correctly marked as paid
         const updateData = {
           uldegdel: 0,
-          niitTulbur: 0,
           tuluv: "Төлсөн",
         };
         
-        // Always set niitTulburOriginal to the total paid amount so ledger can show it
+        // Save total paid amount to niitTulbur for paid invoices
         if (finalTotalPaid > 0) {
-          updateData.niitTulburOriginal = finalTotalPaid;
-        } else if (typeof invoice.niitTulburOriginal !== "number" && niitTulburOriginal > 0) {
-          // Fallback: use existing niitTulburOriginal if available
-          updateData.niitTulburOriginal = niitTulburOriginal;
+          updateData.niitTulbur = finalTotalPaid;
+        } else if (niitTulburOriginal > 0) {
+          // Fallback: use existing niitTulburOriginal if no payments found
+          updateData.niitTulbur = niitTulburOriginal;
+        } else {
+          // If no total found, set to 0
+          updateData.niitTulbur = 0;
         }
         
         await NekhemjlekhModel.findByIdAndUpdate(invoice._id, {
           $set: updateData,
         });
         
-        console.log(`    ✅ Updated: niitTulburOriginal = ${updateData.niitTulburOriginal || niitTulburOriginal}`);
+        console.log(`    ✅ Updated: niitTulbur = ${updateData.niitTulbur}`);
       }
 
       fixed++;
