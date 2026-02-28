@@ -181,19 +181,26 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
           const currentUldegdel = typeof invoice.uldegdel === "number" 
             ? parseFloat(invoice.uldegdel.toFixed(2)) 
             : 0;
+          const currentNiitTulbur = typeof invoice.niitTulbur === "number" 
+            ? parseFloat(invoice.niitTulbur.toFixed(2)) 
+            : 0;
 
-          // Check if update is needed
-          if (Math.abs(currentUldegdel - latestUldegdel) < 0.01) {
+          // Check if update is needed (either uldegdel or niitTulbur doesn't match)
+          const uldegdelNeedsUpdate = Math.abs(currentUldegdel - latestUldegdel) >= 0.01;
+          const niitTulburNeedsUpdate = Math.abs(currentNiitTulbur - latestUldegdel) >= 0.01;
+          
+          if (!uldegdelNeedsUpdate && !niitTulburNeedsUpdate) {
             results.unchanged++;
             results.details.push({
               invoiceId: invoice._id.toString(),
               gereeniiDugaar: invoice.gereeniiDugaar || "",
               nekhemjlekhiinDugaar: invoice.nekhemjlekhiinDugaar || "",
               currentUldegdel,
+              currentNiitTulbur,
               latestUldegdel,
               status: "unchanged",
             });
-            console.log(`    ✓ Invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}: No change needed (${currentUldegdel})`);
+            console.log(`    ✓ Invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}: No change needed (uldegdel: ${currentUldegdel}, niitTulbur: ${currentNiitTulbur})`);
             continue;
           }
 
@@ -209,15 +216,21 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
 
           if (!dryRun) {
             // Update invoice - update uldegdel and niitTulbur to match ledger
+            const updateData = {
+              tuluv: newTuluv,
+            };
+            
+            // Only update fields that need updating
+            if (uldegdelNeedsUpdate) {
+              updateData.uldegdel = latestUldegdel;
+            }
+            if (niitTulburNeedsUpdate) {
+              updateData.niitTulbur = latestUldegdel; // niitTulbur should match uldegdel
+            }
+            
             await NekhemjlekhiinTuukhModel.updateOne(
               { _id: invoice._id },
-              {
-                $set: {
-                  uldegdel: latestUldegdel,
-                  niitTulbur: latestUldegdel, // niitTulbur should match uldegdel
-                  tuluv: newTuluv,
-                },
-              }
+              { $set: updateData }
             );
           }
 
@@ -232,14 +245,18 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
             status: dryRun ? "would_update" : "updated",
           });
 
-          const currentNiitTulbur = typeof invoice.niitTulbur === "number" 
-            ? parseFloat(invoice.niitTulbur.toFixed(2)) 
-            : 0;
+          // Build update message
+          const updates = [];
+          if (uldegdelNeedsUpdate) {
+            updates.push(`uldegdel: ${currentUldegdel} → ${latestUldegdel}`);
+          }
+          if (niitTulburNeedsUpdate) {
+            updates.push(`niitTulbur: ${currentNiitTulbur} → ${latestUldegdel}`);
+          }
           
           console.log(
             `    ${dryRun ? '⚠️' : '✓'} Invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}: ` +
-            `uldegdel: ${currentUldegdel} → ${latestUldegdel}, ` +
-            `niitTulbur: ${currentNiitTulbur} → ${latestUldegdel} (${newTuluv})`
+            `${updates.join(", ")} (${newTuluv})`
           );
         } catch (invoiceError) {
           results.errors++;
