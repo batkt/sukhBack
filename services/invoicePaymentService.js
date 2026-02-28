@@ -227,7 +227,7 @@ async function markInvoicesAsPaid(options) {
           tulsunDun: dun,
           tulsunAldangi: 0,
 
-          turul: "Илүү төлөлт",
+          turul: "төлөлт",
           zardliinTurul: "",
           zardliinId: "",
           zardliinNer: "",
@@ -326,7 +326,7 @@ async function markInvoicesAsPaid(options) {
           paymentHistory: {
             ognoo: paymentDate,
             dun: amountToApply,
-            turul: "manual",
+            turul: "төлөлт",
             guilgeeniiId: `payment_${Date.now()}_${invoice._id}`,
             tailbar:
               tailbar ||
@@ -736,7 +736,7 @@ async function getGereeniiTulsunSummary(options) {
         },
         totalPrepayment: {
           $sum: {
-            $cond: [{ $eq: ["$turul", "урьдчилсан төлөлт"] }, "$tulsunDun", 0],
+            $cond: [{ $eq: ["$turul", "төлөлт"] }, "$tulsunDun", 0],
           },
         },
       },

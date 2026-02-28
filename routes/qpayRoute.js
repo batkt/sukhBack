@@ -1410,7 +1410,7 @@ router.get(
       nekhemjlekh.paymentHistory.push({
         ognoo: new Date(),
         dun: paidAmount,
-        turul: "qpay",
+        turul: "төлөлт",
         guilgeeniiId:
           paymentTransactionId || nekhemjlekh.qpayInvoiceId || "unknown",
         tailbar: "QPay төлбөр амжилттай хийгдлээ",
@@ -1980,7 +1980,7 @@ router.get(
                 paymentHistory: {
                   ognoo: new Date(),
                   dun: nekhemjlekh.niitTulbur || 0,
-                  turul: "qpay",
+                  turul: "төлөлт",
                   guilgeeniiId:
                     paymentTransactionId ||
                     nekhemjlekh.qpayInvoiceId ||
