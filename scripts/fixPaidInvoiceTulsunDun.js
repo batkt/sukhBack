@@ -81,19 +81,44 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
         0
       );
 
-      // Total paid is the sum of both sources
-      const totalPaid = totalPaidFromHistory + totalPaidFromAvlaga;
+      // Also check guilgeenuud from invoice medeelel
+      const totalPaidFromGuilgeenuud = (invoice.medeelel?.guilgeenuud || []).reduce(
+        (sum, g) => {
+          const dun = typeof g.tulsunDun === "number" 
+            ? g.tulsunDun 
+            : (g.dun != null ? Number(g.dun) : 0);
+          return sum + dun;
+        },
+        0
+      );
+
       const currentUldegdel = typeof invoice.uldegdel === "number" ? invoice.uldegdel : 0;
       const currentNiitTulbur = typeof invoice.niitTulbur === "number" ? invoice.niitTulbur : 0;
+      const isFullyPaid = invoice.tuluv === "Төлсөн" && currentUldegdel <= 0.01;
+      
+      // Total paid is the sum of all sources
+      let totalPaid = totalPaidFromHistory + totalPaidFromAvlaga + totalPaidFromGuilgeenuud;
+      
+      // Get niitTulburOriginal (original invoice amount)
       const niitTulburOriginal = typeof invoice.niitTulburOriginal === "number" 
         ? invoice.niitTulburOriginal 
         : (invoice.niitTulbur || 0);
+      
+      // If totalPaid is 0 but invoice is marked as paid, use niitTulburOriginal as totalPaid
+      // This handles cases where paymentHistory/avlaga records are missing but invoice is paid
+      if (totalPaid === 0 && niitTulburOriginal > 0 && isFullyPaid) {
+        totalPaid = niitTulburOriginal;
+        console.log(`    ⚠️ No payment records found, using niitTulburOriginal: ${totalPaid.toFixed(2)}`);
+      }
+      
+      const finalTotalPaid = totalPaid;
 
       // Check if invoice needs fixing
       const needsFix = 
         currentUldegdel > 0.01 || // Should be 0 for paid invoices
         currentNiitTulbur > 0.01 || // Should be 0 for paid invoices
-        (totalPaid > 0 && Math.abs(totalPaid - niitTulburOriginal) > 0.01); // Total paid should match original
+        (finalTotalPaid > 0 && typeof invoice.niitTulburOriginal !== "number") || // Should have niitTulburOriginal set
+        (finalTotalPaid > 0 && Math.abs(invoice.niitTulburOriginal - finalTotalPaid) > 0.01); // niitTulburOriginal should match totalPaid
 
       if (!needsFix) {
         console.log(
@@ -108,22 +133,30 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
         `  [${invoice.gereeniiDugaar || "N/A"}] Invoice ${invoice.nekhemjlekhiinDugaar || invId}: ` +
         `uldegdel: ${currentUldegdel} → 0, ` +
         `niitTulbur: ${currentNiitTulbur} → 0, ` +
-        `totalPaid: ${totalPaid.toFixed(2)} (from ${invoice.paymentHistory?.length || 0} paymentHistory + ${linkedPayments.length} avlaga)`
+        `totalPaid: ${finalTotalPaid.toFixed(2)} (from ${invoice.paymentHistory?.length || 0} paymentHistory + ${linkedPayments.length} avlaga + ${invoice.medeelel?.guilgeenuud?.length || 0} guilgeenuud)`
       );
 
       if (!DRY_RUN) {
         // Update invoice to ensure it's correctly marked as paid
+        const updateData = {
+          uldegdel: 0,
+          niitTulbur: 0,
+          tuluv: "Төлсөн",
+        };
+        
+        // Always set niitTulburOriginal to the total paid amount so ledger can show it
+        if (finalTotalPaid > 0) {
+          updateData.niitTulburOriginal = finalTotalPaid;
+        } else if (typeof invoice.niitTulburOriginal !== "number" && niitTulburOriginal > 0) {
+          // Fallback: use existing niitTulburOriginal if available
+          updateData.niitTulburOriginal = niitTulburOriginal;
+        }
+        
         await NekhemjlekhModel.findByIdAndUpdate(invoice._id, {
-          $set: {
-            uldegdel: 0,
-            niitTulbur: 0,
-            tuluv: "Төлсөн",
-            // Ensure niitTulburOriginal is set correctly
-            ...(typeof invoice.niitTulburOriginal !== "number" && {
-              niitTulburOriginal: totalPaid > 0 ? totalPaid : (invoice.niitTulbur || 0)
-            }),
-          },
+          $set: updateData,
         });
+        
+        console.log(`    ✅ Updated: niitTulburOriginal = ${updateData.niitTulburOriginal || niitTulburOriginal}`);
       }
 
       fixed++;
