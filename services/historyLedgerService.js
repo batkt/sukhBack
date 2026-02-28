@@ -344,25 +344,9 @@ async function getHistoryLedger(options) {
     };
   });
 
-  // Normalize so last row's uldegdel matches geree.globalUldegdel (contract list and History stay in sync)
-  if (
-    jagsaalt.length > 0 &&
-    gereeDoc &&
-    typeof gereeDoc.globalUldegdel === "number"
-  ) {
-    const targetBalance = gereeDoc.globalUldegdel;
-    const lastBalance = jagsaalt[jagsaalt.length - 1].uldegdel;
-    const delta = targetBalance - lastBalance;
-    if (delta !== 0) {
-      jagsaalt = jagsaalt.map((row) => ({
-        ...row,
-        uldegdel: row.uldegdel + delta,
-      }));
-    }
-  }
+  // No normalization — running balance is the pure cumulative sum of each row's charge minus payment.
+  // globalUldegdel from geree is returned separately for the frontend summary/total display.
 
-  // Return globalUldegdel and positiveBalance so frontend can use them for the Нийт (Total) row
-  // instead of computing sum(tulukhDun) - sum(tulsunDun) which doesn't account for credit/settlement effects
   const globalUldegdel =
     gereeDoc && typeof gereeDoc.globalUldegdel === "number"
       ? gereeDoc.globalUldegdel
