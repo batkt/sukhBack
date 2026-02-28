@@ -263,7 +263,6 @@ async function markInvoicesAsPaid(options) {
   const gereePositiveBalanceMap = new Map(); // Track positiveBalance per geree
   const tulsunAvlagaDocs = []; // Track created gereeniiTulsunAvlaga records
   const gereesNeedingRecalc = new Set(); // geree IDs whose globalUldegdel we will recalculate
-  const gereePaymentMap = new Map(); // Track how much payment (including prepayment) applied per geree
 
   // Process invoices from latest to oldest
   for (const invoice of invoices) {
@@ -380,9 +379,6 @@ async function markInvoicesAsPaid(options) {
       // Track geree whose invoices changed, to recalc globalUldegdel later
       if (updatedInvoice.gereeniiId) {
         gereesNeedingRecalc.add(String(updatedInvoice.gereeniiId));
-        const key = String(updatedInvoice.gereeniiId);
-        const prev = gereePaymentMap.get(key) || 0;
-        gereePaymentMap.set(key, prev + amountToApply);
       }
 
       // NOTE: Do NOT create gereeniiTulsunAvlaga per invoice here - we create ONE consolidated record after the loop
@@ -458,7 +454,7 @@ async function markInvoicesAsPaid(options) {
     }
   }
 
-  // If there's remaining payment, save as positiveBalance
+  // If there's remaining payment after invoices, apply to avlaga FIRST, then only leftover goes to positiveBalance
   if (remainingPayment > 0) {
     // Determine which geree(s) to update
     const gereesToUpdate = new Set();
@@ -471,7 +467,6 @@ async function markInvoicesAsPaid(options) {
         baiguullagiinId: String(baiguullagiinId),
         tuluv: { $ne: "Цуцалсан" },
       };
-      // Respect barilgiinId filter when finding contracts to distribute positive balance
       if (barilgiinId) {
         gereeQuery.barilgiinId = String(barilgiinId);
       }
@@ -479,7 +474,6 @@ async function markInvoicesAsPaid(options) {
       const gerees = await GereeModel.find(gereeQuery).select("_id").lean();
       gerees.forEach((g) => gereesToUpdate.add(g._id.toString()));
     } else if (nekhemjlekhiinIds && nekhemjlekhiinIds.length > 0) {
-      // Get gerees from invoices
       const invoiceGerees = await NekhemjlekhiinTuukh.find({
         _id: { $in: nekhemjlekhiinIds },
       })
@@ -491,76 +485,65 @@ async function markInvoicesAsPaid(options) {
       });
     }
 
-    // If we have multiple gerees, distribute remaining payment equally
-    // Otherwise, add to single geree
     if (gereesToUpdate.size > 0) {
       const balancePerGeree = remainingPayment / gereesToUpdate.size;
 
       for (const gereeId of gereesToUpdate) {
         try {
           const geree = await GereeModel.findById(gereeId);
-          if (geree) {
-            geree.positiveBalance =
-              (geree.positiveBalance || 0) + balancePerGeree;
-            await geree.save();
-            gereePositiveBalanceMap.set(gereeId, geree.positiveBalance);
+          if (!geree) continue;
 
-            // Skip creating separate prepayment gereeniiTulsunAvlaga - the consolidated record above already has the full payment
-            // (Creating both would show 2 payment entries for one user payment)
+          let leftoverForGeree = balancePerGeree;
 
-            // PositiveBalance changes also affect globalUldegdel view, so recalc
-            gereesNeedingRecalc.add(String(geree._id.toString()));
+          // 1) Apply remaining to outstanding avlaga records FIRST (oldest first)
+          try {
+            const openTulukhRows = await GereeniiTulukhAvlagaModel.find({
+              gereeniiId: String(gereeId),
+              baiguullagiinId: String(baiguullagiinId),
+              uldegdel: { $gt: 0 },
+            })
+              .sort({ ognoo: 1, createdAt: 1 })
+              .lean();
 
-            // Track this prepayment against geree as well
-            const key = String(geree._id.toString());
-            const prev = gereePaymentMap.get(key) || 0;
-            gereePaymentMap.set(key, prev + balancePerGeree);
+            for (const row of openTulukhRows) {
+              if (leftoverForGeree <= 0) break;
+              const currentUldegdel = row.uldegdel || 0;
+              if (currentUldegdel <= 0) continue;
+
+              const applyHere = Math.min(leftoverForGeree, currentUldegdel);
+              const newUldegdel = currentUldegdel - applyHere;
+
+              await GereeniiTulukhAvlagaModel.updateOne(
+                { _id: row._id },
+                { $set: { uldegdel: newUldegdel } },
+              );
+
+              leftoverForGeree -= applyHere;
+            }
+          } catch (tulukhErr) {
+            console.error(
+              `❌ [INVOICE PAYMENT] Error applying remaining to avlaga:`,
+              tulukhErr.message,
+            );
           }
+
+          // 2) Only what's left after avlaga goes to positiveBalance
+          if (leftoverForGeree > 0) {
+            geree.positiveBalance =
+              (geree.positiveBalance || 0) + leftoverForGeree;
+          }
+
+          gereesNeedingRecalc.add(String(geree._id.toString()));
+          await geree.save();
+          gereePositiveBalanceMap.set(gereeId, geree.positiveBalance);
         } catch (error) {
           console.error(
-            `❌ [INVOICE PAYMENT] Error updating positiveBalance for geree ${gereeId}:`,
+            `❌ [INVOICE PAYMENT] Error applying remaining payment for geree ${gereeId}:`,
             error.message,
           );
         }
       }
     }
-  }
-
-  // Apply payments to gereeniiTulukhAvlaga (reduce uldegdel on avlaga side)
-  try {
-    for (const [gereeId, paymentForGeree] of gereePaymentMap.entries()) {
-      let remainingForGeree = paymentForGeree;
-      if (remainingForGeree <= 0) continue;
-
-      const openTulukhRows = await GereeniiTulukhAvlagaModel.find({
-        gereeniiId: String(gereeId),
-        baiguullagiinId: String(baiguullagiinId),
-        uldegdel: { $gt: 0 },
-      })
-        .sort({ ognoo: 1, createdAt: 1 })
-        .lean();
-
-      for (const row of openTulukhRows) {
-        if (remainingForGeree <= 0) break;
-        const currentUldegdel = row.uldegdel || 0;
-        if (currentUldegdel <= 0) continue;
-
-        const applyHere = Math.min(remainingForGeree, currentUldegdel);
-        const newUldegdel = currentUldegdel - applyHere;
-
-        await GereeniiTulukhAvlagaModel.updateOne(
-          { _id: row._id },
-          { $set: { uldegdel: newUldegdel } },
-        );
-
-        remainingForGeree -= applyHere;
-      }
-    }
-  } catch (tulukhUpdateError) {
-    console.error(
-      "❌ [INVOICE PAYMENT] Error updating gereeniiTulukhAvlaga uldegdel:",
-      tulukhUpdateError.message,
-    );
   }
 
   // Recalculate and store globalUldegdel on affected gerees
