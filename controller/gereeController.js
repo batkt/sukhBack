@@ -363,40 +363,19 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       { new: false },
     );
 
-    // Full recalculation from raw amounts (totalCharges - totalPayments)
+    // Full recalculation from raw amounts using shared utility
+    const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
     const NekhemjlekhiinTuukhRecalc = require("../models/nekhemjlekhiinTuukh");
     const GereeniiTulsunAvlagaRecalc = require("../models/gereeniiTulsunAvlaga");
     try {
-      const gereeForRecalc = await Geree(tukhainBaaziinKholbolt).findById(guilgee.gereeniiId);
-      if (gereeForRecalc) {
-        let totalCharges = gereeForRecalc.ekhniiUldegdel || 0;
-
-        const allInvs = await NekhemjlekhiinTuukhRecalc(tukhainBaaziinKholbolt)
-          .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(guilgee.gereeniiId) })
-          .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
-          .lean();
-        allInvs.forEach((inv) => {
-          const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
-          totalCharges += original - (inv.ekhniiUldegdel || 0);
-        });
-
-        const allAvlaga = await GereeniiTulukhAvlaga(tukhainBaaziinKholbolt)
-          .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(guilgee.gereeniiId) })
-          .select("undsenDun tulukhDun")
-          .lean();
-        allAvlaga.forEach((a) => { totalCharges += a.undsenDun || a.tulukhDun || 0; });
-
-        const allPayments = await GereeniiTulsunAvlagaRecalc(tukhainBaaziinKholbolt)
-          .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(guilgee.gereeniiId) })
-          .select("tulsunDun")
-          .lean();
-        let totalPayments = 0;
-        allPayments.forEach((p) => { totalPayments += p.tulsunDun || 0; });
-
-        gereeForRecalc.globalUldegdel = totalCharges - totalPayments;
-        gereeForRecalc.positiveBalance = Math.max(0, -(gereeForRecalc.globalUldegdel));
-        await gereeForRecalc.save();
-      }
+      await recalcGlobalUldegdel({
+        gereeId: guilgee.gereeniiId,
+        baiguullagiinId,
+        GereeModel: Geree(tukhainBaaziinKholbolt),
+        NekhemjlekhiinTuukhModel: NekhemjlekhiinTuukhRecalc(tukhainBaaziinKholbolt),
+        GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(tukhainBaaziinKholbolt),
+        GereeniiTulsunAvlagaModel: GereeniiTulsunAvlagaRecalc(tukhainBaaziinKholbolt),
+      });
     } catch (recalcErr) {
       console.error("❌ [GEREE] Error in full recalculation:", recalcErr.message);
     }

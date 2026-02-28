@@ -205,38 +205,17 @@ router.use((req, res, next) => {
 });
 
 // Shared helper: full recalculation from raw amounts after delete
+const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
 async function recalcGlobalAfterDelete(kholbolt, gereeniiId, baiguullagiinId) {
   const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
-  const geree = await Geree(kholbolt).findById(gereeniiId);
-  if (!geree) return;
-
-  let totalCharges = geree.ekhniiUldegdel || 0;
-
-  const allInvs = await NekhemjlekhiinTuukh(kholbolt)
-    .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId) })
-    .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
-    .lean();
-  allInvs.forEach((inv) => {
-    const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
-    totalCharges += original - (inv.ekhniiUldegdel || 0);
+  await recalcGlobalUldegdel({
+    gereeId: gereeniiId,
+    baiguullagiinId,
+    GereeModel: Geree(kholbolt),
+    NekhemjlekhiinTuukhModel: NekhemjlekhiinTuukh(kholbolt),
+    GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(kholbolt),
+    GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(kholbolt),
   });
-
-  const allAvlaga = await GereeniiTulukhAvlaga(kholbolt)
-    .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId) })
-    .select("undsenDun tulukhDun")
-    .lean();
-  allAvlaga.forEach((a) => { totalCharges += a.undsenDun || a.tulukhDun || 0; });
-
-  const allPayments = await GereeniiTulsunAvlaga(kholbolt)
-    .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId) })
-    .select("tulsunDun")
-    .lean();
-  let totalPayments = 0;
-  allPayments.forEach((p) => { totalPayments += p.tulsunDun || 0; });
-
-  geree.globalUldegdel = totalCharges - totalPayments;
-  geree.positiveBalance = Math.max(0, -(geree.globalUldegdel));
-  await geree.save();
 }
 
 // Custom DELETE for gereeniiTulukhAvlaga — full recalculation after delete

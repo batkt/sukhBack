@@ -25,55 +25,16 @@ async function recalculateGereeGlobalUldegdel(
   opts = {},
 ) {
   const NekhemjlekhiinTuukh = getNekhemjlekhiinTuukhModel(kholbolt);
-  const gid = String(gereeniiId);
-  const oid = String(baiguullagiinId);
 
-  const geree = await Geree(kholbolt)
-    .findById(gereeniiId)
-    .select("ekhniiUldegdel")
-    .lean();
-  if (!geree) return;
-
-  // Start with geree-level ekhniiUldegdel
-  let totalCharges = geree.ekhniiUldegdel || 0;
-
-  // Sum ALL invoice original totals (excluding ekhniiUldegdel portion)
-  const invoiceQuery = { baiguullagiinId: oid, gereeniiId: gid };
-  if (opts.excludeInvoiceId) {
-    invoiceQuery._id = { $ne: opts.excludeInvoiceId };
-  }
-  const allInvoices = await NekhemjlekhiinTuukh.find(invoiceQuery)
-    .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
-    .lean();
-  allInvoices.forEach((inv) => {
-    const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
-    totalCharges += original - (inv.ekhniiUldegdel || 0);
-  });
-
-  // Sum ALL avlaga original amounts
-  const allAvlaga = await GereeniiTulukhAvlaga(kholbolt)
-    .find({ baiguullagiinId: oid, gereeniiId: gid })
-    .select("undsenDun tulukhDun")
-    .lean();
-  allAvlaga.forEach((a) => {
-    totalCharges += a.undsenDun || a.tulukhDun || 0;
-  });
-
-  // Sum ALL payments
-  const allPayments = await GereeniiTulsunAvlaga(kholbolt)
-    .find({ baiguullagiinId: oid, gereeniiId: gid })
-    .select("tulsunDun")
-    .lean();
-  let totalPayments = 0;
-  allPayments.forEach((p) => {
-    totalPayments += p.tulsunDun || 0;
-  });
-
-  const newGlobal = totalCharges - totalPayments;
-  const newPositive = Math.max(0, -newGlobal);
-
-  await Geree(kholbolt).findByIdAndUpdate(gereeniiId, {
-    $set: { globalUldegdel: newGlobal, positiveBalance: newPositive },
+  const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
+  await recalcGlobalUldegdel({
+    gereeId: gereeniiId,
+    baiguullagiinId,
+    GereeModel: Geree(kholbolt),
+    NekhemjlekhiinTuukhModel: NekhemjlekhiinTuukh,
+    GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(kholbolt),
+    GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(kholbolt),
+    excludeInvoiceId: opts.excludeInvoiceId,
   });
 }
 

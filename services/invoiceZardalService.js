@@ -233,78 +233,26 @@ async function recalculateGereeBalance(gereeId, baiguullagiinId) {
   const NekhemjlekhiinTuukhModel = nekhemjlekhiinTuukh(kholbolt);
   const GereeModel = Geree(kholbolt);
 
-  const geree = await GereeModel.findById(gereeId)
-    .select("ekhniiUldegdel positiveBalance")
-    .lean();
-  if (!geree) {
+  const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
+  const updatedGeree = await recalcGlobalUldegdel({
+    gereeId,
+    baiguullagiinId,
+    GereeModel,
+    NekhemjlekhiinTuukhModel,
+    GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(kholbolt),
+    GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(kholbolt),
+  });
+
+  if (!updatedGeree) {
     return { success: false, statusCode: 404, message: "Geree not found" };
   }
 
-  // Start with geree-level ekhniiUldegdel
-  let totalCharges = geree.ekhniiUldegdel || 0;
-
-  // Sum ALL invoice original totals (excluding ekhniiUldegdel portion)
-  const allInvoices = await NekhemjlekhiinTuukhModel.find({
-    gereeniiId: String(gereeId),
-    baiguullagiinId: String(baiguullagiinId),
-  })
-    .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
-    .lean();
-  allInvoices.forEach((inv) => {
-    const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
-    totalCharges += original - (inv.ekhniiUldegdel || 0);
-  });
-
-  // Sum ALL avlaga original amounts
-  const allAvlaga = await GereeniiTulukhAvlaga(kholbolt)
-    .find({
-      baiguullagiinId: String(baiguullagiinId),
-      gereeniiId: String(gereeId),
-    })
-    .select("undsenDun tulukhDun")
-    .lean();
-  allAvlaga.forEach((a) => {
-    totalCharges += a.undsenDun || a.tulukhDun || 0;
-  });
-
-  // Sum ALL payments
-  const allPayments = await GereeniiTulsunAvlaga(kholbolt)
-    .find({
-      baiguullagiinId: String(baiguullagiinId),
-      gereeniiId: String(gereeId),
-    })
-    .select("tulsunDun")
-    .lean();
-  let totalPayments = 0;
-  allPayments.forEach((p) => {
-    totalPayments += p.tulsunDun || 0;
-  });
-
-  const finalGlobalUldegdel = totalCharges - totalPayments;
-  const finalPositiveBalance = Math.max(0, -finalGlobalUldegdel);
-
-  await GereeModel.findByIdAndUpdate(
-    gereeId,
-    { $set: { globalUldegdel: finalGlobalUldegdel, positiveBalance: finalPositiveBalance } },
-    { new: true },
-  );
-
-  console.log(
-    "[NEKHEMJLEKH] recalculateGereeBalance success",
-    gereeId,
-    "totalCharges",
-    totalCharges,
-    "totalPayments",
-    totalPayments,
-    "finalGlobalUldegdel",
-    finalGlobalUldegdel,
-  );
   return {
     success: true,
     message: "Balance recalculated successfully",
     data: {
-      globalUldegdel: finalGlobalUldegdel,
-      positiveBalance: finalPositiveBalance,
+      globalUldegdel: updatedGeree.globalUldegdel,
+      positiveBalance: updatedGeree.positiveBalance,
     },
   };
 }

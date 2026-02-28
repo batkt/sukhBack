@@ -530,87 +530,45 @@ async function markInvoicesAsPaid(options) {
     }
   }
 
-  // Recalculate and store globalUldegdel on affected gerees
-  // Formula: totalCharges (ekhniiUldegdel + invoice originals + avlaga originals) - totalPayments
+  // Recalculate and store globalUldegdel on affected gerees using shared utility
+  const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
   try {
-    const NekhemjlekhiinTuukhForRecalc = NekhemjlekhiinTuukh;
-
     for (const gereeId of gereesNeedingRecalc) {
       try {
-        const gereeToUpdate = await GereeModel.findById(gereeId);
-        if (!gereeToUpdate) continue;
-
-        // Start with geree-level ekhniiUldegdel
-        let totalCharges = gereeToUpdate.ekhniiUldegdel || 0;
-
-        // Sum ALL invoice original totals (excluding ekhniiUldegdel portion to avoid double-counting)
-        const allInvs = await NekhemjlekhiinTuukhForRecalc.find({
-          baiguullagiinId: String(baiguullagiinId),
-          gereeniiId: String(gereeId),
-        })
-          .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
-          .lean();
-        allInvs.forEach((inv) => {
-          const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
-          totalCharges += original - (inv.ekhniiUldegdel || 0);
+        const updatedGeree = await recalcGlobalUldegdel({
+          gereeId,
+          baiguullagiinId,
+          GereeModel,
+          NekhemjlekhiinTuukhModel: NekhemjlekhiinTuukh,
+          GereeniiTulukhAvlagaModel,
+          GereeniiTulsunAvlagaModel,
         });
 
-        // Sum ALL avlaga original amounts
-        const allAvlaga = await GereeniiTulukhAvlagaModel.find({
-          baiguullagiinId: String(baiguullagiinId),
-          gereeniiId: String(gereeId),
-        })
-          .select("undsenDun tulukhDun")
-          .lean();
-        allAvlaga.forEach((a) => {
-          totalCharges += a.undsenDun || a.tulukhDun || 0;
-        });
-
-        // Sum ALL payments
-        const allPayments = await GereeniiTulsunAvlagaModel.find({
-          baiguullagiinId: String(baiguullagiinId),
-          gereeniiId: String(gereeId),
-        })
-          .select("tulsunDun")
-          .lean();
-        let totalPayments = 0;
-        allPayments.forEach((p) => {
-          totalPayments += p.tulsunDun || 0;
-        });
-
-        {
-          const newGlobalUldegdel = totalCharges - totalPayments;
-          gereeToUpdate.globalUldegdel = newGlobalUldegdel;
-          gereeToUpdate.positiveBalance = Math.max(0, -newGlobalUldegdel);
-          await gereeToUpdate.save();
-
+        if (updatedGeree && updatedGeree.globalUldegdel > 0) {
           // If there's still outstanding balance, re-open latest invoice so QPay can collect it
-          // Only mark as "Төлсөн" when user has 0 uldegdel
-          if (newGlobalUldegdel > 0) {
-            try {
-              const latestInvoice = await NekhemjlekhiinTuukhForRecalc.findOne({
-                baiguullagiinId: String(baiguullagiinId),
-                gereeniiId: String(gereeId),
-              }).sort({ ognoo: -1, createdAt: -1 });
+          try {
+            const latestInvoice = await NekhemjlekhiinTuukh.findOne({
+              baiguullagiinId: String(baiguullagiinId),
+              gereeniiId: String(gereeId),
+            }).sort({ ognoo: -1, createdAt: -1 });
 
-              if (latestInvoice) {
-                await NekhemjlekhiinTuukhForRecalc.findByIdAndUpdate(
-                  latestInvoice._id,
-                  {
-                    $set: {
-                      uldegdel: newGlobalUldegdel,
-                      niitTulbur: newGlobalUldegdel,
-                      tuluv: "Төлөөгүй",
-                    },
+            if (latestInvoice) {
+              await NekhemjlekhiinTuukh.findByIdAndUpdate(
+                latestInvoice._id,
+                {
+                  $set: {
+                    uldegdel: updatedGeree.globalUldegdel,
+                    niitTulbur: updatedGeree.globalUldegdel,
+                    tuluv: "Төлөөгүй",
                   },
-                );
-              }
-            } catch (reopenErr) {
-              console.error(
-                `❌ [INVOICE PAYMENT] Error re-opening invoice for geree ${gereeId}:`,
-                reopenErr.message,
+                },
               );
             }
+          } catch (reopenErr) {
+            console.error(
+              `❌ [INVOICE PAYMENT] Error re-opening invoice for geree ${gereeId}:`,
+              reopenErr.message,
+            );
           }
         }
       } catch (recalcError) {

@@ -1581,81 +1581,46 @@ router.get(
         );
       }
 
-      // Recalculate globalUldegdel from raw amounts (totalCharges - totalPayments)
+      // Recalculate globalUldegdel using shared utility
+      const { recalcGlobalUldegdel: recalcSingle } = require("../utils/recalcGlobalUldegdel");
+      const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+      const GereeniiTulsunAvlagaRecalcSingle = require("../models/gereeniiTulsunAvlaga");
       try {
-        const gereeForGlobal = await Geree(kholbolt).findById(
-          nekhemjlekh.gereeniiId,
-        );
-        if (gereeForGlobal) {
-          let totalCharges = gereeForGlobal.ekhniiUldegdel || 0;
+        const updatedGeree = await recalcSingle({
+          gereeId: nekhemjlekh.gereeniiId,
+          baiguullagiinId,
+          GereeModel: Geree(kholbolt),
+          NekhemjlekhiinTuukhModel: nekhemjlekhiinTuukh(kholbolt),
+          GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(kholbolt),
+          GereeniiTulsunAvlagaModel: GereeniiTulsunAvlagaRecalcSingle(kholbolt),
+        });
 
-          const allInvoices = await nekhemjlekhiinTuukh(kholbolt)
-            .find({
-              baiguullagiinId: String(baiguullagiinId),
-              gereeniiId: String(nekhemjlekh.gereeniiId),
-            })
-            .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
-            .lean();
-          allInvoices.forEach((inv) => {
-            const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
-            totalCharges += original - (inv.ekhniiUldegdel || 0);
-          });
-
-          const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
-          const allAvlaga = await GereeniiTulukhAvlaga(kholbolt)
-            .find({
-              baiguullagiinId: String(baiguullagiinId),
-              gereeniiId: String(nekhemjlekh.gereeniiId),
-            })
-            .select("undsenDun tulukhDun")
-            .lean();
-          allAvlaga.forEach((a) => {
-            totalCharges += a.undsenDun || a.tulukhDun || 0;
-          });
-
-          const GereeniiTulsunAvlagaRecalcSingle = require("../models/gereeniiTulsunAvlaga");
-          const allPaymentsSingle = await GereeniiTulsunAvlagaRecalcSingle(kholbolt)
-            .find({
-              baiguullagiinId: String(baiguullagiinId),
-              gereeniiId: String(nekhemjlekh.gereeniiId),
-            })
-            .select("tulsunDun")
-            .lean();
-          let totalPayments = 0;
-          allPaymentsSingle.forEach((p) => { totalPayments += p.tulsunDun || 0; });
-
-          const newGlobalUldegdel = totalCharges - totalPayments;
-          gereeForGlobal.globalUldegdel = newGlobalUldegdel;
-          gereeForGlobal.positiveBalance = Math.max(0, -newGlobalUldegdel);
-          await gereeForGlobal.save();
-
-          // If still outstanding balance, re-open latest invoice so QPay can collect it
-          if (newGlobalUldegdel > 0) {
-            try {
-              const latestInv = await nekhemjlekhiinTuukh(kholbolt)
-                .findOne({
-                  baiguullagiinId: String(baiguullagiinId),
-                  gereeniiId: String(nekhemjlekh.gereeniiId),
-                })
-                .sort({ ognoo: -1, createdAt: -1 });
-              if (latestInv) {
-                await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
-                  latestInv._id,
-                  {
-                    $set: {
-                      uldegdel: newGlobalUldegdel,
-                      niitTulbur: newGlobalUldegdel,
-                      tuluv: "Төлөөгүй",
-                    },
+        // If still outstanding balance, re-open latest invoice so QPay can collect it
+        if (updatedGeree && updatedGeree.globalUldegdel > 0) {
+          try {
+            const latestInv = await nekhemjlekhiinTuukh(kholbolt)
+              .findOne({
+                baiguullagiinId: String(baiguullagiinId),
+                gereeniiId: String(nekhemjlekh.gereeniiId),
+              })
+              .sort({ ognoo: -1, createdAt: -1 });
+            if (latestInv) {
+              await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
+                latestInv._id,
+                {
+                  $set: {
+                    uldegdel: updatedGeree.globalUldegdel,
+                    niitTulbur: updatedGeree.globalUldegdel,
+                    tuluv: "Төлөөгүй",
                   },
-                );
-              }
-            } catch (reopenErr) {
-              console.error(
-                "❌ [QPAY CALLBACK] Error re-opening invoice:",
-                reopenErr.message,
+                },
               );
             }
+          } catch (reopenErr) {
+            console.error(
+              "❌ [QPAY CALLBACK] Error re-opening invoice:",
+              reopenErr.message,
+            );
           }
         }
       } catch (recalcErr) {
@@ -2126,81 +2091,46 @@ router.get(
             );
           }
 
-          // Recalculate globalUldegdel from raw amounts (totalCharges - totalPayments)
+          // Recalculate globalUldegdel using shared utility
+          const { recalcGlobalUldegdel: recalcMulti } = require("../utils/recalcGlobalUldegdel");
+          const GereeniiTulukhAvlagaRecalc = require("../models/gereeniiTulukhAvlaga");
+          const GereeniiTulsunAvlagaRecalcMulti = require("../models/gereeniiTulsunAvlaga");
           try {
-            const gereeForGlobal = await Geree(kholbolt).findById(
-              nekhemjlekh.gereeniiId,
-            );
-            if (gereeForGlobal) {
-              let totalChargesMulti = gereeForGlobal.ekhniiUldegdel || 0;
+            const updatedGereeMulti = await recalcMulti({
+              gereeId: nekhemjlekh.gereeniiId,
+              baiguullagiinId,
+              GereeModel: Geree(kholbolt),
+              NekhemjlekhiinTuukhModel: nekhemjlekhiinTuukh(kholbolt),
+              GereeniiTulukhAvlagaModel: GereeniiTulukhAvlagaRecalc(kholbolt),
+              GereeniiTulsunAvlagaModel: GereeniiTulsunAvlagaRecalcMulti(kholbolt),
+            });
 
-              const allInvsMulti = await nekhemjlekhiinTuukh(kholbolt)
-                .find({
-                  baiguullagiinId: String(baiguullagiinId),
-                  gereeniiId: String(nekhemjlekh.gereeniiId),
-                })
-                .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
-                .lean();
-              allInvsMulti.forEach((inv) => {
-                const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
-                totalChargesMulti += original - (inv.ekhniiUldegdel || 0);
-              });
-
-              const GereeniiTulukhAvlagaRecalc = require("../models/gereeniiTulukhAvlaga");
-              const allAvlagaMulti = await GereeniiTulukhAvlagaRecalc(kholbolt)
-                .find({
-                  baiguullagiinId: String(baiguullagiinId),
-                  gereeniiId: String(nekhemjlekh.gereeniiId),
-                })
-                .select("undsenDun tulukhDun")
-                .lean();
-              allAvlagaMulti.forEach((a) => {
-                totalChargesMulti += a.undsenDun || a.tulukhDun || 0;
-              });
-
-              const GereeniiTulsunAvlagaRecalcMulti = require("../models/gereeniiTulsunAvlaga");
-              const allPaymentsMulti = await GereeniiTulsunAvlagaRecalcMulti(kholbolt)
-                .find({
-                  baiguullagiinId: String(baiguullagiinId),
-                  gereeniiId: String(nekhemjlekh.gereeniiId),
-                })
-                .select("tulsunDun")
-                .lean();
-              let totalPaymentsMulti = 0;
-              allPaymentsMulti.forEach((p) => { totalPaymentsMulti += p.tulsunDun || 0; });
-
-              const newGlobalUldegdel = totalChargesMulti - totalPaymentsMulti;
-              gereeForGlobal.globalUldegdel = newGlobalUldegdel;
-              gereeForGlobal.positiveBalance = Math.max(0, -newGlobalUldegdel);
-              await gereeForGlobal.save();
-
-              // If still outstanding balance, re-open latest invoice so QPay can collect it
-              if (newGlobalUldegdel > 0) {
-                try {
-                  const latestInv = await nekhemjlekhiinTuukh(kholbolt)
-                    .findOne({
-                      baiguullagiinId: String(baiguullagiinId),
-                      gereeniiId: String(nekhemjlekh.gereeniiId),
-                    })
-                    .sort({ ognoo: -1, createdAt: -1 });
-                  if (latestInv) {
-                    await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
-                      latestInv._id,
-                      {
-                        $set: {
-                          uldegdel: newGlobalUldegdel,
-                          niitTulbur: newGlobalUldegdel,
-                          tuluv: "Төлөөгүй",
-                        },
+            // If still outstanding balance, re-open latest invoice so QPay can collect it
+            if (updatedGereeMulti && updatedGereeMulti.globalUldegdel > 0) {
+              try {
+                const latestInv = await nekhemjlekhiinTuukh(kholbolt)
+                  .findOne({
+                    baiguullagiinId: String(baiguullagiinId),
+                    gereeniiId: String(nekhemjlekh.gereeniiId),
+                  })
+                  .sort({ ognoo: -1, createdAt: -1 });
+                if (latestInv) {
+                  await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
+                    latestInv._id,
+                    {
+                      $set: {
+                        uldegdel: updatedGereeMulti.globalUldegdel,
+                        niitTulbur: updatedGereeMulti.globalUldegdel,
+                        tuluv: "Төлөөгүй",
                       },
-                    );
-                  }
-                } catch (reopenErr) {
-                  console.error(
-                    "❌ [QPAY MULTI CALLBACK] Error re-opening invoice:",
-                    reopenErr.message,
+                    },
                   );
                 }
+              } catch (reopenErr) {
+                console.error(
+                  "❌ [QPAY MULTI CALLBACK] Error re-opening invoice:",
+                  reopenErr.message,
+                );
               }
             }
           } catch (recalcErr) {
