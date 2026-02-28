@@ -227,7 +227,7 @@ async function markInvoicesAsPaid(options) {
           tulsunDun: dun,
           tulsunAldangi: 0,
 
-          turul: "prepayment",
+          turul: "Илүү төлөлт",
           zardliinTurul: "",
           zardliinId: "",
           zardliinNer: "",
@@ -432,7 +432,7 @@ async function markInvoicesAsPaid(options) {
         tulsunDun: dun,
         tulsunAldangi: 0,
 
-        turul: "invoice_payment",
+        turul: "төлөлт",
         zardliinTurul: "",
         zardliinId: "",
         zardliinNer: "",
@@ -588,8 +588,38 @@ async function markInvoicesAsPaid(options) {
         if (gereeToUpdate) {
           const positive = gereeToUpdate.positiveBalance || 0;
           // Global balance = unpaid invoices + standalone avlaga - positiveBalance (can be negative when overpaid)
-          gereeToUpdate.globalUldegdel = totalUnpaid - positive;
+          const newGlobalUldegdel = totalUnpaid - positive;
+          gereeToUpdate.globalUldegdel = newGlobalUldegdel;
           await gereeToUpdate.save();
+
+          // If there's still outstanding balance, re-open latest invoice so QPay can collect it
+          // Only mark as "Төлсөн" when user has 0 uldegdel
+          if (newGlobalUldegdel > 0) {
+            try {
+              const latestInvoice = await NekhemjlekhiinTuukhForRecalc.findOne({
+                baiguullagiinId: String(baiguullagiinId),
+                gereeniiId: String(gereeId),
+              }).sort({ ognoo: -1, createdAt: -1 });
+
+              if (latestInvoice) {
+                await NekhemjlekhiinTuukhForRecalc.findByIdAndUpdate(
+                  latestInvoice._id,
+                  {
+                    $set: {
+                      uldegdel: newGlobalUldegdel,
+                      niitTulbur: newGlobalUldegdel,
+                      tuluv: "Төлөөгүй",
+                    },
+                  },
+                );
+              }
+            } catch (reopenErr) {
+              console.error(
+                `❌ [INVOICE PAYMENT] Error re-opening invoice for geree ${gereeId}:`,
+                reopenErr.message,
+              );
+            }
+          }
         }
       } catch (recalcError) {
         console.error(
@@ -701,12 +731,12 @@ async function getGereeniiTulsunSummary(options) {
         totalTulsunDun: { $sum: "$tulsunDun" },
         totalInvoicePayment: {
           $sum: {
-            $cond: [{ $eq: ["$turul", "invoice_payment"] }, "$tulsunDun", 0],
+            $cond: [{ $eq: ["$turul", "төлөлт"] }, "$tulsunDun", 0],
           },
         },
         totalPrepayment: {
           $sum: {
-            $cond: [{ $eq: ["$turul", "prepayment"] }, "$tulsunDun", 0],
+            $cond: [{ $eq: ["$turul", "урьдчилсан төлөлт"] }, "$tulsunDun", 0],
           },
         },
       },

@@ -1541,7 +1541,7 @@ router.get(
           ognoo: new Date(),
           tulsunDun: paidAmount,
           tulsunAldangi: 0,
-          turul: "invoice_payment",
+          turul: "төлөлт",
           zardliinTurul: "",
           zardliinId: "",
           zardliinNer: "",
@@ -1630,8 +1630,38 @@ router.get(
           });
 
           const positive = gereeForGlobal.positiveBalance || 0;
-          gereeForGlobal.globalUldegdel = totalUnpaid - positive;
+          const newGlobalUldegdel = totalUnpaid - positive;
+          gereeForGlobal.globalUldegdel = newGlobalUldegdel;
           await gereeForGlobal.save();
+
+          // If still outstanding balance, re-open latest invoice so QPay can collect it
+          if (newGlobalUldegdel > 0) {
+            try {
+              const latestInv = await nekhemjlekhiinTuukh(kholbolt)
+                .findOne({
+                  baiguullagiinId: String(baiguullagiinId),
+                  gereeniiId: String(nekhemjlekh.gereeniiId),
+                })
+                .sort({ ognoo: -1, createdAt: -1 });
+              if (latestInv) {
+                await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
+                  latestInv._id,
+                  {
+                    $set: {
+                      uldegdel: newGlobalUldegdel,
+                      niitTulbur: newGlobalUldegdel,
+                      tuluv: "Төлөөгүй",
+                    },
+                  },
+                );
+              }
+            } catch (reopenErr) {
+              console.error(
+                "❌ [QPAY CALLBACK] Error re-opening invoice:",
+                reopenErr.message,
+              );
+            }
+          }
         }
       } catch (recalcErr) {
         console.error(
@@ -2060,7 +2090,7 @@ router.get(
               ognoo: new Date(),
               tulsunDun: multiPaidAmt,
               tulsunAldangi: 0,
-              turul: "invoice_payment",
+              turul: "төлөлт",
               zardliinTurul: "",
               zardliinId: "",
               zardliinNer: "",
@@ -2150,8 +2180,38 @@ router.get(
               });
 
               const positive = gereeForGlobal.positiveBalance || 0;
-              gereeForGlobal.globalUldegdel = totalUnpaid - positive;
+              const newGlobalUldegdel = totalUnpaid - positive;
+              gereeForGlobal.globalUldegdel = newGlobalUldegdel;
               await gereeForGlobal.save();
+
+              // If still outstanding balance, re-open latest invoice so QPay can collect it
+              if (newGlobalUldegdel > 0) {
+                try {
+                  const latestInv = await nekhemjlekhiinTuukh(kholbolt)
+                    .findOne({
+                      baiguullagiinId: String(baiguullagiinId),
+                      gereeniiId: String(nekhemjlekh.gereeniiId),
+                    })
+                    .sort({ ognoo: -1, createdAt: -1 });
+                  if (latestInv) {
+                    await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
+                      latestInv._id,
+                      {
+                        $set: {
+                          uldegdel: newGlobalUldegdel,
+                          niitTulbur: newGlobalUldegdel,
+                          tuluv: "Төлөөгүй",
+                        },
+                      },
+                    );
+                  }
+                } catch (reopenErr) {
+                  console.error(
+                    "❌ [QPAY MULTI CALLBACK] Error re-opening invoice:",
+                    reopenErr.message,
+                  );
+                }
+              }
             }
           } catch (recalcErr) {
             console.error(
