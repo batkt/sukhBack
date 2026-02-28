@@ -108,7 +108,7 @@ async function getHistoryLedger(options) {
       ner: "Эхний үлдэгдэл",
       isSystem: true,
       _id: `geree-ekhnii-${gid}`,
-      ajiltan: gereeDoc.burtgesenAjiltan || "Систем",
+      ajiltan: "Систем",
       khelber: "Авлага",
       tailbar: "Эхний үлдэгдэл",
       burtgesenOgnoo: gereeDoc.createdAt
