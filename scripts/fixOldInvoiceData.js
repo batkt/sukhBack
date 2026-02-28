@@ -30,28 +30,56 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   }
   console.log("");
 
-  // Initialize database connection
+  // Initialize database connection (same as index.js)
   await db.kholboltUusgey();
 
-  // Get database connection for this organization
-  const kholbolt = db.kholboltuud.find(
+  // Get tenant database connection for this organization (tukhainBaaziinKholbolt)
+  let tukhainBaaziinKholbolt = db.kholboltuud.find(
     (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
   );
-  if (!kholbolt) {
+  
+  // Try ObjectId comparison if string comparison fails
+  if (!tukhainBaaziinKholbolt) {
+    const mongoose = require("mongoose");
+    if (mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
+      const baiguullagiinObjectId = new mongoose.Types.ObjectId(baiguullagiinId);
+      const found = db.kholboltuud.find((k) => {
+        const kId = k.baiguullagiinId;
+        if (mongoose.Types.ObjectId.isValid(kId)) {
+          return kId.equals(baiguullagiinObjectId);
+        }
+        return String(kId) === String(baiguullagiinId);
+      });
+      if (found) {
+        tukhainBaaziinKholbolt = found;
+      }
+    }
+  }
+  
+  if (!tukhainBaaziinKholbolt) {
+    // List available connections for debugging
+    console.error("Available connections:");
+    db.kholboltuud.forEach((k) => {
+      console.error(`  - baiguullagiinId: ${k.baiguullagiinId}, dbName: ${k.dbName || k.baaziinNer || "N/A"}`);
+    });
     throw new Error(`Холболт олдсонгүй: ${baiguullagiinId}`);
   }
 
-  console.log(`📊 Database: ${kholbolt.dbName || "N/A"}`);
+  console.log(`📊 Database: ${tukhainBaaziinKholbolt.dbName || tukhainBaaziinKholbolt.baaziinNer || "N/A"}`);
 
-  // Get organization name from tenant database
+  // Get organization name from main database (Baiguullaga is stored in main DB)
   const Baiguullaga = require("../models/baiguullaga");
-  const baiguullaga = await Baiguullaga(kholbolt).findById(baiguullagiinId).lean();
-  if (baiguullaga) {
-    console.log(`📋 Organization: ${baiguullaga.ner || "N/A"}`);
+  try {
+    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
+    if (baiguullaga) {
+      console.log(`📋 Organization: ${baiguullaga.ner || "N/A"}`);
+    }
+  } catch (baiguullagaError) {
+    console.warn(`⚠️ Could not fetch organization name: ${baiguullagaError.message}`);
   }
 
-  // Initialize models with tenant connection
-  const NekhemjlekhiinTuukhModel = NekhemjlekhModel(kholbolt);
+  // Initialize models with tenant connection (tukhainBaaziinKholbolt)
+  const NekhemjlekhiinTuukhModel = NekhemjlekhModel(tukhainBaaziinKholbolt);
 
   // Build query for invoices
   const invoiceQuery = { baiguullagiinId: String(baiguullagiinId) };
