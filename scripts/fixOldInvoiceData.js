@@ -16,7 +16,6 @@ const { db } = require("zevbackv2");
 const { getHistoryLedger } = require("../services/historyLedgerService");
 const NekhemjlekhModel = require("../models/nekhemjlekhiinTuukh");
 const mongoose = require("mongoose");
-const mongoose = require("mongoose");
 
 async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   const { dryRun = false, barilgiinId = null, invoiceId = null } = options;
