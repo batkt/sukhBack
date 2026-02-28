@@ -1590,48 +1590,52 @@ router.get(
         );
       }
 
-      // Recalculate globalUldegdel on the geree (same formula as manual payment: invoices + standalone avlaga - positiveBalance)
+      // Recalculate globalUldegdel from raw amounts (totalCharges - totalPayments)
       try {
         const gereeForGlobal = await Geree(kholbolt).findById(
           nekhemjlekh.gereeniiId,
         );
         if (gereeForGlobal) {
-          const unpaidInvoices = await nekhemjlekhiinTuukh(kholbolt)
+          let totalCharges = gereeForGlobal.ekhniiUldegdel || 0;
+
+          const allInvoices = await nekhemjlekhiinTuukh(kholbolt)
             .find({
               baiguullagiinId: String(baiguullagiinId),
               gereeniiId: String(nekhemjlekh.gereeniiId),
-              tuluv: { $ne: "Төлсөн" },
             })
-            .select("niitTulbur uldegdel")
+            .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
             .lean();
-
-          let totalUnpaid = 0;
-          unpaidInvoices.forEach((inv) => {
-            const unpaid =
-              typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel)
-                ? inv.uldegdel
-                : inv.niitTulbur || 0;
-            totalUnpaid += unpaid;
+          allInvoices.forEach((inv) => {
+            const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
+            totalCharges += original - (inv.ekhniiUldegdel || 0);
           });
 
           const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
-          const tulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+          const allAvlaga = await GereeniiTulukhAvlaga(kholbolt)
             .find({
               baiguullagiinId: String(baiguullagiinId),
               gereeniiId: String(nekhemjlekh.gereeniiId),
             })
-            .select("uldegdel")
+            .select("undsenDun tulukhDun")
             .lean();
-          tulukhRows.forEach((row) => {
-            totalUnpaid +=
-              typeof row.uldegdel === "number" && !isNaN(row.uldegdel)
-                ? row.uldegdel
-                : 0;
+          allAvlaga.forEach((a) => {
+            totalCharges += a.undsenDun || a.tulukhDun || 0;
           });
 
-          const positive = gereeForGlobal.positiveBalance || 0;
-          const newGlobalUldegdel = totalUnpaid - positive;
+          const GereeniiTulsunAvlagaRecalcSingle = require("../models/gereeniiTulsunAvlaga");
+          const allPaymentsSingle = await GereeniiTulsunAvlagaRecalcSingle(kholbolt)
+            .find({
+              baiguullagiinId: String(baiguullagiinId),
+              gereeniiId: String(nekhemjlekh.gereeniiId),
+            })
+            .select("tulsunDun")
+            .lean();
+          let totalPayments = 0;
+          allPaymentsSingle.forEach((p) => { totalPayments += p.tulsunDun || 0; });
+
+          const newGlobalUldegdel = totalCharges - totalPayments;
           gereeForGlobal.globalUldegdel = newGlobalUldegdel;
+          gereeForGlobal.positiveBalance = Math.max(0, -newGlobalUldegdel);
           await gereeForGlobal.save();
 
           // If still outstanding balance, re-open latest invoice so QPay can collect it
@@ -2140,48 +2144,52 @@ router.get(
             );
           }
 
-          // Recalculate globalUldegdel on the geree (same formula as manual payment: invoices + standalone avlaga - positiveBalance)
+          // Recalculate globalUldegdel from raw amounts (totalCharges - totalPayments)
           try {
             const gereeForGlobal = await Geree(kholbolt).findById(
               nekhemjlekh.gereeniiId,
             );
             if (gereeForGlobal) {
-              const unpaidInvoices = await nekhemjlekhiinTuukh(kholbolt)
+              let totalChargesMulti = gereeForGlobal.ekhniiUldegdel || 0;
+
+              const allInvsMulti = await nekhemjlekhiinTuukh(kholbolt)
                 .find({
                   baiguullagiinId: String(baiguullagiinId),
                   gereeniiId: String(nekhemjlekh.gereeniiId),
-                  tuluv: { $ne: "Төлсөн" },
                 })
-                .select("niitTulbur uldegdel")
+                .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
                 .lean();
-
-              let totalUnpaid = 0;
-              unpaidInvoices.forEach((inv) => {
-                const unpaid =
-                  typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel)
-                    ? inv.uldegdel
-                    : inv.niitTulbur || 0;
-                totalUnpaid += unpaid;
+              allInvsMulti.forEach((inv) => {
+                const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
+                totalChargesMulti += original - (inv.ekhniiUldegdel || 0);
               });
 
               const GereeniiTulukhAvlagaRecalc = require("../models/gereeniiTulukhAvlaga");
-              const tulukhRowsMulti = await GereeniiTulukhAvlagaRecalc(kholbolt)
+              const allAvlagaMulti = await GereeniiTulukhAvlagaRecalc(kholbolt)
                 .find({
                   baiguullagiinId: String(baiguullagiinId),
                   gereeniiId: String(nekhemjlekh.gereeniiId),
                 })
-                .select("uldegdel")
+                .select("undsenDun tulukhDun")
                 .lean();
-              tulukhRowsMulti.forEach((row) => {
-                totalUnpaid +=
-                  typeof row.uldegdel === "number" && !isNaN(row.uldegdel)
-                    ? row.uldegdel
-                    : 0;
+              allAvlagaMulti.forEach((a) => {
+                totalChargesMulti += a.undsenDun || a.tulukhDun || 0;
               });
 
-              const positive = gereeForGlobal.positiveBalance || 0;
-              const newGlobalUldegdel = totalUnpaid - positive;
+              const GereeniiTulsunAvlagaRecalcMulti = require("../models/gereeniiTulsunAvlaga");
+              const allPaymentsMulti = await GereeniiTulsunAvlagaRecalcMulti(kholbolt)
+                .find({
+                  baiguullagiinId: String(baiguullagiinId),
+                  gereeniiId: String(nekhemjlekh.gereeniiId),
+                })
+                .select("tulsunDun")
+                .lean();
+              let totalPaymentsMulti = 0;
+              allPaymentsMulti.forEach((p) => { totalPaymentsMulti += p.tulsunDun || 0; });
+
+              const newGlobalUldegdel = totalChargesMulti - totalPaymentsMulti;
               gereeForGlobal.globalUldegdel = newGlobalUldegdel;
+              gereeForGlobal.positiveBalance = Math.max(0, -newGlobalUldegdel);
               await gereeForGlobal.save();
 
               // If still outstanding balance, re-open latest invoice so QPay can collect it

@@ -10,12 +10,13 @@ function getNekhemjlekhiinTuukhModel(kholbolt) {
 }
 
 /**
- * Recalculate and set geree.globalUldegdel for one contract.
- * totalUnpaid = sum(unpaid invoices' uldegdel) + sum(gereeniiTulukhAvlaga.uldegdel); globalUldegdel = totalUnpaid - positiveBalance.
+ * Recalculate and set geree.globalUldegdel from raw amounts (totalCharges - totalPayments).
+ * totalCharges = geree.ekhniiUldegdel + SUM(invoice originals excl. ekhnii) + SUM(avlaga originals)
+ * totalPayments = SUM(tulsunAvlaga.tulsunDun)
  * @param {string} gereeniiId - Contract ID
  * @param {string} baiguullagiinId - Org ID
  * @param {object} kholbolt - DB connection
- * @param {{ excludeInvoiceId?: string }} [opts] - If set, exclude this invoice from unpaid sum (e.g. when it is about to be deleted)
+ * @param {{ excludeInvoiceId?: string }} [opts] - If set, exclude this invoice (e.g. when it is about to be deleted)
  */
 async function recalculateGereeGlobalUldegdel(
   gereeniiId,
@@ -27,50 +28,52 @@ async function recalculateGereeGlobalUldegdel(
   const gid = String(gereeniiId);
   const oid = String(baiguullagiinId);
 
-  const invoiceQuery = {
-    baiguullagiinId: oid,
-    gereeniiId: gid,
-    tuluv: { $ne: "Төлсөн" },
-  };
+  const geree = await Geree(kholbolt)
+    .findById(gereeniiId)
+    .select("ekhniiUldegdel")
+    .lean();
+  if (!geree) return;
+
+  // Start with geree-level ekhniiUldegdel
+  let totalCharges = geree.ekhniiUldegdel || 0;
+
+  // Sum ALL invoice original totals (excluding ekhniiUldegdel portion)
+  const invoiceQuery = { baiguullagiinId: oid, gereeniiId: gid };
   if (opts.excludeInvoiceId) {
     invoiceQuery._id = { $ne: opts.excludeInvoiceId };
   }
-  const unpaidInvoices = await NekhemjlekhiinTuukh.find(invoiceQuery)
-    .select("niitTulbur uldegdel")
+  const allInvoices = await NekhemjlekhiinTuukh.find(invoiceQuery)
+    .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
     .lean();
-
-  let totalUnpaid = 0;
-  unpaidInvoices.forEach((inv) => {
-    const u =
-      typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel)
-        ? inv.uldegdel
-        : inv.niitTulbur || 0;
-    totalUnpaid += u;
+  allInvoices.forEach((inv) => {
+    const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
+    totalCharges += original - (inv.ekhniiUldegdel || 0);
   });
 
-  const tulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+  // Sum ALL avlaga original amounts
+  const allAvlaga = await GereeniiTulukhAvlaga(kholbolt)
     .find({ baiguullagiinId: oid, gereeniiId: gid })
-    .select("uldegdel")
+    .select("undsenDun tulukhDun")
     .lean();
-  tulukhRows.forEach((row) => {
-    totalUnpaid +=
-      typeof row.uldegdel === "number" && !isNaN(row.uldegdel)
-        ? row.uldegdel
-        : 0;
+  allAvlaga.forEach((a) => {
+    totalCharges += a.undsenDun || a.tulukhDun || 0;
   });
 
-  const geree = await Geree(kholbolt)
-    .findById(gereeniiId)
-    .select("positiveBalance")
+  // Sum ALL payments
+  const allPayments = await GereeniiTulsunAvlaga(kholbolt)
+    .find({ baiguullagiinId: oid, gereeniiId: gid })
+    .select("tulsunDun")
     .lean();
-  const positive =
-    geree && typeof geree.positiveBalance === "number"
-      ? geree.positiveBalance
-      : 0;
-  const newGlobal = totalUnpaid - positive;
+  let totalPayments = 0;
+  allPayments.forEach((p) => {
+    totalPayments += p.tulsunDun || 0;
+  });
+
+  const newGlobal = totalCharges - totalPayments;
+  const newPositive = Math.max(0, -newGlobal);
 
   await Geree(kholbolt).findByIdAndUpdate(gereeniiId, {
-    $set: { globalUldegdel: newGlobal },
+    $set: { globalUldegdel: newGlobal, positiveBalance: newPositive },
   });
 }
 

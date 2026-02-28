@@ -215,8 +215,9 @@ async function deleteInvoiceZardal(invoiceId, zardalId, baiguullagiinId) {
 }
 
 /**
- * Recalculate geree globalUldegdel from unpaid invoice uldegdels minus positiveBalance (overpayment).
- * Does not overwrite positiveBalance; uses existing geree.positiveBalance. Returns result shape for API.
+ * Recalculate geree globalUldegdel from raw amounts (totalCharges - totalPayments).
+ * totalCharges = geree.ekhniiUldegdel + SUM(invoice originals excl. ekhnii) + SUM(avlaga originals)
+ * totalPayments = SUM(tulsunAvlaga.tulsunDun)
  */
 async function recalculateGereeBalance(gereeId, baiguullagiinId) {
   const kholbolt = getKholboltByBaiguullagiinId(baiguullagiinId);
@@ -232,54 +233,69 @@ async function recalculateGereeBalance(gereeId, baiguullagiinId) {
   const NekhemjlekhiinTuukhModel = nekhemjlekhiinTuukh(kholbolt);
   const GereeModel = Geree(kholbolt);
 
-  const unpaidInvoices = await NekhemjlekhiinTuukhModel.find({
+  const geree = await GereeModel.findById(gereeId)
+    .select("ekhniiUldegdel positiveBalance")
+    .lean();
+  if (!geree) {
+    return { success: false, statusCode: 404, message: "Geree not found" };
+  }
+
+  // Start with geree-level ekhniiUldegdel
+  let totalCharges = geree.ekhniiUldegdel || 0;
+
+  // Sum ALL invoice original totals (excluding ekhniiUldegdel portion)
+  const allInvoices = await NekhemjlekhiinTuukhModel.find({
     gereeniiId: String(gereeId),
     baiguullagiinId: String(baiguullagiinId),
-    tuluv: { $ne: "Төлсөн" },
   })
-    .select("uldegdel niitTulbur")
+    .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
     .lean();
-
-  let totalUnpaid = 0;
-  unpaidInvoices.forEach((inv) => {
-    totalUnpaid += inv.uldegdel ?? inv.niitTulbur ?? 0;
+  allInvoices.forEach((inv) => {
+    const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
+    totalCharges += original - (inv.ekhniiUldegdel || 0);
   });
 
-  // Also include outstanding gereeniiTulukhAvlaga records (standalone avlaga)
-  const tulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+  // Sum ALL avlaga original amounts
+  const allAvlaga = await GereeniiTulukhAvlaga(kholbolt)
     .find({
       baiguullagiinId: String(baiguullagiinId),
       gereeniiId: String(gereeId),
     })
-    .select("uldegdel")
+    .select("undsenDun tulukhDun")
     .lean();
-  tulukhRows.forEach((row) => {
-    totalUnpaid +=
-      typeof row.uldegdel === "number" && !isNaN(row.uldegdel)
-        ? row.uldegdel
-        : 0;
+  allAvlaga.forEach((a) => {
+    totalCharges += a.undsenDun || a.tulukhDun || 0;
   });
 
-  // Use geree.positiveBalance (overpayment from payment flow); do NOT overwrite it
-  const geree = await GereeModel.findById(gereeId)
-    .select("positiveBalance")
+  // Sum ALL payments
+  const allPayments = await GereeniiTulsunAvlaga(kholbolt)
+    .find({
+      baiguullagiinId: String(baiguullagiinId),
+      gereeniiId: String(gereeId),
+    })
+    .select("tulsunDun")
     .lean();
-  const positiveBalance = (geree && geree.positiveBalance) || 0;
-  const finalGlobalUldegdel = totalUnpaid - positiveBalance;
+  let totalPayments = 0;
+  allPayments.forEach((p) => {
+    totalPayments += p.tulsunDun || 0;
+  });
+
+  const finalGlobalUldegdel = totalCharges - totalPayments;
+  const finalPositiveBalance = Math.max(0, -finalGlobalUldegdel);
 
   await GereeModel.findByIdAndUpdate(
     gereeId,
-    { $set: { globalUldegdel: finalGlobalUldegdel } },
+    { $set: { globalUldegdel: finalGlobalUldegdel, positiveBalance: finalPositiveBalance } },
     { new: true },
   );
 
   console.log(
     "[NEKHEMJLEKH] recalculateGereeBalance success",
     gereeId,
-    "totalUnpaid",
-    totalUnpaid,
-    "positiveBalance",
-    positiveBalance,
+    "totalCharges",
+    totalCharges,
+    "totalPayments",
+    totalPayments,
     "finalGlobalUldegdel",
     finalGlobalUldegdel,
   );
@@ -288,7 +304,7 @@ async function recalculateGereeBalance(gereeId, baiguullagiinId) {
     message: "Balance recalculated successfully",
     data: {
       globalUldegdel: finalGlobalUldegdel,
-      positiveBalance,
+      positiveBalance: finalPositiveBalance,
     },
   };
 }

@@ -204,7 +204,42 @@ router.use((req, res, next) => {
   next();
 });
 
-// Custom DELETE for gereeniiTulukhAvlaga — subtract avlaga uldegdel from globalUldegdel
+// Shared helper: full recalculation from raw amounts after delete
+async function recalcGlobalAfterDelete(kholbolt, gereeniiId, baiguullagiinId) {
+  const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+  const geree = await Geree(kholbolt).findById(gereeniiId);
+  if (!geree) return;
+
+  let totalCharges = geree.ekhniiUldegdel || 0;
+
+  const allInvs = await NekhemjlekhiinTuukh(kholbolt)
+    .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId) })
+    .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
+    .lean();
+  allInvs.forEach((inv) => {
+    const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
+    totalCharges += original - (inv.ekhniiUldegdel || 0);
+  });
+
+  const allAvlaga = await GereeniiTulukhAvlaga(kholbolt)
+    .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId) })
+    .select("undsenDun tulukhDun")
+    .lean();
+  allAvlaga.forEach((a) => { totalCharges += a.undsenDun || a.tulukhDun || 0; });
+
+  const allPayments = await GereeniiTulsunAvlaga(kholbolt)
+    .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId) })
+    .select("tulsunDun")
+    .lean();
+  let totalPayments = 0;
+  allPayments.forEach((p) => { totalPayments += p.tulsunDun || 0; });
+
+  geree.globalUldegdel = totalCharges - totalPayments;
+  geree.positiveBalance = Math.max(0, -(geree.globalUldegdel));
+  await geree.save();
+}
+
+// Custom DELETE for gereeniiTulukhAvlaga — full recalculation after delete
 router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
   try {
     const { db } = require("zevbackv2");
@@ -218,20 +253,12 @@ router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
     if (!doc) return res.status(404).json({ error: "Олдсонгүй" });
 
     const gereeniiId = doc.gereeniiId;
-    const docUldegdel = doc.uldegdel || 0;
-
-    // Delete using raw collection to avoid triggering Mongoose hooks
     await Model.collection.deleteOne({ _id: doc._id });
 
-    // Simple delta: subtract this avlaga's remaining balance from globalUldegdel
     try {
-      const geree = await Geree(kholbolt).findById(gereeniiId);
-      if (geree) {
-        geree.globalUldegdel = (geree.globalUldegdel || 0) - docUldegdel;
-        await geree.save();
-      }
+      await recalcGlobalAfterDelete(kholbolt, gereeniiId, req.query.baiguullagiinId);
     } catch (recalcErr) {
-      console.error("❌ Error adjusting globalUldegdel after avlaga delete:", recalcErr.message);
+      console.error("❌ Error recalculating globalUldegdel after avlaga delete:", recalcErr.message);
     }
 
     res.json({ success: true });
@@ -241,7 +268,7 @@ router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
   }
 });
 
-// Custom DELETE for gereeniiTulsunAvlaga — add payment amount back to globalUldegdel
+// Custom DELETE for gereeniiTulsunAvlaga — full recalculation after delete
 router.delete("/gereeniiTulsunAvlaga/:id", tokenShalgakh, async (req, res) => {
   try {
     const { db } = require("zevbackv2");
@@ -255,24 +282,12 @@ router.delete("/gereeniiTulsunAvlaga/:id", tokenShalgakh, async (req, res) => {
     if (!doc) return res.status(404).json({ error: "Олдсонгүй" });
 
     const gereeniiId = doc.gereeniiId;
-    const paymentAmount = doc.tulsunDun || 0;
-
-    // Delete using raw collection to avoid triggering Mongoose hooks
     await Model.collection.deleteOne({ _id: doc._id });
 
-    // Simple delta: add back the payment amount to globalUldegdel
     try {
-      const geree = await Geree(kholbolt).findById(gereeniiId);
-      if (geree) {
-        geree.globalUldegdel = (geree.globalUldegdel || 0) + paymentAmount;
-        // If there was positiveBalance from this payment, reduce it
-        if (geree.positiveBalance > 0) {
-          geree.positiveBalance = Math.max(0, (geree.positiveBalance || 0) - paymentAmount);
-        }
-        await geree.save();
-      }
+      await recalcGlobalAfterDelete(kholbolt, gereeniiId, req.query.baiguullagiinId);
     } catch (recalcErr) {
-      console.error("❌ Error adjusting globalUldegdel after payment delete:", recalcErr.message);
+      console.error("❌ Error recalculating globalUldegdel after payment delete:", recalcErr.message);
     }
 
     res.json({ success: true });

@@ -101,24 +101,8 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       guilgee.guilgeeKhiisenAjiltniiId = req.body.nevtersenAjiltniiToken.id;
     }
 
-    // avlaga creates invoice only, tulult and ashiglalt pay (reduce balance)
-    // NOTE: Using globalUldegdel field (not uldegdel) as that's what exists in Geree schema
-    // AVLAGA (Charge) duplication prevention:
-    // If it's an 'avlaga' type, we skip the globalUldegdel increment here
-    // because it's handled by gereeNeesNekhemjlekhUusgekh (invoice creation service).
-    var inc = {};
-
-    if (guilgee.turul == "tulult" || guilgee.turul == "ashiglalt") {
-      // These types pay - reduce the balance (use tulsunDun)
-      inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
-    } else if (guilgee.turul == "avlaga") {
-      // Standalone avlaga (GereeniiTulukhAvlaga) adds debt; no invoice is created here.
-      // Increase globalUldegdel by the charge so uldegdel reflects the new receivable.
-      inc.globalUldegdel = +(guilgee?.tulukhDun ?? dun ?? 0);
-    } else {
-      // Default behavior for other types (barter, etc.)
-      inc.globalUldegdel = -(guilgee?.tulsunDun || 0);
-    }
+    // NOTE: globalUldegdel is now fully recalculated from raw amounts after the operation,
+    // so we no longer use $inc. The recalculation handles all cases correctly.
 
     // Capture standalone record ID for syncing
     let newAvlagaId = null;
@@ -343,20 +327,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 );
               }
 
-              if (remainingPayment > 0) {
-                // Save remaining as positiveBalance on the geree
-                const gereeForBalance = await Geree(
-                  tukhainBaaziinKholbolt,
-                ).findById(guilgee.gereeniiId);
-                if (gereeForBalance) {
-                  gereeForBalance.positiveBalance =
-                    (gereeForBalance.positiveBalance || 0) + remainingPayment;
-                  await gereeForBalance.save();
-                  console.log(
-                    `✅ [GEREE PAYMENT] Saved ${remainingPayment}₮ as positiveBalance`,
-                  );
-                }
-              }
+              // Remaining handled by full recalculation below
             }
           } catch (invoicePayError) {
             console.error(
@@ -373,9 +344,6 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       );
     }
 
-    // Now update the Geree object
-    const updateData = { $inc: inc };
-
     // Prepare the queued transaction
     const guilgeeForNekhemjlekh = {
       ...guilgee,
@@ -383,15 +351,56 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       avlagaGuilgeeIndex: count,
     };
 
-    // ALWAYS push to guilgeenuudForNekhemjlekh for manual adjustments
-    // We want them to be merged into the next invoice automatically
-    updateData.$push = { guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh };
+    // Push to guilgeenuudForNekhemjlekh for manual adjustments
+    const updateData = {
+      $push: { guilgeenuudForNekhemjlekh: guilgeeForNekhemjlekh },
+    };
 
-    const result = await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
+    await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
       { _id: guilgee.gereeniiId },
       updateData,
-      { new: true }, // Return updated document
+      { new: false },
     );
+
+    // Full recalculation from raw amounts (totalCharges - totalPayments)
+    const NekhemjlekhiinTuukhRecalc = require("../models/nekhemjlekhiinTuukh");
+    const GereeniiTulsunAvlagaRecalc = require("../models/gereeniiTulsunAvlaga");
+    try {
+      const gereeForRecalc = await Geree(tukhainBaaziinKholbolt).findById(guilgee.gereeniiId);
+      if (gereeForRecalc) {
+        let totalCharges = gereeForRecalc.ekhniiUldegdel || 0;
+
+        const allInvs = await NekhemjlekhiinTuukhRecalc(tukhainBaaziinKholbolt)
+          .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(guilgee.gereeniiId) })
+          .select("niitTulburOriginal niitTulbur ekhniiUldegdel")
+          .lean();
+        allInvs.forEach((inv) => {
+          const original = inv.niitTulburOriginal || inv.niitTulbur || 0;
+          totalCharges += original - (inv.ekhniiUldegdel || 0);
+        });
+
+        const allAvlaga = await GereeniiTulukhAvlaga(tukhainBaaziinKholbolt)
+          .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(guilgee.gereeniiId) })
+          .select("undsenDun tulukhDun")
+          .lean();
+        allAvlaga.forEach((a) => { totalCharges += a.undsenDun || a.tulukhDun || 0; });
+
+        const allPayments = await GereeniiTulsunAvlagaRecalc(tukhainBaaziinKholbolt)
+          .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(guilgee.gereeniiId) })
+          .select("tulsunDun")
+          .lean();
+        let totalPayments = 0;
+        allPayments.forEach((p) => { totalPayments += p.tulsunDun || 0; });
+
+        gereeForRecalc.globalUldegdel = totalCharges - totalPayments;
+        gereeForRecalc.positiveBalance = Math.max(0, -(gereeForRecalc.globalUldegdel));
+        await gereeForRecalc.save();
+      }
+    } catch (recalcErr) {
+      console.error("❌ [GEREE] Error in full recalculation:", recalcErr.message);
+    }
+
+    const result = await Geree(tukhainBaaziinKholbolt).findById(guilgee.gereeniiId);
 
     await daraagiinTulukhOgnooZasya(guilgee.gereeniiId, tukhainBaaziinKholbolt);
 
