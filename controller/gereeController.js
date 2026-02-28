@@ -364,6 +364,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     );
 
     // Full recalculation from raw amounts using shared utility
+    // Add small delay to ensure any recently saved records are committed to database
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
     const NekhemjlekhiinTuukhRecalc = require("../models/nekhemjlekhiinTuukh");
     const GereeniiTulsunAvlagaRecalc = require("../models/gereeniiTulsunAvlaga");

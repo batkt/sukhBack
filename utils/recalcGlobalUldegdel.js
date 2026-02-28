@@ -102,8 +102,8 @@ async function recalcGlobalUldegdel({
   console.log(`📊 [RECALC ${gid}] Step 3 - Total avlaga: ${totalAvlaga}, totalCharges: ${totalCharges}`);
 
   // 4) Sum all payments (ensure we get all records, sorted by creation to verify)
-  // Add small delay to ensure database has committed any recently saved records
-  await new Promise(resolve => setTimeout(resolve, 10));
+  // Add delay and retry to ensure database has committed any recently saved records
+  await new Promise(resolve => setTimeout(resolve, 50));
   
   let allPayments = await GereeniiTulsunAvlagaModel.find({
     baiguullagiinId: oid,
@@ -113,18 +113,28 @@ async function recalcGlobalUldegdel({
     .sort({ createdAt: 1 })
     .lean();
   
-  // Double-check: re-query once more to ensure we have the latest (handles read consistency)
-  const paymentCount = allPayments.length;
-  allPayments = await GereeniiTulsunAvlagaModel.find({
-    baiguullagiinId: oid,
-    gereeniiId: gid,
-  })
-    .select("tulsunDun createdAt _id tailbar")
-    .sort({ createdAt: 1 })
-    .lean();
-  
-  if (allPayments.length !== paymentCount) {
-    console.log(`📊 [RECALC ${gid}] Step 4 - Payment count changed: ${paymentCount} → ${allPayments.length} (re-queried to get fresh data)`);
+  // Retry up to 3 times if we suspect we're missing recent records
+  let retryCount = 0;
+  const maxRetries = 3;
+  while (retryCount < maxRetries) {
+    const previousCount = allPayments.length;
+    await new Promise(resolve => setTimeout(resolve, 20));
+    
+    allPayments = await GereeniiTulsunAvlagaModel.find({
+      baiguullagiinId: oid,
+      gereeniiId: gid,
+    })
+      .select("tulsunDun createdAt _id tailbar")
+      .sort({ createdAt: 1 })
+      .lean();
+    
+    if (allPayments.length === previousCount) {
+      // Count stabilized, we have all records
+      break;
+    } else {
+      console.log(`📊 [RECALC ${gid}] Step 4 - Payment count changed: ${previousCount} → ${allPayments.length} (retry ${retryCount + 1}/${maxRetries})`);
+      retryCount++;
+    }
   }
   
   console.log(`📊 [RECALC ${gid}] Step 4 - Found ${allPayments.length} payment record(s)`);
@@ -138,16 +148,18 @@ async function recalcGlobalUldegdel({
     }
   }
   console.log(`📊 [RECALC ${gid}] Step 4 - Total payments: ${totalPayments}`);
-
+  
   // 5) Calculate and save
   const invoiceZardluudTotal = totalCharges - ekhniiUldegdel - totalAvlaga;
   const newGlobalUldegdel = totalCharges - totalPayments;
   const newPositiveBalance = Math.max(0, -newGlobalUldegdel);
   
-  // Validation: Check if calculation makes sense
-  const expectedFromLedger = totalCharges - totalPayments;
-  if (Math.abs(newGlobalUldegdel - expectedFromLedger) > 0.01) {
-    console.error(`⚠️ [RECALC ${gid}] Calculation mismatch! Expected ${expectedFromLedger}, got ${newGlobalUldegdel}`);
+  // Validation: If we have charges but payments seem too low, warn
+  // (This helps catch cases where payments weren't found due to timing issues)
+  if (totalCharges > 0 && totalPayments === 0 && allPayments.length === 0) {
+    // This is fine if there really are no payments
+  } else if (totalCharges > totalPayments && allPayments.length === 0) {
+    console.warn(`⚠️ [RECALC ${gid}] WARNING: Have charges (${totalCharges}) but found 0 payments - might be missing recent payments!`);
   }
   
   console.log(`📊 [RECALC ${gid}] Step 5 - Calculation:`);
