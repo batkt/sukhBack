@@ -33,20 +33,25 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   // Initialize database connection
   await db.kholboltUusgey();
 
-  // Get organization name
-  const Baiguullaga = require("../models/baiguullaga");
-  const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
-  if (baiguullaga) {
-    console.log(`📋 Organization: ${baiguullaga.ner || "N/A"}`);
-  }
-
-  // Get database connection
+  // Get database connection for this organization
   const kholbolt = db.kholboltuud.find(
     (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
   );
   if (!kholbolt) {
     throw new Error(`Холболт олдсонгүй: ${baiguullagiinId}`);
   }
+
+  console.log(`📊 Database: ${kholbolt.dbName || "N/A"}`);
+
+  // Get organization name from tenant database
+  const Baiguullaga = require("../models/baiguullaga");
+  const baiguullaga = await Baiguullaga(kholbolt).findById(baiguullagiinId).lean();
+  if (baiguullaga) {
+    console.log(`📋 Organization: ${baiguullaga.ner || "N/A"}`);
+  }
+
+  // Initialize models with tenant connection
+  const NekhemjlekhiinTuukhModel = NekhemjlekhModel(kholbolt);
 
   // Build query for invoices
   const invoiceQuery = { baiguullagiinId: String(baiguullagiinId) };
@@ -58,7 +63,7 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   }
 
   // Get all invoices (or just the specific one)
-  const invoices = await NekhemjlekhModel.find(invoiceQuery).lean();
+  const invoices = await NekhemjlekhiinTuukhModel.find(invoiceQuery).lean();
   console.log(`📦 Found ${invoices.length} invoice(s) to process\n`);
   
   if (invoiceId && invoices.length === 0) {
@@ -158,7 +163,7 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
 
           if (!dryRun) {
             // Update invoice - only update uldegdel to match ledger
-            await NekhemjlekhModel.updateOne(
+            await NekhemjlekhiinTuukhModel.updateOne(
               { _id: invoice._id },
               {
                 $set: {
