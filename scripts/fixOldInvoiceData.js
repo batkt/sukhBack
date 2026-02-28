@@ -32,7 +32,6 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
 
   // Initialize database connection (same as index.js)
   await db.kholboltUusgey(
-  app,
   "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
 );
 
