@@ -148,7 +148,7 @@ async function getHistoryLedger(options) {
         _id: (z._id && z._id.toString()) || `inv-${invId}-z-${i}`,
         ajiltan,
         khelber: "Нэхэмжлэх",
-        tailbar: z.tailbar || z.zardliinTurul || z.ner || "",
+        tailbar: z.tailbar || z.ner || z.zardliinTurul || "",
         burtgesenOgnoo,
         parentInvoiceId: invId,
         sourceCollection: "nekhemjlekhiinTuukh",
