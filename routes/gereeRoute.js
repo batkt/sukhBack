@@ -204,6 +204,99 @@ router.use((req, res, next) => {
   next();
 });
 
+// Custom DELETE for gereeniiTulukhAvlaga — recalculate globalUldegdel after delete
+router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
+  try {
+    const { db } = require("zevbackv2");
+    const kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == req.query.baiguullagiinId
+    );
+    if (!kholbolt) return res.status(400).json({ error: "Холболт олдсонгүй" });
+
+    const Model = GereeniiTulukhAvlaga(kholbolt);
+    const doc = await Model.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "Олдсонгүй" });
+
+    const gereeniiId = doc.gereeniiId;
+    const baiguullagiinId = doc.baiguullagiinId;
+    await Model.findByIdAndDelete(req.params.id);
+
+    // Recalculate globalUldegdel
+    try {
+      const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+      const geree = await Geree(kholbolt, true).findById(gereeniiId);
+      if (geree) {
+        const invs = await NekhemjlekhiinTuukh(kholbolt)
+          .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId), tuluv: { $ne: "Төлсөн" } })
+          .select("niitTulbur uldegdel").lean();
+        let totalUnpaid = 0;
+        invs.forEach((inv) => {
+          totalUnpaid += typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel) ? inv.uldegdel : inv.niitTulbur || 0;
+        });
+        const tulukhRows = await Model.find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId) }).select("uldegdel").lean();
+        tulukhRows.forEach((row) => { totalUnpaid += typeof row.uldegdel === "number" && !isNaN(row.uldegdel) ? row.uldegdel : 0; });
+        const positive = geree.positiveBalance || 0;
+        geree.globalUldegdel = totalUnpaid - positive;
+        await geree.save();
+      }
+    } catch (recalcErr) {
+      console.error("❌ Error recalculating globalUldegdel after avlaga delete:", recalcErr.message);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error deleting gereeniiTulukhAvlaga:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Custom DELETE for gereeniiTulsunAvlaga — recalculate globalUldegdel after delete
+router.delete("/gereeniiTulsunAvlaga/:id", tokenShalgakh, async (req, res) => {
+  try {
+    const { db } = require("zevbackv2");
+    const kholbolt = db.kholboltuud.find(
+      (a) => a.baiguullagiinId == req.query.baiguullagiinId
+    );
+    if (!kholbolt) return res.status(400).json({ error: "Холболт олдсонгүй" });
+
+    const Model = GereeniiTulsunAvlaga(kholbolt);
+    const doc = await Model.findById(req.params.id);
+    if (!doc) return res.status(404).json({ error: "Олдсонгүй" });
+
+    const gereeniiId = doc.gereeniiId;
+    const baiguullagiinId = doc.baiguullagiinId;
+    await Model.findByIdAndDelete(req.params.id);
+
+    // Recalculate globalUldegdel
+    try {
+      const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+      const geree = await Geree(kholbolt, true).findById(gereeniiId);
+      if (geree) {
+        const invs = await NekhemjlekhiinTuukh(kholbolt)
+          .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId), tuluv: { $ne: "Төлсөн" } })
+          .select("niitTulbur uldegdel").lean();
+        let totalUnpaid = 0;
+        invs.forEach((inv) => {
+          totalUnpaid += typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel) ? inv.uldegdel : inv.niitTulbur || 0;
+        });
+        const tulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+          .find({ baiguullagiinId: String(baiguullagiinId), gereeniiId: String(gereeniiId) }).select("uldegdel").lean();
+        tulukhRows.forEach((row) => { totalUnpaid += typeof row.uldegdel === "number" && !isNaN(row.uldegdel) ? row.uldegdel : 0; });
+        const positive = geree.positiveBalance || 0;
+        geree.globalUldegdel = totalUnpaid - positive;
+        await geree.save();
+      }
+    } catch (recalcErr) {
+      console.error("❌ Error recalculating globalUldegdel after payment delete:", recalcErr.message);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Error deleting gereeniiTulsunAvlaga:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 crud(router, "gereeniiTulsunAvlaga", GereeniiTulsunAvlaga, UstsanBarimt);
 crud(router, "gereeniiTulukhAvlaga", GereeniiTulukhAvlaga, UstsanBarimt);
 crud(
