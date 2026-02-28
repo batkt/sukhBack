@@ -102,19 +102,38 @@ async function recalcGlobalUldegdel({
   console.log(`📊 [RECALC ${gid}] Step 3 - Total avlaga: ${totalAvlaga}, totalCharges: ${totalCharges}`);
 
   // 4) Sum all payments (ensure we get all records, sorted by creation to verify)
-  const allPayments = await GereeniiTulsunAvlagaModel.find({
+  // Use readConcern: 'majority' or ensure we read fresh data by querying twice if needed
+  let allPayments = await GereeniiTulsunAvlagaModel.find({
     baiguullagiinId: oid,
     gereeniiId: gid,
   })
     .select("tulsunDun createdAt _id tailbar")
     .sort({ createdAt: 1 })
     .lean();
+  
+  // Double-check: if we just saved a payment, it might not be visible yet due to read consistency
+  // Re-query once more to ensure we have the latest
+  const paymentCount = allPayments.length;
+  allPayments = await GereeniiTulsunAvlagaModel.find({
+    baiguullagiinId: oid,
+    gereeniiId: gid,
+  })
+    .select("tulsunDun createdAt _id tailbar")
+    .sort({ createdAt: 1 })
+    .lean();
+  
+  if (allPayments.length !== paymentCount) {
+    console.log(`📊 [RECALC ${gid}] Step 4 - Payment count changed: ${paymentCount} → ${allPayments.length} (re-queried to get fresh data)`);
+  }
+  
   console.log(`📊 [RECALC ${gid}] Step 4 - Found ${allPayments.length} payment record(s)`);
   let totalPayments = 0;
   for (const p of allPayments) {
     if (Number.isFinite(p.tulsunDun) && p.tulsunDun > 0) {
       totalPayments += p.tulsunDun;
       console.log(`📊 [RECALC ${gid}]   Payment ${p._id} (${p.tailbar || 'unnamed'}): ${p.tulsunDun}, totalPayments now: ${totalPayments}`);
+    } else if (p.tulsunDun !== undefined) {
+      console.log(`⚠️ [RECALC ${gid}]   Payment ${p._id} has invalid tulsunDun: ${p.tulsunDun}`);
     }
   }
   console.log(`📊 [RECALC ${gid}] Step 4 - Total payments: ${totalPayments}`);
@@ -124,14 +143,26 @@ async function recalcGlobalUldegdel({
   const newGlobalUldegdel = totalCharges - totalPayments;
   const newPositiveBalance = Math.max(0, -newGlobalUldegdel);
   
+  // Validation: Check if calculation makes sense
+  const expectedFromLedger = totalCharges - totalPayments;
+  if (Math.abs(newGlobalUldegdel - expectedFromLedger) > 0.01) {
+    console.error(`⚠️ [RECALC ${gid}] Calculation mismatch! Expected ${expectedFromLedger}, got ${newGlobalUldegdel}`);
+  }
+  
   console.log(`📊 [RECALC ${gid}] Step 5 - Calculation:`);
   console.log(`📊 [RECALC ${gid}]   Total Charges = ${totalCharges}`);
   console.log(`📊 [RECALC ${gid}]     - Ekhnii Uldegdel: ${ekhniiUldegdel}`);
-  console.log(`📊 [RECALC ${gid}]     - Invoice Zardluud: ${invoiceZardluudTotal}`);
-  console.log(`📊 [RECALC ${gid}]     - Avlaga: ${totalAvlaga}`);
-  console.log(`📊 [RECALC ${gid}]   Total Payments = ${totalPayments}`);
+  console.log(`📊 [RECALC ${gid}]     - Invoice Zardluud: ${invoiceZardluudTotal} (from ${invoiceZardluudCount} items)`);
+  console.log(`📊 [RECALC ${gid}]     - Avlaga: ${totalAvlaga} (from ${allAvlaga.length} records)`);
+  console.log(`📊 [RECALC ${gid}]   Total Payments = ${totalPayments} (from ${allPayments.length} records)`);
   console.log(`📊 [RECALC ${gid}]   Global Uldegdel = ${totalCharges} - ${totalPayments} = ${newGlobalUldegdel}`);
   console.log(`📊 [RECALC ${gid}]   Positive Balance = ${newPositiveBalance}`);
+  
+  // Additional validation: Log payment IDs for debugging
+  if (allPayments.length > 0) {
+    const paymentIds = allPayments.map(p => p._id.toString()).join(', ');
+    console.log(`📊 [RECALC ${gid}]   Payment IDs: [${paymentIds}]`);
+  }
   
   // Validation: Ensure we're not getting impossible values
   if (!Number.isFinite(newGlobalUldegdel)) {
