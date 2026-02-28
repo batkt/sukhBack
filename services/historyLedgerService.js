@@ -83,7 +83,7 @@ async function getHistoryLedger(options) {
       .lean()
       .sort({ ognoo: 1, createdAt: 1 }),
     GereeModel.findById(gereeniiId)
-      .select("ekhniiUldegdel gereeniiOgnoo createdAt zardluud globalUldegdel")
+      .select("ekhniiUldegdel gereeniiOgnoo createdAt zardluud globalUldegdel positiveBalance")
       .lean(),
   ]);
 
@@ -129,6 +129,9 @@ async function getHistoryLedger(options) {
     const zardluud = inv.medeelel?.zardluud || [];
     for (let i = 0; i < zardluud.length; i++) {
       const z = zardluud[i];
+      if (z.isEkhniiUldegdel === true || z.ner === "Эхний үлдэгдэл") {
+        continue;
+      }
       const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
       const d = z.dun != null ? Number(z.dun) : null;
       const tariff = z.tariff != null ? Number(z.tariff) : 0;
@@ -344,7 +347,20 @@ async function getHistoryLedger(options) {
     }
   }
 
-  return { jagsaalt };
+  // Return globalUldegdel and positiveBalance so frontend can use them for the Нийт (Total) row
+  // instead of computing sum(tulukhDun) - sum(tulsunDun) which doesn't account for credit/settlement effects
+  const globalUldegdel =
+    gereeDoc && typeof gereeDoc.globalUldegdel === "number"
+      ? gereeDoc.globalUldegdel
+      : jagsaalt.length > 0
+        ? jagsaalt[jagsaalt.length - 1].uldegdel
+        : 0;
+  const positiveBalance =
+    gereeDoc && typeof gereeDoc.positiveBalance === "number"
+      ? gereeDoc.positiveBalance
+      : 0;
+
+  return { jagsaalt, globalUldegdel, positiveBalance };
 }
 
 module.exports = {
