@@ -122,6 +122,47 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
         });
       }
 
+      // Get latest uldegdel from ledger for each contract
+      const { getHistoryLedger } = require("../services/historyLedgerService");
+      const uldegdelMap = {};
+      
+      // Fetch ledger for each unique contract to get latest uldegdel
+      // Use Promise.all for parallel requests (but limit concurrency to avoid overwhelming the database)
+      const ledgerPromises = gereeniiIds.map(async (gereeniiId) => {
+        try {
+          const ledgerResult = await getHistoryLedger({
+            gereeniiId: gereeniiId.toString(),
+            baiguullagiinId: baiguullagiinId,
+          });
+          
+          // Get the last entry's uldegdel
+          if (ledgerResult && ledgerResult.jagsaalt && ledgerResult.jagsaalt.length > 0) {
+            const lastEntry = ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1];
+            const uldegdel = typeof lastEntry.uldegdel === "number" ? lastEntry.uldegdel : 0;
+            return { gereeniiId: gereeniiId.toString(), uldegdel };
+          } else {
+            return { gereeniiId: gereeniiId.toString(), uldegdel: 0 };
+          }
+        } catch (error) {
+          console.error(`Error getting ledger for gereeniiId ${gereeniiId}:`, error.message);
+          return { gereeniiId: gereeniiId.toString(), uldegdel: 0 };
+        }
+      });
+      
+      // Wait for all ledger requests to complete
+      const ledgerResults = await Promise.all(ledgerPromises);
+      ledgerResults.forEach(({ gereeniiId, uldegdel }) => {
+        uldegdelMap[gereeniiId] = uldegdel;
+      });
+
+      // Helper function to format numbers to 2 decimal places (returns string for Excel)
+      const formatNumber = (value) => {
+        if (value === null || value === undefined || value === "") return "";
+        const num = typeof value === "number" ? value : parseFloat(value);
+        if (isNaN(num)) return "";
+        return num.toFixed(2);
+      };
+
       // Format data with required columns: №, Нэр, Тоот, Утас, Гэрээний дугаар, Үлдэгдэл, Гүйцэтгэл, Орц, Давхар, Тоот
       const formattedData = nekhemjlekhiinTuukhList.map((item, index) => {
         const geree = item.gereeniiId ? gereeMap[item.gereeniiId.toString()] : null;
@@ -138,13 +179,18 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
           utas = geree.utas;
         }
 
+        // Get latest uldegdel from ledger (not from invoice)
+        const latestUldegdel = item.gereeniiId 
+          ? (uldegdelMap[item.gereeniiId.toString()] || 0)
+          : 0;
+
         return {
           dugaar: index + 1, // № (row number)
           ner: item.ner || "", // Нэр (name)
           toot: item.nekhemjlekhiinDugaar || item.dugaalaltDugaar || "", // Тоот (invoice number)
           utas: utas, // Утас (phone)
           gereeniiDugaar: item.gereeniiDugaar || "", // Гэрээний дугаар (contract number)
-          uldegdel: item.uldegdel || 0, // Үлдэгдэл (balance)
+          uldegdel: formatNumber(latestUldegdel), // Үлдэгдэл (balance) - from latest ledger entry, formatted to 2 decimals
           guitsetgel: item.tuluv || "", // Гүйцэтгэл (status/performance)
           orts: geree ? (geree.orts || "") : (item.davkhar ? "" : ""), // Орц (entrance) - from geree
           davkhar: geree ? (geree.davkhar || item.davkhar || "") : (item.davkhar || ""), // Давхар (floor)
