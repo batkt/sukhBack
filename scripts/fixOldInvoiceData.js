@@ -12,13 +12,32 @@
  *   node scripts/fixOldInvoiceData.js 697723dc3e77b46e52ccf577 --invoiceId=6982adc408db41c95a445947
  */
 
+const path = require("path");
+const express = require("express");
+const dotenv = require("dotenv");
+
+const projectRoot = path.resolve(__dirname, "..");
+process.chdir(projectRoot);
+dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
+
 const { db } = require("zevbackv2");
 const { getHistoryLedger } = require("../services/historyLedgerService");
 const NekhemjlekhModel = require("../models/nekhemjlekhiinTuukh");
-const mongoose = require("mongoose");
+const BaiguullagaModel = require("../models/baiguullaga");
+
+// Initialize database connection
+const app = express();
+db.kholboltUusgey(
+  app,
+  process.env.MONGODB_URI ||
+    "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
+);
 
 async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   const { dryRun = false, barilgiinId = null, invoiceId = null } = options;
+
+  console.log("⏳ Waiting for database connections to initialize...");
+  await new Promise((resolve) => setTimeout(resolve, 3000));
 
   console.log("🚀 Starting invoice data fix...");
   console.log(`📊 baiguullagiinId: ${baiguullagiinId}`);
@@ -29,114 +48,55 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   if (invoiceId) {
     console.log(`📊 invoiceId: ${invoiceId} (fixing only this invoice)`);
   }
+  console.log(`📊 Available connections: ${db.kholboltuud?.length || 0}`);
   console.log("");
 
-  // HARDCODED: Connect directly to amarSukh database - NO turees connection
-  const AMARSUKH_CONNECTION_STRING = "mongodb://admin:Br1stelback1@127.0.0.1:27017/nairamdalSukh?authSource=admin";
-  
-  console.log(`📊 Connecting to amarSukh database to get tenant connection...`);
-  
-  // Create mongoose connection directly to amarSukh
-  const amarSukhConnection = mongoose.createConnection(AMARSUKH_CONNECTION_STRING, {
-    keepAlive: true,
-    keepAliveInitialDelay: 300000,
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  if (!db.kholboltuud || db.kholboltuud.length === 0) {
+    throw new Error("❌ No database connections found!");
+  }
 
-  // Wait for connection
-  await new Promise((resolve, reject) => {
-    amarSukhConnection.once('connected', () => {
-      console.log(`✅ Connected to amarSukh database`);
-      resolve();
-    });
-    amarSukhConnection.once('error', (err) => {
-      reject(err);
-    });
-    // If already connected, resolve immediately
-    if (amarSukhConnection.readyState === 1) {
-      resolve();
-    }
-  });
-
-  // Query tenant connections from amarSukh database
-  // Tenant connections are stored in a collection (likely "kholboltuud" or similar)
-  const tenantConnections = await amarSukhConnection.db.collection("kholboltuud").find({
-    baiguullagiinId: baiguullagiinId
-  }).toArray();
-
-  // Try ObjectId comparison if string comparison fails
-  let tenantConnection = tenantConnections.find(
+  // Get tenant connection for this organization
+  let tukhainBaaziinKholbolt = db.kholboltuud.find(
     (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
   );
 
-  if (!tenantConnection && mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
-    const baiguullagiinObjectId = new mongoose.Types.ObjectId(baiguullagiinId);
-    tenantConnection = tenantConnections.find((k) => {
-      const kId = k.baiguullagiinId;
-      if (mongoose.Types.ObjectId.isValid(kId)) {
-        return new mongoose.Types.ObjectId(kId).equals(baiguullagiinObjectId);
-      }
-      return String(kId) === String(baiguullagiinId);
-    });
+  // Try ObjectId comparison if string comparison failed
+  if (!tukhainBaaziinKholbolt) {
+    const mongoose = require("mongoose");
+    if (mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
+      const baiguullagiinObjectId = new mongoose.Types.ObjectId(baiguullagiinId);
+      tukhainBaaziinKholbolt = db.kholboltuud.find((k) => {
+        const kId = k.baiguullagiinId;
+        if (mongoose.Types.ObjectId.isValid(kId)) {
+          return new mongoose.Types.ObjectId(kId).equals(baiguullagiinObjectId);
+        }
+        return String(kId) === String(baiguullagiinId);
+      });
+    }
   }
-
-  if (!tenantConnection) {
-    // Try querying all connections to see what's available
-    const allConnections = await amarSukhConnection.db.collection("kholboltuud").find({}).toArray();
-    console.error("Available tenant connections in amarSukh:");
-    allConnections.forEach((k) => {
+  
+  if (!tukhainBaaziinKholbolt) {
+    // List available connections for debugging
+    console.error("Available connections:");
+    db.kholboltuud.forEach((k) => {
       console.error(`  - baiguullagiinId: ${k.baiguullagiinId}, dbName: ${k.dbName || k.baaziinNer || "N/A"}`);
     });
-    throw new Error(`Tenant connection not found in amarSukh for baiguullagiinId: ${baiguullagiinId}`);
+    throw new Error(`Холболт олдсонгүй: ${baiguullagiinId}`);
   }
 
-  console.log(`📊 Found tenant connection: ${tenantConnection.dbName || tenantConnection.baaziinNer || "N/A"}`);
+  // Get organization name
+  let orgName = baiguullagiinId;
+  try {
+    const b = await BaiguullagaModel(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
+    if (b) orgName = b.ner || baiguullagiinId;
+  } catch (e) {
+    // Ignore error
+  }
 
-  // Build connection string for tenant database
-  const clusterUrl = tenantConnection.clusterUrl || "127.0.0.1:27017";
-  const userName = tenantConnection.userName || "admin";
-  const password = tenantConnection.password || "Br1stelback1";
-  const tenantDbName = tenantConnection.dbName || tenantConnection.baaziinNer;
-  
-  const tenantConnectionString = `mongodb://${userName}:${password}@${clusterUrl}/${tenantDbName}?authSource=admin`;
-  
-  console.log(`📊 Connecting to tenant database: ${tenantDbName}...`);
-
-  // Create connection to actual tenant database
-  const tenantDbConnection = mongoose.createConnection(tenantConnectionString, {
-    keepAlive: true,
-    keepAliveInitialDelay: 300000,
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
-
-  // Wait for tenant connection
-  await new Promise((resolve, reject) => {
-    tenantDbConnection.once('connected', () => {
-      console.log(`✅ Connected to tenant database: ${tenantDbName}`);
-      resolve();
-    });
-    tenantDbConnection.once('error', (err) => {
-      reject(err);
-    });
-    if (tenantDbConnection.readyState === 1) {
-      resolve();
-    }
-  });
-
-  // Create kholbolt object for models
-  const tukhainBaaziinKholbolt = {
-    kholbolt: tenantDbConnection,
-    baiguullagiinId: baiguullagiinId,
-    dbName: tenantDbName,
-    baaziinNer: tenantDbName
-  };
-
-  console.log(`📊 Using tenant database: ${tenantDbName}`);
+  console.log(`📋 Organization: ${orgName}`);
+  console.log(`📊 Database: ${tukhainBaaziinKholbolt.dbName || tukhainBaaziinKholbolt.baaziinNer || "N/A"}`);
 
   // Initialize models with tenant connection (tukhainBaaziinKholbolt)
-  // NOTE: We do NOT query Baiguullaga to avoid connecting to wrong database
   const NekhemjlekhiinTuukhModel = NekhemjlekhModel(tukhainBaaziinKholbolt);
 
   // Build query for invoices
