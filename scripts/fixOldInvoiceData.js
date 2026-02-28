@@ -70,18 +70,8 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
 
   console.log(`📊 Database: ${tukhainBaaziinKholbolt.dbName || tukhainBaaziinKholbolt.baaziinNer || "N/A"}`);
 
-  // Get organization name from main database (Baiguullaga is stored in main DB)
-  const Baiguullaga = require("../models/baiguullaga");
-  try {
-    const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId).lean();
-    if (baiguullaga) {
-      console.log(`📋 Organization: ${baiguullaga.ner || "N/A"}`);
-    }
-  } catch (baiguullagaError) {
-    console.warn(`⚠️ Could not fetch organization name: ${baiguullagaError.message}`);
-  }
-
   // Initialize models with tenant connection (tukhainBaaziinKholbolt)
+  // NOTE: We do NOT query Baiguullaga to avoid connecting to wrong database
   const NekhemjlekhiinTuukhModel = NekhemjlekhModel(tukhainBaaziinKholbolt);
 
   // Build query for invoices
