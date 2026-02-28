@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 const { getKholboltByBaiguullagiinId } = require("../utils/dbConnection");
 const { normalizeTurul, sumZardalDun } = require("../utils/zardalUtils");
 
@@ -242,6 +243,21 @@ async function recalculateGereeBalance(gereeId, baiguullagiinId) {
   let totalUnpaid = 0;
   unpaidInvoices.forEach((inv) => {
     totalUnpaid += inv.uldegdel ?? inv.niitTulbur ?? 0;
+  });
+
+  // Also include outstanding gereeniiTulukhAvlaga records (standalone avlaga)
+  const tulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+    .find({
+      baiguullagiinId: String(baiguullagiinId),
+      gereeniiId: String(gereeId),
+    })
+    .select("uldegdel")
+    .lean();
+  tulukhRows.forEach((row) => {
+    totalUnpaid +=
+      typeof row.uldegdel === "number" && !isNaN(row.uldegdel)
+        ? row.uldegdel
+        : 0;
   });
 
   // Use geree.positiveBalance (overpayment from payment flow); do NOT overwrite it

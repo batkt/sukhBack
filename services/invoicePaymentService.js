@@ -147,10 +147,67 @@ async function markInvoicesAsPaid(options) {
     }
 
     if (gereeToUpdate) {
-      gereeToUpdate.positiveBalance =
-        (gereeToUpdate.positiveBalance || 0) + dun;
-      // No unpaid invoices: globalUldegdel = 0 - positiveBalance (negative = credit)
-      gereeToUpdate.globalUldegdel = -(gereeToUpdate.positiveBalance || 0);
+      // First, apply payment to outstanding gereeniiTulukhAvlaga records
+      let remainingForAvlaga = dun;
+      try {
+        const openTulukhRows = await GereeniiTulukhAvlagaModel.find({
+          gereeniiId: String(gereeToUpdate._id),
+          baiguullagiinId: String(baiguullagiinId),
+          uldegdel: { $gt: 0 },
+        })
+          .sort({ ognoo: 1, createdAt: 1 })
+          .lean();
+
+        for (const row of openTulukhRows) {
+          if (remainingForAvlaga <= 0) break;
+          const currentUldegdel = row.uldegdel || 0;
+          if (currentUldegdel <= 0) continue;
+
+          const applyHere = Math.min(remainingForAvlaga, currentUldegdel);
+          const newUldegdel = currentUldegdel - applyHere;
+
+          await GereeniiTulukhAvlagaModel.updateOne(
+            { _id: row._id },
+            { $set: { uldegdel: newUldegdel } },
+          );
+
+          remainingForAvlaga -= applyHere;
+        }
+      } catch (tulukhErr) {
+        console.error(
+          `❌ [INVOICE PAYMENT] Error applying payment to gereeniiTulukhAvlaga (no invoices branch):`,
+          tulukhErr.message,
+        );
+      }
+
+      if (remainingForAvlaga > 0) {
+        gereeToUpdate.positiveBalance =
+          (gereeToUpdate.positiveBalance || 0) + remainingForAvlaga;
+      }
+
+      let totalUnpaidForRecalc = 0;
+      try {
+        const tulukhRowsAfter = await GereeniiTulukhAvlagaModel.find({
+          gereeniiId: String(gereeToUpdate._id),
+          baiguullagiinId: String(baiguullagiinId),
+        })
+          .select("uldegdel")
+          .lean();
+        tulukhRowsAfter.forEach((row) => {
+          totalUnpaidForRecalc +=
+            typeof row.uldegdel === "number" && !isNaN(row.uldegdel)
+              ? row.uldegdel
+              : 0;
+        });
+      } catch (recalcErr) {
+        console.error(
+          `❌ [INVOICE PAYMENT] Error recalculating avlaga for globalUldegdel (no invoices branch):`,
+          recalcErr.message,
+        );
+      }
+
+      const positive = gereeToUpdate.positiveBalance || 0;
+      gereeToUpdate.globalUldegdel = totalUnpaidForRecalc - positive;
       await gereeToUpdate.save();
 
       // NEW: Also create a history record for this prepayment so it's visible and counts
@@ -507,6 +564,7 @@ async function markInvoicesAsPaid(options) {
   }
 
   // Recalculate and store globalUldegdel on affected gerees
+  // Formula: totalUnpaid = sum(unpaid invoices) + sum(gereeniiTulukhAvlaga.uldegdel); globalUldegdel = totalUnpaid - positiveBalance
   try {
     const NekhemjlekhiinTuukhForRecalc = NekhemjlekhiinTuukh;
 
@@ -520,20 +578,34 @@ async function markInvoicesAsPaid(options) {
           .select("niitTulbur uldegdel")
           .lean();
 
-        let globalUldegdel = 0;
+        let totalUnpaid = 0;
         invs.forEach((inv) => {
           const unpaid =
             typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel)
               ? inv.uldegdel
               : inv.niitTulbur || 0;
-          globalUldegdel += unpaid;
+          totalUnpaid += unpaid;
+        });
+
+        // Also include outstanding gereeniiTulukhAvlaga records (standalone avlaga)
+        const tulukhRows = await GereeniiTulukhAvlagaModel.find({
+          baiguullagiinId: String(baiguullagiinId),
+          gereeniiId: String(gereeId),
+        })
+          .select("uldegdel")
+          .lean();
+        tulukhRows.forEach((row) => {
+          totalUnpaid +=
+            typeof row.uldegdel === "number" && !isNaN(row.uldegdel)
+              ? row.uldegdel
+              : 0;
         });
 
         const gereeToUpdate = await GereeModel.findById(gereeId);
         if (gereeToUpdate) {
           const positive = gereeToUpdate.positiveBalance || 0;
-          // Global balance = unpaid invoices - positiveBalance (can be negative when overpaid)
-          gereeToUpdate.globalUldegdel = globalUldegdel - positive;
+          // Global balance = unpaid invoices + standalone avlaga - positiveBalance (can be negative when overpaid)
+          gereeToUpdate.globalUldegdel = totalUnpaid - positive;
           await gereeToUpdate.save();
         }
       } catch (recalcError) {
