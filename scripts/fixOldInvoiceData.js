@@ -32,7 +32,7 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   console.log("");
 
   // HARDCODED: Connect directly to amarSukh database - NO turees connection
-  const AMARSUKH_CONNECTION_STRING = "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin";
+  const AMARSUKH_CONNECTION_STRING = "mongodb://admin:Br1stelback1@127.0.0.1:27017/nairamdalSukh?authSource=admin";
   
   console.log(`📊 Connecting to amarSukh database to get tenant connection...`);
   
