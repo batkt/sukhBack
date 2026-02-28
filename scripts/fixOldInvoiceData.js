@@ -189,7 +189,10 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
           const uldegdelNeedsUpdate = Math.abs(currentUldegdel - latestUldegdel) >= 0.01;
           const niitTulburNeedsUpdate = Math.abs(currentNiitTulbur - latestUldegdel) >= 0.01;
           
-          if (!uldegdelNeedsUpdate && !niitTulburNeedsUpdate) {
+          // Check if status is wrong: if uldegdel > 0, should NOT be "Төлсөн"
+          const statusNeedsUpdate = latestUldegdel > 0.01 && invoice.tuluv === "Төлсөн";
+          
+          if (!uldegdelNeedsUpdate && !niitTulburNeedsUpdate && !statusNeedsUpdate) {
             results.unchanged++;
             results.details.push({
               invoiceId: invoice._id.toString(),
@@ -205,20 +208,27 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
           }
 
           // Determine tuluv based on latest balance
+          // IMPORTANT: If invoice has uldegdel > 0, it should NOT be "Төлсөн"
           let newTuluv = invoice.tuluv || "Төлөөгүй";
-          if (latestUldegdel <= 0.01) {
+          
+          // Fix: If uldegdel > 0 but status is "Төлсөн", change to unpaid
+          if (latestUldegdel > 0.01) {
+            if (invoice.tuluv === "Төлсөн") {
+              newTuluv = "Төлөөгүй";
+              console.log(`    ⚠️ Invoice has uldegdel ${latestUldegdel} but status is "Төлсөн" - changing to "Төлөөгүй"`);
+            } else if (invoice.tulukhOgnoo && new Date() > new Date(invoice.tulukhOgnoo)) {
+              newTuluv = "Хугацаа хэтэрсэн";
+            } else {
+              newTuluv = "Төлөөгүй";
+            }
+          } else {
+            // uldegdel <= 0.01, invoice is fully paid
             newTuluv = "Төлсөн";
-          } else if (invoice.tulukhOgnoo && new Date() > new Date(invoice.tulukhOgnoo) && latestUldegdel > 0.01) {
-            newTuluv = "Хугацаа хэтэрсэн";
-          } else if (latestUldegdel > 0.01) {
-            newTuluv = "Төлөөгүй";
           }
 
           if (!dryRun) {
             // Update invoice - update uldegdel and niitTulbur to match ledger
-            const updateData = {
-              tuluv: newTuluv,
-            };
+            const updateData = {};
             
             // Only update fields that need updating
             if (uldegdelNeedsUpdate) {
@@ -227,11 +237,16 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
             if (niitTulburNeedsUpdate) {
               updateData.niitTulbur = latestUldegdel; // niitTulbur should match uldegdel
             }
+            if (statusNeedsUpdate || newTuluv !== invoice.tuluv) {
+              updateData.tuluv = newTuluv;
+            }
             
-            await NekhemjlekhiinTuukhModel.updateOne(
-              { _id: invoice._id },
-              { $set: updateData }
-            );
+            if (Object.keys(updateData).length > 0) {
+              await NekhemjlekhiinTuukhModel.updateOne(
+                { _id: invoice._id },
+                { $set: updateData }
+              );
+            }
           }
 
           results.updated++;
@@ -253,10 +268,13 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
           if (niitTulburNeedsUpdate) {
             updates.push(`niitTulbur: ${currentNiitTulbur} → ${latestUldegdel}`);
           }
+          if (statusNeedsUpdate || newTuluv !== invoice.tuluv) {
+            updates.push(`tuluv: ${invoice.tuluv} → ${newTuluv}`);
+          }
           
           console.log(
             `    ${dryRun ? '⚠️' : '✓'} Invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}: ` +
-            `${updates.join(", ")} (${newTuluv})`
+            `${updates.join(", ")}`
           );
         } catch (invoiceError) {
           results.errors++;
