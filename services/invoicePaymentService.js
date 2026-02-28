@@ -383,27 +383,11 @@ async function markInvoicesAsPaid(options) {
 
       // NOTE: Do NOT create gereeniiTulsunAvlaga per invoice here - we create ONE consolidated record after the loop
 
-      // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel and is fully paid
-      if (
-        isFullyPaid &&
-        updatedInvoice.ekhniiUldegdel &&
-        updatedInvoice.ekhniiUldegdel > 0
-      ) {
-        try {
-          const gereeForUpdate = await GereeModel.findById(
-            updatedInvoice.gereeniiId,
-          );
-          if (gereeForUpdate) {
-            gereeForUpdate.ekhniiUldegdel = 0;
-            await gereeForUpdate.save();
-          }
-        } catch (error) {
-          console.error(
-            `❌ [INVOICE PAYMENT] Error updating geree.ekhniiUldegdel:`,
-            error.message,
-          );
-        }
-      }
+      // NOTE: Do NOT reset geree.ekhniiUldegdel to 0 here.
+      // The recalculation formula depends on it as a permanent charge component:
+      //   totalCharges = geree.ekhniiUldegdel + SUM(inv.original - inv.ekhniiUldegdel) + SUM(avlaga)
+      // Resetting it to 0 while the invoice still has ekhniiUldegdel > 0 breaks the balance.
+      // invoiceCreationService already prevents double-counting via existingEkhniiUldegdelInvoices check.
     } catch (error) {
       console.error(
         `❌ [INVOICE PAYMENT] Error updating invoice ${invoice._id}:`,

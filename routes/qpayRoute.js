@@ -1418,18 +1418,9 @@ router.get(
 
       await nekhemjlekh.save();
 
-      // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel
-      if (nekhemjlekh.ekhniiUldegdel && nekhemjlekh.ekhniiUldegdel > 0) {
-        try {
-          const gereeForUpdate = await Geree(kholbolt).findById(
-            nekhemjlekh.gereeniiId,
-          );
-          if (gereeForUpdate) {
-            gereeForUpdate.ekhniiUldegdel = 0;
-            await gereeForUpdate.save();
-          }
-        } catch (ekhniiUldegdelError) {}
-      }
+      // NOTE: Do NOT reset geree.ekhniiUldegdel to 0 here.
+      // The recalculation formula depends on it as a permanent charge component.
+      // invoiceCreationService prevents double-counting via existingEkhniiUldegdelInvoices check.
 
       // Reset electricity readings to 0 if electricity invoice is paid
       // User will upload new readings for next month
@@ -2003,18 +1994,9 @@ router.get(
           // Use the updated invoice for further operations
           nekhemjlekh = updatedInvoice;
 
-          // Update geree.ekhniiUldegdel to 0 if this invoice used ekhniiUldegdel
-          if (nekhemjlekh.ekhniiUldegdel && nekhemjlekh.ekhniiUldegdel > 0) {
-            try {
-              const gereeForUpdate = await Geree(kholbolt).findById(
-                nekhemjlekh.gereeniiId,
-              );
-              if (gereeForUpdate) {
-                gereeForUpdate.ekhniiUldegdel = 0;
-                await gereeForUpdate.save();
-              }
-            } catch (ekhniiUldegdelError) {}
-          }
+          // NOTE: Do NOT reset geree.ekhniiUldegdel to 0 here.
+          // The recalculation formula depends on it as a permanent charge component.
+          // invoiceCreationService prevents double-counting via existingEkhniiUldegdelInvoices check.
 
           // Reset electricity readings to 0 if electricity invoice is paid
           // User will upload new readings for next month
