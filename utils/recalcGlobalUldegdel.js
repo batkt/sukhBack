@@ -1,13 +1,9 @@
 /**
- * Shared utility to recalculate geree.globalUldegdel from raw source data.
- *
- * Uses the SAME approach as historyLedgerService to guarantee consistency:
- *   totalCharges = geree.ekhniiUldegdel
- *                + SUM(invoice zardluud.dun, excluding ekhniiUldegdel entries)
- *                + SUM(gereeniiTulukhAvlaga.undsenDun || tulukhDun)
- *   totalPayments = SUM(gereeniiTulsunAvlaga.tulsunDun)
- *   globalUldegdel = totalCharges - totalPayments
- *   positiveBalance = max(0, -globalUldegdel)
+ * Shared utility to recalculate geree.globalUldegdel using the ledger's calculation.
+ * 
+ * Instead of recalculating from scratch, we use the same logic as historyLedgerService
+ * to build the ledger and get the final uldegdel from the last entry.
+ * This ensures globalUldegdel always matches what the ledger shows.
  *
  * @param {Object} opts
  * @param {string} opts.gereeId - The contract ID
@@ -41,145 +37,63 @@ async function recalcGlobalUldegdel({
     return null;
   }
 
-  // 1) Start with geree-level ekhniiUldegdel
-  const ekhniiUldegdel = Number.isFinite(geree.ekhniiUldegdel) ? geree.ekhniiUldegdel : 0;
-  let totalCharges = ekhniiUldegdel;
-  console.log(`📊 [RECALC ${gid}] Step 1 - Ekhnii Uldegdel: ${ekhniiUldegdel}, totalCharges: ${totalCharges}`);
-
-  // 2) Sum invoice charges from individual zardluud (same as historyLedgerService)
-  //    This avoids depending on niitTulburOriginal which can be 0/NaN after payments.
-  const invoiceQuery = { baiguullagiinId: oid, gereeniiId: gid };
+  // Use the ledger calculation approach: build ledger entries and get final uldegdel
+  // This ensures we always match what the ledger shows
+  // If excludeInvoiceId is provided (e.g., during deletion), use fallback method
   if (excludeInvoiceId) {
-    invoiceQuery._id = { $ne: excludeInvoiceId };
+    console.log(`📊 [RECALC ${gid}] Using fallback (excludeInvoiceId provided)`);
+    return await recalcGlobalUldegdelFallback({
+      gereeId,
+      baiguullagiinId,
+      GereeModel,
+      NekhemjlekhiinTuukhModel,
+      GereeniiTulukhAvlagaModel,
+      GereeniiTulsunAvlagaModel,
+      excludeInvoiceId,
+    });
   }
-  const allInvoices = await NekhemjlekhiinTuukhModel.find(invoiceQuery)
-    .select("medeelel.zardluud medeelel.guilgeenuud _id")
-    .lean();
-
-  console.log(`📊 [RECALC ${gid}] Step 2 - Found ${allInvoices.length} invoice(s)`);
-  let invoiceZardluudCount = 0;
-  for (const inv of allInvoices) {
-    // Sum zardluud (operational charges), skipping ekhniiUldegdel entries
-    const zardluud = inv.medeelel?.zardluud || [];
-    for (const z of zardluud) {
-      if (z.isEkhniiUldegdel === true || z.ner === "Эхний үлдэгдэл") {
-        continue; // Already counted via geree.ekhniiUldegdel or standalone avlaga
-      }
-      const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
-      const d = z.dun != null ? Number(z.dun) : null;
-      const tariff = z.tariff != null ? Number(z.tariff) : 0;
-      const amount = t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
-      if (Number.isFinite(amount) && amount > 0) {
-        totalCharges += amount;
-        invoiceZardluudCount++;
-        console.log(`📊 [RECALC ${gid}]   Invoice ${inv._id} zardluud: ${z.ner || 'unnamed'} = ${amount}, totalCharges now: ${totalCharges}`);
-      }
-    }
-  }
-  console.log(`📊 [RECALC ${gid}] Step 2 - Processed ${invoiceZardluudCount} invoice zardluud, totalCharges: ${totalCharges}`);
-
-  // 3) Sum all standalone receivable charges (gereeniiTulukhAvlaga)
-  // IMPORTANT: Use undsenDun if available, otherwise tulukhDun (don't sum both)
-  const allAvlaga = await GereeniiTulukhAvlagaModel.find({
-    baiguullagiinId: oid,
-    gereeniiId: gid,
-  })
-    .select("undsenDun tulukhDun _id tailbar")
-    .lean();
-  console.log(`📊 [RECALC ${gid}] Step 3 - Found ${allAvlaga.length} avlaga record(s)`);
-  let totalAvlaga = 0;
-  for (const a of allAvlaga) {
-    // Prefer undsenDun, fallback to tulukhDun (they should not both be set)
-    const amount = Number.isFinite(a.undsenDun) && a.undsenDun > 0
-      ? a.undsenDun
-      : (Number.isFinite(a.tulukhDun) && a.tulukhDun > 0 ? a.tulukhDun : 0);
-    if (amount > 0) {
-      totalAvlaga += amount;
-      totalCharges += amount;
-      console.log(`📊 [RECALC ${gid}]   Avlaga ${a._id} (${a.tailbar || 'unnamed'}): ${amount} (undsenDun: ${a.undsenDun || 0}, tulukhDun: ${a.tulukhDun || 0}), totalCharges now: ${totalCharges}`);
-    }
-  }
-  console.log(`📊 [RECALC ${gid}] Step 3 - Total avlaga: ${totalAvlaga}, totalCharges: ${totalCharges}`);
-
-  // 4) Sum all payments (ensure we get all records, sorted by creation to verify)
-  // Add delay and retry to ensure database has committed any recently saved records
-  await new Promise(resolve => setTimeout(resolve, 50));
   
-  let allPayments = await GereeniiTulsunAvlagaModel.find({
-    baiguullagiinId: oid,
-    gereeniiId: gid,
-  })
-    .select("tulsunDun createdAt _id tailbar")
-    .sort({ createdAt: 1 })
-    .lean();
+  const { getHistoryLedger } = require("../services/historyLedgerService");
   
-  // Retry up to 3 times if we suspect we're missing recent records
-  let retryCount = 0;
-  const maxRetries = 3;
-  while (retryCount < maxRetries) {
-    const previousCount = allPayments.length;
-    await new Promise(resolve => setTimeout(resolve, 20));
-    
-    allPayments = await GereeniiTulsunAvlagaModel.find({
-      baiguullagiinId: oid,
+  // Get the ledger - it calculates the running balance correctly
+  let ledgerResult;
+  try {
+    ledgerResult = await getHistoryLedger({
       gereeniiId: gid,
-    })
-      .select("tulsunDun createdAt _id tailbar")
-      .sort({ createdAt: 1 })
-      .lean();
-    
-    if (allPayments.length === previousCount) {
-      // Count stabilized, we have all records
-      break;
-    } else {
-      console.log(`📊 [RECALC ${gid}] Step 4 - Payment count changed: ${previousCount} → ${allPayments.length} (retry ${retryCount + 1}/${maxRetries})`);
-      retryCount++;
-    }
+      baiguullagiinId: oid,
+    });
+  } catch (ledgerError) {
+    console.error(`❌ [RECALC ${gid}] Error getting ledger:`, ledgerError.message);
+    // Fallback to old calculation method
+    return await recalcGlobalUldegdelFallback({
+      gereeId,
+      baiguullagiinId,
+      GereeModel,
+      NekhemjlekhiinTuukhModel,
+      GereeniiTulukhAvlagaModel,
+      GereeniiTulsunAvlagaModel,
+      excludeInvoiceId,
+    });
   }
+
+  // Get the final uldegdel from the last ledger entry
+  const finalUldegdel = ledgerResult.jagsaalt.length > 0
+    ? ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1].uldegdel
+    : 0;
   
-  console.log(`📊 [RECALC ${gid}] Step 4 - Found ${allPayments.length} payment record(s)`);
-  let totalPayments = 0;
-  for (const p of allPayments) {
-    if (Number.isFinite(p.tulsunDun) && p.tulsunDun > 0) {
-      totalPayments += p.tulsunDun;
-      console.log(`📊 [RECALC ${gid}]   Payment ${p._id} (${p.tailbar || 'unnamed'}): ${p.tulsunDun}, totalPayments now: ${totalPayments}`);
-    } else if (p.tulsunDun !== undefined) {
-      console.log(`⚠️ [RECALC ${gid}]   Payment ${p._id} has invalid tulsunDun: ${p.tulsunDun}`);
-    }
-  }
-  console.log(`📊 [RECALC ${gid}] Step 4 - Total payments: ${totalPayments}`);
-  
-  // 5) Calculate and save
-  const invoiceZardluudTotal = totalCharges - ekhniiUldegdel - totalAvlaga;
-  const newGlobalUldegdel = totalCharges - totalPayments;
+  const newGlobalUldegdel = finalUldegdel;
   const newPositiveBalance = Math.max(0, -newGlobalUldegdel);
   
-  // Validation: If we have charges but payments seem too low, warn
-  // (This helps catch cases where payments weren't found due to timing issues)
-  if (totalCharges > 0 && totalPayments === 0 && allPayments.length === 0) {
-    // This is fine if there really are no payments
-  } else if (totalCharges > totalPayments && allPayments.length === 0) {
-    console.warn(`⚠️ [RECALC ${gid}] WARNING: Have charges (${totalCharges}) but found 0 payments - might be missing recent payments!`);
+  console.log(`📊 [RECALC ${gid}] Using ledger's final uldegdel: ${finalUldegdel}`);
+  console.log(`📊 [RECALC ${gid}]   Ledger entries: ${ledgerResult.jagsaalt.length}`);
+  if (ledgerResult.jagsaalt.length > 0) {
+    const lastEntry = ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1];
+    console.log(`📊 [RECALC ${gid}]   Last entry: ${lastEntry.ner} (${lastEntry.sourceCollection}), uldegdel: ${lastEntry.uldegdel}`);
   }
-  
-  console.log(`📊 [RECALC ${gid}] Step 5 - Calculation:`);
-  console.log(`📊 [RECALC ${gid}]   Total Charges = ${totalCharges}`);
-  console.log(`📊 [RECALC ${gid}]     - Ekhnii Uldegdel: ${ekhniiUldegdel}`);
-  console.log(`📊 [RECALC ${gid}]     - Invoice Zardluud: ${invoiceZardluudTotal} (from ${invoiceZardluudCount} items)`);
-  console.log(`📊 [RECALC ${gid}]     - Avlaga: ${totalAvlaga} (from ${allAvlaga.length} records)`);
-  console.log(`📊 [RECALC ${gid}]   Total Payments = ${totalPayments} (from ${allPayments.length} records)`);
-  console.log(`📊 [RECALC ${gid}]   Global Uldegdel = ${totalCharges} - ${totalPayments} = ${newGlobalUldegdel}`);
-  console.log(`📊 [RECALC ${gid}]   Positive Balance = ${newPositiveBalance}`);
-  
-  // Additional validation: Log payment IDs for debugging
-  if (allPayments.length > 0) {
-    const paymentIds = allPayments.map(p => p._id.toString()).join(', ');
-    console.log(`📊 [RECALC ${gid}]   Payment IDs: [${paymentIds}]`);
-  }
-  
+
   // Validation: Ensure we're not getting impossible values
   if (!Number.isFinite(newGlobalUldegdel)) {
-    console.error(`❌ [RECALC ${gid}] Invalid globalUldegdel calculated: ${newGlobalUldegdel}`);
+    console.error(`❌ [RECALC ${gid}] Invalid globalUldegdel from ledger: ${newGlobalUldegdel}`);
     return geree; // Don't save invalid value
   }
   
@@ -200,6 +114,89 @@ async function recalcGlobalUldegdel({
   console.log(`📊 [RECALC ${gid}] ✅ SAVED: globalUldegdel ${oldGlobalUldegdel} → ${newGlobalUldegdel}, positiveBalance ${oldPositiveBalance} → ${newPositiveBalance}`);
 
   return freshGeree;
+}
+
+/**
+ * Fallback calculation method (old approach) - used if ledger service fails
+ */
+async function recalcGlobalUldegdelFallback({
+  gereeId,
+  baiguullagiinId,
+  GereeModel,
+  NekhemjlekhiinTuukhModel,
+  GereeniiTulukhAvlagaModel,
+  GereeniiTulsunAvlagaModel,
+  excludeInvoiceId,
+}) {
+  const oid = String(baiguullagiinId);
+  const gid = String(gereeId);
+  
+  console.log(`📊 [RECALC ${gid}] Using fallback calculation method`);
+  
+  const geree = await GereeModel.findById(gereeId);
+  if (!geree) return null;
+
+  const ekhniiUldegdel = Number.isFinite(geree.ekhniiUldegdel) ? geree.ekhniiUldegdel : 0;
+  let totalCharges = ekhniiUldegdel;
+
+  const invoiceQuery = { baiguullagiinId: oid, gereeniiId: gid };
+  if (excludeInvoiceId) {
+    invoiceQuery._id = { $ne: excludeInvoiceId };
+  }
+  const allInvoices = await NekhemjlekhiinTuukhModel.find(invoiceQuery)
+    .select("medeelel.zardluud")
+    .lean();
+
+  for (const inv of allInvoices) {
+    const zardluud = inv.medeelel?.zardluud || [];
+    for (const z of zardluud) {
+      if (z.isEkhniiUldegdel === true || z.ner === "Эхний үлдэгдэл") continue;
+      const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
+      const d = z.dun != null ? Number(z.dun) : null;
+      const tariff = z.tariff != null ? Number(z.tariff) : 0;
+      const amount = t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
+      if (Number.isFinite(amount) && amount > 0) {
+        totalCharges += amount;
+      }
+    }
+  }
+
+  const allAvlaga = await GereeniiTulukhAvlagaModel.find({
+    baiguullagiinId: oid,
+    gereeniiId: gid,
+  })
+    .select("undsenDun tulukhDun")
+    .lean();
+  for (const a of allAvlaga) {
+    const amount = Number.isFinite(a.undsenDun) && a.undsenDun > 0
+      ? a.undsenDun
+      : (Number.isFinite(a.tulukhDun) && a.tulukhDun > 0 ? a.tulukhDun : 0);
+    if (amount > 0) {
+      totalCharges += amount;
+    }
+  }
+
+  const allPayments = await GereeniiTulsunAvlagaModel.find({
+    baiguullagiinId: oid,
+    gereeniiId: gid,
+  })
+    .select("tulsunDun")
+    .lean();
+  let totalPayments = 0;
+  for (const p of allPayments) {
+    if (Number.isFinite(p.tulsunDun) && p.tulsunDun > 0) {
+      totalPayments += p.tulsunDun;
+    }
+  }
+
+  const newGlobalUldegdel = totalCharges - totalPayments;
+  const newPositiveBalance = Math.max(0, -newGlobalUldegdel);
+  
+  geree.globalUldegdel = newGlobalUldegdel;
+  geree.positiveBalance = newPositiveBalance;
+  await geree.save();
+  
+  return geree;
 }
 
 module.exports = { recalcGlobalUldegdel };
