@@ -114,11 +114,10 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
       const finalTotalPaid = totalPaid;
 
       // Check if invoice needs fixing
+      // For paid invoices: niitTulbur should equal totalPaid (not 0)
       const needsFix = 
         currentUldegdel > 0.01 || // Should be 0 for paid invoices
-        currentNiitTulbur > 0.01 || // Should be 0 for paid invoices
-        (finalTotalPaid > 0 && typeof invoice.niitTulburOriginal !== "number") || // Should have niitTulburOriginal set
-        (finalTotalPaid > 0 && Math.abs(invoice.niitTulburOriginal - finalTotalPaid) > 0.01); // niitTulburOriginal should match totalPaid
+        (finalTotalPaid > 0 && Math.abs(currentNiitTulbur - finalTotalPaid) > 0.01); // niitTulbur should match totalPaid for paid invoices
 
       if (!needsFix) {
         console.log(
@@ -132,7 +131,7 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
       console.log(
         `  [${invoice.gereeniiDugaar || "N/A"}] Invoice ${invoice.nekhemjlekhiinDugaar || invId}: ` +
         `uldegdel: ${currentUldegdel} → 0, ` +
-        `niitTulbur: ${currentNiitTulbur} → 0, ` +
+        `niitTulbur: ${currentNiitTulbur} → ${finalTotalPaid.toFixed(2)}, ` +
         `totalPaid: ${finalTotalPaid.toFixed(2)} (from ${invoice.paymentHistory?.length || 0} paymentHistory + ${linkedPayments.length} avlaga + ${invoice.medeelel?.guilgeenuud?.length || 0} guilgeenuud)`
       );
 
