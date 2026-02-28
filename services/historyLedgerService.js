@@ -294,14 +294,25 @@ async function getHistoryLedger(options) {
     });
   }
 
-  // Sort by date (oldest first), then createdAt, then charges before payments (stable order for running balance)
+  // Helper: strip time from Date so all entries on the same calendar day compare equal
+  const dayOnly = (d) => {
+    const y = d.getFullYear(), m = d.getMonth(), dd = d.getDate();
+    return new Date(y, m, dd).getTime();
+  };
+  // Source-collection priority (geree first, then invoices, then avlaga, then payments)
+  const SRC_ORDER = { geree: 0, nekhemjlekhiinTuukh: 1, gereeniiTulukhAvlaga: 2, gereeniiTulsunAvlaga: 3 };
+
+  // Sort by date-only (oldest first), then createdAt, then source priority, then charges before payments
   rawRows.sort((a, b) => {
-    const ta = a.ognoo.getTime();
-    const tb = b.ognoo.getTime();
-    if (ta !== tb) return ta - tb;
+    const da = dayOnly(a.ognoo);
+    const db = dayOnly(b.ognoo);
+    if (da !== db) return da - db;
     const ca = a.createdAt.getTime();
     const cb = b.createdAt.getTime();
     if (ca !== cb) return ca - cb;
+    const sa = SRC_ORDER[a.sourceCollection] ?? 99;
+    const sb = SRC_ORDER[b.sourceCollection] ?? 99;
+    if (sa !== sb) return sa - sb;
     const chargeFirstA = (a.tulukhDun ?? 0) > 0 ? 0 : 1;
     const chargeFirstB = (b.tulukhDun ?? 0) > 0 ? 0 : 1;
     if (chargeFirstA !== chargeFirstB) return chargeFirstA - chargeFirstB;
@@ -362,6 +373,9 @@ async function getHistoryLedger(options) {
     gereeDoc && typeof gereeDoc.positiveBalance === "number"
       ? gereeDoc.positiveBalance
       : 0;
+
+  // Reverse: newest entries first for display
+  jagsaalt.reverse();
 
   return { jagsaalt, globalUldegdel, positiveBalance };
 }
