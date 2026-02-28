@@ -264,7 +264,7 @@ async function getHistoryLedger(options) {
         isSystem: true,
         _id: (z._id && z._id.toString()) || `geree-zard-${gid}-${i}`,
         khelber: "Нэхэмжлэх",
-        tailbar: z.tailbar || z.zardliinTurul || z.ner || "",
+        tailbar: z.tailbar || z.ner || "",
         burtgesenOgnoo,
         sourceCollection: "geree",
       });
