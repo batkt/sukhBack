@@ -1,303 +1,245 @@
 /**
- * Standalone script to fix old invoice data by updating uldegdel from latest ledger entries
+ * Script to fix old invoice data where uldegdel doesn't match ledger's final balance
  * 
  * Usage:
- *   node scripts/fixOldInvoiceData.js <baiguullagiinId> [barilgiinId] [--dry-run]
+ *   node scripts/fixOldInvoiceData.js <baiguullagiinId> [--dry-run] [--barilgiinId=<id>] [--invoiceId=<id>]
  * 
  * Examples:
- *   node scripts/fixOldInvoiceData.js 507f1f77bcf86cd799439011 --dry-run
- *   node scripts/fixOldInvoiceData.js 507f1f77bcf86cd799439011 507f1f77bcf86cd799439012
- *   node scripts/fixOldInvoiceData.js 507f1f77bcf86cd799439011
+ *   # Fix all invoices for an organization
+ *   node scripts/fixOldInvoiceData.js 697723dc3e77b46e52ccf577 --dry-run
+ * 
+ *   # Fix only a specific invoice
+ *   node scripts/fixOldInvoiceData.js 697723dc3e77b46e52ccf577 --invoiceId=6982adc408db41c95a445947
  */
 
 const { db } = require("zevbackv2");
-const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
-const Baiguullaga = require("../models/baiguullaga");
 const { getHistoryLedger } = require("../services/historyLedgerService");
+const NekhemjlekhModel = require("../models/nekhemjlekhiinTuukh");
+const BaiguullagaModel = require("../models/baiguullaga");
 
-// Get command line arguments
-const args = process.argv.slice(2);
-const baiguullagiinId = args[0];
-const barilgiinId = args[1] && !args[1].startsWith('--') ? args[1] : null;
-const dryRun = args.includes('--dry-run') || args.includes('-d');
+async function fixOldInvoiceData(baiguullagiinId, options = {}) {
+  const { dryRun = false, barilgiinId = null, invoiceId = null } = options;
 
-if (!baiguullagiinId) {
-  console.error("❌ Error: baiguullagiinId is required");
-  console.log("\nUsage:");
-  console.log("  node scripts/fixOldInvoiceData.js <baiguullagiinId> [barilgiinId] [--dry-run]");
-  console.log("\nExamples:");
-  console.log("  node scripts/fixOldInvoiceData.js 507f1f77bcf86cd799439011 --dry-run");
-  console.log("  node scripts/fixOldInvoiceData.js 507f1f77bcf86cd799439011 507f1f77bcf86cd799439012");
-  console.log("  node scripts/fixOldInvoiceData.js 507f1f77bcf86cd799439011");
-  process.exit(1);
-}
+  console.log("🚀 Starting invoice data fix...");
+  console.log(`📊 baiguullagiinId: ${baiguullagiinId}`);
+  console.log(`📊 Dry run: ${dryRun ? "YES" : "NO"} (${dryRun ? "no changes will be made" : "changes will be saved"})`);
+  if (barilgiinId) {
+    console.log(`📊 barilgiinId: ${barilgiinId}`);
+  }
+  if (invoiceId) {
+    console.log(`📊 invoiceId: ${invoiceId} (fixing only this invoice)`);
+  }
+  console.log("");
 
-async function fixOldInvoiceData() {
-  try {
-    console.log("🚀 Starting invoice data fix...");
-    console.log(`📊 baiguullagiinId: ${baiguullagiinId}`);
-    if (barilgiinId) {
-      console.log(`📊 barilgiinId: ${barilgiinId}`);
-    }
-    console.log(`📊 Dry run: ${dryRun ? 'YES (no changes will be made)' : 'NO (will update data)'}`);
-    console.log("");
+  // Initialize database connection
+  await db.kholboltUusgey();
 
-    // Initialize database connections
-    console.log("🔌 Initializing database connections...");
-    db.kholboltUusgey(
-      null, // No app needed for script
-      process.env.MONGODB_URI || "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
-    );
-    
-    // Wait a bit for connections to initialize
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  // Get organization name
+  const baiguullaga = await BaiguullagaModel.findById(baiguullagiinId).lean();
+  if (baiguullaga) {
+    console.log(`📋 Organization: ${baiguullaga.ner || "N/A"}`);
+  }
 
-    // Get organization name
-    const BaiguullagaModel = Baiguullaga(db.erunkhiiKholbolt);
-    const baiguullaga = await BaiguullagaModel.findById(baiguullagiinId).select("ner baaziinNer").lean();
-    
-    if (baiguullaga) {
-      const orgName = baiguullaga.ner || baiguullaga.baaziinNer || "Unknown";
-      console.log(`🏢 Organization: ${orgName}`);
-    } else {
-      console.log(`⚠️  Organization not found in database`);
-    }
-    console.log("");
+  // Get database connection
+  const kholbolt = db.kholboltuud.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+  if (!kholbolt) {
+    throw new Error(`Холболт олдсонгүй: ${baiguullagiinId}`);
+  }
 
-    // Find the database connection
-    let tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-    );
+  // Build query for invoices
+  const invoiceQuery = { baiguullagiinId: String(baiguullagiinId) };
+  if (barilgiinId) {
+    invoiceQuery.barilgiinId = String(barilgiinId);
+  }
+  if (invoiceId) {
+    invoiceQuery._id = invoiceId;
+  }
 
-    if (!tukhainBaaziinKholbolt) {
-      // Try with ObjectId comparison
-      const mongoose = require("mongoose");
-      if (mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
-        const baiguullagiinObjectId = new mongoose.Types.ObjectId(baiguullagiinId);
-        tukhainBaaziinKholbolt = db.kholboltuud.find((k) => {
-          const kId = k.baiguullagiinId;
-          if (mongoose.Types.ObjectId.isValid(kId)) {
-            return kId.equals(baiguullagiinObjectId);
-          }
-          return String(kId) === String(baiguullagiinId);
-        });
-      }
-    }
+  // Get all invoices (or just the specific one)
+  const invoices = await NekhemjlekhModel.find(invoiceQuery).lean();
+  console.log(`📦 Found ${invoices.length} invoice(s) to process\n`);
+  
+  if (invoiceId && invoices.length === 0) {
+    throw new Error(`Invoice not found: ${invoiceId}`);
+  }
 
-    if (!tukhainBaaziinKholbolt) {
-      const availableConnections = db.kholboltuud.map(k => ({
-        id: String(k.baiguullagiinId),
-        name: k.baaziinNer || "Unknown"
-      }));
-      console.error("❌ Available connections:");
-      availableConnections.forEach(conn => {
-        console.error(`   - ${conn.id}: ${conn.name}`);
-      });
-      throw new Error(`Холболт олдсонгүй: ${baiguullagiinId}`);
-    }
-
-    console.log(`✅ Database connection found`);
-    if (tukhainBaaziinKholbolt.baaziinNer) {
-      console.log(`📊 Database: ${tukhainBaaziinKholbolt.baaziinNer}`);
-    }
-    console.log("");
-
-    // Build query
-    const query = { baiguullagiinId: String(baiguullagiinId) };
-    if (barilgiinId) {
-      query.barilgiinId = String(barilgiinId);
-    }
-
-    // Fetch all invoices
-    const NekhemjlekhModel = NekhemjlekhiinTuukh(tukhainBaaziinKholbolt);
-    const invoices = await NekhemjlekhModel.find(query).lean();
-
-    if (!invoices || invoices.length === 0) {
-      console.log("✅ No invoices found to update");
-      return;
-    }
-
-    console.log(`📋 Found ${invoices.length} invoices`);
-
-    // Get unique gereeniiId values
-    const gereeniiIds = [...new Set(invoices.map(item => item.gereeniiId).filter(Boolean))];
-    console.log(`📋 Found ${gereeniiIds.length} unique contracts\n`);
-
-    const results = {
+  if (invoices.length === 0) {
+    console.log("✅ No invoices to process");
+    return {
+      success: true,
       updated: 0,
-      errors: 0,
       unchanged: 0,
+      errors: 0,
       details: [],
     };
+  }
 
-    // Process each contract
-    for (let i = 0; i < gereeniiIds.length; i++) {
-      const gereeniiId = gereeniiIds[i];
-      try {
-        console.log(`[${i + 1}/${gereeniiIds.length}] Processing contract ${gereeniiId}...`);
+  // Group invoices by contract
+  const invoicesByContract = {};
+  for (const invoice of invoices) {
+    if (!invoice.gereeniiId) continue;
+    const gereeniiId = invoice.gereeniiId.toString();
+    if (!invoicesByContract[gereeniiId]) {
+      invoicesByContract[gereeniiId] = [];
+    }
+    invoicesByContract[gereeniiId].push(invoice);
+  }
 
-        // Get latest ledger entry for this contract
-        const ledgerResult = await getHistoryLedger({
-          gereeniiId: gereeniiId.toString(),
-          baiguullagiinId: String(baiguullagiinId),
-        });
+  const gereeniiIds = Object.keys(invoicesByContract);
+  console.log(`📋 Found ${gereeniiIds.length} unique contract(s)\n`);
 
-        let latestUldegdel = 0;
-        if (ledgerResult && ledgerResult.jagsaalt && ledgerResult.jagsaalt.length > 0) {
-          const lastEntry = ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1];
-          latestUldegdel = typeof lastEntry.uldegdel === "number" 
-            ? parseFloat(lastEntry.uldegdel.toFixed(2)) 
+  const results = {
+    success: true,
+    updated: 0,
+    unchanged: 0,
+    errors: 0,
+    details: [],
+  };
+
+  // Process each contract
+  for (let i = 0; i < gereeniiIds.length; i++) {
+    const gereeniiId = gereeniiIds[i];
+    try {
+      console.log(`[${i + 1}/${gereeniiIds.length}] Processing contract ${gereeniiId}...`);
+
+      // Get latest ledger entry for this contract
+      const ledgerResult = await getHistoryLedger({
+        gereeniiId: gereeniiId,
+        baiguullagiinId: String(baiguullagiinId),
+      });
+
+      let latestUldegdel = 0;
+      if (ledgerResult && ledgerResult.jagsaalt && ledgerResult.jagsaalt.length > 0) {
+        const lastEntry = ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1];
+        latestUldegdel = typeof lastEntry.uldegdel === "number" 
+          ? parseFloat(lastEntry.uldegdel.toFixed(2)) 
+          : 0;
+      }
+
+      // Find all invoices for this contract
+      const contractInvoices = invoicesByContract[gereeniiId];
+
+      console.log(`  Found ${contractInvoices.length} invoice(s) for this contract`);
+      console.log(`  Latest ledger uldegdel: ${latestUldegdel}`);
+
+      // Update each invoice for this contract
+      for (const invoice of contractInvoices) {
+        try {
+          const currentUldegdel = typeof invoice.uldegdel === "number" 
+            ? parseFloat(invoice.uldegdel.toFixed(2)) 
             : 0;
-        }
 
-        // Find all invoices for this contract
-        const contractInvoices = invoices.filter(
-          inv => inv.gereeniiId && inv.gereeniiId.toString() === gereeniiId.toString()
-        );
-
-        console.log(`  Found ${contractInvoices.length} invoice(s) for this contract`);
-        console.log(`  Latest ledger uldegdel: ${latestUldegdel}`);
-
-        // Update each invoice for this contract
-        for (const invoice of contractInvoices) {
-          try {
-            const currentUldegdel = typeof invoice.uldegdel === "number" 
-              ? parseFloat(invoice.uldegdel.toFixed(2)) 
-              : 0;
-
-            // Check if update is needed
-            if (Math.abs(currentUldegdel - latestUldegdel) < 0.01) {
-              results.unchanged++;
-              results.details.push({
-                invoiceId: invoice._id.toString(),
-                gereeniiDugaar: invoice.gereeniiDugaar || "",
-                nekhemjlekhiinDugaar: invoice.nekhemjlekhiinDugaar || "",
-                currentUldegdel,
-                latestUldegdel,
-                status: "unchanged",
-              });
-              console.log(`    ✓ Invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}: No change needed (${currentUldegdel})`);
-              continue;
-            }
-
-            // Determine tuluv based on latest balance
-            let newTuluv = invoice.tuluv || "Төлөөгүй";
-            if (latestUldegdel <= 0.01) {
-              newTuluv = "Төлсөн";
-            } else if (invoice.tulukhOgnoo && new Date() > new Date(invoice.tulukhOgnoo) && latestUldegdel > 0.01) {
-              newTuluv = "Хугацаа хэтэрсэн";
-            } else if (latestUldegdel > 0.01) {
-              newTuluv = "Төлөөгүй";
-            }
-
-            if (!dryRun) {
-              // Update invoice
-              await NekhemjlekhModel.updateOne(
-                { _id: invoice._id },
-                {
-                  $set: {
-                    uldegdel: latestUldegdel,
-                    tuluv: newTuluv,
-                  },
-                }
-              );
-            }
-
-            results.updated++;
+          // Check if update is needed
+          if (Math.abs(currentUldegdel - latestUldegdel) < 0.01) {
+            results.unchanged++;
             results.details.push({
               invoiceId: invoice._id.toString(),
               gereeniiDugaar: invoice.gereeniiDugaar || "",
               nekhemjlekhiinDugaar: invoice.nekhemjlekhiinDugaar || "",
               currentUldegdel,
               latestUldegdel,
-              newTuluv,
-              status: dryRun ? "would_update" : "updated",
+              status: "unchanged",
             });
-
-            console.log(
-              `    ${dryRun ? '⚠️' : '✓'} Invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}: ` +
-              `${currentUldegdel} → ${latestUldegdel} (${newTuluv})`
-            );
-          } catch (invoiceError) {
-            results.errors++;
-            results.details.push({
-              invoiceId: invoice._id.toString(),
-              gereeniiDugaar: invoice.gereeniiDugaar || "",
-              nekhemjlekhiinDugaar: invoice.nekhemjlekhiinDugaar || "",
-              error: invoiceError.message,
-              status: "error",
-            });
-            console.error(`    ❌ Error updating invoice ${invoice._id}:`, invoiceError.message);
+            console.log(`    ✓ Invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}: No change needed (${currentUldegdel})`);
+            continue;
           }
+
+          // Determine tuluv based on latest balance
+          let newTuluv = invoice.tuluv || "Төлөөгүй";
+          if (latestUldegdel <= 0.01) {
+            newTuluv = "Төлсөн";
+          } else if (invoice.tulukhOgnoo && new Date() > new Date(invoice.tulukhOgnoo) && latestUldegdel > 0.01) {
+            newTuluv = "Хугацаа хэтэрсэн";
+          } else if (latestUldegdel > 0.01) {
+            newTuluv = "Төлөөгүй";
+          }
+
+          if (!dryRun) {
+            // Update invoice - only update uldegdel to match ledger
+            await NekhemjlekhModel.updateOne(
+              { _id: invoice._id },
+              {
+                $set: {
+                  uldegdel: latestUldegdel,
+                  tuluv: newTuluv,
+                },
+              }
+            );
+          }
+
+          results.updated++;
+          results.details.push({
+            invoiceId: invoice._id.toString(),
+            gereeniiDugaar: invoice.gereeniiDugaar || "",
+            nekhemjlekhiinDugaar: invoice.nekhemjlekhiinDugaar || "",
+            currentUldegdel,
+            latestUldegdel,
+            newTuluv,
+            status: dryRun ? "would_update" : "updated",
+          });
+
+          console.log(
+            `    ${dryRun ? '⚠️' : '✓'} Invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}: ` +
+            `uldegdel: ${currentUldegdel} → ${latestUldegdel} (${newTuluv})`
+          );
+        } catch (invoiceError) {
+          results.errors++;
+          results.details.push({
+            invoiceId: invoice._id.toString(),
+            gereeniiDugaar: invoice.gereeniiDugaar || "",
+            nekhemjlekhiinDugaar: invoice.nekhemjlekhiinDugaar || "",
+            error: invoiceError.message,
+            status: "error",
+          });
+          console.error(`    ❌ Error processing invoice ${invoice._id}:`, invoiceError.message);
         }
-        console.log("");
-      } catch (contractError) {
-        results.errors++;
-        console.error(`❌ Error processing contract ${gereeniiId}:`, contractError.message);
-        console.log("");
       }
+    } catch (contractError) {
+      results.errors++;
+      console.error(`  ❌ Error processing contract ${gereeniiId}:`, contractError.message);
     }
-
-    // Print summary
-    console.log("=".repeat(60));
-    console.log("📊 SUMMARY");
-    console.log("=".repeat(60));
-    console.log(`Total invoices: ${invoices.length}`);
-    console.log(`Updated: ${results.updated}`);
-    console.log(`Unchanged: ${results.unchanged}`);
-    console.log(`Errors: ${results.errors}`);
-    console.log("");
-
-    if (dryRun) {
-      console.log("⚠️  DRY RUN MODE - No changes were made");
-      console.log("   Run without --dry-run to apply changes");
-    } else {
-      console.log("✅ Updates completed!");
-    }
-
-    // Save detailed results to file
-    const fs = require('fs');
-    const path = require('path');
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `fixOldInvoiceData_${baiguullagiinId}_${timestamp}.json`;
-    const filepath = path.join(__dirname, '..', 'logs', filename);
-    
-    // Ensure logs directory exists
-    const logsDir = path.join(__dirname, '..', 'logs');
-    if (!fs.existsSync(logsDir)) {
-      fs.mkdirSync(logsDir, { recursive: true });
-    }
-
-    fs.writeFileSync(filepath, JSON.stringify({
-      baiguullagiinId,
-      barilgiinId,
-      dryRun,
-      timestamp: new Date().toISOString(),
-      summary: {
-        total: invoices.length,
-        updated: results.updated,
-        unchanged: results.unchanged,
-        errors: results.errors,
-      },
-      details: results.details,
-    }, null, 2));
-
-    console.log(`📄 Detailed results saved to: ${filepath}`);
-
-  } catch (error) {
-    console.error("❌ Fatal error:", error.message);
-    console.error(error.stack);
-    process.exit(1);
   }
+
+  console.log("\n" + "=".repeat(60));
+  console.log("📊 Summary:");
+  console.log(`  ✅ Updated: ${results.updated}`);
+  console.log(`  ⏭️  Unchanged: ${results.unchanged}`);
+  console.log(`  ❌ Errors: ${results.errors}`);
+  console.log("=".repeat(60));
+
+  return results;
 }
 
-// Run the script
-fixOldInvoiceData()
-  .then(() => {
-    console.log("\n✅ Script completed");
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error("\n❌ Script failed:", error.message);
+// CLI execution
+if (require.main === module) {
+  const args = process.argv.slice(2);
+  const baiguullagiinId = args[0];
+  const dryRun = args.includes("--dry-run");
+  const barilgiinIdArg = args.find((arg) => arg.startsWith("--barilgiinId="));
+  const barilgiinId = barilgiinIdArg ? barilgiinIdArg.split("=")[1] : null;
+  const invoiceIdArg = args.find((arg) => arg.startsWith("--invoiceId="));
+  const invoiceId = invoiceIdArg ? invoiceIdArg.split("=")[1] : null;
+
+  if (!baiguullagiinId) {
+    console.error("❌ Error: baiguullagiinId is required");
+    console.error("Usage: node scripts/fixOldInvoiceData.js <baiguullagiinId> [--dry-run] [--barilgiinId=<id>] [--invoiceId=<id>]");
     process.exit(1);
-  });
+  }
+
+  fixOldInvoiceData(baiguullagiinId, { dryRun, barilgiinId, invoiceId })
+    .then((results) => {
+      if (results.errors > 0) {
+        process.exit(1);
+      }
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error("❌ Fatal error:", error.message);
+      console.error(error);
+      process.exit(1);
+    });
+}
+
+module.exports = { fixOldInvoiceData };
