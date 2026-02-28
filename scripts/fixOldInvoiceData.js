@@ -12,6 +12,7 @@
 
 const { db } = require("zevbackv2");
 const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+const Baiguullaga = require("../models/baiguullaga");
 const { getHistoryLedger } = require("../services/historyLedgerService");
 
 // Get command line arguments
@@ -41,14 +42,65 @@ async function fixOldInvoiceData() {
     console.log(`📊 Dry run: ${dryRun ? 'YES (no changes will be made)' : 'NO (will update data)'}`);
     console.log("");
 
+    // Initialize database connections
+    console.log("🔌 Initializing database connections...");
+    db.kholboltUusgey(
+      null, // No app needed for script
+      process.env.MONGODB_URI || "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
+    );
+    
+    // Wait a bit for connections to initialize
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Get organization name
+    const BaiguullagaModel = Baiguullaga(db.erunkhiiKholbolt);
+    const baiguullaga = await BaiguullagaModel.findById(baiguullagiinId).select("ner baaziinNer").lean();
+    
+    if (baiguullaga) {
+      const orgName = baiguullaga.ner || baiguullaga.baaziinNer || "Unknown";
+      console.log(`🏢 Organization: ${orgName}`);
+    } else {
+      console.log(`⚠️  Organization not found in database`);
+    }
+    console.log("");
+
     // Find the database connection
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    let tukhainBaaziinKholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
     );
 
     if (!tukhainBaaziinKholbolt) {
+      // Try with ObjectId comparison
+      const mongoose = require("mongoose");
+      if (mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
+        const baiguullagiinObjectId = new mongoose.Types.ObjectId(baiguullagiinId);
+        tukhainBaaziinKholbolt = db.kholboltuud.find((k) => {
+          const kId = k.baiguullagiinId;
+          if (mongoose.Types.ObjectId.isValid(kId)) {
+            return kId.equals(baiguullagiinObjectId);
+          }
+          return String(kId) === String(baiguullagiinId);
+        });
+      }
+    }
+
+    if (!tukhainBaaziinKholbolt) {
+      const availableConnections = db.kholboltuud.map(k => ({
+        id: String(k.baiguullagiinId),
+        name: k.baaziinNer || "Unknown"
+      }));
+      console.error("❌ Available connections:");
+      availableConnections.forEach(conn => {
+        console.error(`   - ${conn.id}: ${conn.name}`);
+      });
       throw new Error(`Холболт олдсонгүй: ${baiguullagiinId}`);
     }
+
+    console.log(`✅ Database connection found`);
+    if (tukhainBaaziinKholbolt.baaziinNer) {
+      console.log(`📊 Database: ${tukhainBaaziinKholbolt.baaziinNer}`);
+    }
+    console.log("");
 
     // Build query
     const query = { baiguullagiinId: String(baiguullagiinId) };
