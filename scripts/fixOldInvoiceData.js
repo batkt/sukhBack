@@ -30,23 +30,30 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   }
   console.log("");
 
-  // Initialize database connection (same as index.js)
-  await db.kholboltUusgey(
-  "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
-);
-
-
-  // Get tenant database connection for this organization (tukhainBaaziinKholbolt)
-  let tukhainBaaziinKholbolt = db.kholboltuud.find(
+  // Try to get tenant connection first without initializing main DB
+  // This avoids connecting to "turees" database
+  let tukhainBaaziinKholbolt = db.kholboltuud?.find(
     (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
   );
   
-  // Try ObjectId comparison if string comparison fails
+  // If connection not found, we need to initialize (this will connect to main DB)
+  if (!tukhainBaaziinKholbolt) {
+    console.log("⚠️ Tenant connection not found, initializing database connections...");
+    await db.kholboltUusgey();
+    
+    // Try again after initialization
+    tukhainBaaziinKholbolt = db.kholboltuud?.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+  }
+
+
+  // Try ObjectId comparison if string comparison failed
   if (!tukhainBaaziinKholbolt) {
     const mongoose = require("mongoose");
     if (mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
       const baiguullagiinObjectId = new mongoose.Types.ObjectId(baiguullagiinId);
-      const found = db.kholboltuud.find((k) => {
+      const found = db.kholboltuud?.find((k) => {
         const kId = k.baiguullagiinId;
         if (mongoose.Types.ObjectId.isValid(kId)) {
           return kId.equals(baiguullagiinObjectId);
