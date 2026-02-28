@@ -28,14 +28,23 @@ async function recalcGlobalUldegdel({
   GereeniiTulsunAvlagaModel,
   excludeInvoiceId,
 }) {
-  const geree = await GereeModel.findById(gereeId);
-  if (!geree) return null;
-
   const oid = String(baiguullagiinId);
   const gid = String(gereeId);
 
+  console.log(`📊 [RECALC ${gid}] ========== STARTING RECALCULATION ==========`);
+  console.log(`📊 [RECALC ${gid}] baiguullagiinId: ${oid}, excludeInvoiceId: ${excludeInvoiceId || 'none'}`);
+
+  // Read geree document fresh (re-fetch to avoid stale data)
+  const geree = await GereeModel.findById(gereeId);
+  if (!geree) {
+    console.error(`❌ [RECALC ${gid}] Geree not found`);
+    return null;
+  }
+
   // 1) Start with geree-level ekhniiUldegdel
-  let totalCharges = Number.isFinite(geree.ekhniiUldegdel) ? geree.ekhniiUldegdel : 0;
+  const ekhniiUldegdel = Number.isFinite(geree.ekhniiUldegdel) ? geree.ekhniiUldegdel : 0;
+  let totalCharges = ekhniiUldegdel;
+  console.log(`📊 [RECALC ${gid}] Step 1 - Ekhnii Uldegdel: ${ekhniiUldegdel}, totalCharges: ${totalCharges}`);
 
   // 2) Sum invoice charges from individual zardluud (same as historyLedgerService)
   //    This avoids depending on niitTulburOriginal which can be 0/NaN after payments.
@@ -44,9 +53,11 @@ async function recalcGlobalUldegdel({
     invoiceQuery._id = { $ne: excludeInvoiceId };
   }
   const allInvoices = await NekhemjlekhiinTuukhModel.find(invoiceQuery)
-    .select("medeelel.zardluud medeelel.guilgeenuud")
+    .select("medeelel.zardluud medeelel.guilgeenuud _id")
     .lean();
 
+  console.log(`📊 [RECALC ${gid}] Step 2 - Found ${allInvoices.length} invoice(s)`);
+  let invoiceZardluudCount = 0;
   for (const inv of allInvoices) {
     // Sum zardluud (operational charges), skipping ekhniiUldegdel entries
     const zardluud = inv.medeelel?.zardluud || [];
@@ -58,49 +69,93 @@ async function recalcGlobalUldegdel({
       const d = z.dun != null ? Number(z.dun) : null;
       const tariff = z.tariff != null ? Number(z.tariff) : 0;
       const amount = t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
-      if (Number.isFinite(amount)) {
+      if (Number.isFinite(amount) && amount > 0) {
         totalCharges += amount;
+        invoiceZardluudCount++;
+        console.log(`📊 [RECALC ${gid}]   Invoice ${inv._id} zardluud: ${z.ner || 'unnamed'} = ${amount}, totalCharges now: ${totalCharges}`);
       }
     }
   }
+  console.log(`📊 [RECALC ${gid}] Step 2 - Processed ${invoiceZardluudCount} invoice zardluud, totalCharges: ${totalCharges}`);
 
   // 3) Sum all standalone receivable charges (gereeniiTulukhAvlaga)
+  // IMPORTANT: Use undsenDun if available, otherwise tulukhDun (don't sum both)
   const allAvlaga = await GereeniiTulukhAvlagaModel.find({
     baiguullagiinId: oid,
     gereeniiId: gid,
   })
-    .select("undsenDun tulukhDun")
+    .select("undsenDun tulukhDun _id tailbar")
     .lean();
+  console.log(`📊 [RECALC ${gid}] Step 3 - Found ${allAvlaga.length} avlaga record(s)`);
+  let totalAvlaga = 0;
   for (const a of allAvlaga) {
-    const amount = Number.isFinite(a.undsenDun) ? a.undsenDun : (Number.isFinite(a.tulukhDun) ? a.tulukhDun : 0);
-    totalCharges += amount;
+    // Prefer undsenDun, fallback to tulukhDun (they should not both be set)
+    const amount = Number.isFinite(a.undsenDun) && a.undsenDun > 0
+      ? a.undsenDun
+      : (Number.isFinite(a.tulukhDun) && a.tulukhDun > 0 ? a.tulukhDun : 0);
+    if (amount > 0) {
+      totalAvlaga += amount;
+      totalCharges += amount;
+      console.log(`📊 [RECALC ${gid}]   Avlaga ${a._id} (${a.tailbar || 'unnamed'}): ${amount} (undsenDun: ${a.undsenDun || 0}, tulukhDun: ${a.tulukhDun || 0}), totalCharges now: ${totalCharges}`);
+    }
   }
+  console.log(`📊 [RECALC ${gid}] Step 3 - Total avlaga: ${totalAvlaga}, totalCharges: ${totalCharges}`);
 
-  // 4) Sum all payments
+  // 4) Sum all payments (ensure we get all records, sorted by creation to verify)
   const allPayments = await GereeniiTulsunAvlagaModel.find({
     baiguullagiinId: oid,
     gereeniiId: gid,
   })
-    .select("tulsunDun")
+    .select("tulsunDun createdAt _id tailbar")
+    .sort({ createdAt: 1 })
     .lean();
+  console.log(`📊 [RECALC ${gid}] Step 4 - Found ${allPayments.length} payment record(s)`);
   let totalPayments = 0;
   for (const p of allPayments) {
-    if (Number.isFinite(p.tulsunDun)) {
+    if (Number.isFinite(p.tulsunDun) && p.tulsunDun > 0) {
       totalPayments += p.tulsunDun;
+      console.log(`📊 [RECALC ${gid}]   Payment ${p._id} (${p.tailbar || 'unnamed'}): ${p.tulsunDun}, totalPayments now: ${totalPayments}`);
     }
   }
+  console.log(`📊 [RECALC ${gid}] Step 4 - Total payments: ${totalPayments}`);
 
   // 5) Calculate and save
+  const invoiceZardluudTotal = totalCharges - ekhniiUldegdel - totalAvlaga;
   const newGlobalUldegdel = totalCharges - totalPayments;
-  geree.globalUldegdel = newGlobalUldegdel;
-  geree.positiveBalance = Math.max(0, -newGlobalUldegdel);
-  await geree.save();
+  const newPositiveBalance = Math.max(0, -newGlobalUldegdel);
+  
+  console.log(`📊 [RECALC ${gid}] Step 5 - Calculation:`);
+  console.log(`📊 [RECALC ${gid}]   Total Charges = ${totalCharges}`);
+  console.log(`📊 [RECALC ${gid}]     - Ekhnii Uldegdel: ${ekhniiUldegdel}`);
+  console.log(`📊 [RECALC ${gid}]     - Invoice Zardluud: ${invoiceZardluudTotal}`);
+  console.log(`📊 [RECALC ${gid}]     - Avlaga: ${totalAvlaga}`);
+  console.log(`📊 [RECALC ${gid}]   Total Payments = ${totalPayments}`);
+  console.log(`📊 [RECALC ${gid}]   Global Uldegdel = ${totalCharges} - ${totalPayments} = ${newGlobalUldegdel}`);
+  console.log(`📊 [RECALC ${gid}]   Positive Balance = ${newPositiveBalance}`);
+  
+  // Validation: Ensure we're not getting impossible values
+  if (!Number.isFinite(newGlobalUldegdel)) {
+    console.error(`❌ [RECALC ${gid}] Invalid globalUldegdel calculated: ${newGlobalUldegdel}`);
+    return geree; // Don't save invalid value
+  }
+  
+  // Re-fetch geree to ensure we have the latest version before updating
+  const freshGeree = await GereeModel.findById(gereeId);
+  if (!freshGeree) {
+    console.error(`❌ [RECALC ${gid}] Geree not found after recalculation`);
+    return null;
+  }
+  
+  const oldGlobalUldegdel = freshGeree.globalUldegdel;
+  const oldPositiveBalance = freshGeree.positiveBalance;
+  
+  freshGeree.globalUldegdel = newGlobalUldegdel;
+  freshGeree.positiveBalance = newPositiveBalance;
+  await freshGeree.save();
 
-  console.log(
-    `📊 [RECALC] geree ${gid}: charges=${totalCharges} (ekhnii=${geree.ekhniiUldegdel || 0}, inv zardluud=${totalCharges - (geree.ekhniiUldegdel || 0) - allAvlaga.reduce((s, a) => s + (a.undsenDun || a.tulukhDun || 0), 0)}, avlaga=${allAvlaga.reduce((s, a) => s + (a.undsenDun || a.tulukhDun || 0), 0)}) - payments=${totalPayments} = global=${newGlobalUldegdel}, positive=${geree.positiveBalance}`
-  );
+  console.log(`📊 [RECALC ${gid}] ✅ SAVED: globalUldegdel ${oldGlobalUldegdel} → ${newGlobalUldegdel}, positiveBalance ${oldPositiveBalance} → ${newPositiveBalance}`);
 
-  return geree;
+  return freshGeree;
 }
 
 module.exports = { recalcGlobalUldegdel };
