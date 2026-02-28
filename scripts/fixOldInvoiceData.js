@@ -15,6 +15,8 @@
 const { db } = require("zevbackv2");
 const { getHistoryLedger } = require("../services/historyLedgerService");
 const NekhemjlekhModel = require("../models/nekhemjlekhiinTuukh");
+const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 
 async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   const { dryRun = false, barilgiinId = null, invoiceId = null } = options;
@@ -30,52 +32,43 @@ async function fixOldInvoiceData(baiguullagiinId, options = {}) {
   }
   console.log("");
 
-  // Try to get tenant connection first without initializing main DB
-  // This avoids connecting to "turees" database
-  let tukhainBaaziinKholbolt = db.kholboltuud?.find(
-    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-  );
+  // HARDCODED: Connect directly to amarSukh database - NO turees connection
+  const AMARSUKH_CONNECTION_STRING = "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin";
   
-  // If connection not found, we need to initialize (this will connect to main DB)
-  if (!tukhainBaaziinKholbolt) {
-    console.log("⚠️ Tenant connection not found, initializing database connections...");
-    await db.kholboltUusgey();
-    
-    // Try again after initialization
-    tukhainBaaziinKholbolt = db.kholboltuud?.find(
-      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-    );
-  }
-
-
-  // Try ObjectId comparison if string comparison failed
-  if (!tukhainBaaziinKholbolt) {
-    const mongoose = require("mongoose");
-    if (mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
-      const baiguullagiinObjectId = new mongoose.Types.ObjectId(baiguullagiinId);
-      const found = db.kholboltuud?.find((k) => {
-        const kId = k.baiguullagiinId;
-        if (mongoose.Types.ObjectId.isValid(kId)) {
-          return kId.equals(baiguullagiinObjectId);
-        }
-        return String(kId) === String(baiguullagiinId);
-      });
-      if (found) {
-        tukhainBaaziinKholbolt = found;
-      }
-    }
-  }
+  console.log(`📊 Connecting directly to amarSukh database...`);
   
-  if (!tukhainBaaziinKholbolt) {
-    // List available connections for debugging
-    console.error("Available connections:");
-    db.kholboltuud.forEach((k) => {
-      console.error(`  - baiguullagiinId: ${k.baiguullagiinId}, dbName: ${k.dbName || k.baaziinNer || "N/A"}`);
+  // Create mongoose connection directly to amarSukh
+  const amarSukhConnection = mongoose.createConnection(AMARSUKH_CONNECTION_STRING, {
+    keepAlive: true,
+    keepAliveInitialDelay: 300000,
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
+
+  // Wait for connection
+  await new Promise((resolve, reject) => {
+    amarSukhConnection.once('connected', () => {
+      console.log(`✅ Connected to amarSukh database`);
+      resolve();
     });
-    throw new Error(`Холболт олдсонгүй: ${baiguullagiinId}`);
-  }
+    amarSukhConnection.once('error', (err) => {
+      reject(err);
+    });
+    // If already connected, resolve immediately
+    if (amarSukhConnection.readyState === 1) {
+      resolve();
+    }
+  });
 
-  console.log(`📊 Database: ${tukhainBaaziinKholbolt.dbName || tukhainBaaziinKholbolt.baaziinNer || "N/A"}`);
+  // Create a mock kholbolt object that matches what the models expect
+  const tukhainBaaziinKholbolt = {
+    kholbolt: amarSukhConnection,
+    baiguullagiinId: baiguullagiinId,
+    dbName: "amarSukh",
+    baaziinNer: "amarSukh"
+  };
+
+  console.log(`📊 Database: amarSukh`);
 
   // Initialize models with tenant connection (tukhainBaaziinKholbolt)
   // NOTE: We do NOT query Baiguullaga to avoid connecting to wrong database
