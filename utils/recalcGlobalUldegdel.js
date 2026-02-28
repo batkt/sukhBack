@@ -102,7 +102,9 @@ async function recalcGlobalUldegdel({
   console.log(`📊 [RECALC ${gid}] Step 3 - Total avlaga: ${totalAvlaga}, totalCharges: ${totalCharges}`);
 
   // 4) Sum all payments (ensure we get all records, sorted by creation to verify)
-  // Use readConcern: 'majority' or ensure we read fresh data by querying twice if needed
+  // Add small delay to ensure database has committed any recently saved records
+  await new Promise(resolve => setTimeout(resolve, 10));
+  
   let allPayments = await GereeniiTulsunAvlagaModel.find({
     baiguullagiinId: oid,
     gereeniiId: gid,
@@ -111,8 +113,7 @@ async function recalcGlobalUldegdel({
     .sort({ createdAt: 1 })
     .lean();
   
-  // Double-check: if we just saved a payment, it might not be visible yet due to read consistency
-  // Re-query once more to ensure we have the latest
+  // Double-check: re-query once more to ensure we have the latest (handles read consistency)
   const paymentCount = allPayments.length;
   allPayments = await GereeniiTulsunAvlagaModel.find({
     baiguullagiinId: oid,
