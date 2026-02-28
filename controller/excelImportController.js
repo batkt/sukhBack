@@ -71,6 +71,7 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
     try {
       const { db } = require("zevbackv2");
       const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+      const Geree = require("../models/geree");
 
       const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
       if (!tukhainBaaziinKholbolt) {
@@ -104,28 +105,71 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
         });
       }
 
-      // Format data with only required columns: №, Нэр, Гэрээний дугаар, Төлбөр, Төлөв
-      const formattedData = nekhemjlekhiinTuukhList.map((item, index) => ({
-        dugaar: index + 1, // № (row number)
-        ner: item.ner || "", // Нэр (name)
-        gereeniiDugaar: item.gereeniiDugaar || "", // Гэрээний дугаар (contract number)
-        tulbur: item.niitTulbur || 0, // Төлбөр (payment amount)
-        tuluv: item.tuluv || "", // Төлөв (status)
-      }));
+      // Get unique gereeniiId values to fetch geree documents
+      const gereeniiIds = [...new Set(nekhemjlekhiinTuukhList.map(item => item.gereeniiId).filter(Boolean))];
+      const GereeModel = Geree(tukhainBaaziinKholbolt);
+      const gereeMap = {};
+      
+      if (gereeniiIds.length > 0) {
+        const gereeList = await GereeModel.find({
+          _id: { $in: gereeniiIds }
+        })
+          .select("_id toot davkhar orts utas")
+          .lean();
+        
+        gereeList.forEach(geree => {
+          gereeMap[geree._id.toString()] = geree;
+        });
+      }
+
+      // Format data with required columns: №, Нэр, Тоот, Утас, Гэрээний дугаар, Үлдэгдэл, Гүйцэтгэл, Орц, Давхар, Тоот
+      const formattedData = nekhemjlekhiinTuukhList.map((item, index) => {
+        const geree = item.gereeniiId ? gereeMap[item.gereeniiId.toString()] : null;
+        
+        // Get phone - prefer from invoice, fallback to geree
+        let utas = "";
+        if (item.utas && Array.isArray(item.utas) && item.utas.length > 0) {
+          utas = item.utas[0];
+        } else if (item.utas && typeof item.utas === "string") {
+          utas = item.utas;
+        } else if (geree && geree.utas && Array.isArray(geree.utas) && geree.utas.length > 0) {
+          utas = geree.utas[0];
+        } else if (geree && geree.utas && typeof geree.utas === "string") {
+          utas = geree.utas;
+        }
+
+        return {
+          dugaar: index + 1, // № (row number)
+          ner: item.ner || "", // Нэр (name)
+          toot: item.nekhemjlekhiinDugaar || item.dugaalaltDugaar || "", // Тоот (invoice number)
+          utas: utas, // Утас (phone)
+          gereeniiDugaar: item.gereeniiDugaar || "", // Гэрээний дугаар (contract number)
+          uldegdel: item.uldegdel || 0, // Үлдэгдэл (balance)
+          guitsetgel: item.tuluv || "", // Гүйцэтгэл (status/performance)
+          orts: geree ? (geree.orts || "") : (item.davkhar ? "" : ""), // Орц (entrance) - from geree
+          davkhar: geree ? (geree.davkhar || item.davkhar || "") : (item.davkhar || ""), // Давхар (floor)
+          tootGeree: geree ? (geree.toot || "") : "", // Тоот (apartment number) - from geree
+        };
+      });
 
       // Set data for download with specific headers
       req.body.data = formattedData;
       req.body.headers = [
         { key: "dugaar", label: "№" },
         { key: "ner", label: "Нэр" },
+        { key: "toot", label: "Тоот" },
+        { key: "utas", label: "Утас" },
         { key: "gereeniiDugaar", label: "Гэрээний дугаар" },
-        { key: "tulbur", label: "Төлбөр" },
-        { key: "tuluv", label: "Төлөв" },
+        { key: "uldegdel", label: "Үлдэгдэл" },
+        { key: "guitsetgel", label: "Гүйцэтгэл" },
+        { key: "orts", label: "Орц" },
+        { key: "davkhar", label: "Давхар" },
+        { key: "tootGeree", label: "Тоот" },
       ];
       req.body.fileName =
         req.body.fileName || `nekhemjlekhiinTuukh_${Date.now()}`;
       req.body.sheetName = req.body.sheetName || "Нэхэмжлэх";
-      req.body.colWidths = [10, 25, 20, 15, 15]; // Column widths
+      req.body.colWidths = [8, 25, 15, 15, 20, 15, 15, 10, 10, 10]; // Column widths
 
       // Call downloadExcelList function directly
       return exports.downloadExcelList(req, res, next);
@@ -2229,3 +2273,6 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
     next(error);
   }
 });
+
+
+
