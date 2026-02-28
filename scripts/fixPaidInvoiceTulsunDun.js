@@ -64,31 +64,10 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
     try {
       const invId = invoice._id.toString();
       
-      // Calculate total paid from paymentHistory
+      // Calculate total paid from paymentHistory only (to avoid duplication)
+      // gereeniiTulsunAvlaga records are duplicates of paymentHistory entries
       const totalPaidFromHistory = (invoice.paymentHistory || []).reduce(
         (sum, p) => sum + (p.dun || 0),
-        0
-      );
-
-      // Calculate total paid from gereeniiTulsunAvlaga linked to this invoice
-      const linkedPayments = await GereeniiTulsunAvlaga.find({
-        baiguullagiinId: String(baiguullagiinId),
-        nekhemjlekhId: invId,
-      }).lean();
-
-      const totalPaidFromAvlaga = linkedPayments.reduce(
-        (sum, p) => sum + (p.tulsunDun || 0),
-        0
-      );
-
-      // Also check guilgeenuud from invoice medeelel
-      const totalPaidFromGuilgeenuud = (invoice.medeelel?.guilgeenuud || []).reduce(
-        (sum, g) => {
-          const dun = typeof g.tulsunDun === "number" 
-            ? g.tulsunDun 
-            : (g.dun != null ? Number(g.dun) : 0);
-          return sum + dun;
-        },
         0
       );
 
@@ -96,8 +75,8 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
       const currentNiitTulbur = typeof invoice.niitTulbur === "number" ? invoice.niitTulbur : 0;
       const isFullyPaid = invoice.tuluv === "Төлсөн" && currentUldegdel <= 0.01;
       
-      // Total paid is the sum of all sources
-      let totalPaid = totalPaidFromHistory + totalPaidFromAvlaga + totalPaidFromGuilgeenuud;
+      // Total paid is only from paymentHistory (no avlaga to avoid duplication)
+      let totalPaid = totalPaidFromHistory;
       
       // Get niitTulburOriginal (original invoice amount)
       const niitTulburOriginal = typeof invoice.niitTulburOriginal === "number" 
@@ -132,7 +111,7 @@ async function fixOrgData(kholbolt, baiguullagiinId, orgName) {
         `  [${invoice.gereeniiDugaar || "N/A"}] Invoice ${invoice.nekhemjlekhiinDugaar || invId}: ` +
         `uldegdel: ${currentUldegdel} → 0, ` +
         `niitTulbur: ${currentNiitTulbur} → ${finalTotalPaid.toFixed(2)}, ` +
-        `totalPaid: ${finalTotalPaid.toFixed(2)} (from ${invoice.paymentHistory?.length || 0} paymentHistory + ${linkedPayments.length} avlaga + ${invoice.medeelel?.guilgeenuud?.length || 0} guilgeenuud)`
+        `totalPaid: ${finalTotalPaid.toFixed(2)} (from ${invoice.paymentHistory?.length || 0} paymentHistory)`
       );
 
       if (!DRY_RUN) {
