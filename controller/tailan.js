@@ -1281,7 +1281,12 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       if (!dueDate) continue;
 
       dueDate.setHours(0, 0, 0, 0);
-      const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+      const diffTime = today - dueDate;
+      const daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+       
+      if (daysOverdue < 0) continue;
+
       const monthsOverdue = Math.floor(daysOverdue / 30);
 
       // Determine age bucket
