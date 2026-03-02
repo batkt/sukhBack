@@ -789,6 +789,8 @@ exports.tailanSariinTulbur = asyncHandler(async (req, res, next) => {
 
         return {
           period,
+          _id: d._id,
+          gereeniiId: d.gereeniiId,
           gereeniiDugaar: d.gereeniiDugaar || "",
           ovog: d.ovog || "",
           ner: d.ner || "",
@@ -798,6 +800,8 @@ exports.tailanSariinTulbur = asyncHandler(async (req, res, next) => {
           bairNer: d.bairNer || "",
           ognoo: d.ognoo || null,
           tulukhOgnoo: d.tulukhOgnoo || null,
+          tulsunOgnoo: d.tulsunOgnoo || null,
+          tailbar: d.tailbar || d.medeelel?.tailbar || "",
           niitTulbur: d.niitTulbur || 0,
           tuluv: d.tuluv || "Төлөөгүй",
           dugaalaltDugaar: d.dugaalaltDugaar || null,
