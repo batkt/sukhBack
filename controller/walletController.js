@@ -51,7 +51,21 @@ exports.walletBillers = asyncHandler(async (req, res, next) => {
 
 exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    // For getBillingByBiller, Wallet-Service requires phone number as userId, not walletUserId
+    const { db } = require("zevbackv2");
+    const OrshinSuugch = require("../models/orshinSuugch");
+    const jwt = require("jsonwebtoken");
+    const token = req.headers.authorization.split(" ")[1];
+    const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+    
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+    
+    // Use phone number for this endpoint (Wallet-Service requirement)
+    const userId = orshinSuugch.utas;
+    
     const { billerCode, customerCode } = req.params;
     
     if (!billerCode || !customerCode) {
@@ -62,9 +76,22 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
     
     // Check if billing is null, undefined, or empty array
     if (!billing || (Array.isArray(billing) && billing.length === 0)) {
+      // Get user info to check if they have walletCustomerCode
+      const { db } = require("zevbackv2");
+      const OrshinSuugch = require("../models/orshinSuugch");
+      const jwt = require("jsonwebtoken");
+      const token = req.headers.authorization.split(" ")[1];
+      const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+      
+      let errorMessage = "Биллингийн мэдээлэл олдсонгүй";
+      if (orshinSuugch && orshinSuugch.walletCustomerCode && orshinSuugch.walletCustomerCode !== customerCode) {
+        errorMessage = `Хэрэглэгчийн код буруу байна. Таны бүртгэлтэй код: ${orshinSuugch.walletCustomerCode}`;
+      }
+      
       return res.status(404).json({
         success: false,
-        message: "Биллингийн мэдээлэл олдсонгүй",
+        message: errorMessage,
       });
     }
 

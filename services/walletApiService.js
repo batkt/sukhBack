@@ -306,8 +306,32 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
   try {
     const token = await getWalletServiceToken();
     
+    // Map Cyrillic biller codes to English (Wallet-Service expects English)
+    const billerCodeMap = {
+      'ЦАХИЛГААН': 'ELECTRIC',
+      'УС': 'WATER',
+      'ХАЛУУН_УС': 'HOT_WATER',
+      'ХАЛААЛТ': 'HEATING',
+    };
+    
+    // Use mapped code if available, otherwise use original
+    const mappedBillerCode = billerCodeMap[billerCode] || billerCode;
+    
+    // URL encode the parameters to handle special characters
+    const encodedBillerCode = encodeURIComponent(mappedBillerCode);
+    const encodedCustomerCode = encodeURIComponent(customerCode);
+    
+    // Log request parameters for debugging
+    console.log("🔍 [WALLET API] getBillingByBiller request:", {
+      userId: userId,
+      originalBillerCode: billerCode,
+      mappedBillerCode: mappedBillerCode,
+      customerCode: customerCode,
+      url: `${WALLET_API_BASE_URL}/api/billing/biller/${encodedBillerCode}/${encodedCustomerCode}`
+    });
+    
     const response = await axios.get(
-      `${WALLET_API_BASE_URL}/api/billing/biller/${billerCode}/${customerCode}`,
+      `${WALLET_API_BASE_URL}/api/billing/biller/${encodedBillerCode}/${encodedCustomerCode}`,
       {
         headers: {
           userId: userId,
@@ -420,6 +444,20 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
       }
       
       return data;
+    }
+
+    // If responseCode is false, return null but log the error message
+    if (response.data && response.data.responseCode === false) {
+      const errorMsg = response.data.responseMsg || "Биллингийн мэдээлэл олдсонгүй";
+      console.error("❌ [WALLET API] Wallet-Service returned error:", {
+        responseCode: response.data.responseCode,
+        responseMsg: errorMsg,
+        billerCode: billerCode,
+        customerCode: customerCode,
+        userId: userId
+      });
+      // Return null so controller can handle 404
+      return null;
     }
 
     // If responseCode is false or data is missing, return null
