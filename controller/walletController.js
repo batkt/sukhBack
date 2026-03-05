@@ -31,7 +31,9 @@ async function getUserIdFromToken(req) {
     throw new aldaa("Хэрэглэгч олдсонгүй!");
   }
 
-  return orshinSuugch.utas || tokenObject.id;
+  // Wallet-Service expects walletUserId (UUID) in userId header, not phone number
+  // Return walletUserId if available, otherwise fall back to phone number
+  return orshinSuugch.walletUserId || orshinSuugch.utas || tokenObject.id;
 }
 
 exports.walletBillers = asyncHandler(async (req, res, next) => {
