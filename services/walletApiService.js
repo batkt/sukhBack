@@ -408,6 +408,24 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
             return customer;
           }));
           
+          // Automatically save billing to Wallet-Service for each customer if they have customerId
+          // This ensures it appears in the billing list
+          await Promise.all(enrichedData.map(async (customer) => {
+            if (customer.customerId && !customer.billingId) {
+              try {
+                // Save billing to Wallet-Service so it appears in the list
+                const savedBilling = await saveBilling(userId, { customerId: customer.customerId });
+                if (savedBilling && savedBilling.billingId) {
+                  customer.billingId = savedBilling.billingId;
+                  console.log(`✅ [WALLET API] Auto-saved billing for customerId: ${customer.customerId}, billingId: ${savedBilling.billingId}`);
+                }
+              } catch (saveError) {
+                // Don't fail the request if save fails - billing might already exist
+                console.log(`⚠️ [WALLET API] Could not auto-save billing for customerId: ${customer.customerId}`, saveError.message);
+              }
+            }
+          }));
+          
           // Return enriched data even if billingId enrichment failed
           return enrichedData;
         } catch (enrichmentError) {
@@ -440,6 +458,22 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
             data.billingId = null;
           }
         }
+        
+        // Automatically save billing to Wallet-Service if customerId exists but no billingId
+        if (data.customerId && !data.billingId) {
+          try {
+            // Save billing to Wallet-Service so it appears in the list
+            const savedBilling = await saveBilling(userId, { customerId: data.customerId });
+            if (savedBilling && savedBilling.billingId) {
+              data.billingId = savedBilling.billingId;
+              console.log(`✅ [WALLET API] Auto-saved billing for customerId: ${data.customerId}, billingId: ${savedBilling.billingId}`);
+            }
+          } catch (saveError) {
+            // Don't fail the request if save fails - billing might already exist
+            console.log(`⚠️ [WALLET API] Could not auto-save billing for customerId: ${data.customerId}`, saveError.message);
+          }
+        }
+        
         return data;
       }
       
