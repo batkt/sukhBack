@@ -542,11 +542,25 @@ async function getBillingList(userId) {
   try {
     const token = await getWalletServiceToken();
     
+    // Log request for debugging
+    console.log("🔍 [WALLET API] getBillingList request:", {
+      userId: userId,
+      url: `${WALLET_API_BASE_URL}/api/billing/list`
+    });
+    
     const response = await axios.get(`${WALLET_API_BASE_URL}/api/billing/list`, {
       headers: {
         userId: userId,
         Authorization: `Bearer ${token}`,
       },
+    });
+    
+    // Log response for debugging
+    console.log("🔍 [WALLET API] getBillingList response:", {
+      responseCode: response.data?.responseCode,
+      responseMsg: response.data?.responseMsg,
+      dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A',
+      hasData: !!response.data?.data
     });
 
 

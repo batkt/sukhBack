@@ -161,7 +161,21 @@ exports.walletBillingByCustomer = asyncHandler(async (req, res, next) => {
 
 exports.walletBillingList = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    // For getBillingList, Wallet-Service requires phone number as userId, not walletUserId
+    const { db } = require("zevbackv2");
+    const OrshinSuugch = require("../models/orshinSuugch");
+    const jwt = require("jsonwebtoken");
+    const token = req.headers.authorization.split(" ")[1];
+    const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+    
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+    
+    // Use phone number for this endpoint (Wallet-Service requirement)
+    const userId = orshinSuugch.utas;
+    
     const billingList = await walletApiService.getBillingList(userId);
     const data = Array.isArray(billingList) ? billingList : [];
     
