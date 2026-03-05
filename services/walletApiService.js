@@ -564,17 +564,28 @@ async function getBillingList(userId) {
     });
 
 
-    if (response.data && response.data.responseCode) {
-      if (response.data.data) {
-        if (Array.isArray(response.data.data)) {
-          // Sanitize null values in each billing item
-          return response.data.data.map(item => sanitizeNullValues(item));
-        } else if (typeof response.data.data === 'object') {
-          return [sanitizeNullValues(response.data.data)];
-        }
+    // Check if response is successful (responseCode can be true or "true" or truthy)
+    const isSuccess = response.data && (
+      response.data.responseCode === true || 
+      response.data.responseCode === "true" || 
+      (typeof response.data.responseCode === 'boolean' && response.data.responseCode) ||
+      (typeof response.data.responseCode === 'string' && response.data.responseCode.toLowerCase() === 'true')
+    );
+    
+    if (isSuccess && response.data.data) {
+      if (Array.isArray(response.data.data)) {
+        // Sanitize null values in each billing item
+        return response.data.data.map(item => sanitizeNullValues(item));
+      } else if (typeof response.data.data === 'object') {
+        return [sanitizeNullValues(response.data.data)];
       }
     }
 
+    // If responseCode is false or no data, return empty array (don't throw error)
+    if (response.data && response.data.responseCode === false) {
+      console.log("⚠️ [WALLET API] getBillingList returned false, but returning empty array:", response.data.responseMsg);
+    }
+    
     return [];
   } catch (error) {
     console.error("❌ [WALLET API] Error getting billing list:", error.message);
