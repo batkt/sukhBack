@@ -354,6 +354,40 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
 
             if (invoiceResult && invoiceResult.invoiceId) {
               invoiceId = invoiceResult.invoiceId;
+
+              // --- Save Wallet invoice metadata in our MongoDB (erunkhiiKholbolt) ---
+              try {
+                const WalletInvoice = require("../models/walletInvoice");
+
+                const erunkhiiKholbolt = db.erunkhiiKholbolt;
+                const WalletInvoiceModel = WalletInvoice(erunkhiiKholbolt);
+
+                // Try to find resident by phone to link orshinSuugchId
+                const orshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+                const orshinSuugchDoc = await orshinSuugchModel
+                  .findOne({ utas: userPhoneNumber })
+                  .lean();
+
+                await WalletInvoiceModel.create({
+                  userId: userPhoneNumber,
+                  orshinSuugchId: orshinSuugchDoc?._id?.toString() || null,
+                  walletInvoiceId: invoiceResult.invoiceId,
+                  billingId: invoiceData.billingId,
+                  billIds: invoiceData.billIds || [],
+                  billingName: invoiceResult.billingName || "",
+                  customerId: invoiceResult.customerId || "",
+                  customerName: invoiceResult.customerName || "",
+                  customerAddress: invoiceResult.customerAddress || "",
+                  totalAmount: invoiceResult.totalAmount || null,
+                  source: "WALLET_API",
+                });
+              } catch (saveErr) {
+                console.error(
+                  "⚠️ [WALLET INVOICE] Failed to save wallet invoice:",
+                  saveErr.message,
+                );
+              }
+              // --- end save Wallet invoice metadata ---
             } else {
               throw new Error(
                 "Failed to create invoice - invoiceId not returned",
