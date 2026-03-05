@@ -2049,6 +2049,18 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       }
     }
 
+    // Explicitly ensure walletBairId and walletDoorNo are saved (they might be in userData but need to be on document)
+    if (userData.walletBairId) {
+      orshinSuugch.walletBairId = userData.walletBairId;
+    }
+    if (userData.walletDoorNo) {
+      orshinSuugch.walletDoorNo = userData.walletDoorNo;
+    }
+    // Also ensure bairniiNer is saved if provided
+    if (req.body.bairniiNer) {
+      orshinSuugch.bairniiNer = req.body.bairniiNer;
+    }
+
     if (req.body.firebaseToken) {
       orshinSuugch.firebaseToken = req.body.firebaseToken;
     }
