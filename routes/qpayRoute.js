@@ -246,46 +246,61 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
     const walletApiService = require("../services/walletApiService");
 
     // Auto-detect address source and route to appropriate QPay service
+    // Now supports using Wallet QPay even if user also has baiguullagiinId
     let useWalletQPay = false;
     let userPhoneNumber = null;
     let detectedSource = "CUSTOM"; // CUSTOM or WALLET_API
 
-    // Priority 1: Check if baiguullagiinId is provided in request body (definitely OWN_ORG)
-    if (req.body.baiguullagiinId) {
-      detectedSource = "CUSTOM";
-    } else {
-      // Priority 2: Try to get user from token to check address source
-      try {
-        const jwt = require("jsonwebtoken");
-        if (req.headers.authorization) {
-          const token = req.headers.authorization.split(" ")[1];
-          if (token) {
-            const tokenObject = jwt.verify(token, process.env.APP_SECRET);
-            if (tokenObject?.id && tokenObject.id !== "zochin") {
-              const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
-                .findById(tokenObject.id)
-                .lean();
-              if (orshinSuugch) {
-                userPhoneNumber = orshinSuugch.utas;
-                // If user has baiguullagiinId, it's OWN_ORG address - use custom QPay
-                // If user doesn't have baiguullagiinId, it's Wallet API address - use Wallet QPay
-                if (orshinSuugch.baiguullagiinId) {
-                  detectedSource = "CUSTOM";
-                } else if (
-                  orshinSuugch.walletUserId ||
-                  orshinSuugch.walletBairId
-                ) {
-                  detectedSource = "WALLET_API";
-                  useWalletQPay = true;
-                }
+    // Optional explicit override from frontend:
+    // - addressSource: "WALLET_API" -> force Wallet QPay
+    // - addressSource: "CUSTOM"     -> force custom QPay
+    const addressSourceOverride = req.body.addressSource;
+
+    // Try to get user from token to check address / wallet source
+    try {
+      const jwt = require("jsonwebtoken");
+      if (req.headers.authorization) {
+        const token = req.headers.authorization.split(" ")[1];
+        if (token) {
+          const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+          if (tokenObject?.id && tokenObject.id !== "zochin") {
+            const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
+              .findById(tokenObject.id)
+              .lean();
+            if (orshinSuugch) {
+              userPhoneNumber = orshinSuugch.utas;
+
+              // 1) If frontend explicitly asks for Wallet QPay and wallet data exists, prefer WALLET_API
+              if (
+                addressSourceOverride === "WALLET_API" &&
+                (orshinSuugch.walletUserId || orshinSuugch.walletBairId)
+              ) {
+                detectedSource = "WALLET_API";
+                useWalletQPay = true;
+              }
+              // 2) If frontend explicitly asks for CUSTOM, force custom
+              else if (addressSourceOverride === "CUSTOM") {
+                detectedSource = "CUSTOM";
+                useWalletQPay = false;
+              }
+              // 3) Auto-detect: if user has wallet data, use Wallet QPay even if baiguullagiinId also exists
+              else if (orshinSuugch.walletUserId || orshinSuugch.walletBairId) {
+                detectedSource = "WALLET_API";
+                useWalletQPay = true;
+              }
+              // 4) Fallback: no wallet data -> custom QPay (OWN_ORG)
+              else if (orshinSuugch.baiguullagiinId || req.body.baiguullagiinId) {
+                detectedSource = "CUSTOM";
+                useWalletQPay = false;
               }
             }
           }
         }
-      } catch (tokenError) {
-        // Default to custom QPay if detection fails
-        detectedSource = "CUSTOM";
       }
+    } catch (tokenError) {
+      // Default to custom QPay if detection fails
+      detectedSource = "CUSTOM";
+      useWalletQPay = false;
     }
 
     // If useWalletQPay is true, route to Wallet API QPay
