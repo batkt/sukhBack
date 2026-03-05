@@ -664,14 +664,41 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           }
         }
 
-        // Check for QR code in response
-        if (result.qrText) {
-        } else {
-        }
+        // Check for QR code in response (Wallet may or may not provide it)
+        // If not provided, we will still generate a simple bank QR payload
 
         // Check if bank details are still missing after retries
         const hasBankDetails =
           result.receiverBankCode && result.receiverAccountNo;
+
+        // Build a simple bank QR payload that frontend can encode as QR
+        // NOTE: This is not a Wallet-generated QR, it's our own structure
+        const walletBankAmount =
+          result.totalAmount ||
+          result.paymentAmount ||
+          result.amount ||
+          null;
+
+        const walletBankQr = hasBankDetails
+          ? {
+              type: "WALLET_BANK_PAYMENT",
+              paymentId: result.paymentId || "",
+              invoiceId: invoiceId || "",
+              receiverBankCode: result.receiverBankCode,
+              receiverAccountNo: result.receiverAccountNo,
+              receiverAccountName: result.receiverAccountName || "",
+              amount: walletBankAmount,
+              currency: "MNT",
+              description:
+                result.transactionDescription ||
+                result.transactionDescrion ||
+                "",
+            }
+          : null;
+
+        const walletBankQrText = walletBankQr
+          ? JSON.stringify(walletBankQr)
+          : null;
 
         return res.status(200).json({
           success: true,
@@ -685,6 +712,8 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           pollingEndpoint: hasBankDetails
             ? null
             : `/api/payment/${result.paymentId}`, // Endpoint to poll (relative path)
+          walletBankQr,
+          walletBankQrText,
         });
       } catch (walletQPayError) {
         // Fall back to custom QPay if Wallet QPay fails
