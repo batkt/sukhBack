@@ -58,7 +58,8 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
 
     const billing = await walletApiService.getBillingByBiller(userId, billerCode, customerCode);
     
-    if (!billing) {
+    // Check if billing is null, undefined, or empty array
+    if (!billing || (Array.isArray(billing) && billing.length === 0)) {
       return res.status(404).json({
         success: false,
         message: "Биллингийн мэдээлэл олдсонгүй",

@@ -316,49 +316,81 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
       }
     );
 
-    if (response.data && response.data.responseCode && response.data.data) {
+    // Log response for debugging
+    console.log("🔍 [WALLET API] getBillingByBiller response:", {
+      responseCode: response.data?.responseCode,
+      responseMsg: response.data?.responseMsg,
+      hasData: !!response.data?.data,
+      dataType: Array.isArray(response.data?.data) ? 'array' : typeof response.data?.data,
+      dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A',
+      fullResponse: JSON.stringify(response.data).substring(0, 500)
+    });
+
+    // Check if response is successful (responseCode can be true or "true" or truthy)
+    const isSuccess = response.data && (
+      response.data.responseCode === true || 
+      response.data.responseCode === "true" || 
+      (typeof response.data.responseCode === 'boolean' && response.data.responseCode) ||
+      (typeof response.data.responseCode === 'string' && response.data.responseCode.toLowerCase() === 'true')
+    );
+    
+    if (isSuccess && response.data.data) {
       let data = response.data.data;
       
       // If data is an array, process each item
       if (Array.isArray(data)) {
+        // If array is empty, return empty array (not null)
+        if (data.length === 0) {
+          return [];
+        }
+        
         // For each customer, try to get billingId if not present
-        const enrichedData = await Promise.all(data.map(async (customer) => {
-          // If billingId is already present, return as is
-          if (customer.billingId) {
-            return customer;
-          }
-          
-          // Try to get billingId from billing list or by customerId
-          try {
-            if (customer.customerId) {
-              const billing = await getBillingByCustomer(userId, customer.customerId);
-              if (billing && billing.billingId) {
-                customer.billingId = billing.billingId;
-              } else {
-                // Try billing list
-                const billingList = await getBillingList(userId);
-                const matchingBilling = billingList.find(b => 
-                  b.customerId === customer.customerId || 
-                  b.customerCode === customer.customerCode
-                );
-                if (matchingBilling && matchingBilling.billingId) {
-                  customer.billingId = matchingBilling.billingId;
+        // Wrap in try-catch to ensure we return original data even if enrichment fails
+        try {
+          const enrichedData = await Promise.all(data.map(async (customer) => {
+            // If billingId is already present, return as is
+            if (customer.billingId) {
+              return customer;
+            }
+            
+            // Try to get billingId from billing list or by customerId
+            try {
+              if (customer.customerId) {
+                const billing = await getBillingByCustomer(userId, customer.customerId);
+                if (billing && billing.billingId) {
+                  customer.billingId = billing.billingId;
                 } else {
-                  customer.billingId = null;
+                  // Try billing list
+                  const billingList = await getBillingList(userId);
+                  const matchingBilling = billingList.find(b => 
+                    b.customerId === customer.customerId || 
+                    b.customerCode === customer.customerCode
+                  );
+                  if (matchingBilling && matchingBilling.billingId) {
+                    customer.billingId = matchingBilling.billingId;
+                  } else {
+                    customer.billingId = null;
+                  }
                 }
+              } else {
+                customer.billingId = null;
               }
-            } else {
+            } catch (err) {
+              console.error("⚠️ [WALLET API] Error fetching billingId for customer:", err.message);
+              // Don't fail the entire request if billingId enrichment fails
               customer.billingId = null;
             }
-          } catch (err) {
-            console.error("⚠️ [WALLET API] Error fetching billingId:", err.message);
-            customer.billingId = null;
-          }
+            
+            return customer;
+          }));
           
-          return customer;
-        }));
-        
-        return enrichedData;
+          // Return enriched data even if billingId enrichment failed
+          return enrichedData;
+        } catch (enrichmentError) {
+          console.error("⚠️ [WALLET API] Error during enrichment, returning original data:", enrichmentError.message);
+          // If enrichment fails completely, return original data
+          return data;
+        }
       } else if (typeof data === 'object') {
         // Single customer object
         if (!data.billingId && data.customerId) {
@@ -390,6 +422,12 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
       return data;
     }
 
+    // If responseCode is false or data is missing, return null
+    console.error("❌ [WALLET API] Invalid response structure:", {
+      hasResponse: !!response.data,
+      responseCode: response.data?.responseCode,
+      hasData: !!response.data?.data
+    });
     return null;
   } catch (error) {
     if (error.response && error.response.status === 404) {
