@@ -666,8 +666,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
 
         // Check for QR code in response (Wallet may or may not provide it)
         // Wallet-Service may provide qrText or url in the payment response
-        // If not provided, we cannot generate a valid QPay QR code
-        // (QPay QR codes must be generated through QPay API, not custom JSON)
+        // If not provided, generate EMV QR code format from bank details
 
         // Check if bank details are still missing after retries
         const hasBankDetails =
@@ -677,46 +676,121 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         const walletQrText = result.qrText || result.qr_text || result.url || null;
         const walletQrUrl = result.url || result.invoice_url || null;
 
-        // If Wallet provides QR, use it. Otherwise, don't generate invalid QR.
-        // Frontend should show bank details for manual entry instead.
         const walletBankAmount =
           result.totalAmount ||
           result.paymentAmount ||
           result.amount ||
           null;
 
-        // Only provide QR if Wallet-Service gave us one
-        // Otherwise, provide bank details for manual entry
-        const walletBankQr = walletQrText
-          ? {
-              qrText: walletQrText,
-              type: "WALLET_PROVIDED_QR",
-            }
-          : hasBankDetails
-            ? {
-                // Bank details for manual entry (not a scannable QR)
-                type: "WALLET_BANK_DETAILS",
-                paymentId: result.paymentId || "",
-                invoiceId: invoiceId || "",
-                receiverBankCode: result.receiverBankCode,
-                receiverAccountNo: result.receiverAccountNo,
-                receiverAccountName: result.receiverAccountName || "",
-                amount: walletBankAmount,
-                currency: "MNT",
-                description:
-                  result.transactionDescription ||
-                  result.transactionDescrion ||
-                  "",
-                note: "Банкны апп-аар дансны дугаар, дүнг гараар оруулна уу. QR код байхгүй.",
-              }
-            : null;
+        // Function to generate EMV QR code format for bank transfer
+        // Mongolian banks use EMV QR Code standard (ISO 18004) for bank transfers
+        const generateEMVQR = (bankCode, accountNo, accountName, amount, description) => {
+          if (!bankCode || !accountNo || !amount) return null;
 
-        // If Wallet provided QR text, use it directly. Otherwise, stringify bank details object.
-        const walletBankQrText = walletQrText
-          ? walletQrText
-          : walletBankQr
-            ? JSON.stringify(walletBankQr)
-            : null;
+          // EMV QR Code format for Merchant-Presented Mode (MPM)
+          // Structure: [Payload Format Indicator][Point of Initiation][Merchant Account Info][Merchant Category Code][Transaction Currency][Transaction Amount][Country Code][Merchant Name][Additional Data Field Template][CRC]
+          
+          // For bank transfers in Mongolia, we use a simplified format
+          // Format: 000201010212[Merchant Account Info][Amount][Description]6304[CRC]
+          
+          const amountStr = Math.round(amount * 100).toString(); // Amount in smallest currency unit (tiyng)
+          const merchantAccountInfo = `26${String(bankCode.length + accountNo.length + 2).padStart(2, '0')}${bankCode}${accountNo}`;
+          const amountField = `54${String(amountStr.length).padStart(2, '0')}${amountStr}`;
+          const currencyField = `5303${"496"}`; // 496 = MNT (Mongolian Tugrik)
+          const countryCode = `5802${"MN"}`;
+          const merchantName = `59${String((accountName || "").length).padStart(2, '0')}${accountName || ""}`;
+          const additionalData = `62${String((description || "").length + 2).padStart(2, '0')}05${String((description || "").length).padStart(2, '0')}${description || ""}`;
+          
+          // Build QR payload
+          const payload = `000201` + // Payload Format Indicator
+                         `0102` + // Point of Initiation (02 = dynamic)
+                         merchantAccountInfo +
+                         `5204${"0000"}` + // Merchant Category Code (0000 = default)
+                         currencyField +
+                         amountField +
+                         countryCode +
+                         merchantName +
+                         additionalData +
+                         `6304`; // CRC placeholder
+          
+          // Calculate CRC16-CCITT
+          const calculateCRC = (data) => {
+            let crc = 0xFFFF;
+            for (let i = 0; i < data.length; i++) {
+              crc ^= data.charCodeAt(i) << 8;
+              for (let j = 0; j < 8; j++) {
+                if (crc & 0x8000) {
+                  crc = (crc << 1) ^ 0x1021;
+                } else {
+                  crc <<= 1;
+                }
+              }
+            }
+            return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+          };
+          
+          const crc = calculateCRC(payload);
+          const qrString = payload + crc;
+          
+          return qrString;
+        };
+
+        // Generate QR code if we have bank details
+        let walletBankQrText = walletQrText;
+        let walletBankQr = null;
+
+        if (walletQrText) {
+          // Wallet-Service provided QR - use it directly
+          walletBankQr = {
+            qrText: walletQrText,
+            type: "WALLET_PROVIDED_QR",
+          };
+        } else if (hasBankDetails && walletBankAmount) {
+          // Generate EMV QR code from bank details
+          const generatedQR = generateEMVQR(
+            result.receiverBankCode,
+            result.receiverAccountNo,
+            result.receiverAccountName || "",
+            walletBankAmount,
+            result.transactionDescription || result.transactionDescrion || ""
+          );
+
+          if (generatedQR) {
+            walletBankQrText = generatedQR;
+            walletBankQr = {
+              type: "WALLET_EMV_QR",
+              qrText: generatedQR,
+              paymentId: result.paymentId || "",
+              invoiceId: invoiceId || "",
+              receiverBankCode: result.receiverBankCode,
+              receiverAccountNo: result.receiverAccountNo,
+              receiverAccountName: result.receiverAccountName || "",
+              amount: walletBankAmount,
+              currency: "MNT",
+              description:
+                result.transactionDescription ||
+                result.transactionDescrion ||
+                "",
+            };
+          } else {
+            // Fallback: bank details without QR
+            walletBankQr = {
+              type: "WALLET_BANK_DETAILS",
+              paymentId: result.paymentId || "",
+              invoiceId: invoiceId || "",
+              receiverBankCode: result.receiverBankCode,
+              receiverAccountNo: result.receiverAccountNo,
+              receiverAccountName: result.receiverAccountName || "",
+              amount: walletBankAmount,
+              currency: "MNT",
+              description:
+                result.transactionDescription ||
+                result.transactionDescrion ||
+                "",
+            };
+            walletBankQrText = JSON.stringify(walletBankQr);
+          }
+        }
 
         return res.status(200).json({
           success: true,
