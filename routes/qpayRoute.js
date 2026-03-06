@@ -665,40 +665,58 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         }
 
         // Check for QR code in response (Wallet may or may not provide it)
-        // If not provided, we will still generate a simple bank QR payload
+        // Wallet-Service may provide qrText or url in the payment response
+        // If not provided, we cannot generate a valid QPay QR code
+        // (QPay QR codes must be generated through QPay API, not custom JSON)
 
         // Check if bank details are still missing after retries
         const hasBankDetails =
           result.receiverBankCode && result.receiverAccountNo;
 
-        // Build a simple bank QR payload that frontend can encode as QR
-        // NOTE: This is not a Wallet-generated QR, it's our own structure
+        // Check if Wallet-Service provided a QR code
+        const walletQrText = result.qrText || result.qr_text || result.url || null;
+        const walletQrUrl = result.url || result.invoice_url || null;
+
+        // If Wallet provides QR, use it. Otherwise, don't generate invalid QR.
+        // Frontend should show bank details for manual entry instead.
         const walletBankAmount =
           result.totalAmount ||
           result.paymentAmount ||
           result.amount ||
           null;
 
-        const walletBankQr = hasBankDetails
+        // Only provide QR if Wallet-Service gave us one
+        // Otherwise, provide bank details for manual entry
+        const walletBankQr = walletQrText
           ? {
-              type: "WALLET_BANK_PAYMENT",
-              paymentId: result.paymentId || "",
-              invoiceId: invoiceId || "",
-              receiverBankCode: result.receiverBankCode,
-              receiverAccountNo: result.receiverAccountNo,
-              receiverAccountName: result.receiverAccountName || "",
-              amount: walletBankAmount,
-              currency: "MNT",
-              description:
-                result.transactionDescription ||
-                result.transactionDescrion ||
-                "",
+              qrText: walletQrText,
+              type: "WALLET_PROVIDED_QR",
             }
-          : null;
+          : hasBankDetails
+            ? {
+                // Bank details for manual entry (not a scannable QR)
+                type: "WALLET_BANK_DETAILS",
+                paymentId: result.paymentId || "",
+                invoiceId: invoiceId || "",
+                receiverBankCode: result.receiverBankCode,
+                receiverAccountNo: result.receiverAccountNo,
+                receiverAccountName: result.receiverAccountName || "",
+                amount: walletBankAmount,
+                currency: "MNT",
+                description:
+                  result.transactionDescription ||
+                  result.transactionDescrion ||
+                  "",
+                note: "Банкны апп-аар дансны дугаар, дүнг гараар оруулна уу. QR код байхгүй.",
+              }
+            : null;
 
-        const walletBankQrText = walletBankQr
-          ? JSON.stringify(walletBankQr)
-          : null;
+        // If Wallet provided QR text, use it directly. Otherwise, stringify bank details object.
+        const walletBankQrText = walletQrText
+          ? walletQrText
+          : walletBankQr
+            ? JSON.stringify(walletBankQr)
+            : null;
 
         return res.status(200).json({
           success: true,
