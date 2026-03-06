@@ -17,6 +17,8 @@ const {
   walletInvoiceGet,
   walletInvoiceCancel,
   walletPaymentCreate,
+  walletPaymentGet,
+  walletPaymentUpdateQPay,
   walletUserEdit,
 } = require("../controller/walletController");
 
@@ -38,6 +40,8 @@ router.get("/invoice/:invoiceId", tokenShalgakh, walletInvoiceGet);
 router.put("/invoice/:invoiceId/cancel", tokenShalgakh, walletInvoiceCancel);
 
 router.post("/payment", tokenShalgakh, walletPaymentCreate);
+router.get("/payment/:paymentId", tokenShalgakh, walletPaymentGet);
+router.put("/payment/qpay/:paymentId", tokenShalgakh, walletPaymentUpdateQPay);
 
 router.put("/user", tokenShalgakh, walletUserEdit);
 

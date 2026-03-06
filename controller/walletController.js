@@ -492,6 +492,67 @@ exports.walletPaymentCreate = asyncHandler(async (req, res, next) => {
   }
 });
 
+exports.walletPaymentGet = asyncHandler(async (req, res, next) => {
+  try {
+    const userId = await getUserIdFromToken(req);
+    const { paymentId } = req.params;
+    
+    if (!paymentId) {
+      throw new aldaa("Төлбөрийн ID заавал бөглөх шаардлагатай!");
+    }
+
+    const result = await walletApiService.getPayment(userId, paymentId);
+    
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Төлбөр олдсонгүй",
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    console.error("❌ [WALLET PAYMENT GET] Error:", err.message);
+    if (err.response) {
+      console.error("❌ [WALLET PAYMENT GET] Error response:", JSON.stringify(err.response.data));
+    }
+    next(err);
+  }
+});
+
+exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
+  try {
+    const userId = await getUserIdFromToken(req);
+    const { paymentId } = req.params;
+    const qpayData = req.body;
+    
+    if (!paymentId) {
+      throw new aldaa("Төлбөрийн ID заавал бөглөх шаардлагатай!");
+    }
+
+    if (!qpayData || !qpayData.qpayPaymentId) {
+      throw new aldaa("QPay төлбөрийн мэдээлэл заавал бөглөх шаардлагатай!");
+    }
+
+    const result = await walletApiService.updateQPayPayment(userId, paymentId, qpayData);
+    
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: "QPay төлбөрийн мэдээлэл амжилттай шинэчлэгдлээ",
+    });
+  } catch (err) {
+    console.error("❌ [WALLET PAYMENT UPDATE QPAY] Error:", err.message);
+    if (err.response) {
+      console.error("❌ [WALLET PAYMENT UPDATE QPAY] Error response:", JSON.stringify(err.response.data));
+    }
+    next(err);
+  }
+});
+
 exports.walletUserEdit = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);

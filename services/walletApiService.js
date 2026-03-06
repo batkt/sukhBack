@@ -1023,6 +1023,37 @@ async function getPayment(userId, paymentId) {
   }
 }
 
+async function updateQPayPayment(userId, paymentId, qpayData) {
+  try {
+    const token = await getWalletServiceToken();
+    
+    const response = await axios.put(
+      `${WALLET_API_BASE_URL}/api/payment/qpay/${paymentId}`,
+      qpayData,
+      {
+        headers: {
+          userId: userId,
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (response.data && response.data.responseCode) {
+      return response.data.data || response.data;
+    }
+
+    throw new Error("Failed to update QPay payment in Wallet API");
+  } catch (error) {
+    if (error.response && error.response.data) {
+      const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to update QPay payment";
+      throw new Error(errorMessage);
+    }
+    console.error("❌ [WALLET API] Error updating QPay payment:", error.message);
+    throw error;
+  }
+}
+
 async function editUser(userId, userData) {
   try {
     const token = await getWalletServiceToken();
@@ -1114,6 +1145,7 @@ module.exports = {
   getBillingBills,
   getBillingPayments,
   getPayment,
+  updateQPayPayment,
   saveBilling,
   removeBilling,
   removeBill,
