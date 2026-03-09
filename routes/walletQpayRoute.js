@@ -4,7 +4,7 @@ const { tokenShalgakh } = require("zevbackv2");
 const walletQpayController = require("../controller/walletQpayController");
 
 /**
- * @route POST /api/walletQpay/create
+ * @route POST /walletQpay/create
  * @desc  Create QPay invoice for a Wallet API payment
  *        Same QPay process as original, source = WALLET_QPAY
  * @access Private (requires auth token)
@@ -18,7 +18,7 @@ const walletQpayController = require("../controller/walletQpayController");
 router.post("/walletQpay/create", tokenShalgakh, walletQpayController.createWalletQpayInvoice);
 
 /**
- * @route GET /api/walletQpay/callback/:baiguullagiinId/:walletPaymentId
+ * @route GET /walletQpay/callback/:baiguullagiinId/:walletPaymentId
  * @desc  QPay payment callback — marks paid + calls Wallet paidByQpay
  * @access Public (called by QPay server)
  */
@@ -28,7 +28,7 @@ router.get(
 );
 
 /**
- * @route GET /api/walletQpay/check/:baiguullagiinId/:walletPaymentId
+ * @route GET /walletQpay/check/:baiguullagiinId/:walletPaymentId
  * @desc  Check QPay payment status (frontend polling)
  * @access Private
  */

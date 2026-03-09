@@ -163,7 +163,7 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
   // Callback URL — wallet-specific callback
   const callback_url =
     process.env.UNDSEN_SERVER +
-    "/api/walletQpay/callback/" +
+    "/walletQpay/callback/" +
     baiguullagiinId +
     "/" +
     walletPaymentId;

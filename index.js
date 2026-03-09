@@ -158,7 +158,7 @@ app.use(uneguiMashinRoute);
 app.use(zochinUrikhRoute);
 app.use("/audit", auditRoute);
 app.use(transformationRoute);
-app.use("/api", walletQpayRoute);
+app.use(walletQpayRoute);
 
 app.use(aldaaBarigch);
 
