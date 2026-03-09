@@ -590,9 +590,31 @@ router.post(
 
       const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
 
+      // --- AUTOMATIC EASY REGISTER LINKING ---
+      let autoCustomerNo = req.body.customerNo || "";
+      if (!autoCustomerNo) {
+        // Find saved Easy Register profile for this resident or contract
+        const userFilter = { baiguullagiinId: req.body.baiguullagiinId, ustgasan: { $ne: true } };
+        const residentId = nekhemjlekh.orshinSuugchiinId || (nekhemjlekh.medeelel && nekhemjlekh.medeelel.orshinSuugchiinId);
+        
+        if (residentId) {
+          userFilter.orshinSuugchiinId = residentId;
+        } else if (nekhemjlekh.gereeniiId) {
+          userFilter.gereeniiId = nekhemjlekh.gereeniiId;
+        }
+
+        if (userFilter.orshinSuugchiinId || userFilter.gereeniiId) {
+          const savedUser = await EasyRegisterUser(req.body.tukhainBaaziinKholbolt).findOne(userFilter).lean();
+          if (savedUser && savedUser.loginName) {
+            autoCustomerNo = savedUser.loginName;
+            console.log(`[EASY REGISTER] Auto-linking invoice to customerNo: ${autoCustomerNo}`);
+          }
+        }
+      }
+
       const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
         nekhemjlekh,
-        req.body.customerNo || "",
+        autoCustomerNo,
         req.body.customerTin || "",
         tuxainSalbar.merchantTin,
         tuxainSalbar.districtCode,
