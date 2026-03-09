@@ -410,9 +410,13 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
         return easyRegisterDuudya(method, path, body, next, onFinish, baiguullagiinId, connectionObj, true);
       }
       
-      if (resBody && (resBody.error || (res?.statusCode >= 400 && resBody.msg))) {
-        if (next)
-          next(new Error(resBody.msg || resBody.error || "Easy Register API error"));
+      if ((res?.statusCode >= 400) || (resBody && resBody.error)) {
+        if (next) {
+          const msg = (resBody && (resBody.msg || resBody.error))
+            ? (resBody.msg || resBody.error)
+            : `Easy Register API error: ${res?.statusCode}`;
+          next(new Error(msg));
+        }
         return;
       }
       
