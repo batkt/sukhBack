@@ -773,6 +773,11 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
       // If we searched by phone/code but req.body.phoneNum was empty, use the detected one
       const effectivePhone = phoneNum || (isNumericIdentity && searchPhoneOrCode.length === 8 ? searchPhoneOrCode : '') || finalData.phoneNum || '';
       
+      // Ensure the phone number is included in the response sent to frontend
+      if (effectivePhone && !finalData.phoneNum) {
+        finalData.phoneNum = effectivePhone;
+      }
+
       await saveEasyRegisterUser(finalData, baiguullagiinId, tukhainBaaziinKholbolt, turul, {
         phoneNum: effectivePhone,
         gereeniiId: req.body.gereeniiId || '',
