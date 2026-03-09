@@ -725,58 +725,44 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
 
     let finalData = null;
 
+    // Detect if the identity actually looks like a phone/customer code (8-9 digits, numeric)
+    const isNumericIdentity = identity && /^\d{8,9}$/.test(identity);
+    const searchIdentity = (isNumericIdentity) ? null : identity;
+    const searchPhoneOrCode = (isNumericIdentity) ? identity : (phoneNum || customerNo);
+
     if (turul === 'foreigner' && passportNo && email) {
       // Register new foreigner
       finalData = await callApi("POST", `api/easy-register/api/info/foreigner/${encodeURIComponent(passportNo)}`, { email });
-    } else if (turul === 'foreigner' && identity) {
+    } else if (turul === 'foreigner' && searchIdentity) {
       // Foreigner direct lookup
-      finalData = await callApi("GET", `api/easy-register/api/info/foreigner/${encodeURIComponent(identity)}`, null);
-    } else if (identity) {
-      // SMART SEARCH: Identity lookup + Profile bridge
-      console.log(`[EASY REGISTER] Smart Search (Identity base) started for ${identity}`);
-      
-      // Step 1: Get Consumer Info
-      const info = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(identity)}`, null);
-      
+      finalData = await callApi("GET", `api/easy-register/api/info/foreigner/${encodeURIComponent(searchIdentity)}`, null);
+    } else if (searchIdentity) {
+      // SMART SEARCH: Identity base (Register/CivilID)
+      console.log(`[EASY REGISTER] Smart Search (Identity base) started for ${searchIdentity}`);
+      const info = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(searchIdentity)}`, null);
       if (info && info.loginName) {
         try {
-          // Step 2: Bridge to Profile to get Phone/Email
           const profile = await callApi("POST", 'api/easy-register/rest/v1/getProfile', { customerNo: info.loginName });
-          // Merge Step 1 (identity) + Step 2 (contact context)
           finalData = { ...info, ...profile };
-          console.log(`[EASY REGISTER] Identity search bridged to Profile successfully: ${info.loginName}`);
-        } catch (bridgeErr) {
-          console.log(`[EASY REGISTER] Identity bridge lookup failed (falling back to info only):`, bridgeErr.message);
-          finalData = info;
-        }
-      } else {
-        finalData = info;
-      }
-    } else if (phoneNum || customerNo) {
-      // SMART SEARCH: Profile base + Identity bridge
-      console.log(`[EASY REGISTER] Smart Search (Profile base) started for ${phoneNum || customerNo}`);
-      
+        } catch (e) { finalData = info; }
+      } else { finalData = info; }
+    } else if (searchPhoneOrCode) {
+      // SMART SEARCH: Profile base (Phone/CustomerNo)
+      console.log(`[EASY REGISTER] Smart Search (Profile base) started for ${searchPhoneOrCode}`);
       const profileBody = {};
-      if (phoneNum) profileBody.phoneNum = phoneNum;
-      if (customerNo) profileBody.customerNo = customerNo;
+      if (/^\d{8}$/.test(searchPhoneOrCode) && !customerNo) {
+        profileBody.phoneNum = searchPhoneOrCode;
+      } else {
+        profileBody.customerNo = searchPhoneOrCode;
+      }
       
-      // Step 1: Get Profile (to find the loginName)
       const profile = await callApi("POST", 'api/easy-register/rest/v1/getProfile', profileBody);
-      
       if (profile && profile.loginName) {
         try {
-          // Step 2: Use loginName to get Full Consumer Info
           const fullInfo = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(profile.loginName)}`, null);
-          // Merge Step 1 (email/phone context) + Step 2 (identity/name context)
           finalData = { ...profile, ...fullInfo };
-          console.log(`[EASY REGISTER] Profile search bridged to Consumer successfully: ${profile.loginName}`);
-        } catch (infoErr) {
-          console.log(`[EASY REGISTER] Profile bridge lookup failed (falling back to profile only):`, infoErr.message);
-          finalData = profile;
-        }
-      } else {
-        finalData = profile;
-      }
+        } catch (e) { finalData = profile; }
+      } else { finalData = profile; }
     } else {
       return res.status(400).json({ error: "identity, phoneNum, customerNo эсвэл passportNo+email-н нэгийг нь заавал оруулна" });
     }
