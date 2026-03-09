@@ -11,6 +11,7 @@ const {
 } = require("zevbackv2");
 const Baiguullaga = require("../models/baiguullaga");
 const EbarimtShine = require("../models/ebarimtShine");
+const EasyRegisterUser = require("../models/easyRegisterUser");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const { downloadEbarimtExcel } = require("../controller/excelImportController");
 const copyQueryToBody = (req, res, next) => {
@@ -150,13 +151,15 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
   }
 }
 
-async function ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt) {
+// Full password login - used as initial login or when refresh fails
+async function ebarimtPasswordLogin(baiguullagiinId, tukhainBaaziinKholbolt) {
   return new Promise((resolve, reject) => {
     const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
     const clientId = process.env.EBARIMTSHINE_CLIENT_ID || 'vatps';
     const username = process.env.EBARIMTSHINE_USERNAME || 'Rooden_like@yahoo.com';
     const password = process.env.EBARIMTSHINE_PASSWORD || 'Br1stelback@';
 
+    console.log(`[EBARIMT TOKEN] Password login for org: ${baiguullagiinId}`);
 
     request.post({
       url: authUrl,
@@ -168,12 +171,14 @@ async function ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt) {
         scope: 'profile email'
       },
       json: true
-    }, (err, res, body) => {
+    }, async (err, res, body) => {
       if (err) {
+        console.error(`[EBARIMT TOKEN] Password login error:`, err.message);
         return reject(err);
       }
 
       if (body && (body.error || body.error_description)) {
+        console.error(`[EBARIMT TOKEN] Password login failed:`, body.error_description || body.error);
         return reject(new Error(body.error_description || body.error));
       }
 
@@ -181,42 +186,115 @@ async function ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt) {
         return reject(new Error("Access token not received from Ebarimt Auth"));
       }
 
-      // Store in database
-      Token(tukhainBaaziinKholbolt).updateOne(
-        { turul: 'ebarimt', baiguullagiinId: baiguullagiinId },
-        {
-          ognoo: new Date(),
-          token: body.access_token,
-          refreshToken: body.refresh_token,
-          expires_in: new Date(Date.now() + (body.expires_in || 28800) * 1000)
-        },
-        { upsert: true }
-      ).then(() => {
-        resolve(body.access_token);
-      }).catch(dbErr => {
-        // Still resolve with the token even if DB save fails
-        resolve(body.access_token);
-      });
+      console.log(`[EBARIMT TOKEN] Password login successful, expires_in: ${body.expires_in}s`);
+
+      // Save token + refreshToken to DB
+      try {
+        await Token(tukhainBaaziinKholbolt).updateOne(
+          { turul: 'ebarimt', baiguullagiinId: baiguullagiinId },
+          {
+            ognoo: new Date(),
+            token: body.access_token,
+            refreshToken: body.refresh_token || '',
+            expires_in: new Date(Date.now() + (body.expires_in || 28800) * 1000)
+          },
+          { upsert: true }
+        );
+      } catch (dbErr) {
+        console.error(`[EBARIMT TOKEN] DB save error (non-critical):`, dbErr.message);
+      }
+
+      resolve(body.access_token);
+    });
+  });
+}
+
+// Refresh token - uses existing refresh_token to get new access_token
+async function ebarimtRefreshToken(refreshTokenValue, baiguullagiinId, tukhainBaaziinKholbolt) {
+  return new Promise((resolve, reject) => {
+    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
+    const clientId = process.env.EBARIMTSHINE_CLIENT_ID || 'vatps';
+
+    console.log(`[EBARIMT TOKEN] Refreshing token for org: ${baiguullagiinId}`);
+
+    request.post({
+      url: authUrl,
+      form: {
+        grant_type: 'refresh_token',
+        client_id: clientId,
+        refresh_token: refreshTokenValue
+      },
+      json: true
+    }, async (err, res, body) => {
+      if (err) {
+        console.error(`[EBARIMT TOKEN] Refresh error:`, err.message);
+        return reject(err);
+      }
+
+      if (body && (body.error || body.error_description)) {
+        console.error(`[EBARIMT TOKEN] Refresh failed:`, body.error_description || body.error);
+        return reject(new Error(body.error_description || body.error));
+      }
+
+      if (!body.access_token) {
+        return reject(new Error("Access token not received from refresh"));
+      }
+
+      console.log(`[EBARIMT TOKEN] Refresh successful, new expires_in: ${body.expires_in}s`);
+
+      // Save new token + new refreshToken to DB
+      try {
+        await Token(tukhainBaaziinKholbolt).updateOne(
+          { turul: 'ebarimt', baiguullagiinId: baiguullagiinId },
+          {
+            ognoo: new Date(),
+            token: body.access_token,
+            refreshToken: body.refresh_token || refreshTokenValue,
+            expires_in: new Date(Date.now() + (body.expires_in || 28800) * 1000)
+          },
+          { upsert: true }
+        );
+      } catch (dbErr) {
+        console.error(`[EBARIMT TOKEN] DB save error (non-critical):`, dbErr.message);
+      }
+
+      resolve(body.access_token);
     });
   });
 }
 
 async function getEbarimtToken(baiguullagiinId, tukhainBaaziinKholbolt) {
   try {
-    // Check if token exists and is valid (not expiring in the next 5 minutes)
+    // 1. Check if we have a valid (non-expired) token in DB
     const tokenObject = await Token(tukhainBaaziinKholbolt).findOne({
       turul: 'ebarimt',
-      baiguullagiinId: baiguullagiinId,
-      expires_in: { $gt: new Date(Date.now() + 5 * 60000) }
+      baiguullagiinId: baiguullagiinId
     }).lean();
 
-    if (tokenObject && tokenObject.token) {
-      return tokenObject.token;
+    // If token exists and not expired (5 min buffer), use it
+    if (tokenObject && tokenObject.token && tokenObject.expires_in) {
+      const fiveMinFromNow = new Date(Date.now() + 5 * 60000);
+      if (new Date(tokenObject.expires_in) > fiveMinFromNow) {
+        return tokenObject.token;
+      }
     }
 
-    // Otherwise fetch new one
-    return await ebarimtTokenAvya(baiguullagiinId, tukhainBaaziinKholbolt);
+    // 2. Token expired — try refresh_token if we have one
+    if (tokenObject && tokenObject.refreshToken) {
+      try {
+        console.log(`[EBARIMT TOKEN] Token expired, attempting refresh...`);
+        return await ebarimtRefreshToken(tokenObject.refreshToken, baiguullagiinId, tukhainBaaziinKholbolt);
+      } catch (refreshErr) {
+        console.error(`[EBARIMT TOKEN] Refresh failed, falling back to password login:`, refreshErr.message);
+        // Fall through to password login
+      }
+    }
+
+    // 3. No token, no refresh token, or refresh failed — full password login
+    console.log(`[EBARIMT TOKEN] Performing full password login...`);
+    return await ebarimtPasswordLogin(baiguullagiinId, tukhainBaaziinKholbolt);
   } catch (error) {
+    console.error(`[EBARIMT TOKEN] getEbarimtToken failed:`, error.message);
     throw error;
   }
 }
@@ -240,14 +318,12 @@ async function autoApproveQr(customerNo, qrData, baiguullagiinId, tukhainBaaziin
         path,
         body,
         (err) => {
-          // Silently handle errors - don't fail receipt creation if approveQr fails
           if (err) {
             console.log("Auto-approveQr failed (non-critical):", err.message);
           }
           resolve(null);
         },
         (data) => {
-          // Successfully approved QR
           console.log("Auto-approveQr successful for customerNo:", customerNo);
           resolve(data);
         },
@@ -256,51 +332,46 @@ async function autoApproveQr(customerNo, qrData, baiguullagiinId, tukhainBaaziin
       );
     });
   } catch (error) {
-    // Silently handle errors - don't fail receipt creation if approveQr fails
     console.log("Auto-approveQr error (non-critical):", error.message);
     return null;
   }
 }
 
-async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullagiinId = null, tukhainBaaziinKholbolt = null) {
+async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullagiinId = null, tukhainBaaziinKholbolt = null, _retried = false) {
   try {
     const orgId = baiguullagiinId;
     const shouldUseTest = orgId && String(orgId) === "697723dc3e77b46e52ccf577";
-    
-    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
-    
 
-    
     let baseUrl;
-    // Updated domain provided by user
     if (shouldUseTest) {
       baseUrl = 'https://st-service.itc.gov.mn';
     } else {
       baseUrl = 'https://service.itc.gov.mn';
     }
     
-    // Allow explicit override if needed
     if (process.env.EBARIMTSHINE_EASY_REGISTER_URL) {
       baseUrl = process.env.EBARIMTSHINE_EASY_REGISTER_URL;
     }
-    let token;
-    if (tukhainBaaziinKholbolt && orgId) {
-      let connectionObj = tukhainBaaziinKholbolt;
-      if (typeof tukhainBaaziinKholbolt === 'string') {
-        const { db } = require("zevbackv2");
-        connectionObj = db.kholboltuud.find(
-          (k) => String(k.baiguullagiinId) === String(orgId)
-        );
-        if (!connectionObj) {
-          throw new Error("Байгууллагын холболт олдсонгүй");
-        }
+
+    // Resolve connection object
+    let connectionObj = tukhainBaaziinKholbolt;
+    if (connectionObj && typeof connectionObj === 'string') {
+      connectionObj = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(orgId)
+      );
+      if (!connectionObj) {
+        throw new Error("Байгууллагын холболт олдсонгүй");
       }
+    }
+
+    // Get token using the proper reuse + refresh system
+    let token;
+    if (connectionObj && orgId) {
       token = await getEbarimtToken(orgId, connectionObj);
     } else {
       token = process.env.EBARIMTSHINE_TOKEN;
     }
     
-    // Ensure proper slash between base URL and path
     const url = baseUrl + (path.startsWith('/') ? '' : '/') + path;
 
     const options = {
@@ -320,12 +391,24 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
 
     if (body) options.body = body;
 
-    request(options, (err, res, resBody) => {
+    request(options, async (err, res, resBody) => {
       if (err) {
         if (next) next(err);
         return;
       }
-      
+
+      if (res?.statusCode === 401 && !_retried && connectionObj && orgId) {
+        console.log(`[EASY REGISTER] Got 401, clearing token and retrying...`);
+        try {
+          await Token(connectionObj).deleteOne({
+            turul: 'ebarimt',
+            baiguullagiinId: orgId
+          });
+        } catch (delErr) {
+          console.error(`[EASY REGISTER] Error clearing token:`, delErr.message);
+        }
+        return easyRegisterDuudya(method, path, body, next, onFinish, baiguullagiinId, connectionObj, true);
+      }
       
       if (resBody && (resBody.error || (res?.statusCode >= 400 && resBody.msg))) {
         if (next)
@@ -489,10 +572,6 @@ router.post(
         return res.status(404).json({ error: "Invoice not found" });
       }
 
-      // Previously we blocked sending e-barimt when the invoice was not marked as "Төлсөн".
-      // This prevented re-sending e-barimt for already paid invoices in some flows.
-      // Now we allow sending e-barimt regardless of the current invoice status.
-
       const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
         req.body.baiguullagiinId
       );
@@ -530,7 +609,6 @@ router.post(
           shineBarimt.gereeniiDugaar = khariuObject.gereeniiDugaar;
           shineBarimt.utas = khariuObject.utas;
 
-          // Save qrData if available
           if (d.qrData) shineBarimt.qrData = d.qrData;
           if (d.lottery) shineBarimt.lottery = d.lottery;
           if (d.id) shineBarimt.receiptId = d.id;
@@ -540,7 +618,6 @@ router.post(
             next(err);
           });
 
-          // Auto-approve QR for Easy Register if customerNo and qrData are available
           if (khariuObject.customerNo && d.qrData) {
             autoApproveQr(
               khariuObject.customerNo,
@@ -548,7 +625,6 @@ router.post(
               req.body.baiguullagiinId,
               req.body.tukhainBaaziinKholbolt
             ).catch((err) => {
-              // Non-critical error - don't fail the response
               console.log("Auto-approveQr failed (non-critical):", err.message);
             });
           }
@@ -566,59 +642,208 @@ router.post(
   }
 );
 
-// Excel download route
 router.post(
   "/ebarimtExcelDownload",
   tokenShalgakh,
   downloadEbarimtExcel
 );
 
-// --- Easy Register API Routes ---
+async function saveEasyRegisterUser(data, baiguullagiinId, tukhainBaaziinKholbolt, turul, extraFields = {}) {
+  try {
+    if (!data || (!data.loginName && !data.regNo)) return;
 
-// Get consumer info by identity (regNo or loginName)
-router.get("/easyRegister/info/consumer/:identity", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
-  const { identity } = req.params;
-  const path = `api/easy-register/api/info/consumer/${encodeURIComponent(identity)}`;
-  easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
-});
+    const saveData = {
+      baiguullagiinId: baiguullagiinId,
+      loginName: data.loginName || '',
+      regNo: data.regNo || '',
+      givenName: data.givenName || '',
+      familyName: data.familyName || '',
+      email: data.email || '',
+      passportNo: data.passportNo || '',
+      fNumber: data.fNumber || '',
+      country: data.country || '',
+      refund: data.refund || '',
+      turul: turul || (data.passportNo ? 'foreigner' : 'consumer'),
+      ustgasan: false,
+      ...extraFields
+    };
 
-// Get foreigner info by identity (passportNo or F-register)
-router.get("/easyRegister/info/foreigner/:identity", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
-  const { identity } = req.params;
-  const path = `api/easy-register/api/info/foreigner/${encodeURIComponent(identity)}`;
-  easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
-});
+    const filter = {
+      baiguullagiinId: baiguullagiinId,
+      ustgasan: { $ne: true }
+    };
+    if (data.loginName) {
+      filter.loginName = data.loginName;
+    } else if (data.regNo) {
+      filter.regNo = data.regNo;
+    }
 
-// Get foreigner info by loginName
-router.get("/easyRegister/info/foreigner/customerNo/:loginName", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
-  const { loginName } = req.params;
-  const path = `api/easy-register/api/info/foreigner/customerNo/${encodeURIComponent(loginName)}`;
-  easyRegisterDuudya("GET", path, null, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
-});
+    await EasyRegisterUser(tukhainBaaziinKholbolt).findOneAndUpdate(
+      filter,
+      { $set: saveData },
+      { upsert: true, new: true }
+    );
+  } catch (err) {
+    console.error('[EASY REGISTER] Auto-save user error (non-critical):', err.message);
+  }
+}
 
-// Register foreigner in e-barimt system
-router.post("/easyRegister/info/foreigner/:passportNo", tokenShalgakh, async (req, res, next) => {
-  const { passportNo } = req.params;
-  const path = `api/easy-register/api/info/foreigner/${encodeURIComponent(passportNo)}`;
-  easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
-});
 
-// Get profile by phone number or customer number
-router.post("/easyRegister/getProfile", tokenShalgakh, async (req, res, next) => {
-  const path = "api/easy-register/rest/v1/getProfile";
-  easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
-});
-
-// Approve QR data directly for a consumer
 router.post("/easyRegister/approveQr", tokenShalgakh, async (req, res, next) => {
   const path = "api/easy-register/rest/v1/approveQr";
   easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
 });
 
-// Set return receipt (validate cancellation)
 router.post("/easyRegister/setReturnReceipt", tokenShalgakh, async (req, res, next) => {
   const path = "api/easy-register/rest/v1/setReturnReceipt";
   easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
+});
+
+
+router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { identity, phoneNum, customerNo, turul, passportNo, email } = req.body;
+    const baiguullagiinId = req.body.baiguullagiinId;
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+
+    let apiPath;
+    let apiMethod = 'GET';
+    let apiBody = null;
+
+    if (turul === 'foreigner' && passportNo && email) {
+      apiPath = `api/easy-register/api/info/foreigner/${encodeURIComponent(passportNo)}`;
+      apiMethod = 'POST';
+      apiBody = { email };
+    } else if (turul === 'foreigner' && identity) {
+      apiPath = `api/easy-register/api/info/foreigner/${encodeURIComponent(identity)}`;
+    } else if (identity) {
+      apiPath = `api/easy-register/api/info/consumer/${encodeURIComponent(identity)}`;
+    } else if (phoneNum || customerNo) {
+      apiPath = 'api/easy-register/rest/v1/getProfile';
+      apiMethod = 'POST';
+      apiBody = {};
+      if (phoneNum) apiBody.phoneNum = phoneNum;
+      if (customerNo) apiBody.customerNo = customerNo;
+    } else {
+      return res.status(400).json({ error: "identity, phoneNum, customerNo эсвэл passportNo+email-н нэгийг нь заавал оруулна" });
+    }
+
+    easyRegisterDuudya(
+      apiMethod,
+      apiPath,
+      apiBody,
+      next,
+      async (data) => {
+        await saveEasyRegisterUser(data, baiguullagiinId, tukhainBaaziinKholbolt, turul, {
+          phoneNum: phoneNum || '',
+          gereeniiId: req.body.gereeniiId || '',
+          gereeniiDugaar: req.body.gereeniiDugaar || '',
+          talbainDugaar: req.body.talbainDugaar || '',
+          barilgiinId: req.body.barilgiinId || ''
+        });
+        res.send(data);
+      },
+      baiguullagiinId,
+      tukhainBaaziinKholbolt
+    );
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/easyRegister/user/list", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
+  try {
+    const body = req.query;
+    if (body?.query) body.query = JSON.parse(body.query);
+    if (body?.order) body.order = JSON.parse(body.order);
+    if (body?.khuudasniiDugaar) body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+    if (body?.khuudasniiKhemjee) body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+    if (body?.search) body.search = String(body.search);
+
+    if (!body.query) body.query = {};
+    body.query.baiguullagiinId = req.body.baiguullagiinId;
+    body.query.ustgasan = { $ne: true };
+
+    khuudaslalt(EasyRegisterUser(req.body.tukhainBaaziinKholbolt), body)
+      .then((result) => res.send(result))
+      .catch((err) => next(err));
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/easyRegister/user/delete", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { userId } = req.body;
+    const baiguullagiinId = req.body.baiguullagiinId;
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+
+    if (!userId) {
+      return res.status(400).json({ error: "userId заавал оруулна" });
+    }
+
+    const result = await EasyRegisterUser(tukhainBaaziinKholbolt).findOneAndUpdate(
+      { _id: userId, baiguullagiinId: baiguullagiinId },
+      {
+        $set: {
+          ustgasan: true,
+          ustgasanOgnoo: new Date()
+        }
+      },
+      { new: true }
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: "Хэрэглэгч олдсонгүй" });
+    }
+
+    res.send({ success: true, message: "Хэрэглэгч амжилттай устгагдлаа" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/easyRegister/user/hardDelete", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { userId } = req.body;
+    const baiguullagiinId = req.body.baiguullagiinId;
+    const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+
+    if (!userId) {
+      return res.status(400).json({ error: "userId заавал оруулна" });
+    }
+
+    const result = await EasyRegisterUser(tukhainBaaziinKholbolt).findOneAndDelete(
+      { _id: userId, baiguullagiinId: baiguullagiinId }
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: "Хэрэглэгч олдсонгүй" });
+    }
+
+    res.send({ success: true, message: "Хэрэглэгч бүрмөсөн устгагдлаа" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get single Easy Register user by ID
+router.get("/easyRegister/user/:id", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
+  try {
+    const user = await EasyRegisterUser(req.body.tukhainBaaziinKholbolt).findOne({
+      _id: req.params.id,
+      baiguullagiinId: req.body.baiguullagiinId,
+      ustgasan: { $ne: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "Хэрэглэгч олдсонгүй" });
+    }
+
+    res.send(user);
+  } catch (error) {
+    next(error);
+  }
 });
 
 module.exports = router;
@@ -626,3 +851,5 @@ module.exports.nekhemjlekheesEbarimtShineUusgye =
   nekhemjlekheesEbarimtShineUusgye;
 module.exports.ebarimtDuudya = ebarimtDuudya;
 module.exports.autoApproveQr = autoApproveQr;
+module.exports.easyRegisterDuudya = easyRegisterDuudya;
+module.exports.getEbarimtToken = getEbarimtToken;
