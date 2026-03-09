@@ -668,6 +668,7 @@ async function saveEasyRegisterUser(data, baiguullagiinId, tukhainBaaziinKholbol
       fNumber: data.fNumber || '',
       country: data.country || '',
       refund: data.refund || '',
+      phoneNum: data.phoneNum || '',
       turul: turul || (data.passportNo ? 'foreigner' : 'consumer'),
       ustgasan: false,
       orshinSuugchiinId: data.orshinSuugchiinId || '',
@@ -769,8 +770,11 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
 
     // Save whatever we found (merged or single) to local DB
     if (finalData) {
+      // If we searched by phone/code but req.body.phoneNum was empty, use the detected one
+      const effectivePhone = phoneNum || (isNumericIdentity && searchPhoneOrCode.length === 8 ? searchPhoneOrCode : '') || finalData.phoneNum || '';
+      
       await saveEasyRegisterUser(finalData, baiguullagiinId, tukhainBaaziinKholbolt, turul, {
-        phoneNum: phoneNum || finalData.phoneNum || '',
+        phoneNum: effectivePhone,
         gereeniiId: req.body.gereeniiId || '',
         gereeniiDugaar: req.body.gereeniiDugaar || '',
         talbainDugaar: req.body.talbainDugaar || '',
