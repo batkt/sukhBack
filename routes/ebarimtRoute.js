@@ -731,8 +731,6 @@ router.post("/easyRegister/setReturnReceipt", tokenShalgakh, async (req, res, ne
 });
 
 
-// Unified search + save: POST one endpoint, auto-detects lookup type, calls ITC, saves to DB
-// Body: { identity, phoneNum, customerNo, turul, passportNo, email, gereeniiId, ... }
 router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) => {
   try {
     const { identity, phoneNum, customerNo, turul, passportNo, email } = req.body;
@@ -741,26 +739,21 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
     const baiguullagiinId = req.body.baiguullagiinId;
     const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
-    // Helper to call API as a promise
     const callApi = (method, path, body) => new Promise((resolve, reject) => {
       easyRegisterDuudya(method, path, body, (err) => reject(err), (data) => resolve(data), baiguullagiinId, tukhainBaaziinKholbolt);
     });
 
     let finalData = null;
 
-    // Detect if the identity actually looks like a phone/customer code (8-9 digits, numeric)
     const isNumericIdentity = identity && /^\d{8,9}$/.test(identity);
     const searchIdentity = (isNumericIdentity) ? null : identity;
     const searchPhoneOrCode = (isNumericIdentity) ? identity : (phoneNum || customerNo);
 
     if (turul === 'foreigner' && passportNo && email) {
-      // Register new foreigner
       finalData = await callApi("POST", `api/easy-register/api/info/foreigner/${encodeURIComponent(passportNo)}`, { email });
     } else if (turul === 'foreigner' && searchIdentity) {
-      // Foreigner direct lookup
       finalData = await callApi("GET", `api/easy-register/api/info/foreigner/${encodeURIComponent(searchIdentity)}`, null);
     } else if (searchIdentity) {
-      // SMART SEARCH: Identity base (Register/CivilID)
       console.log(`[EASY REGISTER] Smart Search (Identity base) started for ${searchIdentity}`);
       const info = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(searchIdentity)}`, null);
       if (info && info.loginName) {
@@ -770,7 +763,6 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
         } catch (e) { finalData = info; }
       } else { finalData = info; }
     } else if (searchPhoneOrCode) {
-      // SMART SEARCH: Profile base (Phone/CustomerNo)
       console.log(`[EASY REGISTER] Smart Search (Profile base) started for ${searchPhoneOrCode}`);
       const profileBody = {};
       if (/^\d{8}$/.test(searchPhoneOrCode) && !customerNo) {
@@ -790,12 +782,9 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
       return res.status(400).json({ error: "identity, phoneNum, customerNo эсвэл passportNo+email-н нэгийг нь заавал оруулна" });
     }
 
-    // Save whatever we found (merged or single) to local DB
     if (finalData) {
-      // If we searched by phone/code but req.body.phoneNum was empty, use the detected one
       const effectivePhone = phoneNum || (isNumericIdentity && searchPhoneOrCode.length === 8 ? searchPhoneOrCode : '') || finalData.phoneNum || '';
       
-      // Ensure the phone number is included in the response sent to frontend
       if (effectivePhone && !finalData.phoneNum) {
         finalData.phoneNum = effectivePhone;
       }
