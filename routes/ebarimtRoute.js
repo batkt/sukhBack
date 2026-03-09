@@ -651,6 +651,7 @@ router.post(
 async function saveEasyRegisterUser(data, baiguullagiinId, tukhainBaaziinKholbolt, turul, extraFields = {}) {
   try {
     if (!data || (!data.loginName && !data.regNo)) return;
+    console.log(`[EASY REGISTER] Saving user: loginName=${data.loginName || ''}, regNo=${data.regNo || ''}, turul=${turul || 'consumer'}`);
 
     const saveData = {
       baiguullagiinId: baiguullagiinId,
@@ -690,11 +691,13 @@ async function saveEasyRegisterUser(data, baiguullagiinId, tukhainBaaziinKholbol
 
 
 router.post("/easyRegister/approveQr", tokenShalgakh, async (req, res, next) => {
+  console.log(`[EASY REGISTER] approveQr: customerNo=${req.body.customerNo || ''}`);
   const path = "api/easy-register/rest/v1/approveQr";
   easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
 });
 
 router.post("/easyRegister/setReturnReceipt", tokenShalgakh, async (req, res, next) => {
+  console.log(`[EASY REGISTER] setReturnReceipt: posRno=${req.body.posRno || ''}, lottery=${req.body.lotteryNumber || ''}`);
   const path = "api/easy-register/rest/v1/setReturnReceipt";
   easyRegisterDuudya("POST", path, req.body, next, (data) => res.send(data), req.body.baiguullagiinId, req.body.tukhainBaaziinKholbolt);
 });
@@ -703,6 +706,7 @@ router.post("/easyRegister/setReturnReceipt", tokenShalgakh, async (req, res, ne
 router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) => {
   try {
     const { identity, phoneNum, customerNo, turul, passportNo, email } = req.body;
+    console.log(`[EASY REGISTER] user/search: identity=${identity || ''}, phone=${phoneNum || ''}, customerNo=${customerNo || ''}, turul=${turul || 'consumer'}, passport=${passportNo || ''}`);
     const baiguullagiinId = req.body.baiguullagiinId;
     const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
@@ -753,6 +757,7 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
 
 router.get("/easyRegister/user/list", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
   try {
+    console.log(`[EASY REGISTER] user/list: org=${req.body.baiguullagiinId}`);
     const body = req.query;
     if (body?.query) body.query = JSON.parse(body.query);
     if (body?.order) body.order = JSON.parse(body.order);
@@ -775,6 +780,7 @@ router.get("/easyRegister/user/list", copyQueryToBody, tokenShalgakh, async (req
 router.post("/easyRegister/user/delete", tokenShalgakh, async (req, res, next) => {
   try {
     const { userId } = req.body;
+    console.log(`[EASY REGISTER] user/delete: userId=${userId}`);
     const baiguullagiinId = req.body.baiguullagiinId;
     const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
@@ -806,6 +812,7 @@ router.post("/easyRegister/user/delete", tokenShalgakh, async (req, res, next) =
 router.post("/easyRegister/user/hardDelete", tokenShalgakh, async (req, res, next) => {
   try {
     const { userId } = req.body;
+    console.log(`[EASY REGISTER] user/hardDelete: userId=${userId}`);
     const baiguullagiinId = req.body.baiguullagiinId;
     const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
@@ -830,6 +837,7 @@ router.post("/easyRegister/user/hardDelete", tokenShalgakh, async (req, res, nex
 // Get single Easy Register user by ID
 router.get("/easyRegister/user/:id", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
   try {
+    console.log(`[EASY REGISTER] user/get: id=${req.params.id}`);
     const user = await EasyRegisterUser(req.body.tukhainBaaziinKholbolt).findOne({
       _id: req.params.id,
       baiguullagiinId: req.body.baiguullagiinId,
