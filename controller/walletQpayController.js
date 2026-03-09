@@ -171,7 +171,15 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
   let qpayResult;
   try {
     qpayResult = await qpayGargaya(qpayBody, callback_url, tukhainBaaziinKholbolt);
-    console.log(`✅ [WALLET QPAY] QPay invoice created: ${qpayResult.invoice_id || qpayResult.id}`);
+    
+    // Check if qpayResult is an error message (string) or missing QR data
+    if (typeof qpayResult === "string" || !qpayResult.invoice_id) {
+       const errorMsg = typeof qpayResult === "string" ? qpayResult : "QPay нэхэмжлэх үүсгэхэд алдаа гарлаа (QR дата олдсонгүй)";
+       console.error("❌ [WALLET QPAY] QPay error:", errorMsg);
+       throw new Error(errorMsg);
+    }
+    
+    console.log(`✅ [WALLET QPAY] QPay invoice created: ${qpayResult.invoice_id}`);
   } catch (qpayError) {
     console.error("❌ [WALLET QPAY] QPay invoice creation failed:", qpayError.message);
     throw new aldaa(`QPay нэхэмжлэх үүсгэхэд алдаа: ${qpayError.message}`);
