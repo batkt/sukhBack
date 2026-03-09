@@ -32,6 +32,7 @@ const easyRegisterUserSchema = new Schema(
     gereeniiId: String,
     gereeniiDugaar: String,
     talbainDugaar: String,
+    orshinSuugchiinId: String,
 
     // Meta
     ustgasan: { type: Boolean, default: false },
@@ -49,6 +50,7 @@ easyRegisterUserSchema.index({ baiguullagiinId: 1, loginName: 1 });
 easyRegisterUserSchema.index({ baiguullagiinId: 1, regNo: 1 });
 easyRegisterUserSchema.index({ baiguullagiinId: 1, passportNo: 1 });
 easyRegisterUserSchema.index({ baiguullagiinId: 1, phoneNum: 1 });
+easyRegisterUserSchema.index({ baiguullagiinId: 1, orshinSuugchiinId: 1 });
 
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)

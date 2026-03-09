@@ -670,6 +670,7 @@ async function saveEasyRegisterUser(data, baiguullagiinId, tukhainBaaziinKholbol
       refund: data.refund || '',
       turul: turul || (data.passportNo ? 'foreigner' : 'consumer'),
       ustgasan: false,
+      orshinSuugchiinId: data.orshinSuugchiinId || '',
       ...extraFields
     };
 
@@ -707,54 +708,76 @@ router.post("/easyRegister/setReturnReceipt", tokenShalgakh, async (req, res, ne
 });
 
 
+// Unified search + save: POST one endpoint, auto-detects lookup type, calls ITC, saves to DB
+// Body: { identity, phoneNum, customerNo, turul, passportNo, email, gereeniiId, ... }
 router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) => {
   try {
     const { identity, phoneNum, customerNo, turul, passportNo, email } = req.body;
-    console.log(`[EASY REGISTER] user/search: identity=${identity || ''}, phone=${phoneNum || ''}, customerNo=${customerNo || ''}, turul=${turul || 'consumer'}, passport=${passportNo || ''}`);
+    console.log(`[EASY REGISTER] user/search: identity=${identity || ''}, phone=${phoneNum || ''}, customerNo=${customerNo || ''}, turul=${turul || 'consumer'}`);
+    
     const baiguullagiinId = req.body.baiguullagiinId;
     const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
-    let apiPath;
-    let apiMethod = 'GET';
-    let apiBody = null;
+    // Helper to call API as a promise
+    const callApi = (method, path, body) => new Promise((resolve, reject) => {
+      easyRegisterDuudya(method, path, body, (err) => reject(err), (data) => resolve(data), baiguullagiinId, tukhainBaaziinKholbolt);
+    });
+
+    let finalData = null;
 
     if (turul === 'foreigner' && passportNo && email) {
-      apiPath = `api/easy-register/api/info/foreigner/${encodeURIComponent(passportNo)}`;
-      apiMethod = 'POST';
-      apiBody = { email };
+      // Register new foreigner
+      finalData = await callApi("POST", `api/easy-register/api/info/foreigner/${encodeURIComponent(passportNo)}`, { email });
     } else if (turul === 'foreigner' && identity) {
-      apiPath = `api/easy-register/api/info/foreigner/${encodeURIComponent(identity)}`;
+      // Foreigner direct lookup
+      finalData = await callApi("GET", `api/easy-register/api/info/foreigner/${encodeURIComponent(identity)}`, null);
     } else if (identity) {
-      apiPath = `api/easy-register/api/info/consumer/${encodeURIComponent(identity)}`;
+      // Consumer direct lookup
+      finalData = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(identity)}`, null);
     } else if (phoneNum || customerNo) {
-      apiPath = 'api/easy-register/rest/v1/getProfile';
-      apiMethod = 'POST';
-      apiBody = {};
-      if (phoneNum) apiBody.phoneNum = phoneNum;
-      if (customerNo) apiBody.customerNo = customerNo;
+      // SMART SEARCH: Combined Profile + Identity lookup
+      console.log(`[EASY REGISTER] Smart Search started for ${phoneNum || customerNo}`);
+      
+      const profileBody = {};
+      if (phoneNum) profileBody.phoneNum = phoneNum;
+      if (customerNo) profileBody.customerNo = customerNo;
+      
+      // Step 1: Get Profile (to find the loginName)
+      const profile = await callApi("POST", 'api/easy-register/rest/v1/getProfile', profileBody);
+      
+      if (profile && profile.loginName) {
+        try {
+          // Step 2: Use loginName to get Full Consumer Info
+          const fullInfo = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(profile.loginName)}`, null);
+          // Merge Step 1 (email/phone context) + Step 2 (identity/name context)
+          finalData = { ...profile, ...fullInfo };
+          console.log(`[EASY REGISTER] Smart Search combined successfully: ${profile.loginName}`);
+        } catch (infoErr) {
+          console.log(`[EASY REGISTER] Smart Search secondary lookup failed (falling back to profile only):`, infoErr.message);
+          finalData = profile;
+        }
+      } else {
+        finalData = profile;
+      }
     } else {
       return res.status(400).json({ error: "identity, phoneNum, customerNo эсвэл passportNo+email-н нэгийг нь заавал оруулна" });
     }
 
-    easyRegisterDuudya(
-      apiMethod,
-      apiPath,
-      apiBody,
-      next,
-      async (data) => {
-        await saveEasyRegisterUser(data, baiguullagiinId, tukhainBaaziinKholbolt, turul, {
-          phoneNum: phoneNum || '',
-          gereeniiId: req.body.gereeniiId || '',
-          gereeniiDugaar: req.body.gereeniiDugaar || '',
-          talbainDugaar: req.body.talbainDugaar || '',
-          barilgiinId: req.body.barilgiinId || ''
-        });
-        res.send(data);
-      },
-      baiguullagiinId,
-      tukhainBaaziinKholbolt
-    );
+    // Save whatever we found (merged or single) to local DB
+    if (finalData) {
+      await saveEasyRegisterUser(finalData, baiguullagiinId, tukhainBaaziinKholbolt, turul, {
+        phoneNum: phoneNum || finalData.phoneNum || '',
+        gereeniiId: req.body.gereeniiId || '',
+        gereeniiDugaar: req.body.gereeniiDugaar || '',
+        talbainDugaar: req.body.talbainDugaar || '',
+        barilgiinId: req.body.barilgiinId || '',
+        orshinSuugchiinId: req.body.orshinSuugchiinId || ''
+      });
+    }
+
+    res.send(finalData);
   } catch (error) {
+    console.error(`[EASY REGISTER] Search error:`, error.message);
     next(error);
   }
 });
