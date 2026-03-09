@@ -701,6 +701,12 @@ async function saveEasyRegisterUser(data, baiguullagiinId, tukhainBaaziinKholbol
       baiguullagiinId: baiguullagiinId,
       ustgasan: { $ne: true }
     };
+
+    // Make the record unique to the resident who saved it
+    if (data.orshinSuugchiinId) {
+      filter.orshinSuugchiinId = data.orshinSuugchiinId;
+    }
+
     if (data.loginName) {
       filter.loginName = data.loginName;
     } else if (data.regNo) {
@@ -819,6 +825,11 @@ router.get("/easyRegister/user/list", copyQueryToBody, tokenShalgakh, async (req
     if (!body.query) body.query = {};
     body.query.baiguullagiinId = req.body.baiguullagiinId;
     body.query.ustgasan = { $ne: true };
+    
+    // Filter by resident ID for security
+    if (req.body.orshinSuugchiinId) {
+      body.query.orshinSuugchiinId = req.body.orshinSuugchiinId;
+    }
 
     khuudaslalt(EasyRegisterUser(req.body.tukhainBaaziinKholbolt), body)
       .then((result) => res.send(result))
@@ -839,8 +850,13 @@ router.post("/easyRegister/user/delete", tokenShalgakh, async (req, res, next) =
       return res.status(400).json({ error: "userId заавал оруулна" });
     }
 
+    const filter = { _id: userId, baiguullagiinId: baiguullagiinId };
+    if (req.body.orshinSuugchiinId) {
+      filter.orshinSuugchiinId = req.body.orshinSuugchiinId;
+    }
+
     const result = await EasyRegisterUser(tukhainBaaziinKholbolt).findOneAndUpdate(
-      { _id: userId, baiguullagiinId: baiguullagiinId },
+      filter,
       {
         $set: {
           ustgasan: true,
@@ -871,8 +887,13 @@ router.post("/easyRegister/user/hardDelete", tokenShalgakh, async (req, res, nex
       return res.status(400).json({ error: "userId заавал оруулна" });
     }
 
+    const filter = { _id: userId, baiguullagiinId: baiguullagiinId };
+    if (req.body.orshinSuugchiinId) {
+      filter.orshinSuugchiinId = req.body.orshinSuugchiinId;
+    }
+
     const result = await EasyRegisterUser(tukhainBaaziinKholbolt).findOneAndDelete(
-      { _id: userId, baiguullagiinId: baiguullagiinId }
+      filter
     );
 
     if (!result) {
@@ -889,11 +910,17 @@ router.post("/easyRegister/user/hardDelete", tokenShalgakh, async (req, res, nex
 router.get("/easyRegister/user/:id", copyQueryToBody, tokenShalgakh, async (req, res, next) => {
   try {
     console.log(`[EASY REGISTER] user/get: id=${req.params.id}`);
-    const user = await EasyRegisterUser(req.body.tukhainBaaziinKholbolt).findOne({
+    const filter = {
       _id: req.params.id,
       baiguullagiinId: req.body.baiguullagiinId,
       ustgasan: { $ne: true }
-    });
+    };
+    
+    if (req.body.orshinSuugchiinId) {
+      filter.orshinSuugchiinId = req.body.orshinSuugchiinId;
+    }
+
+    const user = await EasyRegisterUser(req.body.tukhainBaaziinKholbolt).findOne(filter);
 
     if (!user) {
       return res.status(404).json({ error: "Хэрэглэгч олдсонгүй" });
