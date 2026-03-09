@@ -732,11 +732,29 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
       // Foreigner direct lookup
       finalData = await callApi("GET", `api/easy-register/api/info/foreigner/${encodeURIComponent(identity)}`, null);
     } else if (identity) {
-      // Consumer direct lookup
-      finalData = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(identity)}`, null);
+      // SMART SEARCH: Identity lookup + Profile bridge
+      console.log(`[EASY REGISTER] Smart Search (Identity base) started for ${identity}`);
+      
+      // Step 1: Get Consumer Info
+      const info = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(identity)}`, null);
+      
+      if (info && info.loginName) {
+        try {
+          // Step 2: Bridge to Profile to get Phone/Email
+          const profile = await callApi("POST", 'api/easy-register/rest/v1/getProfile', { customerNo: info.loginName });
+          // Merge Step 1 (identity) + Step 2 (contact context)
+          finalData = { ...info, ...profile };
+          console.log(`[EASY REGISTER] Identity search bridged to Profile successfully: ${info.loginName}`);
+        } catch (bridgeErr) {
+          console.log(`[EASY REGISTER] Identity bridge lookup failed (falling back to info only):`, bridgeErr.message);
+          finalData = info;
+        }
+      } else {
+        finalData = info;
+      }
     } else if (phoneNum || customerNo) {
-      // SMART SEARCH: Combined Profile + Identity lookup
-      console.log(`[EASY REGISTER] Smart Search started for ${phoneNum || customerNo}`);
+      // SMART SEARCH: Profile base + Identity bridge
+      console.log(`[EASY REGISTER] Smart Search (Profile base) started for ${phoneNum || customerNo}`);
       
       const profileBody = {};
       if (phoneNum) profileBody.phoneNum = phoneNum;
@@ -751,9 +769,9 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
           const fullInfo = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(profile.loginName)}`, null);
           // Merge Step 1 (email/phone context) + Step 2 (identity/name context)
           finalData = { ...profile, ...fullInfo };
-          console.log(`[EASY REGISTER] Smart Search combined successfully: ${profile.loginName}`);
+          console.log(`[EASY REGISTER] Profile search bridged to Consumer successfully: ${profile.loginName}`);
         } catch (infoErr) {
-          console.log(`[EASY REGISTER] Smart Search secondary lookup failed (falling back to profile only):`, infoErr.message);
+          console.log(`[EASY REGISTER] Profile bridge lookup failed (falling back to profile only):`, infoErr.message);
           finalData = profile;
         }
       } else {
