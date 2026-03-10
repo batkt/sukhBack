@@ -120,9 +120,19 @@ async function getUserInfo(userId) {
 async function getBillingByAddress(userId, bairId, doorNo) {
   try {
     const token = await getWalletServiceToken();
+    const encodedDoorNo = encodeURIComponent(doorNo);
+    
+    // Log request parameters for debugging
+    console.log("🔍 [WALLET API] getBillingByAddress request:", {
+      userId: userId,
+      bairId: bairId,
+      doorNo: doorNo,
+      encodedDoorNo: encodedDoorNo,
+      url: `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${encodedDoorNo}`
+    });
     
     const response = await axios.get(
-      `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${doorNo}`,
+      `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${encodedDoorNo}`,
       {
         headers: {
           userId: userId,
@@ -130,6 +140,13 @@ async function getBillingByAddress(userId, bairId, doorNo) {
         },
       }
     );
+
+    // Log response for debugging
+    console.log("🔍 [WALLET API] getBillingByAddress response:", {
+      responseCode: response.data?.responseCode,
+      hasData: !!response.data?.data,
+      dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A'
+    });
 
     if (response.data && response.data.responseCode && response.data.data) {
       // Ensure we return an array
