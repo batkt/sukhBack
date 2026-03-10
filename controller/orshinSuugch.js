@@ -4722,17 +4722,43 @@ exports.orshinSuugchUstgakh = asyncHandler(async (req, res, next) => {
  */
 exports.walletAddressDetails = asyncHandler(async (req, res, next) => {
   try {
+    const { db } = require("zevbackv2");
     const { bairId, doorNo } = req.params;
     const { utas } = req.query; // fallback for unauthenticated calls during registration
     
-    // Get phone from query or dummy default
-    const phoneNumber = utas || "88888888"; 
+    // Get phone number: 1) from query param, 2) from authenticated user token
+    let phoneNumber = utas;
+    
+    if (!phoneNumber && req.headers.authorization) {
+      try {
+        const token = req.headers.authorization.split(" ")[1];
+        if (token) {
+          const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+          if (tokenObject && tokenObject.id && tokenObject.id !== "zochin") {
+            const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+            if (orshinSuugch && orshinSuugch.utas) {
+              phoneNumber = orshinSuugch.utas;
+            }
+          }
+        }
+      } catch (tokenErr) {
+        console.log("⚠️ [WALLET ADDRESS DETAILS] Could not get phone from token:", tokenErr.message);
+      }
+    }
+
+    if (!phoneNumber) {
+      throw new aldaa("Утасны дугаар заавал шаардлагатай! ?utas= параметр эсвэл token дамжуулна уу.");
+    }
 
     if (!bairId || !doorNo) {
       throw new aldaa("Барилга болон тоот заавал оруулах шаардлагатай!");
     }
 
+    console.log("🔍 [WALLET ADDRESS DETAILS] Request:", { phoneNumber, bairId, doorNo });
+    
     const data = await walletApiService.getBillingByAddress(phoneNumber, bairId, doorNo);
+
+    console.log("✅ [WALLET ADDRESS DETAILS] Response data count:", Array.isArray(data) ? data.length : 'not array');
 
     res.status(200).json({
       responseCode: true,
