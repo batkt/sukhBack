@@ -604,66 +604,80 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
     if (result != null) {
       result.key = result._id;
 
-      if (result.baiguullagiinId) {
-        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-          result.baiguullagiinId,
+      // Identify all unique baiguullagiinId values associated with the resident
+      const associatedOrgIds = new Set();
+      if (result.baiguullagiinId) associatedOrgIds.add(result.baiguullagiinId.toString());
+      if (Array.isArray(result.toots)) {
+        result.toots.forEach(t => {
+          if (t.baiguullagiinId) associatedOrgIds.add(t.baiguullagiinId.toString());
+        });
+      }
+
+      for (const orgId of associatedOrgIds) {
+        const tukhainBaaziinKholbolt = db.kholboltuud.find(
+          (kholbolt) => kholbolt.baiguullagiinId === orgId
         );
 
-        if (baiguullaga) {
-          const tukhainBaaziinKholbolt = db.kholboltuud.find(
-            (kholbolt) =>
-              kholbolt.baiguullagiinId === baiguullaga._id.toString(),
-          );
+        if (tukhainBaaziinKholbolt) {
+          const GereeModel = Geree(tukhainBaaziinKholbolt);
+          // Models that also might store redundant personal info
+          const NekhemjlekhModel = require("../models/nekhemjlekhiinTuukh")(tukhainBaaziinKholbolt);
+          const MashinModel = require("../models/mashin")(tukhainBaaziinKholbolt);
 
-          if (tukhainBaaziinKholbolt) {
-            const GereeModel = Geree(tukhainBaaziinKholbolt);
+          const syncData = {};
+          const invoiceUpdateData = {};
+          const mashinUpdateData = {};
 
-            const gereeUpdateData = {};
+          // Basic personal info
+          if (req.body.ner !== undefined) {
+            syncData.ner = req.body.ner;
+            invoiceUpdateData.ner = req.body.ner;
+            mashinUpdateData.ezemshigchiinNer = req.body.ner;
+          }
+          if (req.body.ovog !== undefined) {
+            syncData.ovog = req.body.ovog;
+            invoiceUpdateData.ovog = req.body.ovog;
+          }
+          if (req.body.register !== undefined) {
+            syncData.register = req.body.register;
+            invoiceUpdateData.register = req.body.register;
+          }
+          if (req.body.mail !== undefined) {
+            syncData.mail = req.body.mail;
+            invoiceUpdateData.mailKhayagTo = req.body.mail;
+          }
 
-            if (req.body.ner !== undefined) gereeUpdateData.ner = req.body.ner;
-            if (req.body.ovog !== undefined)
-              gereeUpdateData.ovog = req.body.ovog;
-            if (req.body.register !== undefined)
-              gereeUpdateData.register = req.body.register;
-            if (req.body.mail !== undefined)
-              gereeUpdateData.mail = req.body.mail;
+          // Phone number - handle multiple formats
+          if (req.body.utas !== undefined) {
+            const utasnudaa = Array.isArray(req.body.utas)
+              ? req.body.utas
+              : [req.body.utas];
+            syncData.utas = utasnudaa;
+            invoiceUpdateData.utas = utasnudaa;
+            mashinUpdateData.ezemshigchiinUtas = utasnudaa.length > 0 ? utasnudaa[0] : "";
+            mashinUpdateData.utas = utasnudaa.length > 0 ? utasnudaa[0] : "";
+          }
 
-            if (req.body.utas !== undefined) {
-              gereeUpdateData.utas = Array.isArray(req.body.utas)
-                ? req.body.utas
-                : [req.body.utas];
-            }
+          // Address components (propagate if specified)
+          if (req.body.toot !== undefined) syncData.toot = req.body.toot;
+          if (req.body.davkhar !== undefined) {
+            syncData.davkhar = req.body.davkhar;
+            invoiceUpdateData.davkhar = req.body.davkhar;
+            mashinUpdateData.ezenToot = req.body.toot || result.toot;
+          }
+          if (req.body.orts !== undefined) {
+            syncData.orts = req.body.orts;
+            invoiceUpdateData.orts = req.body.orts;
+          }
 
-            if (req.body.toot !== undefined)
-              gereeUpdateData.toot = req.body.toot;
-            if (req.body.davkhar !== undefined)
-              gereeUpdateData.davkhar = req.body.davkhar;
-            if (req.body.orts !== undefined)
-              gereeUpdateData.orts = req.body.orts;
+          // Add address location details if they match this org context
+          // Since orshinSuugch might have different addresses in different orgs (toots array),
+          // only apply these if the top-level update matches the current orgId
+          if (result.baiguullagiinId && result.baiguullagiinId.toString() === orgId) {
+            if (req.body.duureg !== undefined) syncData.duureg = req.body.duureg;
+            if (req.body.horoo !== undefined) syncData.horoo = req.body.horoo;
+            if (req.body.soh !== undefined) syncData.sohNer = req.body.soh;
 
-            // Building information
-            if (req.body.barilgiinId !== undefined)
-              gereeUpdateData.barilgiinId = req.body.barilgiinId;
-            if (req.body.bairniiNer !== undefined)
-              gereeUpdateData.bairNer = req.body.bairniiNer;
-
-            // Organization information
-            if (req.body.baiguullagiinId !== undefined) {
-              gereeUpdateData.baiguullagiinId = req.body.baiguullagiinId;
-            }
-            if (req.body.baiguullagiinNer !== undefined) {
-              gereeUpdateData.baiguullagiinNer = req.body.baiguullagiinNer;
-            }
-
-            // Address location details
-            if (req.body.duureg !== undefined)
-              gereeUpdateData.duureg = req.body.duureg;
-            if (req.body.horoo !== undefined)
-              gereeUpdateData.horoo = req.body.horoo;
-            if (req.body.soh !== undefined)
-              gereeUpdateData.sohNer = req.body.soh;
-
-            // Build full address string (sukhBairshil) if any address component changed
             const addressChanged =
               req.body.duureg !== undefined ||
               req.body.horoo !== undefined ||
@@ -681,33 +695,57 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
                     ? horooVal
                     : "";
 
-              gereeUpdateData.sukhBairshil =
+              syncData.sukhBairshil =
                 `${duuregVal}, ${horooNer}, ${sohVal}`
                   .replace(/^,\s*|,\s*$/g, "")
                   .replace(/,\s*,/g, ",")
                   .trim();
             }
+          }
 
-            if (req.body.ekhniiUldegdel !== undefined) {
-              gereeUpdateData.ekhniiUldegdel =
-                parseFloat(req.body.ekhniiUldegdel) || 0;
-            }
+          if (req.body.tsahilgaaniiZaalt !== undefined && result.baiguullagiinId && result.baiguullagiinId.toString() === orgId) {
+            const zaalt = parseFloat(req.body.tsahilgaaniiZaalt) || 0;
+            syncData.suuliinZaalt = zaalt;
+            syncData.umnukhZaalt = zaalt;
+          }
 
-            if (req.body.tsahilgaaniiZaalt !== undefined) {
-              const zaalt = parseFloat(req.body.tsahilgaaniiZaalt) || 0;
-              gereeUpdateData.suuliinZaalt = zaalt;
-              gereeUpdateData.umnukhZaalt = zaalt;
-            }
+          // 1. Update Contracts (Geree)
+          if (Object.keys(syncData).length > 0) {
+            await GereeModel.updateMany(
+              {
+                orshinSuugchId: result._id.toString(),
+                tuluv: "Идэвхтэй",
+              },
+              { $set: syncData },
+            );
+          }
 
-            if (Object.keys(gereeUpdateData).length > 0) {
-              await GereeModel.updateMany(
-                {
-                  orshinSuugchId: result._id.toString(),
-                  tuluv: "Идэвхтэй",
-                },
-                { $set: gereeUpdateData },
-              );
-            }
+          // 2. Update Invoices (nekhemjlekhiinTuukh) - only unpaid ones
+          if (Object.keys(invoiceUpdateData).length > 0) {
+            await NekhemjlekhModel.updateMany(
+              {
+                gereeniiId: { $exists: true }, // Ensure it's a contract-linked invoice
+                $or: [
+                  { orshinSuugchId: result._id.toString() },
+                  { ner: oldDoc?.ner, utas: { $in: Array.isArray(oldDoc?.utas) ? oldDoc.utas : [oldDoc?.utas] } }
+                ],
+                tuluv: { $ne: "Төлсөн" }
+              },
+              { $set: invoiceUpdateData }
+            );
+          }
+
+          // 3. Update Mashin (Guest/Vehicle settings)
+          if (Object.keys(mashinUpdateData).length > 0) {
+            await MashinModel.updateMany(
+              {
+                $or: [
+                  { ezemshigchiinId: result._id.toString() },
+                  { orshinSuugchiinId: result._id.toString() }
+                ]
+              },
+              { $set: mashinUpdateData }
+            );
           }
         }
       }
