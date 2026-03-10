@@ -8,7 +8,10 @@ const {
 } = require("quickqpaypackvSukh");
 const OrshinSuugch = require("../models/orshinSuugch");
 const WalletInvoice = require("../models/walletInvoice");
+const EbarimtShine = require("../models/ebarimtShine");
+const EasyRegisterUser = require("../models/easyRegisterUser");
 const jwt = require("jsonwebtoken");
+const request = require("request");
 
 /**
  * Helper: get orshinSuugch + phone from auth token
@@ -199,7 +202,22 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
     throw new aldaa(`QPay нэхэмжлэх үүсгэхэд алдаа: ${qpayError.message}`);
   }
 
-  /* ── 6. Save order number ── */
+  /* ── 6. Save mapping locally (CRITICAL for callback) ── */
+  try {
+    const walletInvoice = new (WalletInvoice(db.erunkhiiKholbolt))();
+    walletInvoice.walletInvoiceId = walletInvoiceId;
+    walletInvoice.walletPaymentId = walletPaymentId;
+    walletInvoice.userId = userPhone;
+    walletInvoice.baiguullagiinId = baiguullagiinId;
+    walletInvoice.barilgiinId = barilgiinId || "";
+    walletInvoice.createdAt = new Date();
+    await walletInvoice.save();
+    console.log(`✅ [WALLET QPAY] Saved WalletInvoice mapping locally: ${walletInvoiceId}`);
+  } catch (saveErr) {
+    console.warn("⚠️ [WALLET QPAY] Failed to save local mapping (already exists or DB error):", saveErr.message);
+  }
+
+  /* ── 7. Save order sequence number ── */
   try {
     const dugaarlalt = new Dugaarlalt(tukhainBaaziinKholbolt)();
     dugaarlalt.baiguullagiinId = baiguullagiinId;
@@ -276,91 +294,28 @@ exports.walletQpayCallback = asyncHandler(async (req, res, next) => {
   }
 
   if (!qpayObject) {
+    // Check if it's already paid (maybe callback arrived twice)
+    const alreadyPaid = await QuickQpayObject(tukhainBaaziinKholbolt).findOne({
+      walletPaymentId,
+      tulsunEsekh: true,
+    });
+    if (alreadyPaid) {
+      console.log("ℹ️ [WALLET QPAY CALLBACK] Already settled.");
+      return res.sendStatus(200);
+    }
     console.error("❌ [WALLET QPAY CALLBACK] QuickQpayObject not found for walletPaymentId:", walletPaymentId);
     return res.status(404).send("Payment not found");
   }
 
-  /* ── 2. Mark paid (same as original) ── */
-  qpayObject.tulsunEsekh = true;
-  qpayObject.isNew = false;
-  if (req.query?.qpay_payment_id) {
-    qpayObject.payment_id = req.query.qpay_payment_id;
-  }
-  await qpayObject.save();
-
-  /* ── 3. Get QPay payment details for the paidByQpay call ── */
-  let qpayPaymentId = req.query?.qpay_payment_id || "";
-  let trxNo = "";
-  let trxDate = new Date().toISOString();
-  let trxAmount = parseFloat(qpayObject.qpay?.amount || 0);
-
-  if (qpayObject.invoice_id) {
-    try {
-      const checkResult = await qpayShalgay(
-        { invoice_id: qpayObject.invoice_id },
-        tukhainBaaziinKholbolt
-      );
-      if (checkResult?.payments?.[0]) {
-        const payment = checkResult.payments[0];
-        qpayPaymentId = qpayPaymentId || payment.payment_id || "";
-        if (payment.transactions?.[0]) {
-          trxNo = payment.transactions[0].id || "";
-          trxDate = payment.transactions[0].settlement_date || trxDate;
-          trxAmount = payment.transactions[0].amount || trxAmount;
-        }
-      }
-    } catch (checkErr) {
-      console.error("⚠️ [WALLET QPAY CALLBACK] QPay check failed:", checkErr.message);
-    }
-  }
-
-  /* ── 4. Call Wallet API paidByQpay ── */
-  const walletInvoiceId = qpayObject.walletInvoiceId || "";
-
-  // We need the user's phone to call Wallet API.
-  // Try finding it via the walletInvoice we saved earlier.
-  let userId = null;
-  try {
-    const walletInvoiceDoc = await WalletInvoice(db.erunkhiiKholbolt)
-      .findOne({ walletInvoiceId })
-      .lean();
-    userId = walletInvoiceDoc?.userId || null;
-  } catch {
-    // ignore
-  }
-
-  if (userId) {
-    try {
-      const paidByQpayData = {
-        qpayPaymentId: qpayPaymentId,
-        trxDate: trxDate,
-        trxNo: trxNo,
-        trxDescription: qpayObject.qpay?.description || `WalletQPay-${walletPaymentId}`,
-        amount: trxAmount,
-        receiverBankCode: qpayObject.qpay?.receiver_bank_code || "",
-        receiverAccountNo: qpayObject.qpay?.receiver_account_number || "",
-        receiverAccountName: qpayObject.qpay?.receiver_account_name || "",
-      };
-
-      console.log(`📤 [WALLET QPAY CALLBACK] Calling Wallet paidByQpay for paymentId=${walletPaymentId}`);
-      await walletApiService.updateQPayPayment(userId, walletPaymentId, paidByQpayData);
-      console.log(`✅ [WALLET QPAY CALLBACK] Wallet paidByQpay success`);
-    } catch (walletErr) {
-      console.error("❌ [WALLET QPAY CALLBACK] Wallet paidByQpay failed:", walletErr.message);
-      // Non-critical — payment is already marked paid in QPay side
-    }
-  } else {
-    console.warn("⚠️ [WALLET QPAY CALLBACK] Could not find userId for Wallet API call");
-  }
-
-  /* ── 5. Emit socket event ── */
+  /* ── 2. Settle ── */
   const io = req.app.get("socketio");
-  if (io) {
-    io.emit(`walletQpay/${baiguullagiinId}/${walletPaymentId}`, {
-      status: "PAID",
-      qpayPaymentId,
-    });
-  }
+  await settleWalletPayment(
+    qpayObject,
+    tukhainBaaziinKholbolt,
+    baiguullagiinId,
+    req.query?.qpay_payment_id,
+    io
+  );
 
   res.sendStatus(200);
 });
@@ -410,6 +365,15 @@ exports.walletQpayCheck = asyncHandler(async (req, res, next) => {
         (p) => p.payment_status === "PAID" || p.status === "PAID"
       );
       if (isPaid) {
+        console.log(`✅ [WALLET QPAY CHECK] Detected payment for ${walletPaymentId}`);
+        const io = req.app.get("socketio");
+        await settleWalletPayment(
+          qpayObject,
+          tukhainBaaziinKholbolt,
+          baiguullagiinId,
+          null,
+          io
+        );
         return res.json({ success: true, status: "PAID", walletPaymentId });
       }
     } catch {
@@ -419,3 +383,335 @@ exports.walletQpayCheck = asyncHandler(async (req, res, next) => {
 
   res.json({ success: true, status: "PENDING", walletPaymentId });
 });
+
+// ──────────────────────────────────────────────────────
+//  GET /walletQpay/payment/:paymentId
+//  Fetch full wallet payment details (including VAT info)
+// ──────────────────────────────────────────────────────
+exports.getWalletPayment = asyncHandler(async (req, res, next) => {
+  const { paymentId } = req.params;
+  
+  const orshinSuugch = await getOrshinSuugchFromToken(req);
+  const userPhone = orshinSuugch?.utas;
+  
+  if (!userPhone) {
+    throw new aldaa("Хэрэглэгчийн утас олдсонгүй. Нэвтрэх шаардлагатай.");
+  }
+
+  try {
+    const payment = await walletApiService.getPayment(userPhone, paymentId);
+    if (!payment) {
+      return res.status(404).json({ success: false, message: "Payment not found in Wallet API" });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: payment
+    });
+  } catch (err) {
+    console.error("❌ [WALLET QPAY] Error getting payment details:", err.message);
+    throw new aldaa(`Төлбөрийн мэдээлэл авахад алдаа: ${err.message}`);
+  }
+});
+
+// ──────────────────────────────────────────────────────
+//  Helpers for Unified E-barimt / Easy Register
+// ──────────────────────────────────────────────────────
+
+async function settleWalletPayment(
+  qpayObject,
+  tukhainBaaziinKholbolt,
+  baiguullagiinId,
+  qpayPaymentIdFromRequest = null,
+  io = null
+) {
+  const { db } = require("zevbackv2");
+  if (qpayObject.tulsunEsekh) return;
+
+  console.log(`🚀 [WALLET QPAY] Settling payment: ${qpayObject.walletPaymentId}`);
+
+  /* ── 1. Mark paid locally ── */
+  qpayObject.tulsunEsekh = true;
+  qpayObject.isNew = false;
+  if (qpayPaymentIdFromRequest) {
+    qpayObject.payment_id = qpayPaymentIdFromRequest;
+  }
+
+  /* ── 2. Get QPay details if needed ── */
+  let qpayPaymentId = qpayPaymentIdFromRequest || qpayObject.payment_id || "";
+  let trxNo = "";
+  let trxDate = new Date().toISOString();
+  let trxAmount = parseFloat(qpayObject.qpay?.amount || 0);
+
+  if (qpayObject.invoice_id) {
+    try {
+      const checkResult = await qpayShalgay(
+        { invoice_id: qpayObject.invoice_id },
+        tukhainBaaziinKholbolt
+      );
+      if (checkResult?.payments?.[0]) {
+        const payment = checkResult.payments[0];
+        qpayPaymentId = qpayPaymentId || payment.payment_id || "";
+        if (payment.transactions?.[0]) {
+          trxNo = payment.transactions[0].id || "";
+          trxDate = payment.transactions[0].settlement_date || trxDate;
+          trxAmount = payment.transactions[0].amount || trxAmount;
+        }
+      }
+    } catch (checkErr) {
+      console.error(
+        "⚠️ [WALLET QPAY] QPay check failed during settlement:",
+        checkErr.message
+      );
+    }
+  }
+
+  qpayObject.payment_id = qpayPaymentId;
+  await qpayObject.save();
+
+  /* ── 3. Call Wallet API paidByQpay ── */
+  const walletPaymentId = qpayObject.walletPaymentId;
+  const walletInvoiceId = qpayObject.walletInvoiceId || "";
+
+  let userId = null;
+  try {
+    const walletInvoiceDoc = await WalletInvoice(db.erunkhiiKholbolt)
+      .findOne({ walletInvoiceId })
+      .lean();
+    userId = walletInvoiceDoc?.userId || null;
+  } catch (err) {
+    console.warn("⚠️ [WALLET QPAY] Error finding WalletInvoice:", err.message);
+  }
+
+  if (userId) {
+    try {
+      const paidByQpayData = {
+        qpayPaymentId: qpayPaymentId,
+        trxDate: trxDate,
+        trxNo: trxNo,
+        trxDescription:
+          qpayObject.qpay?.description || `WalletQPay-${walletPaymentId}`,
+        amount: trxAmount,
+        receiverBankCode: qpayObject.qpay?.receiver_bank_code || "",
+        receiverAccountNo: qpayObject.qpay?.receiver_account_number || "",
+        receiverAccountName: qpayObject.qpay?.receiver_account_name || "",
+      };
+
+      console.log(
+        `📤 [WALLET QPAY] Calling Wallet paidByQpay for paymentId=${walletPaymentId}`
+      );
+      await walletApiService.updateQPayPayment(
+        userId,
+        walletPaymentId,
+        paidByQpayData
+      );
+      console.log(`✅ [WALLET QPAY] Wallet paidByQpay success`);
+
+      // Sync E-barimt to local DB and Easy Register
+      await handleWalletEbarimt(
+        userId,
+        walletPaymentId,
+        baiguullagiinId,
+        tukhainBaaziinKholbolt
+      );
+    } catch (walletErr) {
+      console.error("❌ [WALLET QPAY] Wallet paidByQpay failed:", walletErr.message);
+    }
+  } else {
+    console.warn(
+      "⚠️ [WALLET QPAY] Could not find userId for Wallet API call during settlement"
+    );
+  }
+
+  /* ── 4. Emit socket event ── */
+  if (io) {
+    io.emit(`walletQpay/${baiguullagiinId}/${walletPaymentId}`, {
+      status: "PAID",
+      qpayPaymentId,
+    });
+  }
+}
+
+async function autoApproveQr(
+  customerNo,
+  qrData,
+  baiguullagiinId,
+  tukhainBaaziinKholbolt
+) {
+  if (!customerNo || !qrData) return null;
+
+  try {
+    const { Token } = require("zevbackv2");
+    const path = "api/easy-register/rest/v1/approveQr";
+    const body = { customerNo, qrData };
+
+    const shouldUseTest =
+      baiguullagiinId && String(baiguullagiinId) === "697723dc3e77b46e52ccf577";
+    const baseUrl = shouldUseTest
+      ? "https://st-service.itc.gov.mn"
+      : "https://service.itc.gov.mn";
+
+    const token = await getEbarimtTokenForEasy(
+      baiguullagiinId,
+      tukhainBaaziinKholbolt
+    );
+
+    return new Promise((resolve) => {
+      request.post(
+        {
+          url: `${baseUrl}/${path}`,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          json: true,
+          body,
+        },
+        (err, res, resBody) => {
+          if (err || res?.statusCode >= 400) {
+            console.error(
+              "⚠️ [EASY REGISTER] Auto-approve error:",
+              err?.message || resBody?.error || res?.statusCode
+            );
+          } else {
+            console.log(
+              `✅ [EASY REGISTER] QR approved for customer: ${customerNo}`
+            );
+          }
+          resolve(resBody);
+        }
+      );
+    });
+  } catch (err) {
+    console.error("⚠️ [EASY REGISTER] Helper error:", err.message);
+    return null;
+  }
+}
+
+async function getEbarimtTokenForEasy(baiguullagiinId, tukhainBaaziinKholbolt) {
+  const { Token } = require("zevbackv2");
+  
+  // Try existing token
+  const tokenDoc = await Token(tukhainBaaziinKholbolt).findOne({
+    turul: "ebarimt",
+    baiguullagiinId,
+  });
+
+  if (tokenDoc && tokenDoc.token && tokenDoc.expires_in > new Date()) {
+    return tokenDoc.token;
+  }
+
+  // Refresh or Login logic simplified for here
+  const authUrl =
+    process.env.EBARIMTSHINE_AUTH_URL ||
+    "https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token";
+  const clientId = process.env.EBARIMTSHINE_CLIENT_ID || "vatps";
+  const username = process.env.EBARIMTSHINE_USERNAME || "Rooden_like@yahoo.com";
+  const password = process.env.EBARIMTSHINE_PASSWORD || "Br1stelback@";
+
+  return new Promise((resolve, reject) => {
+    request.post(
+      {
+        url: authUrl,
+        form: {
+          grant_type: "password",
+          client_id: clientId,
+          username,
+          password,
+          scope: "profile email",
+        },
+        json: true,
+      },
+      async (err, res, body) => {
+        if (err || !body?.access_token) {
+          return reject(new Error("Failed to get Ebarimt token"));
+        }
+        
+        await Token(tukhainBaaziinKholbolt).updateOne(
+          { turul: 'ebarimt', baiguullagiinId: baiguullagiinId },
+          {
+            ognoo: new Date(),
+            token: body.access_token,
+            refreshToken: body.refresh_token || '',
+            expires_in: new Date(Date.now() + (body.expires_in || 28800) * 1000)
+          },
+          { upsert: true }
+        );
+        
+        resolve(body.access_token);
+      }
+    );
+  });
+}
+
+async function handleWalletEbarimt(
+  userId,
+  walletPaymentId,
+  baiguullagiinId,
+  tukhainBaaziinKholbolt
+) {
+  try {
+    const payment = await walletApiService.getPayment(userId, walletPaymentId);
+    if (!payment?.vatInformation?.vatDdtd) {
+      console.log(`ℹ️ [WALLET EBARIMT] No VAT info for payment: ${walletPaymentId}`);
+      return;
+    }
+
+    const vat = payment.vatInformation;
+
+    // Check if already saved
+    const existing = await EbarimtShine(tukhainBaaziinKholbolt).findOne({
+      id: vat.vatDdtd,
+    });
+    if (existing) {
+      console.log(`ℹ️ [WALLET EBARIMT] Already saved locally: ${vat.vatDdtd}`);
+      return;
+    }
+
+    // Save locally to EbarimtShine
+    const ebarimt = new (EbarimtShine(tukhainBaaziinKholbolt))();
+    ebarimt.id = vat.vatDdtd;
+    ebarimt.receiptId = vat.vatDdtd;
+    ebarimt.qrData = vat.vatQrData;
+    ebarimt.lottery = vat.vatLotteryNo;
+    ebarimt.totalAmount = payment.totalAmount || payment.amount;
+    ebarimt.totalVAT = parseFloat(vat.vatAmount || 0);
+    ebarimt.baiguullagiinId = baiguullagiinId;
+    ebarimt.barilgiinId = payment.barilgiinId || "";
+    ebarimt.nekhemjlekhiinId = walletPaymentId;
+    ebarimt.customerNo = vat.vatCustomerNo || "";
+    ebarimt.date = new Date().toISOString();
+    ebarimt.dateOgnoo = new Date();
+    ebarimt.createdAt = new Date();
+    
+    // Dynamic B2C/B2B handling
+    if (vat.vatCustomerTin) {
+      ebarimt.type = "B2B_RECEIPT";
+      ebarimt.customerTin = vat.vatCustomerTin;
+    } else {
+      ebarimt.type = "B2C_RECEIPT";
+    }
+
+    await ebarimt.save();
+    console.log(`✅ [WALLET EBARIMT] Saved local ebarimt: ${vat.vatDdtd}`);
+
+    // Auto-approve to Easy Register locally
+    const easyUser = await EasyRegisterUser(tukhainBaaziinKholbolt).findOne({
+      phoneNum: userId,
+      ustgasan: { $ne: true },
+    });
+
+    if (easyUser && easyUser.loginName) {
+      console.log(`📦 [WALLET EBARIMT] Auto-approving for easyUser: ${easyUser.loginName}`);
+      await autoApproveQr(
+        easyUser.loginName,
+        vat.vatQrData,
+        baiguullagiinId,
+        tukhainBaaziinKholbolt
+      );
+    }
+  } catch (err) {
+    console.error("❌ [WALLET EBARIMT] Error handling ebarimt:", err.message);
+  }
+}

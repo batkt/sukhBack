@@ -38,4 +38,15 @@ router.get(
   walletQpayController.walletQpayCheck
 );
 
+/**
+ * @route GET /walletQpay/payment/:paymentId
+ * @desc  Get full payment details including VAT (ebarimt) info
+ * @access Private
+ */
+router.get(
+  "/walletQpay/payment/:paymentId",
+  tokenShalgakh,
+  walletQpayController.getWalletPayment
+);
+
 module.exports = router;
