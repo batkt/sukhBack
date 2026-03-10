@@ -22,6 +22,7 @@ const {
   walletAddressDistricts,
   walletAddressKhoroo,
   walletAddressBair,
+  walletAddressDetails,
   tokenoorOrshinSuugchAvya,
   nuutsUgShalgakhOrshinSuugch,
   khayagaarBaiguullagaAvya,
@@ -752,6 +753,7 @@ router.route("/walletAddress/city").get(walletAddressCities);
 router.route("/walletAddress/district/:cityId").get(walletAddressDistricts);
 router.route("/walletAddress/khoroo/:districtId").get(walletAddressKhoroo);
 router.route("/walletAddress/bair/:khorooId").get(walletAddressBair);
+router.route("/walletAddress/details/:bairId/:doorNo").get(walletAddressDetails);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);
 router

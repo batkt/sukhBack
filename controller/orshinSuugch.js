@@ -4715,3 +4715,32 @@ exports.orshinSuugchUstgakh = asyncHandler(async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * GET /walletAddress/details/:bairId/:doorNo
+ * Search for customer details in a specific building/door (Wallet API)
+ */
+exports.walletAddressDetails = asyncHandler(async (req, res, next) => {
+  try {
+    const { bairId, doorNo } = req.params;
+    const { utas } = req.query; // fallback for unauthenticated calls during registration
+    
+    // Get phone from query or dummy default
+    const phoneNumber = utas || "88888888"; 
+
+    if (!bairId || !doorNo) {
+      throw new aldaa("Барилга болон тоот заавал оруулах шаардлагатай!");
+    }
+
+    const data = await walletApiService.getBillingByAddress(phoneNumber, bairId, doorNo);
+
+    res.status(200).json({
+      responseCode: true,
+      responseMsg: "Амжилттай",
+      data: data
+    });
+  } catch (err) {
+    console.error("❌ [WALLET ADDRESS DETAILS] Error:", err.message);
+    next(err);
+  }
+});

@@ -46,7 +46,6 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
   const { Dugaarlalt } = require("zevbackv2");
 
   const {
-    baiguullagiinId,
     barilgiinId,
     billingId,
     billIds,
@@ -54,8 +53,16 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
     dun: overrideDun,
   } = req.body;
 
+  /* ── 0. Resilient Org ID Lookup (Body -> Query -> Profile) ── */
+  let baiguullagiinId = req.body.baiguullagiinId || req.query.baiguullagiinId;
+  const orshinSuugch = await getOrshinSuugchFromToken(req);
+
+  if (!baiguullagiinId && orshinSuugch) {
+    baiguullagiinId = orshinSuugch.baiguullagiinId;
+  }
+
   if (!baiguullagiinId) {
-    throw new aldaa("baiguullagiinId заавал бөглөх шаардлагатай!");
+    throw new aldaa("Байгууллагын ID олдсонгүй! (baiguullagiinId заавал бөглөх шаардлагатай)");
   }
 
   /* ── 1. org connection ── */
@@ -67,7 +74,6 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
   }
 
   /* ── 2. resident / phone ── */
-  const orshinSuugch = await getOrshinSuugchFromToken(req);
   const userPhone = orshinSuugch?.utas;
   if (!userPhone) {
     throw new aldaa("Хэрэглэгчийн утас олдсонгүй. Нэвтрэх шаардлагатай.");
@@ -90,28 +96,26 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
       walletInvoiceId = walletInvoiceResult.invoiceId;
       console.log(`✅ [WALLET QPAY] Wallet invoice created: ${walletInvoiceId}`);
 
-      // Save wallet invoice metadata locally
+      // Save wallet invoice metadata locally (only if not already exists)
       try {
-        const metadata = {
-          userId: userPhone,
-          orshinSuugchId: orshinSuugch?._id?.toString() || null,
-          billingId,
-          billIds: billIds || [],
-          billingName: walletInvoiceResult.billingName || "",
-          customerId: walletInvoiceResult.customerId || "",
-          customerName: walletInvoiceResult.customerName || "",
-          customerAddress: walletInvoiceResult.customerAddress || "",
-          totalAmount: walletInvoiceResult.invoiceTotal || walletInvoiceResult.totalAmount || null,
-          source: "WALLET_QPAY",
-        };
-
-        await WalletInvoice(db.erunkhiiKholbolt).findOneAndUpdate(
-          { walletInvoiceId: walletInvoiceId },
-          { $set: metadata },
-          { upsert: true, new: true }
-        );
+        const existing = await WalletInvoice(db.erunkhiiKholbolt).findOne({ walletInvoiceId });
+        if (!existing) {
+          await WalletInvoice(db.erunkhiiKholbolt).create({
+            userId: userPhone,
+            orshinSuugchId: orshinSuugch?._id?.toString() || null,
+            walletInvoiceId,
+            billingId,
+            billIds: billIds || [],
+            billingName: walletInvoiceResult.billingName || "",
+            customerId: walletInvoiceResult.customerId || "",
+            customerName: walletInvoiceResult.customerName || "",
+            customerAddress: walletInvoiceResult.customerAddress || "",
+            totalAmount: walletInvoiceResult.invoiceTotal || walletInvoiceResult.totalAmount || null,
+            source: "WALLET_QPAY",
+          });
+        }
       } catch (saveErr) {
-        console.error("⚠️ [WALLET QPAY] Failed to sync wallet invoice metadata:", saveErr.message);
+        console.error("⚠️ [WALLET QPAY] Notice: Local metadata sync skipped:", saveErr.message);
       }
     } catch (err) {
       console.error("❌ [WALLET QPAY] Wallet invoice creation failed:", err.message);
