@@ -4732,7 +4732,7 @@ exports.walletAddressDetails = asyncHandler(async (req, res, next) => {
       throw new aldaa("Барилга болон тоот заавал оруулах шаардлагатай!");
     }
 
-    const data = await walletApiService.getBillingByAddress("", bairId, doorNo);
+    const data = await walletApiService.getBillingByAddress(phoneNumber, bairId, doorNo);
 
     res.status(200).json({
       responseCode: true,
