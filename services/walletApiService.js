@@ -128,6 +128,7 @@ async function getBillingByAddress(userId, bairId, doorNo) {
       `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${encodedDoorNo}`,
       {
         headers: {
+           userId: userId,
            Authorization: `Bearer ${token}`,
         },
       }
@@ -135,7 +136,6 @@ async function getBillingByAddress(userId, bairId, doorNo) {
 
 
     if (response.data && response.data.responseCode && response.data.data) {
-      // Ensure we return an array
       const data = response.data.data;
       if (Array.isArray(data)) {
         return data;
