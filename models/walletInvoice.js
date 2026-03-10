@@ -15,8 +15,8 @@ const walletInvoiceSchema = new Schema(
     walletInvoiceId: { type: String, required: true },
 
     // Wallet billing context
-    billingId: { type: String, required: true },
-    billIds: [{ type: String, required: true }],
+    billingId: { type: String },
+    billIds: [{ type: String }],
 
     // Human-readable info
     billingName: String,

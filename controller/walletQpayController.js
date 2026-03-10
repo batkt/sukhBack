@@ -92,10 +92,9 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
 
       // Save wallet invoice metadata locally
       try {
-        await WalletInvoice(db.erunkhiiKholbolt).create({
+        const metadata = {
           userId: userPhone,
           orshinSuugchId: orshinSuugch?._id?.toString() || null,
-          walletInvoiceId,
           billingId,
           billIds: billIds || [],
           billingName: walletInvoiceResult.billingName || "",
@@ -104,9 +103,15 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
           customerAddress: walletInvoiceResult.customerAddress || "",
           totalAmount: walletInvoiceResult.invoiceTotal || walletInvoiceResult.totalAmount || null,
           source: "WALLET_QPAY",
-        });
+        };
+
+        await WalletInvoice(db.erunkhiiKholbolt).findOneAndUpdate(
+          { walletInvoiceId: walletInvoiceId },
+          { $set: metadata },
+          { upsert: true, new: true }
+        );
       } catch (saveErr) {
-        console.error("⚠️ [WALLET QPAY] Failed to save wallet invoice locally:", saveErr.message);
+        console.error("⚠️ [WALLET QPAY] Failed to sync wallet invoice metadata:", saveErr.message);
       }
     } catch (err) {
       console.error("❌ [WALLET QPAY] Wallet invoice creation failed:", err.message);
@@ -204,17 +209,24 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
 
   /* ── 6. Save mapping locally (CRITICAL for callback) ── */
   try {
-    const walletInvoice = new (WalletInvoice(db.erunkhiiKholbolt))();
-    walletInvoice.walletInvoiceId = walletInvoiceId;
-    walletInvoice.walletPaymentId = walletPaymentId;
-    walletInvoice.userId = userPhone;
-    walletInvoice.baiguullagiinId = baiguullagiinId;
-    walletInvoice.barilgiinId = barilgiinId || "";
-    walletInvoice.createdAt = new Date();
-    await walletInvoice.save();
-    console.log(`✅ [WALLET QPAY] Saved WalletInvoice mapping locally: ${walletInvoiceId}`);
+    const updateData = {
+      walletPaymentId,
+      userId: userPhone,
+      baiguullagiinId,
+      barilgiinId: barilgiinId || "",
+      source: "WALLET_QPAY",
+    };
+
+    // If we have billing metadata from Step 3, it's already there. 
+    // If not (user provided invoiceId), we at least need this mapping for callback.
+    await WalletInvoice(db.erunkhiiKholbolt).findOneAndUpdate(
+      { walletInvoiceId: walletInvoiceId },
+      { $set: updateData },
+      { upsert: true, new: true }
+    );
+    console.log(`✅ [WALLET QPAY] Synced mapping for callback: ${walletInvoiceId} -> ${walletPaymentId}`);
   } catch (saveErr) {
-    console.warn("⚠️ [WALLET QPAY] Failed to save local mapping (already exists or DB error):", saveErr.message);
+    console.warn("⚠️ [WALLET QPAY] Failed to sync mapping:", saveErr.message);
   }
 
   /* ── 7. Save order sequence number ── */
@@ -226,10 +238,8 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
     dugaarlalt.dugaar = maxDugaar;
     await dugaarlalt.save();
   } catch {
-    // non-critical
   }
 
-  /* ── 7. Tag the QuickQpayObject with wallet metadata ── */
   try {
     const qpayInvoiceId = qpayResult.invoice_id || qpayResult.invoiceId || qpayResult.id;
     // Wait briefly for the QuickQpayObject to be saved by the package
