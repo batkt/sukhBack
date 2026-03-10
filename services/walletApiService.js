@@ -772,6 +772,12 @@ async function removeBilling(userId, billingId) {
   try {
     const token = await getWalletServiceToken();
     
+    console.log("🔍 [WALLET API] removeBilling request:", {
+      userId: userId,
+      billingId: billingId,
+      url: `${WALLET_API_BASE_URL}/api/billing/${billingId}`
+    });
+
     const response = await axios.delete(
       `${WALLET_API_BASE_URL}/api/billing/${billingId}`,
       {
@@ -782,17 +788,33 @@ async function removeBilling(userId, billingId) {
       }
     );
 
-    if (response.data && response.data.responseCode) {
+    console.log("🔍 [WALLET API] removeBilling response:", {
+      responseCode: response.data?.responseCode,
+      responseMsg: response.data?.responseMsg,
+      data: JSON.stringify(response.data?.data).substring(0, 500)
+    });
+
+    // Check if response is successful (responseCode can be true or "true" or truthy)
+    const isSuccess = response.data && (
+      response.data.responseCode === true || 
+      response.data.responseCode === "true" || 
+      (typeof response.data.responseCode === 'boolean' && response.data.responseCode) ||
+      (typeof response.data.responseCode === 'string' && response.data.responseCode.toLowerCase() === 'true')
+    );
+
+    if (isSuccess) {
       return response.data;
     }
 
-    throw new Error("Failed to remove billing in Wallet API");
+    throw new Error(response.data?.responseMsg || "Failed to remove billing in Wallet API");
   } catch (error) {
     if (error.response && error.response.data) {
+      console.error("❌ [WALLET API] Error removing billing status:", error.response.status);
+      console.error("❌ [WALLET API] Error removing billing data:", JSON.stringify(error.response.data));
       const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to remove billing";
       throw new Error(errorMessage);
     }
-    console.error("Error removing billing in wallet API:", error.message);
+    console.error("❌ [WALLET API] Error removing billing:", error.message);
     throw error;
   }
 }
@@ -801,6 +823,13 @@ async function removeBill(userId, billingId, billId) {
   try {
     const token = await getWalletServiceToken();
     
+    console.log("🔍 [WALLET API] removeBill request:", {
+      userId: userId,
+      billingId: billingId,
+      billId: billId,
+      url: `${WALLET_API_BASE_URL}/api/billing/${billingId}/bill/${billId}`
+    });
+
     const response = await axios.delete(
       `${WALLET_API_BASE_URL}/api/billing/${billingId}/bill/${billId}`,
       {
@@ -811,17 +840,33 @@ async function removeBill(userId, billingId, billId) {
       }
     );
 
-    if (response.data && response.data.responseCode) {
+    console.log("🔍 [WALLET API] removeBill response:", {
+      responseCode: response.data?.responseCode,
+      responseMsg: response.data?.responseMsg,
+      data: JSON.stringify(response.data?.data).substring(0, 500)
+    });
+
+    // Check if response is successful (responseCode can be true or "true" or truthy)
+    const isSuccess = response.data && (
+      response.data.responseCode === true || 
+      response.data.responseCode === "true" || 
+      (typeof response.data.responseCode === 'boolean' && response.data.responseCode) ||
+      (typeof response.data.responseCode === 'string' && response.data.responseCode.toLowerCase() === 'true')
+    );
+
+    if (isSuccess) {
       return response.data;
     }
 
-    throw new Error("Failed to remove bill in Wallet API");
+    throw new Error(response.data?.responseMsg || "Failed to remove bill in Wallet API");
   } catch (error) {
     if (error.response && error.response.data) {
+      console.error("❌ [WALLET API] Error removing bill status:", error.response.status);
+      console.error("❌ [WALLET API] Error removing bill data:", JSON.stringify(error.response.data));
       const errorMessage = error.response.data.responseMsg || error.response.data.message || "Failed to remove bill";
       throw new Error(errorMessage);
     }
-    console.error("Error removing bill in wallet API:", error.message);
+    console.error("❌ [WALLET API] Error removing bill:", error.message);
     throw error;
   }
 }
