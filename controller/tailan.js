@@ -1643,7 +1643,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         cell.fill = {
           type: "pattern",
           pattern: "solid",
-          fgColor: { argb: "FF3366FF" },
+          fgColor: { argb: "6FA8FF" },
         };
         cell.alignment = { horizontal: "center" };
         cell.border = {
