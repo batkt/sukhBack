@@ -615,7 +615,7 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
 
       for (const orgId of associatedOrgIds) {
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          (kholbolt) => kholbolt.baiguullagiinId === orgId
+          (kholbolt) => String(kholbolt.baiguullagiinId) === String(orgId)
         );
 
         if (tukhainBaaziinKholbolt) {
