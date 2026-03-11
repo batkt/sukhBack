@@ -1639,7 +1639,6 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         "Төлсөн (₮)",
       ]);
       headerRow.eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
         cell.fill = {
           type: "pattern",
           pattern: "solid",
