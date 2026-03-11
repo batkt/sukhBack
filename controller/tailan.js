@@ -1265,7 +1265,7 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       ageBuckets[bucket] += amount;
       ageCounts[bucket] += 1;
 
-      if (view === "delgerengui") {
+      if (view === "delgerengui" || view === "detailed") {
         let meta = item;
         if (isStandalone && contractMap[String(item.gereeniiId)]) {
           meta = { ...item, ...contractMap[String(item.gereeniiId)] };
@@ -1317,7 +1317,7 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     }));
 
     let paginatedList = [];
-    if (view === "delgerengui") {
+    if (view === "delgerengui" || view === "detailed") {
       detailedData.sort((a, b) => b.daysOverdue - a.daysOverdue);
       const skip = (Number(khuudasniiDugaar) - 1) * Number(khuudasniiKhemjee);
       paginatedList = detailedData.slice(skip, skip + Number(khuudasniiKhemjee));
