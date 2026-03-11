@@ -1435,19 +1435,21 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
     // Map report names to functions
     const reportMap = {
       "orlogo-avlaga": exports.tailanOrlogoAvlaga,
+      "orlogo-tovchoo": exports.tailanOrlogoAvlaga,
       "sariin-tulbur": exports.tailanSariinTulbur,
       "nekhemjlekhiin-tuukh": exports.tailanNekhemjlekhiinTuukh,
       "avlagiin-nasjilt": exports.tailanAvlagiinNasjilt,
       "guitsetgel": exports.tailanGuitsetgel,
       "udsan-avlaga": exports.tailanUdsanAvlaga,
       "tsutslasan-gereenii-avlaga": exports.tailanTsutslasanGereeniiAvlaga,
+      "zogsool": exports.tailanZogsool,
     };
 
     const reportFunction = reportMap[report];
     if (!reportFunction) {
       return res.status(400).json({
         success: false,
-        message: `Тайлан олдсонгүй: ${report}`,
+        message: `Тайлан олдсонгүй эсвэл экспортлох боломжгүй: ${report}`,
       });
     }
 
@@ -1471,7 +1473,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         try {
           data = JSON.parse(payload);
         } catch (e) {
-          // Not JSON, ignore
+          data = payload;
         }
         responseSent = true;
       }
@@ -1483,12 +1485,13 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
     };
 
     // For certain reports, ensure we get detailed data
-    if (report === "avlagiin-nasjilt" && !reportParams.view) {
+    if (
+      (report === "avlagiin-nasjilt" || report === "orlogo-tovchoo") &&
+      !reportParams.view
+    ) {
       reportParams.view = "delgerengui";
       reportParams.khuudasniiKhemjee = 10000; // Get all records for export
     }
-    // For sariin-tulbur, we can export summary (default) or detailed
-    // Summary is better for export, so we keep default
 
     // Create a mock request with report parameters
     const mockReq = {
@@ -1560,6 +1563,171 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         r.tuluv || "",
       ]);
       fileName = "orlogo_avlaga";
+    } else if (report === "orlogo-tovchoo") {
+      const ExcelJS = require("exceljs");
+      const Baiguullaga = require("../models/baiguullaga");
+      const { db } = require("zevbackv2");
+
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt)
+        .findById(baiguullagiinId)
+        .lean();
+      const orgName = baiguullaga?.ner || "";
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Орлогын товчоо");
+
+      // Set column widths
+      worksheet.columns = [
+        { header: "№", key: "index", width: 5 },
+        { header: "Харилцагч", key: "customer", width: 30 },
+        { header: "Гэрээний", key: "contract", width: 20 },
+        { header: "Давхар", key: "floor", width: 10 },
+        { header: "Тоот", key: "unit", width: 10 },
+        { header: "Төлөв", key: "status", width: 15 },
+        { header: "Төлсөн (₮)", key: "paidAmount", width: 20 },
+      ];
+
+      // Title
+      worksheet.mergeCells("A1:G1");
+      const titleCell = worksheet.getCell("A1");
+      titleCell.value = "Орлогын товчоо тайлан";
+      titleCell.font = { size: 16, bold: true };
+      titleCell.alignment = { horizontal: "center" };
+
+      // Org Name
+      worksheet.mergeCells("A2:G2");
+      const orgCell = worksheet.getCell("A2");
+      orgCell.value = orgName;
+      orgCell.font = { size: 12, bold: true };
+      orgCell.alignment = { horizontal: "center" };
+
+      // Date Range
+      worksheet.mergeCells("A3:C3");
+      const dateCell = worksheet.getCell("A3");
+      const start = reportParams.ekhlekhOgnoo
+        ? new Date(reportParams.ekhlekhOgnoo).toLocaleDateString("mn-MN")
+        : "";
+      const end = reportParams.duusakhOgnoo
+        ? new Date(reportParams.duusakhOgnoo).toLocaleDateString("mn-MN")
+        : "";
+      dateCell.value =
+        "Огноо: " + (start || end ? `${start} - ${end}` : "Бүх хугацаа");
+      dateCell.font = { italic: true };
+
+      // Filters info on the right
+      worksheet.mergeCells("E3:G3");
+      const filterCell = worksheet.getCell("E3");
+      let filters = [];
+      if (reportParams.orshinSuugch) filters.push("Оршин суугч");
+      if (reportParams.toot) filters.push("Тоот");
+      if (reportParams.davkhar) filters.push("Давхар");
+      if (reportParams.gereeniiDugaar) filters.push("Гэрээний");
+      filterCell.value = "Шүүлт: " + (filters.length > 0 ? filters.join(", ") : "Бүгд");
+      filterCell.alignment = { horizontal: "right" };
+
+      // Leave a blank row
+      worksheet.addRow([]);
+
+      // Headers (Manual since we need styling)
+      const headerRow = worksheet.addRow([
+        "№",
+        "Харилцагч",
+        "Гэрээний",
+        "Давхар",
+        "Тоот",
+        "Төлөв",
+        "Төлсөн (₮)",
+      ]);
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF3366FF" },
+        };
+        cell.alignment = { horizontal: "center" };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+
+      // Data rows
+      const list = [...(data.paid?.list || []), ...(data.unpaid?.list || [])].sort((a,b) => {
+        // Sort by unit if available
+        if(a.toot && b.toot) {
+            const numA = parseInt(a.toot);
+            const numB = parseInt(b.toot);
+            if(!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            return String(a.toot).localeCompare(String(b.toot));
+        }
+        return 0;
+      });
+
+      let totalPaid = 0;
+      list.forEach((r, index) => {
+        const row = worksheet.addRow([
+          index + 1,
+          `${r.ovog || ""} ${r.ner || ""}`.trim(),
+          r.gereeniiDugaar || "",
+          r.davkhar || "",
+          r.toot || "",
+          r.tuluv || "",
+          r.niitTulbur || 0,
+        ]);
+        totalPaid += r.niitTulbur || 0;
+
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
+        row.getCell(7).numFmt = "#,##0.00";
+      });
+
+      // Totals row
+      const totalRow = worksheet.addRow([
+        "",
+        "Нийт",
+        "",
+        "",
+        "",
+        "",
+        totalPaid,
+      ]);
+      totalRow.getCell(2).font = { bold: true };
+      totalRow.getCell(7).font = { bold: true };
+      totalRow.getCell(7).numFmt = "#,##0.00";
+      totalRow.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF2F2F2" },
+        };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+
+      // Finalize exceljs
+      const buffer = await workbook.xlsx.writeBuffer();
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="orlogo_tovchoo_${Date.now()}.xlsx"`
+      );
+      return res.send(buffer);
     } else if (report === "sariin-tulbur") {
       headers = ["Улирал/Сар", "Нийт дүн", "Тоо", "Төлсөн дүн", "Төлсөн тоо", "Төлөөгүй дүн", "Төлөөгүй тоо"];
       rows = (data.summary || []).map((item) => [
