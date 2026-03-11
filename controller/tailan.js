@@ -1165,237 +1165,174 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       barilgiinId,
       ekhlekhOgnoo,
       duusakhOgnoo,
-      view = "huraangui", // "huraangui" (summary) or "delgerengui" (detailed)
+      view = "huraangui",
       khuudasniiDugaar = 1,
       khuudasniiKhemjee = 20,
       orshinSuugch,
       toot,
       davkhar,
       gereeniiDugaar,
+      search,
     } = source || {};
 
     if (!baiguullagiinId) {
-      return res
-        .status(400)
-        .json({ success: false, message: "baiguullagiinId is required" });
+      return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
     }
 
-    const kholbolt = db.kholboltuud.find(
-      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
-    );
+    const kholbolt = db.kholboltuud.find(k => String(k.baiguullagiinId) === String(baiguullagiinId));
     if (!kholbolt) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+      return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     }
 
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+    const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+    const Geree = require("../models/geree");
 
-    // Build match filter - only unpaid invoices
-    const match = {
-      baiguullagiinId: String(baiguullagiinId),
-      tuluv: { $ne: "Төлсөн" }, // Not paid
-    };
-
+    const match = { baiguullagiinId: String(baiguullagiinId), tuluv: { $ne: "Төлсөн" } };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
 
-    if (davkhar) {
-      const v = String(davkhar).trim();
-      if (v) match.davkhar = { $regex: escapeRegex(v), $options: "i" };
-    }
-    if (toot) {
-      const tootVal = String(toot).trim();
-      if (tootVal) {
-        const re = escapeRegex(tootVal);
-        match.$and = match.$and || [];
-        match.$and.push({
-          $or: [
-            { toot: { $regex: re, $options: "i" } },
-            { "medeelel.toot": { $regex: re, $options: "i" } },
-          ],
-        });
+    const applySearch = (m) => {
+      if (search || orshinSuugch || toot || gereeniiDugaar || davkhar) {
+        m.$and = m.$and || [];
+        const orConditions = [];
+        if (search) {
+          const re = new RegExp(escapeRegex(String(search).trim()), "i");
+          orConditions.push({ ner: re }, { ovog: re }, { toot: re }, { gereeniiDugaar: re }, { "medeelel.toot": re });
+        }
+        if (orshinSuugch) {
+          const re = new RegExp(escapeRegex(String(orshinSuugch).trim()), "i");
+          orConditions.push({ ner: re }, { ovog: re });
+        }
+        if (toot) {
+          const re = new RegExp(escapeRegex(String(toot).trim()), "i");
+          orConditions.push({ toot: re }, { "medeelel.toot": re });
+        }
+        if (gereeniiDugaar) {
+          const re = new RegExp(escapeRegex(String(gereeniiDugaar).trim()), "i");
+          orConditions.push({ gereeniiDugaar: re });
+        }
+        if (davkhar) {
+          const re = new RegExp(escapeRegex(String(davkhar).trim()), "i");
+          orConditions.push({ davkhar: re });
+        }
+        if (orConditions.length > 0) m.$and.push({ $or: orConditions });
       }
-    }
-    if (gereeniiDugaar) {
-      const v = String(gereeniiDugaar).trim();
-      if (v) match.gereeniiDugaar = { $regex: escapeRegex(v), $options: "i" };
-    }
-    if (orshinSuugch) {
-      const val = String(orshinSuugch).trim();
-      if (val) {
-        const re = escapeRegex(val);
-        match.$and = match.$and || [];
-        match.$and.push({
-          $or: [
-            { ovog: { $regex: re, $options: "i" } },
-            { ner: { $regex: re, $options: "i" } },
-          ],
-        });
-      }
-    }
+    };
+    applySearch(match);
 
-    // Date range filter (based on invoice date or due date)
     if (ekhlekhOgnoo || duusakhOgnoo) {
-      const start = ekhlekhOgnoo
-        ? new Date(ekhlekhOgnoo)
-        : new Date("1970-01-01");
-      const end = duusakhOgnoo
-        ? new Date(duusakhOgnoo)
-        : new Date("2999-12-31");
-      const dateOr = [
-        { ognoo: { $gte: start, $lte: end } },
-        { tulukhOgnoo: { $gte: start, $lte: end } },
-      ];
+      const start = ekhlekhOgnoo ? new Date(ekhlekhOgnoo) : new Date("1970-01-01");
+      const end = duusakhOgnoo ? new Date(duusakhOgnoo) : new Date("2999-12-31");
       match.$and = match.$and || [];
-      match.$and.push({ $or: dateOr });
+      match.$and.push({ $or: [{ ognoo: { $gte: start, $lte: end } }, { tulukhOgnoo: { $gte: start, $lte: end } }] });
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const [invoices, standaloneReceivables] = await Promise.all([
+      NekhemjlekhiinTuukh(kholbolt).find(match).lean(),
+      GereeniiTulukhAvlaga(kholbolt).find({ baiguullagiinId: String(baiguullagiinId), uldegdel: { $gt: 0 } }).lean()
+    ]);
 
-    // Get all unpaid invoices
-    const allInvoices = await NekhemjlekhiinTuukh(kholbolt)
-      .find(match)
-      .lean()
-      .sort({ tulukhOgnoo: 1 }); // Sort by due date, oldest first
+    const gereeIds = [...new Set(standaloneReceivables.map(r => String(r.gereeniiId)))];
+    const contracts = await Geree(kholbolt).find({ _id: { $in: gereeIds } }).lean();
+    const contractMap = {};
+    contracts.forEach(c => contractMap[String(c._id)] = c);
 
-    // Age buckets: 0-30 days, 31-60 days, 61-90 days, 91-180 days, 180+ days
-    const ageBuckets = {
-      "0-30": { min: 0, max: 30, total: 0, count: 0, list: [] },
-      "31-60": { min: 31, max: 60, total: 0, count: 0, list: [] },
-      "61-90": { min: 61, max: 90, total: 0, count: 0, list: [] },
-      "91-180": { min: 91, max: 180, total: 0, count: 0, list: [] },
-      "180+": { min: 181, max: Infinity, total: 0, count: 0, list: [] },
+    const refDate = duusakhOgnoo ? new Date(duusakhOgnoo) : new Date();
+    refDate.setHours(23, 59, 59, 999);
+
+    const ageBuckets = { p0_30: 0, p31_60: 0, p61_90: 0, p91_120: 0, p120plus: 0 };
+    const ageCounts = { p0_30: 0, p31_60: 0, p61_90: 0, p91_120: 0, p120plus: 0 };
+    const detailedData = [];
+
+    const processItem = (item, isStandalone = false) => {
+      const dueDate = item.tulukhOgnoo ? new Date(item.tulukhOgnoo) : (item.ognoo ? new Date(item.ognoo) : null);
+      if (!dueDate) return;
+      dueDate.setHours(0, 0, 0, 0);
+
+      const diffTime = refDate - dueDate;
+      const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      if (days < 0 && !isStandalone) return; 
+
+      let bucket = "p120plus";
+      if (days <= 30) bucket = "p0_30";
+      else if (days <= 60) bucket = "p31_60";
+      else if (days <= 90) bucket = "p61_90";
+      else if (days <= 120) bucket = "p91_120";
+
+      const amount = Number(item.uldegdel ?? item.niitTulbur ?? item.undsenDun ?? 0);
+      if (amount <= 0) return;
+
+      ageBuckets[bucket] += amount;
+      ageCounts[bucket] += 1;
+
+      if (view === "delgerengui") {
+        let meta = item;
+        if (isStandalone && contractMap[String(item.gereeniiId)]) {
+          meta = { ...item, ...contractMap[String(item.gereeniiId)] };
+        }
+        detailedData.push({
+          _id: item._id,
+          gereeniiDugaar: meta.gereeniiDugaar || "",
+          ner: meta.ner || (meta.ovog ? `${meta.ovog} ${meta.ner}` : ""),
+          ovog: meta.ovog || "",
+          utas: meta.utas || [],
+          toot: meta.toot || meta.medeelel?.toot || "",
+          register: meta.register || meta.rd || "",
+          undsenDun: Number(item.niitTulbur ?? item.undsenDun ?? 0),
+          uldegdel: amount,
+          p0_30: bucket === "p0_30" ? amount : 0,
+          p31_60: bucket === "p31_60" ? amount : 0,
+          p61_90: bucket === "p61_90" ? amount : 0,
+          p91_120: bucket === "p91_120" ? amount : 0,
+          p120plus: bucket === "p120plus" ? amount : 0,
+          daysOverdue: days > 0 ? days : 0,
+          monthsOverdue: Math.floor(Math.max(0, days) / 30),
+          ageBucket: bucket.replace("p", "").replace("_", "-").replace("plus", "+"),
+          ognoo: item.ognoo,
+          tulukhOgnoo: item.tulukhOgnoo,
+          tuluv: item.tuluv || "Төлөөгүй"
+        });
+      }
     };
 
-    let totalSum = 0;
-    let totalCount = 0;
-
-    for (const invoice of allInvoices) {
-      const dueDate = invoice.tulukhOgnoo
-        ? new Date(invoice.tulukhOgnoo)
-        : invoice.ognoo
-        ? new Date(invoice.ognoo)
-        : null;
-
-      if (!dueDate) continue;
-
-      dueDate.setHours(0, 0, 0, 0);
-      const diffTime = today - dueDate;
-      const daysOverdue = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      
-       
-      if (daysOverdue < 0) continue;
-
-      const monthsOverdue = Math.floor(daysOverdue / 30);
-
-      // Determine age bucket
-      let bucketKey = "180+";
-      if (daysOverdue <= 30) bucketKey = "0-30";
-      else if (daysOverdue <= 60) bucketKey = "31-60";
-      else if (daysOverdue <= 90) bucketKey = "61-90";
-      else if (daysOverdue <= 180) bucketKey = "91-180";
-
-      const amount = invoice.niitTulbur || 0;
-      ageBuckets[bucketKey].total += amount;
-      ageBuckets[bucketKey].count += 1;
-      totalSum += amount;
-      totalCount += 1;
-
-      // Add to detailed list if detailed view is requested
-      if (view === "delgerengui") {
-        const row = {
-          gereeniiDugaar: invoice.gereeniiDugaar || "",
-          gereeniiId: invoice.gereeniiId || "",
-          ovog: invoice.ovog || "",
-          ner: invoice.ner || "",
-          utas: Array.isArray(invoice.utas)
-            ? invoice.utas
-            : invoice.utas || [],
-          toot: invoice.toot || "",
-          davkhar: invoice.davkhar || "",
-          bairNer: invoice.bairNer || "",
-          orts: invoice.orts || "",
-          ognoo: invoice.ognoo || null,
-          tulukhOgnoo: invoice.tulukhOgnoo || null,
-          niitTulbur: amount,
-          tuluv: invoice.tuluv || "Төлөөгүй",
-          dugaalaltDugaar: invoice.dugaalaltDugaar || null,
-          daysOverdue: daysOverdue,
-          monthsOverdue: monthsOverdue,
-          ageBucket: bucketKey,
-        };
-        ageBuckets[bucketKey].list.push(row);
+    invoices.forEach(i => processItem(i));
+    standaloneReceivables.forEach(s => {
+      const g = contractMap[String(s.gereeniiId)];
+      if (g) {
+        // Apply manual metadata filtering for standalone if needed (simplified)
+        const re = search ? new RegExp(escapeRegex(String(search).trim()), "i") : null;
+        if (re && !re.test(g.ner) && !re.test(g.ovog) && !re.test(g.toot) && !re.test(g.gereeniiDugaar)) return;
+        processItem(s, true);
       }
-    }
-
-    // Format summary by age buckets
-    const summary = Object.keys(ageBuckets).map((key) => {
-      const bucket = ageBuckets[key];
-      return {
-        ageRange: key,
-        ageRangeMn:
-          key === "0-30"
-            ? "0-30 хоног"
-            : key === "31-60"
-            ? "31-60 хоног"
-            : key === "61-90"
-            ? "61-90 хоног"
-            : key === "91-180"
-            ? "91-180 хоног"
-            : "180+ хоног",
-        total: bucket.total,
-        count: bucket.count,
-        percentage:
-          totalSum > 0 ? ((bucket.total / totalSum) * 100).toFixed(2) : 0,
-      };
     });
 
-    let detailedList = [];
+    const totalSum = Object.values(ageBuckets).reduce((a, b) => a + b, 0);
+    const totalCount = Object.values(ageCounts).reduce((a, b) => a + b, 0);
+
+    const summaryBuckets = Object.keys(ageBuckets).map(key => ({
+      ageRange: key,
+      total: ageBuckets[key],
+      count: ageCounts[key],
+      percentage: totalSum > 0 ? ((ageBuckets[key] / totalSum) * 100).toFixed(2) : 0
+    }));
+
     let paginatedList = [];
-    let totalDetailed = 0;
-
     if (view === "delgerengui") {
-      // Flatten all invoices from all buckets
-      detailedList = Object.values(ageBuckets)
-        .flatMap((bucket) => bucket.list)
-        .sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0)); // Sort by days overdue, highest first
-
-      totalDetailed = detailedList.length;
+      detailedData.sort((a, b) => b.daysOverdue - a.daysOverdue);
       const skip = (Number(khuudasniiDugaar) - 1) * Number(khuudasniiKhemjee);
-      paginatedList = detailedList.slice(
-        skip,
-        skip + Number(khuudasniiKhemjee)
-      );
+      paginatedList = detailedData.slice(skip, skip + Number(khuudasniiKhemjee));
     }
 
     res.json({
       success: true,
-      filter: {
-        baiguullagiinId,
-        barilgiinId: barilgiinId || null,
-        ekhlekhOgnoo: ekhlekhOgnoo || null,
-        duusakhOgnoo: duusakhOgnoo || null,
-        view, // "huraangui" or "delgerengui"
-      },
-      summary: {
-        total: totalSum,
-        count: totalCount,
-        ageBuckets: summary,
-      },
-      ...(view === "delgerengui"
-        ? {
-            detailed: {
-              khuudasniiDugaar: Number(khuudasniiDugaar),
-              khuudasniiKhemjee: Number(khuudasniiKhemjee),
-              niitMur: totalDetailed,
-              niitKhuudas: Math.ceil(
-                totalDetailed / Number(khuudasniiKhemjee)
-              ),
-              list: paginatedList,
-            },
-          }
-        : {}),
+      summary: { total: totalSum, count: totalCount, ageBuckets: summaryBuckets },
+      detailed: {
+        khuudasniiDugaar: Number(khuudasniiDugaar),
+        khuudasniiKhemjee: Number(khuudasniiKhemjee),
+        niitMur: detailedData.length,
+        niitKhuudas: Math.ceil(detailedData.length / Number(khuudasniiKhemjee)),
+        list: paginatedList,
+      }
     });
   } catch (error) {
     next(error);
