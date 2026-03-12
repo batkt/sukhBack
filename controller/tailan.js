@@ -1278,6 +1278,7 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
           utas: meta.utas || [],
           toot: meta.toot || meta.medeelel?.toot || "",
           register: meta.register || meta.rd || "",
+          davkhar: meta.davkhar || "",
           undsenDun: Number(item.niitTulbur ?? item.undsenDun ?? 0),
           uldegdel: amount,
           p0_30: bucket === "p0_30" ? amount : 0,
