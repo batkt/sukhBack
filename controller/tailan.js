@@ -1176,19 +1176,28 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     } = source || {};
 
     if (!baiguullagiinId) {
-      return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "baiguullagiinId is required" });
     }
 
-    const kholbolt = db.kholboltuud.find(k => String(k.baiguullagiinId) === String(baiguullagiinId));
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
     if (!kholbolt) {
-      return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     }
 
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
     const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
     const Geree = require("../models/geree");
 
-    const match = { baiguullagiinId: String(baiguullagiinId), tuluv: { $ne: "Төлсөн" } };
+    const match = {
+      baiguullagiinId: String(baiguullagiinId),
+      tuluv: { $ne: "Төлсөн" },
+    };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
 
     const applySearch = (m) => {
@@ -1197,7 +1206,13 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
         const orConditions = [];
         if (search) {
           const re = new RegExp(escapeRegex(String(search).trim()), "i");
-          orConditions.push({ ner: re }, { ovog: re }, { toot: re }, { gereeniiDugaar: re }, { "medeelel.toot": re });
+          orConditions.push(
+            { ner: re },
+            { ovog: re },
+            { toot: re },
+            { gereeniiDugaar: re },
+            { "medeelel.toot": re }
+          );
         }
         if (orshinSuugch) {
           const re = new RegExp(escapeRegex(String(orshinSuugch).trim()), "i");
@@ -1221,37 +1236,60 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     applySearch(match);
 
     if (ekhlekhOgnoo || duusakhOgnoo) {
-      const start = ekhlekhOgnoo ? new Date(ekhlekhOgnoo) : new Date("1970-01-01");
+      const start = ekhlekhOgnoo
+        ? new Date(ekhlekhOgnoo)
+        : new Date("1970-01-01");
       const end = duusakhOgnoo ? new Date(duusakhOgnoo) : new Date("2999-12-31");
       match.$and = match.$and || [];
-      match.$and.push({ $or: [{ ognoo: { $gte: start, $lte: end } }, { tulukhOgnoo: { $gte: start, $lte: end } }] });
+      match.$and.push({
+        $or: [
+          { ognoo: { $gte: start, $lte: end } },
+          { tulukhOgnoo: { $gte: start, $lte: end } },
+        ],
+      });
     }
 
     const [invoices, standaloneReceivables] = await Promise.all([
       NekhemjlekhiinTuukh(kholbolt).find(match).lean(),
-      GereeniiTulukhAvlaga(kholbolt).find({ baiguullagiinId: String(baiguullagiinId), uldegdel: { $gt: 0 } }).lean()
+      GereeniiTulukhAvlaga(kholbolt)
+        .find({
+          baiguullagiinId: String(baiguullagiinId),
+          uldegdel: { $gt: 0 },
+          nekhemjlekhId: { $in: [null, ""] },
+        })
+        .lean(),
     ]);
 
-    const gereeIds = [...new Set(standaloneReceivables.map(r => String(r.gereeniiId)))];
-    const contracts = await Geree(kholbolt).find({ _id: { $in: gereeIds } }).lean();
+    const allGereeIds = [
+      ...new Set([
+        ...invoices.map((i) => String(i.gereeniiId)),
+        ...standaloneReceivables.map((r) => String(r.gereeniiId)),
+      ]),
+    ].filter((id) => id && id !== "undefined" && id !== "null");
+
+    const contracts = await Geree(kholbolt)
+      .find({ _id: { $in: allGereeIds } })
+      .lean();
     const contractMap = {};
-    contracts.forEach(c => contractMap[String(c._id)] = c);
+    contracts.forEach((c) => (contractMap[String(c._id)] = c));
 
     const refDate = duusakhOgnoo ? new Date(duusakhOgnoo) : new Date();
     refDate.setHours(23, 59, 59, 999);
 
-    const ageBuckets = { p0_30: 0, p31_60: 0, p61_90: 0, p91_120: 0, p120plus: 0 };
-    const ageCounts = { p0_30: 0, p31_60: 0, p61_90: 0, p91_120: 0, p120plus: 0 };
-    const detailedData = [];
+    const residentMap = {};
 
     const processItem = (item, isStandalone = false) => {
-      const dueDate = item.tulukhOgnoo ? new Date(item.tulukhOgnoo) : (item.ognoo ? new Date(item.ognoo) : null);
+      const dueDate = item.tulukhOgnoo
+        ? new Date(item.tulukhOgnoo)
+        : item.ognoo
+        ? new Date(item.ognoo)
+        : null;
       if (!dueDate) return;
       dueDate.setHours(0, 0, 0, 0);
 
       const diffTime = refDate - dueDate;
       const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      if (days < 0 && !isStandalone) return; 
+      if (days < 0 && !isStandalone) return;
 
       let bucket = "p120plus";
       if (days <= 30) bucket = "p0_30";
@@ -1259,19 +1297,16 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       else if (days <= 90) bucket = "p61_90";
       else if (days <= 120) bucket = "p91_120";
 
-      const amount = Number(item.uldegdel ?? item.niitTulbur ?? item.undsenDun ?? 0);
-      if (amount <= 0) return;
+      const amount = Number(
+        item.uldegdel ?? item.niitTulbur ?? item.undsenDun ?? 0
+      );
+      if (amount <= 0 && !isStandalone) return;
 
-      ageBuckets[bucket] += amount;
-      ageCounts[bucket] += 1;
-
-      if (view === "delgerengui" || view === "detailed") {
-        let meta = item;
-        if (isStandalone && contractMap[String(item.gereeniiId)]) {
-          meta = { ...item, ...contractMap[String(item.gereeniiId)] };
-        }
-        detailedData.push({
-          _id: item._id,
+      const gid = String(item.gereeniiId);
+      if (!residentMap[gid]) {
+        const meta = contractMap[gid] || item;
+        residentMap[gid] = {
+          _id: gid,
           gereeniiDugaar: meta.gereeniiDugaar || "",
           ner: meta.ner || (meta.ovog ? `${meta.ovog} ${meta.ner}` : ""),
           ovog: meta.ovog || "",
@@ -1279,50 +1314,123 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
           toot: meta.toot || meta.medeelel?.toot || "",
           register: meta.register || meta.rd || "",
           davkhar: meta.davkhar || "",
-          undsenDun: Number(item.niitTulbur ?? item.undsenDun ?? 0),
-          uldegdel: amount,
-          p0_30: bucket === "p0_30" ? amount : 0,
-          p31_60: bucket === "p31_60" ? amount : 0,
-          p61_90: bucket === "p61_90" ? amount : 0,
-          p91_120: bucket === "p91_120" ? amount : 0,
-          p120plus: bucket === "p120plus" ? amount : 0,
-          daysOverdue: days > 0 ? days : 0,
-          monthsOverdue: Math.floor(Math.max(0, days) / 30),
-          ageBucket: bucket.replace("p", "").replace("_", "-").replace("plus", "+"),
-          ognoo: item.ognoo,
-          tulukhOgnoo: item.tulukhOgnoo,
-          tuluv: item.tuluv || "Төлөөгүй"
-        });
+          undsenDun: 0,
+          khungulult: 0,
+          tulsunDun: 0,
+          uldegdel: 0,
+          p0_30: 0,
+          p31_60: 0,
+          p61_90: 0,
+          p91_120: 0,
+          p120plus: 0,
+          maxDays: 0,
+        };
       }
+
+      const r = residentMap[gid];
+      const undsen = Number(item.niitTulbur ?? item.undsenDun ?? 0);
+      let tulsun = 0;
+      let khungulult = 0;
+
+      if (!isStandalone) {
+        tulsun = (item.paymentHistory || []).reduce(
+          (s, p) => s + (Number(p.dun) || 0),
+          0
+        );
+        khungulult = (item.medeelel?.khungulultuud || []).reduce(
+          (s, k) => s + (Number(k.dun) || 0),
+          0
+        );
+      } else {
+        tulsun = undsen - amount;
+      }
+
+      r.undsenDun += undsen;
+      r.tulsunDun += tulsun;
+      r.khungulult += khungulult;
+      r.uldegdel += amount;
+      r[bucket] += amount;
+      if (days > r.maxDays) r.maxDays = days;
     };
 
-    invoices.forEach(i => processItem(i));
-    standaloneReceivables.forEach(s => {
+    invoices.forEach((i) => processItem(i));
+    standaloneReceivables.forEach((s) => {
       const g = contractMap[String(s.gereeniiId)];
       if (g) {
-        // Apply manual metadata filtering for standalone if needed (simplified)
-        const re = search ? new RegExp(escapeRegex(String(search).trim()), "i") : null;
-        if (re && !re.test(g.ner) && !re.test(g.ovog) && !re.test(g.toot) && !re.test(g.gereeniiDugaar)) return;
+        const re = search
+          ? new RegExp(escapeRegex(String(search).trim()), "i")
+          : null;
+        if (
+          re &&
+          !re.test(g.ner) &&
+          !re.test(g.ovog) &&
+          !re.test(g.toot) &&
+          !re.test(g.gereeniiDugaar)
+        )
+          return;
         processItem(s, true);
       }
     });
 
-    const totalSum = Object.values(ageBuckets).reduce((a, b) => a + b, 0);
-    const totalCount = Object.values(ageCounts).reduce((a, b) => a + b, 0);
+    const detailedData = Object.values(residentMap).filter(
+      (r) => Math.abs(r.uldegdel) > 0.01
+    );
 
-    const summaryBuckets = Object.keys(ageBuckets).map(key => ({
+    const ageBuckets = {
+      p0_30: 0,
+      p31_60: 0,
+      p61_90: 0,
+      p91_120: 0,
+      p120plus: 0,
+    };
+    const ageCounts = {
+      p0_30: 0,
+      p31_60: 0,
+      p61_90: 0,
+      p91_120: 0,
+      p120plus: 0,
+    };
+
+    detailedData.forEach((r) => {
+      if (r.p0_30 > 0) {
+        ageBuckets.p0_30 += r.p0_30;
+        ageCounts.p0_30++;
+      }
+      if (r.p31_60 > 0) {
+        ageBuckets.p31_60 += r.p31_60;
+        ageCounts.p31_60++;
+      }
+      if (r.p61_90 > 0) {
+        ageBuckets.p61_90 += r.p61_90;
+        ageCounts.p61_90++;
+      }
+      if (r.p91_120 > 0) {
+        ageBuckets.p91_120 += r.p91_120;
+        ageCounts.p91_120++;
+      }
+      if (r.p120plus > 0) {
+        ageBuckets.p120plus += r.p120plus;
+        ageCounts.p120plus++;
+      }
+    });
+
+    const totalSum = detailedData.reduce((s, r) => s + r.uldegdel, 0);
+    const totalCount = detailedData.length;
+
+    const summaryBuckets = Object.keys(ageBuckets).map((key) => ({
       ageRange: key,
       total: ageBuckets[key],
       count: ageCounts[key],
-      percentage: totalSum > 0 ? ((ageBuckets[key] / totalSum) * 100).toFixed(2) : 0
+      percentage:
+        totalSum > 0 ? ((ageBuckets[key] / totalSum) * 100).toFixed(2) : 0,
     }));
 
-    let paginatedList = [];
-    if (view === "delgerengui" || view === "detailed") {
-      detailedData.sort((a, b) => b.daysOverdue - a.daysOverdue);
-      const skip = (Number(khuudasniiDugaar) - 1) * Number(khuudasniiKhemjee);
-      paginatedList = detailedData.slice(skip, skip + Number(khuudasniiKhemjee));
-    }
+    detailedData.sort((a, b) => b.maxDays - a.maxDays);
+    const skip = (Number(khuudasniiDugaar) - 1) * Number(khuudasniiKhemjee);
+    const paginatedList = detailedData.slice(
+      skip,
+      skip + Number(khuudasniiKhemjee)
+    );
 
     res.json({
       success: true,
@@ -1333,7 +1441,7 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
         niitMur: detailedData.length,
         niitKhuudas: Math.ceil(detailedData.length / Number(khuudasniiKhemjee)),
         list: paginatedList,
-      }
+      },
     });
   } catch (error) {
     next(error);
