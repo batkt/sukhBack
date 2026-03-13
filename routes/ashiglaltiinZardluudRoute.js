@@ -396,15 +396,6 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
           }
         }
 
-        // Final check - do we have any tariff at all?
-        if (finalTariff <= 0 && candidates.length === 0) {
-          return res.status(400).send({
-            success: false,
-            message: "Цахилгааны тариф олдсонгүй. Хувьсах зардлуудаас 'Цахилгаан' нэмж тарифыг тохируулна уу.",
-            _debug: debugInfo
-          });
-        }
-
         const umnukhZaaltNum =
           typeof umnukhZaaltRaw === "number"
             ? umnukhZaaltRaw
@@ -420,7 +411,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
             : parseFloat(String(odorZaaltRaw || "").replace(/,/g, "").trim()) || 0;
         const shonoZaaltNum =
           typeof shonoZaaltRaw === "number"
-            ? shonoZaaltRaw
+            ? shonoZaaltNum
             : parseFloat(String(shonoZaaltRaw || "").replace(/,/g, "").trim()) || 0;
 
         // If both Odor and Shono are provided, suuliinZaalt is their sum

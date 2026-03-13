@@ -8,7 +8,7 @@ const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 
 exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
   try {
-    console.log("gereeniiGuilgeeKhadgalya -----> Ийшээ орлоо");
+    console.log("📊 [GEREE SAVE] Starting gereeniiGuilgeeKhadgalya");
     const { db } = require("zevbackv2");
 
     // Handle both formats: { guilgee: {...} } OR flat { gereeniiId: ..., turul: ..., etc }
@@ -17,7 +17,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     // Normalize amount fields based on turul type
     // avlaga = debt/invoice (uses tulukhDun - amount TO pay)
     // tulult/ashiglalt = payment (uses tulsunDun - amount PAID)
-    const dun = guilgee.dun || guilgee.tulukhDun || guilgee.tulsunDun || 0;
+    const dun = Number(guilgee.dun || guilgee.tulukhDun || guilgee.tulsunDun || 0);
 
     if (guilgee.turul === "avlaga") {
       // For avlaga: set tulukhDun, NOT tulsunDun
@@ -42,6 +42,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     let baiguullagiinId = req.body.baiguullagiinId || guilgee.baiguullagiinId;
 
     if (!baiguullagiinId) {
+      console.log("🔍 [GEREE SAVE] baiguullagiinId missing, searching in connections...");
       const allConnections = db.kholboltuud || [];
       let foundGeree = null;
 
@@ -101,13 +102,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       guilgee.guilgeeKhiisenAjiltniiId = req.body.nevtersenAjiltniiToken.id;
     }
 
-    // NOTE: globalUldegdel is now fully recalculated from raw amounts after the operation,
-    // so we no longer use $inc. The recalculation handles all cases correctly.
-
     // Capture standalone record ID for syncing
     let newAvlagaId = null;
 
-    // Use count from newly created collection logic later or just query it
     const GereeniiTulukhAvlagaModel = GereeniiTulukhAvlaga(
       tukhainBaaziinKholbolt,
     );
@@ -115,8 +112,6 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       gereeniiId: guilgee.gereeniiId,
     });
 
-    // Store in appropriate model based on turul type
-    // We do this BEFORE updating the Geree so we have the ID for the queue
     try {
       const freshGereeForAvlaga = await Geree(tukhainBaaziinKholbolt, true)
         .findById(guilgee.gereeniiId)
@@ -165,7 +160,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
           );
 
           // If this is an initial balance (ekhniiUldegdelEsekh), also update any
-          // existing unpaid invoices for this contract immediately — don't wait for next invoice
+          // existing unpaid invoices for this contract immediately
           if (guilgee.ekhniiUldegdelEsekh === true && dun > 0) {
             try {
               const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
@@ -210,7 +205,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               );
             } catch (invoiceUpdateError) {
               console.error(
-                "❌ [GEREE AVLAGA] Error updating unpaid invoices with initial balance:",
+                "❌ [GEREE AVLAGA] Error updating unpaid invoices:",
                 invoiceUpdateError.message,
               );
             }
@@ -231,7 +226,8 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
             orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
 
-            ognoo: guilgee.guilgeeKhiisenOgnoo || new Date(),
+            // Use provided ognoo if available, otherwise current time
+            ognoo: guilgee.ognoo ? new Date(guilgee.ognoo) : (guilgee.guilgeeKhiisenOgnoo || new Date()),
             tulsunDun: guilgee.tulsunDun || 0,
             tulsunAldangi: 0,
 
@@ -250,13 +246,13 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
           const savedTulsun = await tulsunDoc.save();
           console.log(
-            `✅ [GEREE ${guilgee.turul.toUpperCase()}] Created gereeniiTulsunAvlaga record for ${guilgee.turul}`,
+            `✅ [GEREE ${guilgee.turul.toUpperCase()}] Created gereeniiTulsunAvlaga record`,
           );
 
           // ALSO apply payment to unpaid invoices for this contract
           try {
-            const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
-            const NekhemjlekhModel = NekhemjlekhiinTuukh(
+            const NekhemjlekhiinTuukhModel = require("../models/nekhemjlekhiinTuukh");
+            const NekhemjlekhModel = NekhemjlekhiinTuukhModel(
               tukhainBaaziinKholbolt,
             );
             const paymentAmount = guilgee.tulsunDun || 0;
@@ -324,11 +320,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
                 remainingPayment -= amountToApply;
                 console.log(
-                  `✅ [GEREE PAYMENT] Applied ${amountToApply}₮ to invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}, uldegdel: ${invoice.uldegdel}`,
+                  `✅ [GEREE PAYMENT] Applied ${amountToApply}₮ to invoice ${invoice.nekhemjlekhiinDugaar || invoice._id}`,
                 );
               }
-
-              // Remaining handled by full recalculation below
             }
           } catch (invoicePayError) {
             console.error(
@@ -358,13 +352,12 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     };
 
     await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
-      { _id: guilgee.gereeniiId },
+      guilgee.gereeniiId,
       updateData,
       { new: false },
     );
 
     // Full recalculation from raw amounts using shared utility
-    // Add small delay to ensure any recently saved records are committed to database
     await new Promise(resolve => setTimeout(resolve, 50));
     
     const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
@@ -376,7 +369,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         baiguullagiinId,
         GereeModel: Geree(tukhainBaaziinKholbolt),
         NekhemjlekhiinTuukhModel: NekhemjlekhiinTuukhRecalc(tukhainBaaziinKholbolt),
-        GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(tukhainBaaziinKholbolt),
+        GereeniiTulukhAvlagaModel: GereeniiTulukhAvlagaModel,
         GereeniiTulsunAvlagaModel: GereeniiTulsunAvlagaRecalc(tukhainBaaziinKholbolt),
       });
     } catch (recalcErr) {
@@ -389,15 +382,17 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
     try {
       if (guilgee.turul === "avlaga" && result && result.orshinSuugchId) {
-        const medegdel = new Medegdel(tukhainBaaziinKholbolt)();
-        medegdel.orshinSuugchId = result.orshinSuugchId;
-        medegdel.baiguullagiinId = baiguullagiinId;
-        medegdel.barilgiinId = result.barilgiinId || "";
-        medegdel.title = "Шинэ авлага нэмэгдлээ";
-        medegdel.message = `Гэрээний дугаар: ${result.gereeniiDugaar || "N/A"}, Төлбөр: ${guilgee.tulukhDun || 0}₮`;
-        medegdel.kharsanEsekh = false;
-        medegdel.turul = "мэдэгдэл";
-        medegdel.ognoo = new Date();
+        const MedegdelModel = Medegdel(tukhainBaaziinKholbolt);
+        const medegdel = new MedegdelModel({
+          orshinSuugchId: result.orshinSuugchId,
+          baiguullagiinId: baiguullagiinId,
+          barilgiinId: result.barilgiinId || "",
+          title: "Шинэ авлага нэмэгдлээ",
+          message: `Гэрээний дугаар: ${result.gereeniiDugaar || "N/A"}, Төлбөр: ${guilgee.tulukhDun || 0}₮`,
+          kharsanEsekh: false,
+          turul: "мэдэгдэл",
+          ognoo: new Date()
+        });
 
         await medegdel.save();
 
@@ -412,11 +407,6 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         notificationError,
       );
     }
-
-    // NOTE: Removed automatic call to gereeNeesNekhemjlekhUusgekh here.
-    // Manual adjustments are now correctly queued in 'guilgeenuudForNekhemjlekh'
-    // and will be merged into the next invoice (manual or scheduled).
-    // This prevents redundant invoice documents and the cascade-delete bug.
 
     if (guilgee.guilgeeniiId) {
       const result1 = await BankniiGuilgee(tukhainBaaziinKholbolt).updateOne(
@@ -433,6 +423,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       res.send(result);
     }
   } catch (aldaa) {
+    console.error("❌ [GEREE SAVE ERROR]", aldaa);
     next(aldaa);
   }
 });
