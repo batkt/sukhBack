@@ -19,11 +19,11 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     // tulult/ashiglalt = payment (uses tulsunDun - amount PAID)
     const dun = Number(guilgee.dun || guilgee.tulukhDun || guilgee.tulsunDun || 0);
 
-    if (guilgee.turul === "avlaga") {
-      // For avlaga: set tulukhDun, NOT tulsunDun
+    if (guilgee.turul === "avlaga" || guilgee.turul === "ashiglalt") {
+      // For avlaga/ashiglalt: set tulukhDun, NOT tulsunDun
       guilgee.tulukhDun = dun;
-      guilgee.tulsunDun = 0; // avlaga doesn't pay, it creates debt
-    } else if (guilgee.turul === "tulult" || guilgee.turul === "ashiglalt") {
+      guilgee.tulsunDun = 0; // these create debt
+    } else if (guilgee.turul === "tulult") {
       // For payment types: set tulsunDun
       guilgee.tulsunDun = dun;
       guilgee.tulukhDun = 0;
@@ -121,7 +121,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         .lean();
 
       if (freshGereeForAvlaga) {
-        if (guilgee.turul === "avlaga") {
+        if (guilgee.turul === "avlaga" || guilgee.turul === "ashiglalt") {
           // Create standalone GereeniiTulukhAvlaga record immediately for history visibility
           const TulukhAvlagaModel = GereeniiTulukhAvlaga(
             tukhainBaaziinKholbolt,
@@ -211,8 +211,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             }
           }
         } else if (
-          guilgee.turul === "tulult" ||
-          guilgee.turul === "ashiglalt"
+          guilgee.turul === "tulult"
         ) {
           // TULULT/ASHIGLALT: Store in GereeniiTulsunAvlaga (payment record)
           const tulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);

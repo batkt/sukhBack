@@ -382,6 +382,27 @@ const previewInvoice = async (
     } catch (error) {
       // Error calculating electricity for preview - silently continue
     }
+    // Add manual/queued transactions from guilgeenuudForNekhemjlekh
+    if (geree.guilgeenuudForNekhemjlekh && Array.isArray(geree.guilgeenuudForNekhemjlekh)) {
+      geree.guilgeenuudForNekhemjlekh.forEach((g) => {
+        const amount = g.tulukhDun || 0;
+        if (amount !== 0) {
+          zardluudWithDun.push({
+            ner: g.tailbar || g.zardliinNer || "Нэмэлт",
+            turul: "Тогтмол",
+            bodokhArga: "тогтмол",
+            zardliinTurul: g.zardliinTurul || "Энгийн",
+            tariff: amount,
+            tariffUsgeer: "₮",
+            dun: amount,
+            zaalt: false,
+            ognoo: g.ognoo,
+            tailbar: g.tailbar,
+            isQueued: true, // Internal flag
+          });
+        }
+      });
+    }
 
     const zardluudTotal = sumZardalDun(zardluudWithDun);
 
