@@ -170,54 +170,41 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
     const zardluud = targetBarilga.tokhirgoo.ashiglaltiinZardluud || [];
     const isTsakhilgaan = (z) => {
       const name = (z.ner || "").trim().toLowerCase();
-      // Must contain "цахилгаан" and NOT "шат"
       const hasElec = name.includes("цахилгаан");
       const isNotElevator = !name.includes("шат");
-
-      // Exclude shared/common area terms
-      const isNotShared = !name.includes("дундын") &&
-        !name.includes("нийтийн") &&
-        !name.includes("ерөнхий") &&
-        !name.includes("гадна") &&
-        !name.includes("гэрэлтүүлэг");
-
+      const isNotShared = !name.includes("дундын") && !name.includes("нийтийн") && !name.includes("ерөнхий") && !name.includes("гадна") && !name.includes("гэрэлтүүлэг");
       return hasElec && isNotElevator && isNotShared;
     };
+
     const candidates = zardluud.filter(isTsakhilgaan);
-    if (candidates.length === 0) {
-      return res.status(400).send({
-        success: false,
-        message: "Цахилгаан (кВт) ашиглалтын зардал олдсонгүй",
+    
+    // Initialize defaults
+    let maxTariff = 0;
+    let maxSuuriKhuraamj = 2000; // Common default for this system
+    let selectedChargeName = "";
+    
+    // Process global candidates if they exist
+    if (candidates.length > 0) {
+      let bestScore = -Infinity;
+      candidates.forEach(c => {
+        const tariffVal = Number(c.tariff) || Number(c.zaaltTariff) || 0;
+        const suuriVal = Number(c.suuriKhuraamj) || 0;
+        if (tariffVal > maxTariff) maxTariff = tariffVal;
+        if (suuriVal > 0) maxSuuriKhuraamj = suuriVal;
+
+        const name = (c.ner || "").trim().toLowerCase();
+        const isMeter = c.zaalt ? 10000000 : 0;
+        const isExact = (name === "цахилгаан" || name === "цахилгаан квт" || name === "цахилгаан кв") ? 1000000 : 0;
+        const currentScore = isMeter + isExact;
+        if (currentScore > bestScore) {
+          bestScore = currentScore;
+          selectedChargeName = c.ner;
+        }
       });
+    } else {
+      selectedChargeName = "Цахилгаан (кВт)";
     }
 
-    // Aggregate values across ALL valid candidates
-    let maxTariff = 0;
-    let maxSuuriKhuraamj = 0;
-    let selectedChargeName = "";
-    let bestScore = -Infinity;
-
-    candidates.forEach(c => {
-      const tariffVal = Number(c.tariff) || Number(c.zaaltTariff) || 0;
-      const suuriVal = Number(c.suuriKhuraamj) || 0;
-
-      if (tariffVal > maxTariff) maxTariff = tariffVal;
-      if (suuriVal > maxSuuriKhuraamj) maxSuuriKhuraamj = suuriVal;
-
-      // Determine "selectedChargeName" based on the highest quality candidate
-      const name = (c.ner || "").trim().toLowerCase();
-      const isMeter = c.zaalt ? 10000000 : 0;
-      const isExact = (name === "цахилгаан" || name === "цахилгаан квт" || name === "цахилгаан кв") ? 1000000 : 0;
-      const hasValue = (tariffVal > 0 || suuriVal > 0) ? 2000000 : -5000000;
-      const currentScore = isMeter + isExact + hasValue;
-
-      if (currentScore > bestScore) {
-        bestScore = currentScore;
-        selectedChargeName = c.ner;
-      }
-    });
-
-    // Check for Resident or Contract-specific tariff
     let finalTariff = maxTariff;
     let residentSpecificUsed = false;
     let tariffSource = "Global";
@@ -234,129 +221,79 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
       if (tukhainBaaziinKholbolt) {
         debugInfo.orgKholboltFound = true;
-        debugInfo.orgDbBaiguullagiinId = tukhainBaaziinKholbolt.baiguullagiinId;
-
         let actualResidentId = residentId;
         let contractObj = null;
 
-        // 1. If we have gereeniiId but no residentId, find the residentId from the contract
-        if (!actualResidentId && gereeniiId) {
+        if (gereeniiId) {
           try {
             contractObj = await Geree(tukhainBaaziinKholbolt).findById(gereeniiId);
-            if (contractObj) {
-              debugInfo.contractFound = true;
-              debugInfo.contractGereeniiDugaar = contractObj.gereeniiDugaar;
-              debugInfo.contractOrshinSuugchId = contractObj.orshinSuugchId;
-
-              if (contractObj.orshinSuugchId) {
-                actualResidentId = contractObj.orshinSuugchId;
-              } else {
-                // Secondary fallback: Match by Toot
-                const potentialRes = await OrshinSuugch(tukhainBaaziinKholbolt).findOne({
-                  toot: contractObj.toot,
-                  baiguullagiinId: baiguullagiinId
-                });
-                if (potentialRes) {
-                  actualResidentId = potentialRes._id;
-                  debugInfo.residentFoundByToot = true;
-                }
-              }
+            if (contractObj && contractObj.orshinSuugchId) {
+              actualResidentId = contractObj.orshinSuugchId;
             }
           } catch (e) {
-            // Contract lookup/reverse error - silently continue
+            debugInfo.contractLookupError = e.message;
           }
         }
 
-        // 2. Lookup Resident and their tsahilgaaniiZaalt (Highest Priority)
-        // CRITICAL: Residents are stored in central erunkhiiKholbolt
         if (actualResidentId) {
           try {
+            // Check BOTH central and local org connection just in case
             const centralConn = db.erunkhiiKholbolt;
-            const OrshinSuugchModel = OrshinSuugch(centralConn);
-
-            debugInfo.lookup_actualResidentId = actualResidentId;
-            debugInfo.lookup_baiguullagiinId = baiguullagiinId;
-            debugInfo.centralDbName = (centralConn?.kholbolt?.db?.databaseName) || "unknown";
-
             let resident = null;
-
-            // Try 1: Direct findById (smart cast)
-            try {
-              if (mongoose.Types.ObjectId.isValid(actualResidentId)) {
-                resident = await OrshinSuugchModel.findById(new mongoose.Types.ObjectId(actualResidentId));
-              }
-              if (!resident) {
-                resident = await OrshinSuugchModel.findById(actualResidentId);
-              }
-            } catch (err) { }
-
-            // Try 2: Broad findOne (like orshinSuugchRoute.js)
-            if (!resident) {
-              const baiguullagiinIdString = String(baiguullagiinId);
-              resident = await OrshinSuugchModel.findOne({
-                $and: [
-                  { $or: [{ _id: actualResidentId }, { _id: new mongoose.Types.ObjectId(actualResidentId) }] },
-                  {
-                    $or: [
-                      { baiguullagiinId: baiguullagiinIdString },
-                      { "toots.baiguullagiinId": baiguullagiinIdString }
-                    ]
-                  }
-                ]
-              }).catch(() => null);
+            
+            // Try central first
+            if (centralConn) {
+              resident = await OrshinSuugch(centralConn).findById(actualResidentId).catch(() => null);
+            }
+            
+            // Fallback to org-specific if not found in central
+            if (!resident && tukhainBaaziinKholbolt) {
+              resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(actualResidentId).catch(() => null);
+              if (resident) debugInfo.foundInLocalDb = true;
             }
 
             if (resident) {
-              debugInfo.residentFoundFinal = true;
-              debugInfo.residentNer = resident.ner;
+              debugInfo.residentFound = true;
               debugInfo.residentTsahilgaaniiZaalt = resident.tsahilgaaniiZaalt;
-
               const resTariff = Number(resident.tsahilgaaniiZaalt);
-              if (resTariff > 0 && resTariff < 1000) {
+              if (resTariff > 0) {
                 finalTariff = resTariff;
                 residentSpecificUsed = true;
-                tariffSource = "Resident (tsahilgaaniiZaalt)";
+                tariffSource = "Resident Setting";
               }
             } else {
-              debugInfo.residentNotFoundFinal = true;
-
-              // Verify connection again
-              const anyRes = await OrshinSuugchModel.findOne({
-                $or: [
-                  { baiguullagiinId: String(baiguullagiinId) },
-                  { "toots.baiguullagiinId": String(baiguullagiinId) }
-                ]
-              }).limit(1);
-              if (anyRes) {
-                debugInfo.verified_anyResidentInOrgFound = anyRes.ner;
-              } else {
-                debugInfo.verified_noResidentsFoundInOrgAtAll = true;
-              }
+               debugInfo.residentNotFoundAtAll = true;
             }
           } catch (e) {
-            debugInfo.lookup_exception = e.message;
+            debugInfo.residentLookupError = e.message;
           }
         }
 
-        // 3. Fallback: Check Contract's specific zardluud if resident tariff still not found
         if (!residentSpecificUsed) {
           const geree = contractObj || (gereeniiId ? await Geree(tukhainBaaziinKholbolt).findById(gereeniiId).catch(() => null) : null);
-          if (geree) {
-            const contractElec = (geree.zardluud || []).find(z => {
+          if (geree && geree.zardluud) {
+            const contractElec = geree.zardluud.find(z => {
               const name = (z.ner || "").trim().toLowerCase();
-              return name.includes("цахилгаан") && !name.includes("шат");
+              return name.includes("цахилгаан") && !name.includes("шат") && !name.includes("дундын");
             });
             if (contractElec && contractElec.tariff > 0) {
               finalTariff = contractElec.tariff;
-              tariffSource = "Contract (Zardluud)";
-            } else {
-              debugInfo.contractElecNotFound = true;
+              tariffSource = "Contract Specific";
+              residentSpecificUsed = true;
             }
           }
         }
       }
     }
 
+    // Final check - do we have any tariff at all?
+    if (finalTariff <= 0 && candidates.length === 0) {
+      return res.status(400).send({
+        success: false,
+        message: "Цахилгааны тариф олдсонгүй. Хувьсах зардлуудаас 'Цахилгаан' нэмж тарифыг тохируулна уу.",
+        _debug: debugInfo
+      });
+    }
     const umnukhZaaltNum =
       typeof umnukhZaaltRaw === "number"
         ? umnukhZaaltRaw
