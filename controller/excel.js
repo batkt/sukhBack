@@ -2112,17 +2112,23 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         // Base fee: Priority Excel > Global Setting > Default 2000
         const baseFeeUsed = defaultDunFromExcel || (zaaltZardal ? (zaaltZardal.suuriKhuraamj || 0) : 2000);
 
-        // Parse per-resident electricity tariff from Excel ("Цахилгаан кВт") 
+        // Parse per-resident electricity tariff from Excel
         let tsahilgaaniiZaaltFromExcel = null;
+        const elecTariffRowValue = row["Цахилгаан кВт"] || row["Цахилгаан тариф"] || row["tsahilgaanTariff"];
         if (
-          row["Цахилгаан кВт"] !== undefined &&
-          row["Цахилгаан кВт"] !== null &&
-          String(row["Цахилгаан кВт"]).trim() !== ""
+          elecTariffRowValue !== undefined &&
+          elecTariffRowValue !== null &&
+          String(elecTariffRowValue).trim() !== ""
         ) {
-          const parsedTariff = parseExcelNum(row["Цахилгаан кВт"]);
+          const parsedTariff = parseExcelNum(elecTariffRowValue);
           if (parsedTariff > 0) {
             tsahilgaaniiZaaltFromExcel = parsedTariff;
           }
+        }
+
+        // Row priority: If Excel row has a tariff, use it!
+        if (tsahilgaaniiZaaltFromExcel !== null) {
+          finalTariff = tsahilgaaniiZaaltFromExcel;
         }
 
         // Validate readings
@@ -2135,9 +2141,8 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           continue;
         }
 
-        // Update Resident latest readings and tariff
+        // Update Resident latest readings and tariff if record exists
         if (geree.orshinSuugchId) {
-          // Broad lookup for resident
           const centralConn = db.erunkhiiKholbolt;
           let orshinSuugch = await OrshinSuugch(centralConn).findById(geree.orshinSuugchId).catch(() => null);
           
@@ -2152,8 +2157,8 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
 
             if (tsahilgaaniiZaaltFromExcel !== null) {
               orshinSuugch.tsahilgaaniiZaalt = tsahilgaaniiZaaltFromExcel;
-              finalTariff = tsahilgaaniiZaaltFromExcel;
-            } else if (orshinSuugch.tsahilgaaniiZaalt > 0) {
+            } else if (orshinSuugch.tsahilgaaniiZaalt > 0 && finalTariff === 0) {
+              // Only fallback to resident tariff if Excel row was empty and building global was 0
               finalTariff = orshinSuugch.tsahilgaaniiZaalt;
             }
 
