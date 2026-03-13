@@ -298,11 +298,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
     if (!req.body.utas) {
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
     }
-
-    if (!req.body.ner) {
-      throw new aldaa("Нэр заавал бөглөх шаардлагатай!");
-    }
-
     // Auto-set defaults for nevtrekhNer and nuutsUg from backend
     const phoneNumber = String(req.body.utas).trim();
     
