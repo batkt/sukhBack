@@ -241,15 +241,37 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
             const centralConn = db.erunkhiiKholbolt;
             let resident = null;
             
-            // Try central first
-            if (centralConn) {
-              resident = await OrshinSuugch(centralConn).findById(actualResidentId).catch(() => null);
-            }
-            
-            // Fallback to org-specific if not found in central
-            if (!resident && tukhainBaaziinKholbolt) {
-              resident = await OrshinSuugch(tukhainBaaziinKholbolt).findById(actualResidentId).catch(() => null);
-              if (resident) debugInfo.foundInLocalDb = true;
+            // Cast to ObjectId if possible
+            let residentObjectId = actualResidentId;
+            try {
+              if (mongoose.Types.ObjectId.isValid(actualResidentId)) {
+                residentObjectId = new mongoose.Types.ObjectId(actualResidentId);
+              }
+            } catch (err) {}
+
+            debugInfo.lookupContext = {
+              centralDb: centralConn?.kholbolt?.db?.databaseName,
+              localDb: tukhainBaaziinKholbolt?.baiguullagiinId,
+              searchingFor: actualResidentId
+            };
+
+            // Try AGGRESSIVE lookup (central vs local)
+            const modelsToTry = [];
+            if (centralConn) modelsToTry.push(OrshinSuugch(centralConn));
+            if (tukhainBaaziinKholbolt) modelsToTry.push(OrshinSuugch(tukhainBaaziinKholbolt));
+
+            for (const Model of modelsToTry) {
+              // Try ObjectId findById
+              resident = await Model.findById(residentObjectId).catch(() => null);
+              if (resident) { debugInfo.foundBy = "findById(ObjectId)"; break; }
+              
+              // Try String findById
+              resident = await Model.findById(String(actualResidentId)).catch(() => null);
+              if (resident) { debugInfo.foundBy = "findById(String)"; break; }
+              
+              // Try findOne
+              resident = await Model.findOne({ _id: actualResidentId }).catch(() => null);
+              if (resident) { debugInfo.foundBy = "findOne({_id})"; break; }
             }
 
             if (resident) {
@@ -262,7 +284,42 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
                 tariffSource = "Resident Setting";
               }
             } else {
-               debugInfo.residentNotFoundAtAll = true;
+               debugInfo.residentNotFoundById = true;
+               
+               // FINAL FALLBACK: Search by Toot and baiguullagiinId
+               const searchToot = contractObj?.toot || (resident ? resident.toot : null);
+               if (searchToot) {
+                 debugInfo.fallingBackToTootSearch = searchToot;
+                 for (const Model of modelsToTry) {
+                   const foundByToot = await Model.findOne({ 
+                     toot: searchToot, 
+                     $or: [
+                       { baiguullagiinId: String(baiguullagiinId) },
+                       { "toots.baiguullagiinId": String(baiguullagiinId) }
+                     ]
+                   }).catch(() => null);
+                   
+                   if (foundByToot) {
+                     resident = foundByToot;
+                     debugInfo.residentFoundBy = "Toot Fallback";
+                     debugInfo.residentTsahilgaaniiZaalt = resident.tsahilgaaniiZaalt;
+                     const resTariff = Number(resident.tsahilgaaniiZaalt);
+                     if (resTariff > 0) {
+                       finalTariff = resTariff;
+                       residentSpecificUsed = true;
+                       tariffSource = "Resident (Toot Match)";
+                     }
+                     break;
+                   }
+                 }
+               }
+               
+               if (!resident) {
+                 debugInfo.residentNotFoundAtAll = true;
+                 debugInfo.triedId = residentObjectId;
+                 const sample = await OrshinSuugch(centralConn).findOne({}).select("ner").catch(() => null);
+                 if (sample) debugInfo.connectionSample = sample.ner;
+               }
             }
           } catch (e) {
             debugInfo.residentLookupError = e.message;
