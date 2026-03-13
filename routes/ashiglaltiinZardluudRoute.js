@@ -349,7 +349,17 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
           }
         }
 
-        if (!residentSpecificUsed) {
+        let finalSuuriKhuraamj = maxSuuriKhuraamj;
+
+        if (residentSpecificUsed) {
+          // Check if resident has a specific base fee (unlikely based on current schema but for future proofing)
+          if (resident && Number(resident.tsahilgaaniiSuuriKhuraamj) > 0) {
+            finalSuuriKhuraamj = Number(resident.tsahilgaaniiSuuriKhuraamj);
+            debugInfo.suuriSource = "Resident Setting";
+          }
+        }
+
+        if (!residentSpecificUsed || debugInfo.contractFound || gereeniiId) {
           const geree = contractObj || (gereeniiId ? await Geree(tukhainBaaziinKholbolt).findById(gereeniiId).catch(() => null) : null);
           if (geree) {
             debugInfo.contractFound = true;
@@ -361,12 +371,20 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
               
               if (contractElec) {
                 debugInfo.contractElecFound = contractElec.ner;
-                debugInfo.contractElecTariff = contractElec.tariff || contractElec.zaaltTariff;
+                
+                // TARIFF
                 const cTariff = Number(contractElec.tariff) || Number(contractElec.zaaltTariff) || 0;
-                if (cTariff > 0) {
+                if (cTariff > 0 && !residentSpecificUsed) {
                   finalTariff = cTariff;
                   tariffSource = "Contract Specific";
                   residentSpecificUsed = true;
+                }
+
+                // BASE FEE (Suuri Khuraamj)
+                const cSuuri = Number(contractElec.zaaltDefaultDun) || Number(contractElec.suuriKhuraamj) || 0;
+                if (cSuuri > 0) {
+                  finalSuuriKhuraamj = cSuuri;
+                  debugInfo.suuriSource = "Contract Specific (" + (Number(contractElec.zaaltDefaultDun) > 0 ? "zaaltDefaultDun" : "suuriKhuraamj") + ")";
                 }
               } else {
                 debugInfo.contractElecNotFoundInZardluud = true;
@@ -377,70 +395,70 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
             debugInfo.contractNotFoundAtAll = true;
           }
         }
+
+        // Final check - do we have any tariff at all?
+        if (finalTariff <= 0 && candidates.length === 0) {
+          return res.status(400).send({
+            success: false,
+            message: "Цахилгааны тариф олдсонгүй. Хувьсах зардлуудаас 'Цахилгаан' нэмж тарифыг тохируулна уу.",
+            _debug: debugInfo
+          });
+        }
+
+        const umnukhZaaltNum =
+          typeof umnukhZaaltRaw === "number"
+            ? umnukhZaaltRaw
+            : parseFloat(String(umnukhZaaltRaw || "").replace(/,/g, "").trim()) || 0;
+
+        // Split readings: Odor (Day) and Shono (Night)
+        const odorZaaltRaw = req.body.odorZaalt ?? req.body.odor_zaalt;
+        const shonoZaaltRaw = req.body.shonoZaalt ?? req.body.shono_zaalt;
+
+        const odorZaaltNum =
+          typeof odorZaaltRaw === "number"
+            ? odorZaaltRaw
+            : parseFloat(String(odorZaaltRaw || "").replace(/,/g, "").trim()) || 0;
+        const shonoZaaltNum =
+          typeof shonoZaaltRaw === "number"
+            ? shonoZaaltRaw
+            : parseFloat(String(shonoZaaltRaw || "").replace(/,/g, "").trim()) || 0;
+
+        // If both Odor and Shono are provided, suuliinZaalt is their sum
+        const suuliinZaaltNum = (odorZaaltRaw != null || shonoZaaltRaw != null)
+          ? odorZaaltNum + shonoZaaltNum
+          : (typeof suuliinZaaltRaw === "number"
+            ? suuliinZaaltRaw
+            : parseFloat(String(suuliinZaaltRaw || "").replace(/,/g, "").trim()) || 0);
+
+        const guidliinKoeffNum =
+          typeof guidliinKoeffRaw === "number"
+            ? guidliinKoeffRaw
+            : parseFloat(String(guidliinKoeffRaw || "").replace(/,/g, "").trim()) || 1;
+
+        // Use aggregated/resident values
+        const zoruu = Math.abs(suuliinZaaltNum - umnukhZaaltNum);
+        const usageAmount = zoruu * finalTariff * guidliinKoeffNum;
+        const suuriKhuraamj = finalSuuriKhuraamj;
+        const niitDun = includeSuuriKhuraamj ? usageAmount + suuriKhuraamj : usageAmount;
+
+        res.send({
+          success: true,
+          niitDun: Math.round(niitDun * 100) / 100,
+          usageAmount: Math.round(usageAmount * 100) / 100,
+          suuriKhuraamj: Math.round(suuriKhuraamj * 100) / 100,
+          zoruu: Math.round(zoruu * 100) / 100,
+          odorZaaltNum,
+          shonoZaaltNum,
+          suuliinZaaltNum,
+          tariff: finalTariff,
+          tariffSource,
+          isResidentTariff: residentSpecificUsed,
+          selectedCharge: selectedChargeName || "None",
+          _received: { umnukhZaaltNum, odorZaaltNum, shonoZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
+          _debug: debugInfo
+        });
       }
     }
-
-    // Final check - do we have any tariff at all?
-    if (finalTariff <= 0 && candidates.length === 0) {
-      return res.status(400).send({
-        success: false,
-        message: "Цахилгааны тариф олдсонгүй. Хувьсах зардлуудаас 'Цахилгаан' нэмж тарифыг тохируулна уу.",
-        _debug: debugInfo
-      });
-    }
-    const umnukhZaaltNum =
-      typeof umnukhZaaltRaw === "number"
-        ? umnukhZaaltRaw
-        : parseFloat(String(umnukhZaaltRaw || "").replace(/,/g, "").trim()) || 0;
-
-    // Split readings: Odor (Day) and Shono (Night)
-    const odorZaaltRaw = req.body.odorZaalt ?? req.body.odor_zaalt;
-    const shonoZaaltRaw = req.body.shonoZaalt ?? req.body.shono_zaalt;
-
-    const odorZaaltNum =
-      typeof odorZaaltRaw === "number"
-        ? odorZaaltRaw
-        : parseFloat(String(odorZaaltRaw || "").replace(/,/g, "").trim()) || 0;
-    const shonoZaaltNum =
-      typeof shonoZaaltRaw === "number"
-        ? shonoZaaltRaw
-        : parseFloat(String(shonoZaaltRaw || "").replace(/,/g, "").trim()) || 0;
-
-    // If both Odor and Shono are provided, suuliinZaalt is their sum
-    const suuliinZaaltNum = (odorZaaltRaw != null || shonoZaaltRaw != null)
-      ? odorZaaltNum + shonoZaaltNum
-      : (typeof suuliinZaaltRaw === "number"
-        ? suuliinZaaltRaw
-        : parseFloat(String(suuliinZaaltRaw || "").replace(/,/g, "").trim()) || 0);
-
-    const guidliinKoeffNum =
-      typeof guidliinKoeffRaw === "number"
-        ? guidliinKoeffRaw
-        : parseFloat(String(guidliinKoeffRaw || "").replace(/,/g, "").trim()) || 1;
-
-    // Use aggregated/resident values
-    const targetTariff = finalTariff;
-    const zoruu = Math.abs(suuliinZaaltNum - umnukhZaaltNum);
-    const usageAmount = zoruu * targetTariff * guidliinKoeffNum;
-    const suuriKhuraamj = maxSuuriKhuraamj;
-    const niitDun = includeSuuriKhuraamj ? usageAmount + suuriKhuraamj : usageAmount;
-
-    res.send({
-      success: true,
-      niitDun: Math.round(niitDun * 100) / 100,
-      usageAmount: Math.round(usageAmount * 100) / 100,
-      suuriKhuraamj,
-      zoruu: Math.round(zoruu * 100) / 100,
-      odorZaaltNum,
-      shonoZaaltNum,
-      suuliinZaaltNum,
-      tariff: targetTariff,
-      tariffSource,
-      isResidentTariff: residentSpecificUsed,
-      selectedCharge: selectedChargeName || "None",
-      _received: { umnukhZaaltNum, odorZaaltNum, shonoZaaltNum, suuliinZaaltNum, guidliinKoeffNum, includeSuuriKhuraamj },
-      _debug: debugInfo
-    });
   } catch (err) {
     next(err);
   }
