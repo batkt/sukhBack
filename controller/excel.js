@@ -1992,32 +1992,33 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
 
     // Helper to check if this is a VARIABLE electricity (not fixed)
     const isVariableElectricity = (z) => {
-      if (!z.zaalt) return false;
       const nameLower = (z.ner || "").toLowerCase();
-      // Exclude fixed electricity charges
-      if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) {
-        return false;
-      }
+      // Exclude fixed electricity charges or lift-related ones
+      if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) return false;
+      if (nameLower.includes("шат")) return false;
       return true;
     };
 
-    const zaaltZardluud = zardluud.filter(isVariableElectricity);
+    const zaaltZardluud = zardluud.filter(z => z.zaalt === true && isVariableElectricity(z));
 
     // Prioritize exact "Цахилгаан" match
     let zaaltZardal = zaaltZardluud.find(
       (z) => z.ner && z.ner.trim() === "Цахилгаан"
     );
 
-    // If no exact match, use first variable one
-    if (!zaaltZardal && zaaltZardluud.length > 0) {
-      zaaltZardal = zaaltZardluud[0];
+    // If no exact match among those with zaalt=true, check all variable ones
+    if (!zaaltZardal) {
+      zaaltZardal = zardluud.find(z => z.zaalt === true && isVariableElectricity(z));
     }
 
-    // If STILL no match, use ANY electricity charge as a template
+    // If STILL no match, use ANY electricity charge that isn't shared/elevator
     if (!zaaltZardal) {
-      zaaltZardal = zardluud.find(z => (z.ner || "").toLowerCase().includes("цахилгаан") && !(z.ner || "").toLowerCase().includes("шат"));
+      zaaltZardal = zardluud.find(z => {
+        const name = (z.ner || "").toLowerCase();
+        return name.includes("цахилгаан") && !name.includes("дундын") && !name.includes("шат");
+      });
     }
-    
+
     // Final stub if absolutely nothing found to avoid 500 error
     if (!zaaltZardal) {
       zaaltZardal = {
@@ -2048,6 +2049,15 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
 
     const Geree = require("../models/geree");
     const OrshinSuugch = require("../models/orshinSuugch");
+    
+    // Robust number parser for Mongolian Excel formats (stripping commas)
+    const parseExcelNum = (val) => {
+      if (val === undefined || val === null || val === "") return 0;
+      if (typeof val === "number") return val;
+      const cleaned = String(val).replace(/,/g, "").trim();
+      return parseFloat(cleaned) || 0;
+    };
+
     const results = {
       success: [],
       failed: [],
@@ -2084,21 +2094,23 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           continue;
         }
 
-        // Parse readings
-        const umnu = parseFloat(row["Өмнө"] || 0) || 0;
-        const odor = parseFloat(row["Өдөр"] || 0) || 0;
-        const shone = parseFloat(row["Шөнө"] || 0) || 0;
+        // Parse readings with comma handling
+        const umnu = parseExcelNum(row["Өмнө"]);
+        const odor = parseExcelNum(row["Өдөр"]);
+        const shone = parseExcelNum(row["Шөнө"]);
         const niitOdooRaw = row["Нийт (одоо)"];
-        const niitOdoo = niitOdooRaw ? (parseFloat(niitOdooRaw) || 0) : (odor + shone);
-        const defaultDunFromExcel = parseFloat(row["Суурь хураамж"] || row["defaultDun"] || 0) || 0;
+        const niitOdoo = niitOdooRaw ? parseExcelNum(niitOdooRaw) : (odor + shone);
+        
+        // Base fee from Excel (Support multiple naming variations)
+        const defaultDunFromExcel = parseExcelNum(row["Суурь хураамж"] || row["Суурь хүраамж"] || row["defaultDun"]);
 
         // Usage amount and calculation
         const zoruuValue = Math.abs(niitOdoo - umnu);
         let finalTariff = (zaaltZardal ? (zaaltZardal.zaaltTariff || zaaltZardal.tariff || 0) : 0);
         let gereeZaaltTariff = finalTariff; // Keep for tiered calculation fallback
         
-        // Use Excel's base fee or global setting or default 2000
-        const baseFeeFromRow = parseFloat(row["Суурь хүраамж"] || row["Суурь хураамж"] || 0);
+        // Base fee: Priority Excel > Global Setting > Default 2000
+        const baseFeeUsed = defaultDunFromExcel || (zaaltZardal ? (zaaltZardal.suuriKhuraamj || 0) : 2000);
 
         // Parse per-resident electricity tariff from Excel ("Цахилгаан кВт") 
         let tsahilgaaniiZaaltFromExcel = null;
@@ -2107,8 +2119,8 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           row["Цахилгаан кВт"] !== null &&
           String(row["Цахилгаан кВт"]).trim() !== ""
         ) {
-          const parsedTariff = parseFloat(row["Цахилгаан кВт"]);
-          if (!isNaN(parsedTariff)) {
+          const parsedTariff = parseExcelNum(row["Цахилгаан кВт"]);
+          if (parsedTariff > 0) {
             tsahilgaaniiZaaltFromExcel = parsedTariff;
           }
         }
@@ -2152,7 +2164,7 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         // Sync tiered calculation tariff with finalized resident/row tariff
         gereeZaaltTariff = finalTariff;
 
-        const calculatedZaaltDun = (zoruuValue * finalTariff) + (baseFeeFromRow || (zaaltZardal ? (zaaltZardal.suuriKhuraamj || 0) : 2000));
+        const calculatedZaaltDun = (zoruuValue * finalTariff) + baseFeeUsed;
 
         // Get tariff tiers from geree.zardluud or building level
         let gereeZaaltZardal = null;
@@ -2163,8 +2175,8 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         }
         const gereeZaaltTariffTiers = gereeZaaltZardal?.zaaltTariffTiers || zaaltZardal.zaaltTariffTiers || [];
 
-        // Use defaultDun from Excel input (NEW - separate from ashiglaltiinZardluud)
-        const gereeZaaltDefaultDun = defaultDunFromExcel;
+        // Use base fee (Priority Excel > Global > 2000)
+        const gereeZaaltDefaultDun = baseFeeUsed;
 
         // Calculate tiered pricing if zaaltTariffTiers is available
         let zaaltDun = 0;
@@ -2330,6 +2342,9 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           odor: odor,
           shone: shone,
           niitOdoo: niitOdoo,
+          zoruu: zoruuValue,
+          tariff: usedTariff,
+          suuriKhuraamj: gereeZaaltDefaultDun,
           zaaltDun: zaaltDun,
         });
       } catch (error) {

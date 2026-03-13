@@ -286,24 +286,34 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
             } else {
                debugInfo.residentNotFoundById = true;
                
-               // FINAL FALLBACK: Search by Toot and baiguullagiinId
+                // FINAL FALLBACK: Search by Toot and baiguullagiinId
                const searchToot = contractObj?.toot || (resident ? resident.toot : null);
                if (searchToot) {
                  debugInfo.fallingBackToTootSearch = searchToot;
                  for (const Model of modelsToTry) {
+                   // Aggressive search: top-level toot OR inside toots array (for Central DB)
                    const foundByToot = await Model.findOne({ 
-                     toot: searchToot, 
                      $or: [
-                       { baiguullagiinId: String(baiguullagiinId) },
-                       { "toots.baiguullagiinId": String(baiguullagiinId) }
+                       { 
+                         toot: { $in: [String(searchToot), Number(searchToot)] }, 
+                         baiguullagiinId: String(baiguullagiinId) 
+                       },
+                       { 
+                         toots: { 
+                           $elemMatch: { 
+                             baiguullagiinId: String(baiguullagiinId), 
+                             toot: { $in: [String(searchToot), Number(searchToot)] }
+                           } 
+                         } 
+                       }
                      ]
                    }).catch(() => null);
                    
                    if (foundByToot) {
                      resident = foundByToot;
-                     debugInfo.residentFoundBy = "Toot Fallback";
+                     debugInfo.residentFoundBy = "Toot Aggressive Match";
                      debugInfo.residentTsahilgaaniiZaalt = resident.tsahilgaaniiZaalt;
-                     const resTariff = Number(resident.tsahilgaaniiZaalt);
+                     const resTariff = Number(resident.tsahilgaaniiZaalt) || 0;
                      if (resTariff > 0) {
                        finalTariff = resTariff;
                        residentSpecificUsed = true;
