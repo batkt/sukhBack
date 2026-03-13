@@ -245,6 +245,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
           });
 
           const savedTulsun = await tulsunDoc.save();
+          newAvlagaId = savedTulsun._id;
           console.log(
             `✅ [GEREE ${guilgee.turul.toUpperCase()}] Created gereeniiTulsunAvlaga record`,
           );
@@ -342,7 +343,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     // Prepare the queued transaction
     const guilgeeForNekhemjlekh = {
       ...guilgee,
-      _id: newAvlagaId || `manual-${Date.now()}`, // Link to the standalone record
+      _id: newAvlagaId || undefined, // Use existing record ID or let Mongoose generate one (avoiding manual-xxx string which causes CastError)
       avlagaGuilgeeIndex: count,
     };
 
@@ -378,7 +379,11 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
 
     const result = await Geree(tukhainBaaziinKholbolt).findById(guilgee.gereeniiId);
 
-    await daraagiinTulukhOgnooZasya(guilgee.gereeniiId, tukhainBaaziinKholbolt);
+    try {
+      await daraagiinTulukhOgnooZasya(guilgee.gereeniiId, tukhainBaaziinKholbolt);
+    } catch (dateUpdateError) {
+      console.error("⚠️ [GEREE] Error updating next payment date:", dateUpdateError.message);
+    }
 
     try {
       if (guilgee.turul === "avlaga" && result && result.orshinSuugchId) {
