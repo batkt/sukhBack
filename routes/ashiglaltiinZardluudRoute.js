@@ -272,6 +272,10 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
               // Try findOne
               resident = await Model.findOne({ _id: actualResidentId }).catch(() => null);
               if (resident) { debugInfo.foundBy = "findOne({_id})"; break; }
+
+              // Try searching by "id" field (some old records might use it)
+              resident = await Model.findOne({ id: String(actualResidentId) }).catch(() => null);
+              if (resident) { debugInfo.foundBy = "findOne({id})"; break; }
             }
 
             if (resident) {
@@ -290,18 +294,27 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
                const searchToot = contractObj?.toot || (resident ? resident.toot : null);
                if (searchToot) {
                  debugInfo.fallingBackToTootSearch = searchToot;
+                 
+                 // Try both string and ObjectId for baiguullagiinId
+                 const baiguullagaIds = [String(baiguullagiinId)];
+                 try {
+                   if (mongoose.Types.ObjectId.isValid(baiguullagiinId)) {
+                     baiguullagaIds.push(new mongoose.Types.ObjectId(baiguullagiinId));
+                   }
+                 } catch(e) {}
+
                  for (const Model of modelsToTry) {
                    // Aggressive search: top-level toot OR inside toots array (for Central DB)
                    const foundByToot = await Model.findOne({ 
                      $or: [
                        { 
                          toot: { $in: [String(searchToot), Number(searchToot)] }, 
-                         baiguullagiinId: String(baiguullagiinId) 
+                         baiguullagiinId: { $in: baiguullagaIds }
                        },
                        { 
                          toots: { 
                            $elemMatch: { 
-                             baiguullagiinId: String(baiguullagiinId), 
+                             baiguullagiinId: { $in: baiguullagaIds }, 
                              toot: { $in: [String(searchToot), Number(searchToot)] }
                            } 
                          } 
@@ -338,16 +351,30 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
 
         if (!residentSpecificUsed) {
           const geree = contractObj || (gereeniiId ? await Geree(tukhainBaaziinKholbolt).findById(gereeniiId).catch(() => null) : null);
-          if (geree && geree.zardluud) {
-            const contractElec = geree.zardluud.find(z => {
-              const name = (z.ner || "").trim().toLowerCase();
-              return name.includes("цахилгаан") && !name.includes("шат") && !name.includes("дундын");
-            });
-            if (contractElec && contractElec.tariff > 0) {
-              finalTariff = contractElec.tariff;
-              tariffSource = "Contract Specific";
-              residentSpecificUsed = true;
+          if (geree) {
+            debugInfo.contractFound = true;
+            if (geree.zardluud) {
+              const contractElec = geree.zardluud.find(z => {
+                const name = (z.ner || "").trim().toLowerCase();
+                return name.includes("цахилгаан") && !name.includes("шат") && !name.includes("дундын");
+              });
+              
+              if (contractElec) {
+                debugInfo.contractElecFound = contractElec.ner;
+                debugInfo.contractElecTariff = contractElec.tariff || contractElec.zaaltTariff;
+                const cTariff = Number(contractElec.tariff) || Number(contractElec.zaaltTariff) || 0;
+                if (cTariff > 0) {
+                  finalTariff = cTariff;
+                  tariffSource = "Contract Specific";
+                  residentSpecificUsed = true;
+                }
+              } else {
+                debugInfo.contractElecNotFoundInZardluud = true;
+                debugInfo.availableZardluud = geree.zardluud.map(z => z.ner);
+              }
             }
+          } else {
+            debugInfo.contractNotFoundAtAll = true;
           }
         }
       }
