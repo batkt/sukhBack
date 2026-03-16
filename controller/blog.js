@@ -32,7 +32,7 @@ exports.blogIlgeeye = asyncHandler(async (req, res, next) => {
       newBlog.images = images;
     } else if (req.files && req.files.length > 0) {
       newBlog.images = req.files.map((f) => ({
-        path: `${baiguullagiinId}/${f.filename}`,
+        path: `medegdel/${baiguullagiinId}/${f.filename}`,
         metadata: { originalName: f.originalname, size: f.size, mimetype: f.mimetype },
       }));
     }
@@ -116,7 +116,7 @@ exports.blogZasah = asyncHandler(async (req, res, next) => {
     // Handle new images if any
     if (req.files && req.files.length > 0) {
       const newImages = req.files.map((f) => ({
-        path: `${baiguullagiinId}/${f.filename}`,
+        path: `medegdel/${baiguullagiinId}/${f.filename}`,
         metadata: { originalName: f.originalname, size: f.size, mimetype: f.mimetype },
       }));
       // Decide whether to append or replace. Let's assume replace for now or handle via client instruction.
