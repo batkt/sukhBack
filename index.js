@@ -130,6 +130,10 @@ const serveMedegdelImage = (req, res, next) => {
 };
 
 // Medegdel API (thread, reply, etc.) must be tried before image route so /medegdel/thread/:id is not matched as image
+app.get("/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
+app.get("/api/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
+app.get("/:baiguullagiinId/:ner", serveMedegdelImage);
+
 app.use(baiguullagaRoute);
 app.use(ajiltanRoute);
 app.use(licenseRoute);
@@ -143,10 +147,6 @@ app.use(dansRoute);
 app.use(ebarimtRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
 app.use(medegdelRoute);
-// Serve medegdel images only after API routes; otherwise /medegdel/thread/:id would be caught as :baiguullagiinId/:ner
-app.get("/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
-app.get("/api/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
-app.get("/:baiguullagiinId/:ner", serveMedegdelImage);
 app.use(msgRoute);
 app.use(nekhemjlekhRoute);
 app.use(qpayRoute);
