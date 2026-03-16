@@ -42,6 +42,8 @@ const walletInvoiceSchema = new Schema(
 );
 
 walletInvoiceSchema.index({ userId: 1, walletInvoiceId: 1 }, { unique: true });
+walletInvoiceSchema.index({ zakhialgiinDugaar: 1 });
+walletInvoiceSchema.index({ orshinSuugchId: 1 });
 
 module.exports = function walletInvoice(conn) {
   if (!conn || !conn.kholbolt)

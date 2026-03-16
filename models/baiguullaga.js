@@ -246,6 +246,9 @@ const baiguullagaSchema = new Schema(
   }
 );
 
+baiguullagaSchema.index({ register: 1 });
+baiguullagaSchema.index({ id: 1 });
+
 // Shared function to update geree.zardluud when baiguullaga.barilguud[].tokhirgoo.ashiglaltiinZardluud changes
 async function updateGereeFromBaiguullagaZardluud(doc) {
   try {

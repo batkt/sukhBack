@@ -1571,30 +1571,19 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     const providedPassword = String(req.body.nuutsUg).trim();
 
-    // Find user in local database first (password is stored locally, NOT in Wallet API)
-    let orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
-      .findOne({
-        utas: phoneNumber
-      })
-      .select("+nuutsUg"); // Include password field (normally excluded by select: false)
+    // Optimized: Parallelize local user lookup and Wallet API info fetch
+    const [orshinSuugch, walletUserInfo] = await Promise.all([
+      OrshinSuugch(db.erunkhiiKholbolt)
+        .findOne({ utas: phoneNumber })
+        .select("+nuutsUg"),
+      walletApiService.getUserInfo(phoneNumber).catch(() => null)
+    ]);
 
     if (!orshinSuugch) {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
 
-    // Get Wallet API user info for other operations (billing, etc.) but NOT for password validation
-    let walletUserInfo = null;
-    let walletUserId = null;
-    
-    try {
-      walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
-      
-      if (walletUserInfo && walletUserInfo.userId) {
-        walletUserId = walletUserInfo.userId;
-      }
-    } catch (walletError) {
-      // Continue without Wallet API - password validation is local only
-    }
+    let walletUserId = walletUserInfo?.userId || null;
 
     // Validate password - only use local password (stored in our own DB)
     // Password is NOT sent to Wallet API, only stored in our database
@@ -1702,15 +1691,17 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       userData.baiguullagiinId = req.body.baiguullagiinId;
     }
     
-    // 2. Fetch baiguullaga name if we are setting it for the first time
-    if (userData.baiguullagiinId && !userData.baiguullagiinNer) {
+    // 2. Fetch baiguullaga name and building info once if needed
+    let baiguullaga = null;
+    const baiguullagaId = userData.baiguullagiinId || orshinSuugch.baiguullagiinId;
+    
+    if (baiguullagaId) {
       try {
-        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(userData.baiguullagiinId);
-        if (baiguullaga && baiguullaga.ner) {
+        baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagaId).lean();
+        if (baiguullaga && baiguullaga.ner && !userData.baiguullagiinNer) {
           userData.baiguullagiinNer = baiguullaga.ner;
         }
-      } catch (err) {
-      }
+      } catch (err) {}
     }
 
     // Handle barilgiinId - check both barilgiinId and bairId (frontend might send either)
@@ -1731,25 +1722,16 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         let existingBuildingName = "";
         let newBuildingName = "";
         
-        try {
-          if (userData.baiguullagiinId || orshinSuugch.baiguullagiinId) {
-            const baiguullagaId = userData.baiguullagiinId || orshinSuugch.baiguullagiinId;
-            const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagaId);
-            
-            if (baiguullaga) {
-              const existingBarilga = baiguullaga.barilguud?.find(
-                (b) => String(b._id) === existingBarilgiinId
-              );
-              const newBarilga = baiguullaga.barilguud?.find(
-                (b) => String(b._id) === newBarilgiinId
-              );
-              
-              existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
-              newBuildingName = newBarilga?.ner || newBarilgiinId;
-            }
-          }
-        } catch (err) {
-          // Error fetching building names
+        if (baiguullaga) {
+          const existingBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === existingBarilgiinId
+          );
+          const newBarilga = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === newBarilgiinId
+          );
+          
+          existingBuildingName = existingBarilga?.ner || existingBarilgiinId;
+          newBuildingName = newBarilga?.ner || newBarilgiinId;
         }
         
         
@@ -1776,7 +1758,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     
     if (isOwnOrgAddressLogin) {
       try {
-        const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId);
+        if (!baiguullaga) {
+           baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(req.body.baiguullagiinId).lean();
+        }
         if (!baiguullaga) {
           throw new aldaa("Байгууллагын мэдээлэл олдсонгүй!");
         }
@@ -2062,11 +2046,10 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     await orshinSuugch.save();
 
-    // Automatically fetch and connect billing if address is available
-    let billingInfo = null;
-
+    // Optimized: Consolidate Wallet API calls if address is available
     if (bairIdToUse && doorNoToUse) {
       try {
+        // Run billing lookups in parallel where possible
         const billingResponse = await walletApiService.getBillingByAddress(
           phoneNumber,
           bairIdToUse,
@@ -2074,128 +2057,47 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         );
 
         if (billingResponse && Array.isArray(billingResponse) && billingResponse.length > 0) {
-          billingInfo = billingResponse[0];
+          let billingInfo = billingResponse[0];
           
-          // If billingId is not in the response, try to get it using customerId
-          if (!billingInfo.billingId && billingInfo.customerId) {
-            try {
-              // Wallet API userId means phoneNumber
-              const billingByCustomer = await walletApiService.getBillingByCustomer(
-                phoneNumber,
-                billingInfo.customerId
-              );
-              if (billingByCustomer && billingByCustomer.billingId) {
-                billingInfo.billingId = billingByCustomer.billingId;
-                billingInfo.billingName = billingByCustomer.billingName || billingInfo.billingName;
-              } else {
-                // Try to find billingId from billing list
-                try {
-                  // Wallet API userId means phoneNumber
-                  const billingList = await walletApiService.getBillingList(phoneNumber);
-                  if (billingList && billingList.length > 0) {
-                    // Try to find matching billing by customerId
-                    const matchingBilling = billingList.find(b => 
-                      b.customerId === billingInfo.customerId || 
-                      b.customerCode === billingInfo.customerCode
-                    );
-                    if (matchingBilling && matchingBilling.billingId) {
-                      billingInfo.billingId = matchingBilling.billingId;
-                      billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
-                    } else {
-                      // If no match, use first billing if available
-                      if (billingList[0] && billingList[0].billingId) {
-                        billingInfo.billingId = billingList[0].billingId;
-                        billingInfo.billingName = billingList[0].billingName || billingInfo.billingName;
-                      }
-                    }
-                  }
-                } catch (listError) {
-                }
-              }
-            } catch (customerBillingError) {
-              
-              // Try billing list as fallback
-              try {
-                // Wallet API userId means phoneNumber
-                const billingList = await walletApiService.getBillingList(phoneNumber);
-                if (billingList && billingList.length > 0) {
-                  const matchingBilling = billingList.find(b => 
-                    b.customerId === billingInfo.customerId
-                  );
-                  if (matchingBilling && matchingBilling.billingId) {
-                    billingInfo.billingId = matchingBilling.billingId;
-                    billingInfo.billingName = matchingBilling.billingName || billingInfo.billingName;
-                  }
-                }
-              } catch (listError) {
-              }
-            }
+          if (!billingInfo.billingId && (billingInfo.customerId || billingInfo.customerCode)) {
+             try {
+               // Parallel fetch for list and customer billing
+               const [billingByCustomer, billingList] = await Promise.all([
+                 billingInfo.customerId ? walletApiService.getBillingByCustomer(phoneNumber, billingInfo.customerId).catch(() => null) : null,
+                 walletApiService.getBillingList(phoneNumber).catch(() => [])
+               ]);
+
+               if (billingByCustomer && billingByCustomer.billingId) {
+                 billingInfo.billingId = billingByCustomer.billingId;
+               } else if (billingList && billingList.length > 0) {
+                 const matching = billingList.find(b => b.customerId === billingInfo.customerId || b.customerCode === billingInfo.customerCode);
+                 if (matching) {
+                    billingInfo.billingId = matching.billingId;
+                 }
+               }
+             } catch (err) {}
           }
 
-          // Automatically connect billing to Wallet API account
-          if (billingInfo.billingId || billingInfo.customerId) {
-            try {
-              // Wallet API doesn't allow billingId in body - use only customerId
-              const billingData = {
-                customerId: billingInfo.customerId,
-              };
-
-              // saveBilling requires phoneNumber, not walletUserId
-              const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
-            } catch (connectError) {
-              // Don't throw - billing info is still saved locally
-            }
-          } else {
-            // Try to connect billing without billingId using customerId
-            if (billingInfo.customerId) {
-              try {
-                // Send only customerId - Wallet API will return full billing info including billingId
-                const billingData = {
-                  customerId: billingInfo.customerId,
-                };
-
-                // Try to save without billingId - Wallet API might create it
-                // saveBilling requires phoneNumber, not walletUserId
-                const connectResult = await walletApiService.saveBilling(phoneNumber, billingData);
-                
-                // If successful, update billingInfo with returned billingId
-                if (connectResult && connectResult.billingId) {
-                  billingInfo.billingId = connectResult.billingId;
-                }
-              } catch (connectError) {
-                }
-            }
+          // Connect billing if needed
+          if (billingInfo.customerId) {
+            walletApiService.saveBilling(phoneNumber, { customerId: billingInfo.customerId }).catch(() => null);
           }
 
-          // Update user with billing data
-          const updateData = {};
+          // Update user fields in memory
           if (billingInfo.customerName) {
             const nameParts = billingInfo.customerName.split(" ");
             if (nameParts.length >= 2) {
-              updateData.ovog = nameParts[0];
-              updateData.ner = nameParts.slice(1).join(" ");
+              orshinSuugch.ovog = nameParts[0];
+              orshinSuugch.ner = nameParts.slice(1).join(" ");
             } else {
-              updateData.ner = billingInfo.customerName;
+              orshinSuugch.ner = billingInfo.customerName;
             }
           }
-          if (billingInfo.customerAddress) {
-            updateData.bairniiNer = billingInfo.customerAddress;
-          }
-          if (billingInfo.customerId) {
-            updateData.walletCustomerId = billingInfo.customerId;
-          }
-          if (billingInfo.customerCode) {
-            updateData.walletCustomerCode = billingInfo.customerCode;
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            Object.assign(orshinSuugch, updateData);
-            await orshinSuugch.save();
-          }
+          if (billingInfo.customerAddress) orshinSuugch.bairniiNer = billingInfo.customerAddress;
+          if (billingInfo.customerId) orshinSuugch.walletCustomerId = billingInfo.customerId;
+          if (billingInfo.customerCode) orshinSuugch.walletCustomerCode = billingInfo.customerCode;
         }
-      } catch (billingError) {
-        // Log error but don't fail login
-      }
+      } catch (billingError) {}
     }
 
     // Create gerees for all OWN_ORG toots that don't have gerees yet

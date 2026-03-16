@@ -39,6 +39,7 @@ const walletPaymentSchema = new Schema(
 );
 
 walletPaymentSchema.index({ paymentId: 1 }, { unique: true });
+walletPaymentSchema.index({ userId: 1 });
 
 module.exports = function walletPayment(conn) {
   if (!conn || !conn.kholbolt)
