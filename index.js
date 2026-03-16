@@ -42,6 +42,7 @@ const auditRoute = require("./routes/auditRoute");
 const transformationRoute = require("./routes/transformationRoute");
 const walletQpayRoute = require("./routes/walletQpayRoute");
 const appVersionRoute = require("./routes/appVersionRoute");
+const blogRoute = require("./routes/blogRoute");
 
 
 const { db } = require("zevbackv2");
@@ -160,6 +161,7 @@ app.use("/audit", auditRoute);
 app.use(transformationRoute);
 app.use(walletQpayRoute);
 app.use(appVersionRoute);
+app.use(blogRoute);
 
 
 app.use(aldaaBarigch);
