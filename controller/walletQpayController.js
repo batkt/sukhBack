@@ -364,11 +364,31 @@ exports.walletQpayCheck = asyncHandler(async (req, res, next) => {
 
   // If already marked paid locally
   if (qpayObject.tulsunEsekh) {
+    let vatInformation = null;
+    try {
+      const WalletInvoice = require("../models/walletInvoice");
+      const walletInvoiceDoc = await WalletInvoice(db.erunkhiiKholbolt)
+        .findOne({ walletPaymentId })
+        .lean();
+      
+      let userId = walletInvoiceDoc?.userId;
+      if (!userId) {
+         const orshinSuugch = await getOrshinSuugchFromToken(req);
+         userId = orshinSuugch?.utas;
+      }
+      
+      if (userId) {
+         const pData = await walletApiService.getPayment(userId, walletPaymentId);
+         vatInformation = pData?.vatInformation || null;
+      }
+    } catch {}
+
     return res.json({
       success: true,
       status: "PAID",
       walletPaymentId,
       qpayPaymentId: qpayObject.payment_id || "",
+      vatInformation: vatInformation
     });
   }
 
@@ -392,7 +412,34 @@ exports.walletQpayCheck = asyncHandler(async (req, res, next) => {
           null,
           io
         );
-        return res.json({ success: true, status: "PAID", walletPaymentId });
+
+        // Fetch user phone to get Wallet Payment Data for VAT
+        let walletPaymentData = null;
+        try {
+          const WalletInvoice = require("../models/walletInvoice");
+          const walletInvoiceDoc = await WalletInvoice(db.erunkhiiKholbolt)
+            .findOne({ walletPaymentId })
+            .lean();
+            
+          let userId = walletInvoiceDoc?.userId;
+          if (!userId) {
+             const orshinSuugch = await getOrshinSuugchFromToken(req);
+             userId = orshinSuugch?.utas;
+          }
+
+          if (userId) {
+            walletPaymentData = await walletApiService.getPayment(userId, walletPaymentId);
+          }
+        } catch (fetchErr) {
+          console.error("⚠️ [WALLET QPAY CHECK] Could not fetch Wallet Payment Data for VAT:", fetchErr.message);
+        }
+
+        return res.json({ 
+          success: true, 
+          status: "PAID", 
+          walletPaymentId,
+          vatInformation: walletPaymentData?.vatInformation || null
+        });
       }
     } catch {
       // ignore
