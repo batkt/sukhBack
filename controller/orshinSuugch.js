@@ -1322,12 +1322,35 @@ exports.davhardsanOrshinSuugchShalgayy = asyncHandler(
   async (req, res, next) => {
     try {
       const { db } = require("zevbackv2");
-      const { utas, baiguullagiinId } = req.body;
+      const { utas } = req.body;
 
-      // Allow same phone number to register multiple toots - no duplicate check
-      // User can have multiple toots, so always return success
+      if (!utas) {
+        throw new aldaa("Утасны дугаар оруулах шаардлагатай!");
+      }
+
+      const phoneNumber = String(utas).trim();
+      
+      // Check if resident already exists in the system
+      const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ 
+        utas: phoneNumber 
+      }).lean();
+
+      if (existingUser) {
+        return res.json({
+          success: false,
+          exists: true,
+          message: "Энэ утасны дугаар аль хэдийн бүртгэгдсэн байна.",
+          data: {
+            ner: existingUser.ner,
+            ovog: existingUser.ovog
+          }
+        });
+      }
+
+      // No user found, phone number is available for new registration
       res.json({
         success: true,
+        exists: false,
         message: "Ашиглах боломжтой",
       });
     } catch (error) {
