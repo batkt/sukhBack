@@ -563,6 +563,48 @@ exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
 
     const result = await walletApiService.updateQPayPayment(userId, paymentId, qpayData);
     
+    // Local DB-д давхар хадгалах
+    try {
+      const { db } = require("zevbackv2");
+      const WalletPayment = require("../models/walletPayment");
+      
+      let orshinSuugchId = null;
+      if (req.headers.authorization) {
+        const jwt = require("jsonwebtoken");
+        const token = req.headers.authorization.split(" ")[1];
+        if (token) {
+          const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+          if (tokenObject && tokenObject.id && tokenObject.id !== "zochin") {
+            orshinSuugchId = tokenObject.id;
+          }
+        }
+      }
+
+      await WalletPayment(db.erunkhiiKholbolt).findOneAndUpdate(
+        { paymentId: paymentId },
+        { 
+          $set: {
+            userId: userId,
+            orshinSuugchId: orshinSuugchId,
+            qpayPaymentId: qpayData.qpayPaymentId,
+            trxDate: qpayData.trxDate,
+            trxNo: qpayData.trxNo,
+            trxDescription: qpayData.trxDescription,
+            amount: qpayData.amount,
+            receiverBankCode: qpayData.receiverBankCode,
+            receiverAccountNo: qpayData.receiverAccountNo,
+            receiverAccountName: qpayData.receiverAccountName,
+            rawQpayData: qpayData,
+            status: "PAID"
+          }
+        },
+        { upsert: true, new: true }
+      );
+      console.log(`✅ [WALLET PAYMENT UPDATE QPAY] Payment saved to DB: ${paymentId}`);
+    } catch (dbError) {
+      console.error("❌ [WALLET PAYMENT UPDATE QPAY] Failed to save locally:", dbError.message);
+    }
+
     res.status(200).json({
       success: true,
       data: result,

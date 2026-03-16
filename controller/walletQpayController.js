@@ -323,11 +323,15 @@ exports.walletQpayCallback = asyncHandler(async (req, res, next) => {
 
   /* ── 2. Settle ── */
   const io = req.app.get("socketio");
+  
+  // Qpay-с webhook хэлбэрээр (POST) ирж магадгүй тул req.body давхар шалгана
+  const qpayPaymentIdReq = req.query?.qpay_payment_id || req.body?.qpay_payment_id || req.body?.payment_id || null;
+
   await settleWalletPayment(
     qpayObject,
     tukhainBaaziinKholbolt,
     baiguullagiinId,
-    req.query?.qpay_payment_id,
+    qpayPaymentIdReq,
     io
   );
 

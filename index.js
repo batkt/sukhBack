@@ -41,6 +41,8 @@ const zochinUrikhRoute = require("./routes/zochinUrikhRoute");
 const auditRoute = require("./routes/auditRoute");
 const transformationRoute = require("./routes/transformationRoute");
 const walletQpayRoute = require("./routes/walletQpayRoute");
+const appVersionRoute = require("./routes/appVersionRoute");
+
 
 const { db } = require("zevbackv2");
 
@@ -81,10 +83,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Request context middleware for audit logging
 app.use(requestContextMiddleware);
 
-// Serve medegdel images – both /medegdel/... and /api/medegdel/... (nginx may pass /api prefix)
 const { getMedegdelRoots, getMedegdelPublicRoot } = require("./config/medegdelPaths");
 const serveMedegdelImage = (req, res, next) => {
   const fileName = (req.params.ner || "").replace(/\.\./g, "");
@@ -159,6 +159,8 @@ app.use(zochinUrikhRoute);
 app.use("/audit", auditRoute);
 app.use(transformationRoute);
 app.use(walletQpayRoute);
+app.use(appVersionRoute);
+
 
 app.use(aldaaBarigch);
 

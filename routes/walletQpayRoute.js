@@ -19,10 +19,15 @@ router.post("/walletQpay/create", tokenShalgakh, walletQpayController.createWall
 
 /**
  * @route GET /walletQpay/callback/:baiguullagiinId/:walletPaymentId
+ * @route POST /walletQpay/callback/:baiguullagiinId/:walletPaymentId
  * @desc  QPay payment callback — marks paid + calls Wallet paidByQpay
  * @access Public (called by QPay server)
  */
 router.get(
+  "/walletQpay/callback/:baiguullagiinId/:walletPaymentId",
+  walletQpayController.walletQpayCallback
+);
+router.post(
   "/walletQpay/callback/:baiguullagiinId/:walletPaymentId",
   walletQpayController.walletQpayCallback
 );
