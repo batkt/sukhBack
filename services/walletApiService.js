@@ -7,12 +7,13 @@ const WALLET_API_PASSWORD = process.env.WALLET_API_PASSWORD || "123456";
 let walletServiceToken = null;
 let tokenExpiry = null;
 
-// Short-term in-memory cache for billing lists to prevent redundant calls
 const billingListCache = new Map();
-const billingByAddressCache = new Map(); // Cache for address lookups
-const paymentCache = new Map(); // Cache for payment status polling
-const CACHE_TTL = 30000; // 30 seconds cache
-const POLLING_CACHE_TTL = 5000; // 5 seconds for polling-heavy data
+const billingByAddressCache = new Map();
+const paymentCache = new Map();
+const inflightRequests = new Map();
+
+const CACHE_TTL = 30000; // 30 seconds for general billing cache
+const POLLING_CACHE_TTL = 5000; // 5 seconds for status polling cache
 
 function sanitizeNullValues(obj) {
   if (obj === null || obj === undefined) {
@@ -554,6 +555,7 @@ async function getBillingByCustomer(userId, customerId) {
   }
 }
 
+
 async function getBillingList(userId) {
   try {
     const token = await getWalletServiceToken();
@@ -565,59 +567,56 @@ async function getBillingList(userId) {
     });
     
     // Check cache first
-    const cacheKey = String(userId);
+    const cacheKey = `billing_list_${userId}`;
     const cached = billingListCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
        return cached.data;
     }
 
-    const response = await axios.get(`${WALLET_API_BASE_URL}/api/billing/list`, {
-      headers: {
-        userId: userId,
-        Authorization: `Bearer ${token}`,
-      },
-    });
-    
-    // Log response for debugging
-    console.log("🔍 [WALLET API] getBillingList response:", {
-      responseCode: response.data?.responseCode,
-      responseMsg: response.data?.responseMsg,
-      dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A',
-      hasData: !!response.data?.data
-    });
+    // Check if a request is already inflight
+    if (inflightRequests.has(cacheKey)) {
+        console.log(`⏳ [WALLET API] Waiting for inflight request: ${cacheKey}`);
+        return await inflightRequests.get(cacheKey);
+    }
 
+    const fetchPromise = (async () => {
+      try {
+        const response = await axios.get(`${WALLET_API_BASE_URL}/api/billing/list`, {
+          headers: {
+            userId: userId,
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+        // Log response for debugging
+        console.log("🔍 [WALLET API] getBillingList response:", {
+          responseCode: response.data?.responseCode,
+          responseMsg: response.data?.responseMsg,
+          dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A',
+          hasData: !!response.data?.data
+        });
 
-    // Check if response is successful (responseCode can be true or "true" or truthy)
-    const isSuccess = response.data && (
-      response.data.responseCode === true || 
-      response.data.responseCode === "true" || 
-      (typeof response.data.responseCode === 'boolean' && response.data.responseCode) ||
-      (typeof response.data.responseCode === 'string' && response.data.responseCode.toLowerCase() === 'true')
-    );
-    
-    if (isSuccess && response.data.data) {
-      let finalData = [];
-      if (Array.isArray(response.data.data)) {
-        finalData = response.data.data.map(item => sanitizeNullValues(item));
-      } else if (typeof response.data.data === 'object') {
-        finalData = [sanitizeNullValues(response.data.data)];
+        const isSuccess = response.data && (
+          response.data.responseCode === true || 
+          response.data.responseCode === "true" || 
+          (typeof response.data.responseCode === 'boolean' && response.data.responseCode) ||
+          (typeof response.data.responseCode === 'string' && response.data.responseCode.toLowerCase() === 'true')
+        );
+
+        if (isSuccess && response.data.data) {
+          let finalData = Array.isArray(response.data.data) ? response.data.data : [response.data.data];
+          finalData = finalData.map(item => sanitizeNullValues(item));
+          billingListCache.set(cacheKey, { timestamp: Date.now(), data: finalData });
+          return finalData;
+        }
+        return [];
+      } finally {
+        inflightRequests.delete(cacheKey);
       }
+    })();
 
-      // Store in cache before returning
-      billingListCache.set(cacheKey, {
-        timestamp: Date.now(),
-        data: finalData
-      });
-
-      return finalData;
-    }
-
-    // If responseCode is false or no data, return empty array (don't throw error)
-    if (response.data && response.data.responseCode === false) {
-      console.log("⚠️ [WALLET API] getBillingList returned false, but returning empty array:", response.data.responseMsg);
-    }
-    
-    return [];
+    inflightRequests.set(cacheKey, fetchPromise);
+    return await fetchPromise;
   } catch (error) {
     console.error("❌ [WALLET API] Error getting billing list:", error.message);
     if (error.response) {

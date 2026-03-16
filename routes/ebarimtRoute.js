@@ -12,6 +12,10 @@ const {
 const Baiguullaga = require("../models/baiguullaga");
 const EbarimtShine = require("../models/ebarimtShine");
 const EasyRegisterUser = require("../models/easyRegisterUser");
+
+// Short-term cache for Easy Register API responses (government APIs are slow)
+const easyRegisterCache = new Map();
+const EASY_REGISTER_CACHE_TTL = 600000; // 10 minutes cache
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const { downloadEbarimtExcel } = require("../controller/excelImportController");
 const copyQueryToBody = (req, res, next) => {
@@ -340,6 +344,18 @@ async function autoApproveQr(customerNo, qrData, baiguullagiinId, tukhainBaaziin
 async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullagiinId = null, tukhainBaaziinKholbolt = null, _retried = false) {
   try {
     const orgId = baiguullagiinId;
+    
+    // Create a cache key for GET requests or specific POST requests like getProfile
+    let cacheKey = null;
+    if (method === "GET" || (method === "POST" && (path.includes("getProfile") || path.includes("info/foreigner")))) {
+      cacheKey = `${method}:${path}:${JSON.stringify(body || {})}`;
+      const cached = easyRegisterCache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp < EASY_REGISTER_CACHE_TTL)) {
+        console.log(`⚡ [EASY REGISTER] Returning cached response for: ${path}`);
+        return onFinish(cached.data);
+      }
+    }
+
     const shouldUseTest = orgId && String(orgId) === "697723dc3e77b46e52ccf577";
 
     let baseUrl;
@@ -420,6 +436,11 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
         return;
       }
       
+      // Store in cache if successful
+      if (cacheKey && resBody && !resBody.error) {
+         easyRegisterCache.set(cacheKey, { timestamp: Date.now(), data: resBody });
+      }
+
       onFinish(resBody);
     });
   } catch (error) {
@@ -703,8 +724,9 @@ async function saveEasyRegisterUser(data, baiguullagiinId, tukhainBaaziinKholbol
     };
 
     // Make the record unique to the resident who saved it
-    if (data.orshinSuugchiinId) {
-      filter.orshinSuugchiinId = data.orshinSuugchiinId;
+    const effectiveResidentId = extraFields.orshinSuugchiinId || data.orshinSuugchiinId;
+    if (effectiveResidentId) {
+      filter.orshinSuugchiinId = effectiveResidentId;
     }
 
     if (data.loginName) {
@@ -740,6 +762,15 @@ router.post("/easyRegister/setReturnReceipt", tokenShalgakh, async (req, res, ne
 router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) => {
   try {
     const { identity, phoneNum, customerNo, turul, passportNo, email } = req.body;
+    
+    // High-level search cache check
+    const searchKey = `search:${JSON.stringify({ identity, phoneNum, customerNo, turul, passportNo, email })}`;
+    const cachedSearch = easyRegisterCache.get(searchKey);
+    if (cachedSearch && (Date.now() - cachedSearch.timestamp < EASY_REGISTER_CACHE_TTL)) {
+      console.log(`⚡ [EASY REGISTER] Returning high-level cached search result`);
+      return res.send(cachedSearch.data);
+    }
+
     console.log(`[EASY REGISTER] user/search: identity=${identity || ''}, phone=${phoneNum || ''}, customerNo=${customerNo || ''}, turul=${turul || 'consumer'}`);
     
     const baiguullagiinId = req.body.baiguullagiinId;
@@ -803,6 +834,9 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
         barilgiinId: req.body.barilgiinId || '',
         orshinSuugchiinId: req.body.orshinSuugchiinId || ''
       });
+
+      // Cache the final search result
+      easyRegisterCache.set(searchKey, { timestamp: Date.now(), data: finalData });
     }
 
     res.send(finalData);

@@ -813,10 +813,8 @@ router.post("/davhardsanOrshinSuugchShalgayy", davhardsanOrshinSuugchShalgayy);
 router.post("/tootShalgaya", tootShalgaya);
 router.post("/validateOwnOrgToot", validateOwnOrgToot);
 
-// Excel template download
 router.get("/orshinSuugchExcelTemplate", tokenShalgakh, generateExcelTemplate);
 
-// Excel import (with file upload)
 router.post(
   "/orshinSuugchExcelImport",
   tokenShalgakh,
@@ -824,7 +822,6 @@ router.post(
   importUsersFromExcel,
 );
 
-// Excel download service - generic list download
 router.post("/downloadExcelList", tokenShalgakh, downloadOrshinSuugchExcel);
 
 router.get("/orshinSuugchiiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
