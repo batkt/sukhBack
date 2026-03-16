@@ -146,6 +146,7 @@ app.use(medegdelRoute);
 // Serve medegdel images only after API routes; otherwise /medegdel/thread/:id would be caught as :baiguullagiinId/:ner
 app.get("/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
 app.get("/api/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
+app.get("/:baiguullagiinId/:ner", serveMedegdelImage);
 app.use(msgRoute);
 app.use(nekhemjlekhRoute);
 app.use(qpayRoute);
