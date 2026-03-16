@@ -871,19 +871,18 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           orshinSuugch.baiguullagiinId = CENTRALIZED_ORG_ID;
           orshinSuugch.barilgiinId = barilgaResult.barilgiinId;
           
-          // Also add to toots array for tracking
           const walletTootEntry = {
             toot: req.body.doorNo,
             source: "WALLET_API",
             walletBairId: req.body.bairId,
             walletDoorNo: req.body.doorNo,
-            walletBairName: walletBairName,
-            baiguullagiinId: CENTRALIZED_ORG_ID,
-            barilgiinId: barilgaResult.barilgiinId,
+            walletBairName: walletBairName, // Include if we have it
             createdAt: new Date()
           };
           
-          const existingWalletTootIndex = orshinSuugch.toots?.findIndex(
+          if (!orshinSuugch.toots) orshinSuugch.toots = [];
+          
+          const existingWalletTootIndex = orshinSuugch.toots.findIndex(
             t => t.source === "WALLET_API" && 
                  t.walletBairId === req.body.bairId &&
                  t.walletDoorNo === req.body.doorNo
@@ -892,9 +891,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           if (existingWalletTootIndex >= 0) {
             orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
           } else {
-            if (!orshinSuugch.toots) {
-              orshinSuugch.toots = [];
-            }
             orshinSuugch.toots.push(walletTootEntry);
           }
         } catch (error) {
@@ -907,10 +903,20 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
             createdAt: new Date()
           };
           
-          if (!orshinSuugch.toots) {
-            orshinSuugch.toots = [];
+          if (!orshinSuugch.toots) orshinSuugch.toots = [];
+
+          const existingWalletTootIndex = orshinSuugch.toots.findIndex(
+            t => t.source === "WALLET_API" && 
+                 t.walletBairId === req.body.bairId &&
+                 t.walletDoorNo === req.body.doorNo
+          );
+          
+          if (existingWalletTootIndex >= 0) {
+            // Update existing
+            orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+          } else {
+            orshinSuugch.toots.push(walletTootEntry);
           }
-          orshinSuugch.toots.push(walletTootEntry);
         }
       } else {
         // Fallback: add to toots array without centralized org (if bairName not provided)
@@ -922,10 +928,19 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           createdAt: new Date()
         };
         
-        if (!orshinSuugch.toots) {
-          orshinSuugch.toots = [];
+        if (!orshinSuugch.toots) orshinSuugch.toots = [];
+
+        const existingWalletTootIndex = orshinSuugch.toots.findIndex(
+          t => t.source === "WALLET_API" && 
+               t.walletBairId === req.body.bairId &&
+               t.walletDoorNo === req.body.doorNo
+        );
+        
+        if (existingWalletTootIndex >= 0) {
+            orshinSuugch.toots[existingWalletTootIndex] = walletTootEntry;
+        } else {
+            orshinSuugch.toots.push(walletTootEntry);
         }
-        orshinSuugch.toots.push(walletTootEntry);
       }
     }
     
@@ -2032,7 +2047,17 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           if (!orshinSuugch.toots) {
             orshinSuugch.toots = [];
           }
-          orshinSuugch.toots.push(walletTootEntry);
+
+          const existingIdx = orshinSuugch.toots.findIndex(
+            t => t.source === "WALLET_API" && 
+                 t.walletBairId === bairIdToUse &&
+                 t.walletDoorNo === doorNoToUse
+          );
+          if (existingIdx >= 0) {
+            orshinSuugch.toots[existingIdx] = walletTootEntry;
+          } else {
+            orshinSuugch.toots.push(walletTootEntry);
+          }
         }
       } else {
         // Fallback: add to toots array without centralized org (if bairName not provided)
@@ -2047,7 +2072,17 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         if (!orshinSuugch.toots) {
           orshinSuugch.toots = [];
         }
-        orshinSuugch.toots.push(walletTootEntry);
+
+        const existingIdx = orshinSuugch.toots.findIndex(
+          t => t.source === "WALLET_API" && 
+               t.walletBairId === bairIdToUse &&
+               t.walletDoorNo === doorNoToUse
+        );
+        if (existingIdx >= 0) {
+          orshinSuugch.toots[existingIdx] = walletTootEntry;
+        } else {
+          orshinSuugch.toots.push(walletTootEntry);
+        }
       }
     }
 
