@@ -90,29 +90,18 @@ const { getMedegdelRoots, getMedegdelPublicRoot } = require("./config/medegdelPa
 const serveMedegdelImage = (req, res, next) => {
   const fileName = (req.params.ner || "").replace(/\.\./g, "");
   const baiguullagiinId = (req.params.baiguullagiinId || "").replace(/\.\./g, "");
-  
   if (!fileName || !baiguullagiinId) {
-    return next();
+    return res.status(404).json({ success: false, message: "Зураг олдсонгүй" });
   }
-
-  // Only attempt to serve if it looks like a file request
-  if (!fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp|webm|m4a)$/i)) {
-    return next();
-  }
-
   const roots = getMedegdelRoots();
   let filePath = null;
-  
-  console.log(`🔍 [INDEX DEBUG] Request: ${req.url} (ID: ${baiguullagiinId}, Name: ${fileName})`);
-  console.log(`🔍 [INDEX DEBUG] Search Roots: ${roots.join("; ")}`);
-
   for (const root of roots) {
     const candidate = path.join(root, baiguullagiinId, fileName);
     if (fs.existsSync(candidate)) {
       filePath = path.resolve(candidate);
       break;
     }
-    // Fallback: multer sometimes saves to root when baiguullagiinId isn't parsed yet
+    // Fallback: multer sometimes saves to root when baiguullagiinId isn't parsed yet (form field order)
     const fallback = path.join(root, fileName);
     if (fs.existsSync(fallback)) {
       filePath = path.resolve(fallback);
@@ -120,20 +109,27 @@ const serveMedegdelImage = (req, res, next) => {
     }
   }
 
+  console.log(`🔍 [INDEX DEBUG] URL: ${req.url} -> file: ${filePath || "not found"}`);
+
   if (filePath) {
-    console.log(`✅ [INDEX DEBUG] Serving: ${filePath}`);
     res.sendFile(filePath);
   } else {
-    console.log(`❌ [INDEX DEBUG] File not found on disk. Tried in: ${roots.map(r => path.join(r, baiguullagiinId, fileName)).join(", ")}`);
-    res.status(404).json({ success: false, message: "Зураг олдсонгүй" });
+    if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp|webm|m4a)$/i)) {
+      const tried = roots.map((r) => path.join(r, baiguullagiinId, fileName));
+      console.log(`❌ [INDEX DEBUG] File not found (404). Tried: ${tried.join("; ")}`);
+      const body = { success: false, message: "Зураг олдсонгүй" };
+      if (req.query.debug === "1") {
+        body.tried = tried;
+        body.uploadRoot = getMedegdelPublicRoot();
+      }
+      res.status(404).json(body);
+    } else {
+      next();
+    }
   }
 };
 
 // Medegdel API (thread, reply, etc.) must be tried before image route so /medegdel/thread/:id is not matched as image
-app.get("/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
-app.get("/api/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
-app.get("/:baiguullagiinId/:ner", serveMedegdelImage);
-
 app.use(baiguullagaRoute);
 app.use(ajiltanRoute);
 app.use(licenseRoute);
@@ -147,6 +143,10 @@ app.use(dansRoute);
 app.use(ebarimtRoute);
 app.use("/nekhemjlekhCron", nekhemjlekhCronRoute);
 app.use(medegdelRoute);
+// Serve medegdel images only after API routes; otherwise /medegdel/thread/:id would be caught as :baiguullagiinId/:ner
+app.get("/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
+app.get("/api/medegdel/:baiguullagiinId/:ner", serveMedegdelImage);
+app.get("/:baiguullagiinId/:ner", serveMedegdelImage);
 app.use(msgRoute);
 app.use(nekhemjlekhRoute);
 app.use(qpayRoute);

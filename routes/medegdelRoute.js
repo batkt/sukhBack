@@ -61,8 +61,20 @@ const uploadChatFile = multer({ storage: chatStorage, limits: { fileSize: 20 * 1
 router.route("/medegdelIlgeeye").post(tokenShalgakh, upload.array("zurag", 10), medegdelIlgeeye);
 router.post("/medegdel/uploadChatFile", tokenShalgakh, uploadChatFile.single("file"), medegdelUploadChatFile);
 
-// Image serving route removed (moved to index.js)
-
+router.get("/medegdelZuragAvya/:baiguullagiinId/:ner", (req, res, next) => {
+  const fileName = req.params.ner;
+  const root = getMedegdelPublicRoot();
+  const filePath = path.join(root, req.params.baiguullagiinId, fileName);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(path.resolve(filePath));
+  } else {
+    res.status(404).json({
+      success: false,
+      message: "Зураг олдсонгүй"
+    });
+  }
+});
 
 // IMPORTANT: These must be before /medegdel/:baiguullagiinId/:ner so /medegdel/thread/:id is not matched as image
 router.get("/medegdel/unreadCount", tokenShalgakh, medegdelUnreadCount);
@@ -76,7 +88,26 @@ router.get("/medegdel/:id", tokenShalgakh, medegdelNegAvya);
 router.put("/medegdel/:id", tokenShalgakh, medegdelZasah);
 router.delete("/medegdel/:id", tokenShalgakh, medegdelUstgakh);
 
-// Route for serving images removed (centralized in index.js)
-
+// Route matching the URL structure user provided: /medegdel/:baiguullagiinId/:ner (must be last so it doesn't catch /medegdel/thread/:id)
+router.get("/medegdel/:baiguullagiinId/:ner", (req, res, next) => {
+  const fileName = req.params.ner;
+  const root = getMedegdelPublicRoot();
+  const filePath = path.join(root, req.params.baiguullagiinId, fileName);
+  
+  if (fs.existsSync(filePath)) {
+    res.sendFile(path.resolve(filePath));
+  } else {
+    // If it's not a file (e.g. API call), pass to next router/middleware
+    // This is important because this route pattern might conflict with /medegdel/:id API route
+    if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp)$/i)) {
+       res.status(404).json({
+        success: false,
+        message: "Зураг олдсонгүй"
+      });
+    } else {
+      next();
+    }
+  }
+});
 
 module.exports = router;
