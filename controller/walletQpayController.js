@@ -16,17 +16,33 @@ const request = require("request");
 /**
  * Helper: get orshinSuugch + phone from auth token
  */
+const userCache = new Map();
+const USER_CACHE_TTL = 10000; // 10 seconds cache for user profile
+
 async function getOrshinSuugchFromToken(req) {
   const { db } = require("zevbackv2");
   if (!req.headers.authorization) return null;
   const token = req.headers.authorization.split(" ")[1];
   if (!token) return null;
+  
   try {
     const tokenObject = jwt.verify(token, process.env.APP_SECRET);
     if (!tokenObject?.id || tokenObject.id === "zochin") return null;
+    
+    // Check cache
+    const cached = userCache.get(tokenObject.id);
+    if (cached && (Date.now() - cached.timestamp < USER_CACHE_TTL)) {
+       return cached.data;
+    }
+
     const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt)
       .findById(tokenObject.id)
       .lean();
+    
+    if (orshinSuugch) {
+       userCache.set(tokenObject.id, { timestamp: Date.now(), data: orshinSuugch });
+    }
+    
     return orshinSuugch || null;
   } catch {
     return null;
@@ -55,7 +71,11 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
 
   /* ── 0. Resilient Org ID Lookup (Body -> Query -> Profile) ── */
   let baiguullagiinId = req.body.baiguullagiinId || req.query.baiguullagiinId;
-  const orshinSuugch = await getOrshinSuugchFromToken(req);
+  
+  // Parallelize user fetch and dugaarlalt lookup
+  const [orshinSuugch] = await Promise.all([
+     getOrshinSuugchFromToken(req),
+  ]);
 
   if (!baiguullagiinId && orshinSuugch) {
     baiguullagiinId = orshinSuugch.baiguullagiinId;

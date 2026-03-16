@@ -7,6 +7,13 @@ const WALLET_API_PASSWORD = process.env.WALLET_API_PASSWORD || "123456";
 let walletServiceToken = null;
 let tokenExpiry = null;
 
+// Short-term in-memory cache for billing lists to prevent redundant calls
+const billingListCache = new Map();
+const billingByAddressCache = new Map(); // Cache for address lookups
+const paymentCache = new Map(); // Cache for payment status polling
+const CACHE_TTL = 30000; // 30 seconds cache
+const POLLING_CACHE_TTL = 5000; // 5 seconds for polling-heavy data
+
 function sanitizeNullValues(obj) {
   if (obj === null || obj === undefined) {
     return {};
@@ -129,6 +136,12 @@ async function getBillingByAddress(userId, bairId, doorNo) {
       url: `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${encodedDoorNo}`
     });
     
+    const cacheKey = `${userId}:${bairId}:${doorNo}`;
+    const cached = billingByAddressCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+       return cached.data;
+    }
+
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${encodedDoorNo}`,
       {
@@ -148,12 +161,15 @@ async function getBillingByAddress(userId, bairId, doorNo) {
 
     if (response.data && response.data.responseCode && response.data.data) {
       const data = response.data.data;
+      let finalData = [];
       if (Array.isArray(data)) {
-        return data;
+        finalData = data;
       } else if (typeof data === 'object') {
-        return [data];
+        finalData = [data];
       }
-      return [];
+      
+      billingByAddressCache.set(cacheKey, { timestamp: Date.now(), data: finalData });
+      return finalData;
     }
 
     return [];
@@ -383,30 +399,32 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
           return [];
         }
         
-        // For each customer, try to get billingId if not present
-        // Wrap in try-catch to ensure we return original data even if enrichment fails
         try {
+          // Optimization: Fetch billing list ONCE for all customers
+          const billingList = await getBillingList(userId);
+          
           const enrichedData = await Promise.all(data.map(async (customer) => {
             // If billingId is already present, return as is
             if (customer.billingId) {
               return customer;
             }
             
-            // Try to get billingId from billing list or by customerId
+            // Try to get billingId from cached billing list or by customerId
             try {
               if (customer.customerId) {
-                const billing = await getBillingByCustomer(userId, customer.customerId);
-                if (billing && billing.billingId) {
-                  customer.billingId = billing.billingId;
+                // Check in our already fetched list first (fastest)
+                const matchingInList = billingList.find(b => 
+                  b.customerId === customer.customerId || 
+                  b.customerCode === customer.customerCode
+                );
+
+                if (matchingInList && matchingInList.billingId) {
+                  customer.billingId = matchingInList.billingId;
                 } else {
-                  // Try billing list
-                  const billingList = await getBillingList(userId);
-                  const matchingBilling = billingList.find(b => 
-                    b.customerId === customer.customerId || 
-                    b.customerCode === customer.customerCode
-                  );
-                  if (matchingBilling && matchingBilling.billingId) {
-                    customer.billingId = matchingBilling.billingId;
+                  // Fallback: try direct customer lookup (another API call)
+                  const billing = await getBillingByCustomer(userId, customer.customerId);
+                  if (billing && billing.billingId) {
+                    customer.billingId = billing.billingId;
                   } else {
                     customer.billingId = null;
                   }
@@ -415,31 +433,26 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
                 customer.billingId = null;
               }
             } catch (err) {
-              console.error("⚠️ [WALLET API] Error fetching billingId for customer:", err.message);
-              // Don't fail the entire request if billingId enrichment fails
               customer.billingId = null;
             }
-            
             return customer;
           }));
           
           // Automatically save billing to Wallet-Service for each customer if they have customerId
-          // This ensures it appears in the billing list
-          await Promise.all(enrichedData.map(async (customer) => {
+          // but no billingId (meaning they are not in the billing list yet)
+          // Run these in parallel but don't wait for them if it blocks response
+          enrichedData.forEach(async (customer) => {
             if (customer.customerId && !customer.billingId) {
               try {
-                // Save billing to Wallet-Service so it appears in the list
                 const savedBilling = await saveBilling(userId, { customerId: customer.customerId });
                 if (savedBilling && savedBilling.billingId) {
                   customer.billingId = savedBilling.billingId;
-                  console.log(`✅ [WALLET API] Auto-saved billing for customerId: ${customer.customerId}, billingId: ${savedBilling.billingId}`);
                 }
-              } catch (saveError) {
-                // Don't fail the request if save fails - billing might already exist
-                console.log(`⚠️ [WALLET API] Could not auto-save billing for customerId: ${customer.customerId}`, saveError.message);
-              }
+              } catch (saveError) {}
             }
-          }));
+          });
+          
+          return enrichedData;
           
           // Return enriched data even if billingId enrichment failed
           return enrichedData;
@@ -450,43 +463,31 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
         }
       } else if (typeof data === 'object') {
         // Single customer object
+        // Single customer object enrichment
         if (!data.billingId && data.customerId) {
           try {
-            const billing = await getBillingByCustomer(userId, data.customerId);
-            if (billing && billing.billingId) {
-              data.billingId = billing.billingId;
+            const billingList = await getBillingList(userId);
+            const matchingInList = billingList.find(b => 
+              b.customerId === data.customerId || 
+              b.customerCode === data.customerCode
+            );
+
+            if (matchingInList && matchingInList.billingId) {
+              data.billingId = matchingInList.billingId;
             } else {
-              // Try billing list
-              const billingList = await getBillingList(userId);
-              const matchingBilling = billingList.find(b => 
-                b.customerId === data.customerId || 
-                b.customerCode === data.customerCode
-              );
-              if (matchingBilling && matchingBilling.billingId) {
-                data.billingId = matchingBilling.billingId;
-              } else {
-                data.billingId = null;
+              const billing = await getBillingByCustomer(userId, data.customerId);
+              if (billing && billing.billingId) {
+                data.billingId = billing.billingId;
               }
             }
           } catch (err) {
-            console.error("⚠️ [WALLET API] Error fetching billingId:", err.message);
             data.billingId = null;
           }
         }
         
-        // Automatically save billing to Wallet-Service if customerId exists but no billingId
+        // Auto-save if still no billingId
         if (data.customerId && !data.billingId) {
-          try {
-            // Save billing to Wallet-Service so it appears in the list
-            const savedBilling = await saveBilling(userId, { customerId: data.customerId });
-            if (savedBilling && savedBilling.billingId) {
-              data.billingId = savedBilling.billingId;
-              console.log(`✅ [WALLET API] Auto-saved billing for customerId: ${data.customerId}, billingId: ${savedBilling.billingId}`);
-            }
-          } catch (saveError) {
-            // Don't fail the request if save fails - billing might already exist
-            console.log(`⚠️ [WALLET API] Could not auto-save billing for customerId: ${data.customerId}`, saveError.message);
-          }
+          saveBilling(userId, { customerId: data.customerId }).catch(() => null);
         }
         
         return data;
@@ -563,6 +564,13 @@ async function getBillingList(userId) {
       url: `${WALLET_API_BASE_URL}/api/billing/list`
     });
     
+    // Check cache first
+    const cacheKey = String(userId);
+    const cached = billingListCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+       return cached.data;
+    }
+
     const response = await axios.get(`${WALLET_API_BASE_URL}/api/billing/list`, {
       headers: {
         userId: userId,
@@ -588,12 +596,20 @@ async function getBillingList(userId) {
     );
     
     if (isSuccess && response.data.data) {
+      let finalData = [];
       if (Array.isArray(response.data.data)) {
-        // Sanitize null values in each billing item
-        return response.data.data.map(item => sanitizeNullValues(item));
+        finalData = response.data.data.map(item => sanitizeNullValues(item));
       } else if (typeof response.data.data === 'object') {
-        return [sanitizeNullValues(response.data.data)];
+        finalData = [sanitizeNullValues(response.data.data)];
       }
+
+      // Store in cache before returning
+      billingListCache.set(cacheKey, {
+        timestamp: Date.now(),
+        data: finalData
+      });
+
+      return finalData;
     }
 
     // If responseCode is false or no data, return empty array (don't throw error)
@@ -1059,6 +1075,13 @@ async function getPayment(userId, paymentId) {
   try {
     const token = await getWalletServiceToken();
     
+    const cacheKey = `${userId}:${paymentId}`;
+    const cached = paymentCache.get(cacheKey);
+    // Use shorter TTL for payments because status changes are frequent
+    if (cached && (Date.now() - cached.timestamp < POLLING_CACHE_TTL)) {
+       return cached.data;
+    }
+
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/payment/${paymentId}`,
       {
@@ -1070,7 +1093,13 @@ async function getPayment(userId, paymentId) {
     );
 
     if (response.data && response.data.responseCode && response.data.data) {
-      return response.data.data;
+      const data = response.data.data;
+      
+      // Only cache if not PAID yet, or if it IS paid cache it for longer
+      const ttl = data.paymentStatus === 'PAID' ? CACHE_TTL : POLLING_CACHE_TTL;
+      paymentCache.set(cacheKey, { timestamp: Date.now(), data, ttl });
+      
+      return data;
     }
 
     return null;
