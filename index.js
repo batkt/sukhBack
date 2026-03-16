@@ -97,12 +97,14 @@ const serveMedegdelImage = (req, res, next) => {
   let filePath = null;
   for (const root of roots) {
     const candidate = path.join(root, baiguullagiinId, fileName);
+    console.log(`🔎 [INDEX DEBUG] Checking candidate: ${candidate}`);
     if (fs.existsSync(candidate)) {
       filePath = path.resolve(candidate);
       break;
     }
     // Fallback: multer sometimes saves to root when baiguullagiinId isn't parsed yet (form field order)
     const fallback = path.join(root, fileName);
+    console.log(`🔎 [INDEX DEBUG] Checking fallback: ${fallback}`);
     if (fs.existsSync(fallback)) {
       filePath = path.resolve(fallback);
       break;
