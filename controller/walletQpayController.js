@@ -119,7 +119,42 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
       }
     } catch (err) {
       console.error("❌ [WALLET QPAY] Wallet invoice creation failed:", err.message);
-      throw new aldaa(`Wallet нэхэмжлэх үүсгэхэд алдаа: ${err.message}`);
+
+      const errMsg = (err.message || "").toLowerCase();
+      // --- FALLBACK: If bills are already in another invoice ---
+      if (errMsg.includes("билл өөр нэхэмжлэлээр төлөлт хийгдэж байна")) {
+        console.log("🔍 [WALLET QPAY] Searching for existing pending invoice due to bill overlap...");
+        try {
+          // Search for a local WalletInvoice that contains at least one of these bills
+          const existingInvoice = await WalletInvoice(db.erunkhiiKholbolt).findOne({
+            userId: userPhone,
+            billingId: billingId,
+            billIds: { $in: billIds }
+          }).sort({ createdAt: -1 });
+
+          if (existingInvoice) {
+            walletInvoiceId = existingInvoice.walletInvoiceId;
+            console.log(`✅ [WALLET QPAY] Found existing invoice: ${walletInvoiceId}`);
+          } else {
+            // Fallback to any recent invoice for this billingId
+            const lastInvoice = await WalletInvoice(db.erunkhiiKholbolt).findOne({
+              userId: userPhone,
+              billingId: billingId
+            }).sort({ createdAt: -1 });
+            
+            if (lastInvoice) {
+              walletInvoiceId = lastInvoice.walletInvoiceId;
+              console.log(`✅ [WALLET QPAY] Found most recent invoice for billing: ${walletInvoiceId}`);
+            }
+          }
+        } catch (searchErr) {
+          console.error("❌ [WALLET QPAY] Failed to search for existing invoice:", searchErr.message);
+        }
+      }
+
+      if (!walletInvoiceId) {
+        throw new aldaa(`Wallet нэхэмжлэх үүсгэхэд алдаа: ${err.message}`);
+      }
     }
   }
 
@@ -136,7 +171,23 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
     console.log(`✅ [WALLET QPAY] Wallet payment created: ${walletPaymentResult.paymentId}`);
   } catch (err) {
     console.error("❌ [WALLET QPAY] Wallet payment creation failed:", err.message);
-    throw new aldaa(`Wallet төлбөр үүсгэхэд алдаа: ${err.message}`);
+    
+    const errMsg = (err.message || "").toLowerCase();
+    // --- FALLBACK: If payment already created for this invoice, try to fetch it ---
+    if (errMsg.includes("нэхэмжлэхээр төлөлт үүссэн байна")) {
+       try {
+          const payments = await walletApiService.getBillingPayments(userPhone, billingId);
+          const existingPayment = payments.find(p => p.invoiceId === walletInvoiceId && p.paymentStatus !== 'CANCELLED');
+          if (existingPayment) {
+            walletPaymentResult = existingPayment;
+            console.log(`✅ [WALLET QPAY] Found existing payment: ${walletPaymentResult.paymentId}`);
+          }
+       } catch (pErr) {}
+    }
+
+    if (!walletPaymentResult) {
+      throw new aldaa(`Wallet төлбөр үүсгэхэд алдаа: ${err.message}`);
+    }
   }
 
   const walletPaymentId = walletPaymentResult.paymentId;
