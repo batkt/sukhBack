@@ -161,7 +161,7 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
     // ignore
   }
 
-  const zakhialgiinDugaar = `WQ-${maxDugaar}`;
+  const zakhialgiinDugaar = req.body.zakhialgiinDugaar || `WQ-${maxDugaar}`;
 
   const qpayBody = {
     baiguullagiinId,
@@ -218,6 +218,7 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
       userId: userPhone,
       baiguullagiinId,
       barilgiinId: barilgiinId || "",
+      zakhialgiinDugaar,
       source: "WALLET_QPAY",
     };
 
@@ -344,7 +345,7 @@ exports.walletQpayCallback = asyncHandler(async (req, res, next) => {
 // ──────────────────────────────────────────────────────
 exports.walletQpayCheck = asyncHandler(async (req, res, next) => {
   const { db } = require("zevbackv2");
-  const { baiguullagiinId, walletPaymentId } = req.params;
+  const { baiguullagiinId, walletPaymentId: searchId } = req.params;
 
   const tukhainBaaziinKholbolt = db.kholboltuud.find(
     (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
@@ -353,18 +354,45 @@ exports.walletQpayCheck = asyncHandler(async (req, res, next) => {
     throw new aldaa("Байгууллагын холболт олдсонгүй!");
   }
 
-  // Find the QPay object tagged with this walletPaymentId
+  // Find the QPay object tagged with this walletPaymentId OR zakhialgiinDugaar
   const qpayObject = await QuickQpayObject(tukhainBaaziinKholbolt).findOne({
-    walletPaymentId,
+    $or: [
+      { walletPaymentId: searchId },
+      { zakhialgiinDugaar: searchId }
+    ],
   });
 
-  if (!qpayObject) {
+  let walletPaymentId = qpayObject?.walletPaymentId;
+
+  // Fallback 1: If it looks like a walletPaymentId (UUID), use searchId directly
+  const isUuid = searchId.includes("-") && searchId.length > 30;
+  if (!walletPaymentId && isUuid) {
+    walletPaymentId = searchId;
+  }
+
+  // Fallback 2: Search in metadata if still not found
+  if (!walletPaymentId) {
+    try {
+      const WalletInvoice = require("../models/walletInvoice");
+      const metadata = await WalletInvoice(db.erunkhiiKholbolt).findOne({
+        zakhialgiinDugaar: searchId
+      }).lean();
+      if (metadata) {
+        walletPaymentId = metadata.walletPaymentId;
+      }
+    } catch (e) {}
+  }
+
+  // If we still don't have an ID and no QPay object, then we truly don't know this payment
+  if (!walletPaymentId && !qpayObject) {
     return res.status(404).json({ success: false, message: "Payment not found" });
   }
 
-  // If already marked paid locally
-  if (qpayObject.tulsunEsekh) {
+  // If already marked paid locally or if we are forced to check Wallet API (no local QPay object)
+  if (qpayObject?.tulsunEsekh || !qpayObject) {
     let vatInformation = null;
+    let paymentStatus = qpayObject?.tulsunEsekh ? "PAID" : "UNKNOWN";
+    
     try {
       const WalletInvoice = require("../models/walletInvoice");
       const walletInvoiceDoc = await WalletInvoice(db.erunkhiiKholbolt)
@@ -380,17 +408,32 @@ exports.walletQpayCheck = asyncHandler(async (req, res, next) => {
       if (userId) {
          const pData = await walletApiService.getPayment(userId, walletPaymentId);
          vatInformation = pData?.vatInformation || null;
+         if (pData?.paymentStatus === "PAID") {
+            paymentStatus = "PAID";
+         }
       }
-    } catch {}
+    } catch (err) {
+      console.warn("⚠️ [WALLET QPAY CHECK] Wallet API check failed:", err.message);
+    }
 
-    return res.json({
-      success: true,
-      status: "PAID",
-      walletPaymentId,
-      qpayPaymentId: qpayObject.payment_id || "",
-      vatInformation: vatInformation
-    });
+    // If it's paid in Wallet API but not locally, and it belongs to a local object, we could settle it here
+    if (paymentStatus === "PAID" && qpayObject && !qpayObject.tulsunEsekh) {
+       const io = req.app.get("socketio");
+       await settleWalletPayment(qpayObject, tukhainBaaziinKholbolt, baiguullagiinId, null, io);
+    }
+
+    if (paymentStatus === "PAID") {
+      return res.json({
+        success: true,
+        status: "PAID",
+        walletPaymentId,
+        qpayPaymentId: qpayObject?.payment_id || "",
+        vatInformation: vatInformation
+      });
+    }
   }
+
+  // Otherwise check QPay status if we have a local record
 
   // Otherwise check QPay status
   if (qpayObject.invoice_id) {
@@ -476,6 +519,37 @@ exports.getWalletPayment = asyncHandler(async (req, res, next) => {
   } catch (err) {
     console.error("❌ [WALLET QPAY] Error getting payment details:", err.message);
     throw new aldaa(`Төлбөрийн мэдээлэл авахад алдаа: ${err.message}`);
+  }
+});
+
+// ──────────────────────────────────────────────────────
+//  GET /walletQpay/list
+//  Fetch payment history for the authenticated user
+// ──────────────────────────────────────────────────────
+exports.getWalletQpayList = asyncHandler(async (req, res, next) => {
+  const { db } = require("zevbackv2");
+  
+  const orshinSuugch = await getOrshinSuugchFromToken(req);
+  const userPhone = orshinSuugch?.utas;
+  
+  if (!userPhone) {
+    throw new aldaa("Хэрэглэгчийн утас олдсонгүй. Нэвтрэх шаардлагатай.");
+  }
+
+  try {
+    const payments = await WalletInvoice(db.erunkhiiKholbolt)
+      .find({ userId: userPhone })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+      
+    res.status(200).json({
+      success: true,
+      data: payments
+    });
+  } catch (err) {
+    console.error("❌ [WALLET QPAY] Error getting payment list:", err.message);
+    throw new aldaa(`Төлбөрийн жагсаалт авахад алдаа: ${err.message}`);
   }
 });
 

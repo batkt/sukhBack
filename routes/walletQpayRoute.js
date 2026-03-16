@@ -54,4 +54,15 @@ router.get(
   walletQpayController.getWalletPayment
 );
 
+/**
+ * @route GET /walletQpay/list
+ * @desc  Fetch wallet payment history for the user
+ * @access Private
+ */
+router.get(
+  "/walletQpay/list",
+  tokenShalgakh,
+  walletQpayController.getWalletQpayList
+);
+
 module.exports = router;

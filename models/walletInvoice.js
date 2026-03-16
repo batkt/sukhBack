@@ -27,6 +27,9 @@ const walletInvoiceSchema = new Schema(
     // Optional total amount (if available from Wallet API)
     totalAmount: Number,
 
+    // Order number mapping
+    zakhialgiinDugaar: { type: String },
+
     // Source marker
     source: {
       type: String,
