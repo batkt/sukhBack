@@ -2046,6 +2046,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     await orshinSuugch.save();
 
+    let billingInfo = null;
+
     // Optimized: Consolidate Wallet API calls if address is available
     if (bairIdToUse && doorNoToUse) {
       try {
@@ -2057,7 +2059,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
         );
 
         if (billingResponse && Array.isArray(billingResponse) && billingResponse.length > 0) {
-          let billingInfo = billingResponse[0];
+          billingInfo = billingResponse[0];
           
           if (!billingInfo.billingId && (billingInfo.customerId || billingInfo.customerCode)) {
              try {
@@ -2096,6 +2098,8 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
           if (billingInfo.customerAddress) orshinSuugch.bairniiNer = billingInfo.customerAddress;
           if (billingInfo.customerId) orshinSuugch.walletCustomerId = billingInfo.customerId;
           if (billingInfo.customerCode) orshinSuugch.walletCustomerCode = billingInfo.customerCode;
+          
+          await orshinSuugch.save();
         }
       } catch (billingError) {}
     }
