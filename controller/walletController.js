@@ -317,13 +317,13 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
     const jwt = require("jsonwebtoken");
     const token = req.headers.authorization.split(" ")[1];
     const tokenObject = jwt.verify(token, process.env.APP_SECRET);
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
     
+    // Find orshinSuugch
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
     if (!orshinSuugch) {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
     
-    // Use phone number for this endpoint (Wallet-Service requirement)
     const userId = orshinSuugch.utas;
     const { billingId } = req.params;
     
@@ -331,11 +331,67 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
     }
 
+    // 1. Identify which address this billing belongs to before deleting
+    let billingToRemove = null;
+    try {
+      const billingList = await walletApiService.getBillingList(userId);
+      billingToRemove = billingList.find(b => b.billingId === billingId);
+    } catch (listErr) {
+      console.warn("⚠️ [WALLET REMOVE] Could not fetch billing list for cleanup info:", listErr.message);
+    }
+
+    // 2. Remove from Wallet API
     const result = await walletApiService.removeBilling(userId, billingId);
+
+    // 3. Local Cleanup
+    let localUpdated = false;
+
+    // Remove from toots array
+    if (orshinSuugch.toots && orshinSuugch.toots.length > 0) {
+      const initialLength = orshinSuugch.toots.length;
+      
+      orshinSuugch.toots = orshinSuugch.toots.filter(t => {
+        // If we found the billing info, match strictly
+        if (billingToRemove) {
+          const matchByAddress = t.walletBairId === billingToRemove.bairId && t.walletDoorNo === billingToRemove.doorNo;
+          const matchByCustomer = t.walletCustomerId === billingToRemove.customerId;
+          return !(t.source === "WALLET_API" && (matchByAddress || matchByCustomer));
+        }
+        // Fallback: we don't know the address, so we can't safely remove from array without risk 
+        // unless it's only one. But usually billingId is specific.
+        return true;
+      });
+
+      if (orshinSuugch.toots.length !== initialLength) {
+        localUpdated = true;
+      }
+    }
+
+    // Clear primary fields if they match the deleted billing
+    const isPrimaryMatch = billingToRemove && 
+      (orshinSuugch.walletCustomerId === billingToRemove.customerId || 
+       (orshinSuugch.walletBairId === billingToRemove.bairId && orshinSuugch.walletDoorNo === billingToRemove.doorNo));
+
+    if (isPrimaryMatch || (!billingToRemove && orshinSuugch.walletCustomerId)) {
+      // Clear wallet-specific connection fields - set to empty strings as requested
+      orshinSuugch.walletBairId = "";
+      orshinSuugch.walletDoorNo = "";
+      orshinSuugch.walletCustomerId = "";
+      orshinSuugch.walletCustomerCode = "";
+      orshinSuugch.bairniiNer = "";
+      
+      localUpdated = true;
+    }
+
+    if (localUpdated) {
+      await orshinSuugch.save();
+    }
+
     res.status(200).json({
       success: true,
       data: result,
-      message: "Биллинг амжилттай устгалаа",
+      localUpdated,
+      message: "Биллинг амжилттай устгаж, дотоод мэдээллийг цэвэрлэлээ",
     });
   } catch (err) {
     next(err);
