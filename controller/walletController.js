@@ -340,6 +340,11 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
       console.warn("⚠️ [WALLET REMOVE] Could not fetch billing list for cleanup info:", listErr.message);
     }
 
+    // Capture current primary fields for fallback matching before they are cleared
+    const primaryBairId = orshinSuugch.walletBairId;
+    const primaryDoorNo = orshinSuugch.walletDoorNo;
+    const primaryCustomerId = orshinSuugch.walletCustomerId;
+
     // 2. Remove from Wallet API
     const result = await walletApiService.removeBilling(userId, billingId);
 
@@ -351,14 +356,25 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
       const initialLength = orshinSuugch.toots.length;
       
       orshinSuugch.toots = orshinSuugch.toots.filter(t => {
-        // If we found the billing info, match strictly
+        if (t.source !== "WALLET_API") return true;
+
+        // A. Match by billing info from API (if we successfully fetched it)
         if (billingToRemove) {
-          const matchByAddress = t.walletBairId === billingToRemove.bairId && t.walletDoorNo === billingToRemove.doorNo;
-          const matchByCustomer = t.walletCustomerId === billingToRemove.customerId;
-          return !(t.source === "WALLET_API" && (matchByAddress || matchByCustomer));
+          const matchByAddress = String(t.walletBairId || "") === String(billingToRemove.bairId || "") && 
+                                 String(t.walletDoorNo || "") === String(billingToRemove.doorNo || "");
+          const matchByCustomer = billingToRemove.customerId && String(t.walletCustomerId || "") === String(billingToRemove.customerId);
+          
+          if (matchByAddress || matchByCustomer) return false;
         }
-        // Fallback: we don't know the address, so we can't safely remove from array without risk 
-        // unless it's only one. But usually billingId is specific.
+
+        // B. Fallback: Match against the primary wallet fields we captured
+        const matchPrimaryAddress = primaryBairId && primaryDoorNo && 
+                                    String(t.walletBairId || "") === String(primaryBairId) && 
+                                    String(t.walletDoorNo || "") === String(primaryDoorNo);
+        const matchPrimaryCustomer = primaryCustomerId && String(t.walletCustomerId || "") === String(primaryCustomerId);
+
+        if (matchPrimaryAddress || matchPrimaryCustomer) return false;
+
         return true;
       });
 
