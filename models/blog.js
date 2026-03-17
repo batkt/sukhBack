@@ -6,7 +6,6 @@ mongoose.pluralize(null);
 const blogSchema = new Schema(
   {
     baiguullagiinId: { type: String, required: true },
-    barilgiinId: { type: String },
     title: { type: String },
     content: { type: String },
     images: [

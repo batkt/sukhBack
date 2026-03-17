@@ -4,7 +4,7 @@ const Blog = require("../models/blog");
 
 exports.blogIlgeeye = asyncHandler(async (req, res, next) => {
   try {
-    const { baiguullagiinId, barilgiinId, title, content, images } = req.body;
+    const { baiguullagiinId, title, content, images } = req.body;
 
     if (!baiguullagiinId) {
       return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
@@ -21,7 +21,6 @@ exports.blogIlgeeye = asyncHandler(async (req, res, next) => {
     const blogModel = Blog(kholbolt);
     const newBlog = new blogModel({
       baiguullagiinId,
-      barilgiinId,
       title,
       content,
       ognoo: new Date(),
@@ -50,10 +49,9 @@ exports.blogIlgeeye = asyncHandler(async (req, res, next) => {
           message: "шинэ мэдээлэл орлоо",
         });
         
-        // Also notify all residents in that building or organization
+        // Also notify all residents in that organization
         io.emit("blogUpdate", {
             baiguullagiinId,
-            barilgiinId,
             message: "шинэ мэдээлэл орлоо"
         });
       }
@@ -69,7 +67,7 @@ exports.blogIlgeeye = asyncHandler(async (req, res, next) => {
 
 exports.blogAvya = asyncHandler(async (req, res, next) => {
   try {
-    const { baiguullagiinId, barilgiinId } = req.query;
+    const { baiguullagiinId } = req.query;
 
     if (!baiguullagiinId) {
       return res.status(400).json({ success: false, message: "baiguullagiinId is required" });
@@ -84,7 +82,6 @@ exports.blogAvya = asyncHandler(async (req, res, next) => {
     }
 
     const query = { baiguullagiinId };
-    if (barilgiinId) query.barilgiinId = barilgiinId;
 
     const list = await Blog(kholbolt).find(query).sort({ createdAt: -1 }).lean();
 
@@ -97,7 +94,7 @@ exports.blogAvya = asyncHandler(async (req, res, next) => {
 exports.blogZasah = asyncHandler(async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { baiguullagiinId, title, content, barilgiinId } = req.body;
+    const { baiguullagiinId, title, content } = req.body;
 
     if (!id || !baiguullagiinId) {
       return res.status(400).json({ success: false, message: "id and baiguullagiinId are required" });
@@ -111,7 +108,7 @@ exports.blogZasah = asyncHandler(async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
     }
 
-    const updateData = { title, content, barilgiinId, updatedAt: new Date() };
+    const updateData = { title, content, updatedAt: new Date() };
     
     // Handle new images if any
     if (req.files && req.files.length > 0) {
