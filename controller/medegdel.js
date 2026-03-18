@@ -1,6 +1,9 @@
 const asyncHandler = require("express-async-handler");
 const { db } = require("zevbackv2");
 const Medegdel = require("../models/medegdel");
+const OrshinSuugch = require("../models/orshinSuugch");
+const Ajiltan = require("../models/ajiltan");
+const { orshinSuugchidSonorduulgaIlgeeye } = require("./appNotification");
 
 exports.medegdelUnreadCount = asyncHandler(async (req, res, next) => {
   try {
@@ -378,6 +381,21 @@ exports.medegdelZasah = asyncHandler(async (req, res, next) => {
         if (io && medegdel.orshinSuugchId) {
           const socketEventName = "orshinSuugch" + medegdel.orshinSuugchId;
           io.emit(socketEventName, replyData);
+          
+          // Add PUSH notification for reply
+          try {
+            const resident = await OrshinSuugch(kholbolt).findById(medegdel.orshinSuugchId).select("firebaseToken");
+            if (resident && resident.firebaseToken) {
+                orshinSuugchidSonorduulgaIlgeeye(resident.firebaseToken, {
+                    title: replyData.title,
+                    body: replyData.message,
+                    type: "medegdel_reply",
+                    data: { id: String(medegdel._id), parentId: String(medegdel._id) }
+                });
+            }
+          } catch (pushErr) {
+            console.error("Reply push error:", pushErr.message);
+          }
         }
       } catch (replyError) {
         // Error sending reply notification - silently continue
@@ -552,6 +570,44 @@ exports.medegdelIlgeeye = asyncHandler(async (req, res, next) => {
         // Notify web admin (Санал хүсэлт) in real time so new notification appears without refresh
         const adminEvent = "baiguullagiin" + baiguullagiinId;
         io.emit(adminEvent, { type: "medegdelNew", data: medegdelObj });
+      }
+
+      // Add PUSH notification for residents
+      try {
+        const resident = await OrshinSuugch(kholbolt).findById(id).select("firebaseToken");
+        if (resident && resident.firebaseToken) {
+          orshinSuugchidSonorduulgaIlgeeye(resident.firebaseToken, {
+            title: medegdelObj.title || "Таньд мэдэгдэл ирлээ!",
+            body: medegdelObj.message || "Шинэ мэдэгдэл",
+            type: "medegdel",
+            data: { id: String(medegdel._id) }
+          });
+        }
+      } catch (pushErr) {
+        console.error("Resident push error:", pushErr.message);
+      }
+    }
+
+    // If it's a complaint or suggestion (gomdol/sanal), notify admins via PUSH too
+    if (turul === "gomdol" || turul === "sanal" || turul === "санал" || turul === "гомдол") {
+      try {
+        const admins = await Ajiltan(db.erunkhiiKholbolt).find({ 
+          baiguullagiinId: baiguullagiinId,
+          firebaseToken: { $exists: true, $ne: "" }
+        }).select("firebaseToken");
+        
+        for (const adminItem of admins) {
+          if (adminItem.firebaseToken) {
+            orshinSuugchidSonorduulgaIlgeeye(adminItem.firebaseToken, {
+              title: "Шинэ санал хүсэлт",
+              body: medeelel?.body || medeelel?.message || "Шинэ санал хүсэлт ирлээ",
+              type: "admin_notification",
+              data: { type: "medegdel", baiguullagiinId }
+            });
+          }
+        }
+      } catch (adminPushErr) {
+        console.error("Admin push error:", adminPushErr.message);
       }
     }
 
@@ -729,6 +785,27 @@ exports.medegdelUserReply = asyncHandler(async (req, res, next) => {
       const userEvent = "orshinSuugch" + userId;
       io.emit(userEvent, replyObj);
     }
+    
+    // Notify admins when user replies
+    try {
+      const admins = await Ajiltan(db.erunkhiiKholbolt).find({ 
+        baiguullagiinId: baiguullagiinId,
+        firebaseToken: { $exists: true, $ne: "" }
+      }).select("firebaseToken");
+      
+      for (const adminItem of admins) {
+        if (adminItem.firebaseToken) {
+          orshinSuugchidSonorduulgaIlgeeye(adminItem.firebaseToken, {
+            title: "Оршин суугч хариу ирүүллээ",
+            body: replyObj.message || "Шинэ хариу ирлээ",
+            type: "admin_notification",
+            data: { type: "medegdel_user_reply", parentId: String(parentId) }
+          });
+        }
+      }
+    } catch (pushErr) {
+      console.error("User reply push notify error:", pushErr.message);
+    }
     if (io && root.baiguullagiinId) {
       const adminEvent = "baiguullagiin" + root.baiguullagiinId;
       io.emit(adminEvent, { type: "medegdelUserReply", data: replyObj });
@@ -825,6 +902,21 @@ exports.medegdelAdminReply = asyncHandler(async (req, res, next) => {
     const userIdStr = userId != null ? String(userId) : null;
     if (io && userIdStr) {
       io.emit("orshinSuugch" + userIdStr, replyObj);
+      
+      // Add PUSH notification for admin reply
+      try {
+        const resident = await OrshinSuugch(kholbolt).findById(userId).select("firebaseToken");
+        if (resident && resident.firebaseToken) {
+            orshinSuugchidSonorduulgaIlgeeye(resident.firebaseToken, {
+                title: replyObj.title,
+                body: replyObj.message,
+                type: "medegdel_reply",
+                data: { id: String(replyObj._id), parentId: String(parentId) }
+            });
+        }
+      } catch (pushErr) {
+        console.error("Admin reply push error:", pushErr.message);
+      }
     }
     if (io && root.baiguullagiinId) {
       io.emit("baiguullagiin" + root.baiguullagiinId, { type: "medegdelAdminReply", data: replyObj });

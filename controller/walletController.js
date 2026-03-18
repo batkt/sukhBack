@@ -179,9 +179,17 @@ exports.walletBillingList = asyncHandler(async (req, res, next) => {
     const billingList = await walletApiService.getBillingList(userId);
     const data = Array.isArray(billingList) ? billingList : [];
     
+    const enrichedData = data.map(bill => {
+      const customNick = orshinSuugch.billNicknames && orshinSuugch.billNicknames.find(n => n.billingId === bill.billingId);
+      return {
+        ...bill,
+        nickname: customNick ? customNick.nickname : null
+      };
+    });
+    
     res.status(200).json({
       success: true,
-      data: data,
+      data: enrichedData,
     });
   } catch (err) {
     console.error("❌ [WALLET BILLING LIST] Error:", err.message);
@@ -485,6 +493,57 @@ exports.walletBillingChangeName = asyncHandler(async (req, res, next) => {
       success: true,
       data: result,
       message: "Биллингийн нэр амжилттай өөрчлөгдлөө",
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+exports.walletBillingSetNickname = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const OrshinSuugch = require("../models/orshinSuugch");
+    const jwt = require("jsonwebtoken");
+    if (!req.headers.authorization) {
+      throw new aldaa("Нэвтрэх шаардлагатай!");
+    }
+    const token = req.headers.authorization.split(" ")[1];
+    const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+    
+    const { billingId } = req.params;
+    const { nickname } = req.body;
+    
+    if (!billingId) {
+      throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
+    }
+
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    if (!orshinSuugch.billNicknames) {
+      orshinSuugch.billNicknames = [];
+    }
+
+    const existingIndex = orshinSuugch.billNicknames.findIndex(n => n.billingId === billingId);
+    if (existingIndex >= 0) {
+      if (nickname) {
+        orshinSuugch.billNicknames[existingIndex].nickname = nickname;
+      } else {
+        // Remove if empty
+        orshinSuugch.billNicknames.splice(existingIndex, 1);
+      }
+    } else if (nickname) {
+      orshinSuugch.billNicknames.push({ billingId, nickname });
+    }
+
+    await orshinSuugch.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Биллингийн хоч нэр амжилттай хадгалагдлаа",
+      billNicknames: orshinSuugch.billNicknames
     });
   } catch (err) {
     next(err);

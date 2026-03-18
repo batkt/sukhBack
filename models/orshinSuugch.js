@@ -71,7 +71,10 @@ const orshinSuugchSchema = new Schema(
     walletCustomerCode: String,
     walletBairId: String, // Keep for backward compatibility
     walletDoorNo: String, // Keep for backward compatibility
-
+    billNicknames: [{
+      billingId: String,
+      nickname: String,
+    }],
 
   },
   {

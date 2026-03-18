@@ -20,6 +20,7 @@ const {
   walletPaymentGet,
   walletPaymentUpdateQPay,
   walletUserEdit,
+  walletBillingSetNickname,
 } = require("../controller/walletController");
 
 router.get("/billers", tokenShalgakh, walletBillers);
@@ -34,6 +35,7 @@ router.delete("/billing/:billingId", tokenShalgakh, walletBillingRemove);
 router.delete("/billing/:billingId/bill/:billId", tokenShalgakh, walletBillRemove);
 router.put("/billing/:billingId/recover", tokenShalgakh, walletBillRecover);
 router.put("/billing/:billingId/name", tokenShalgakh, walletBillingChangeName);
+router.put("/billing/:billingId/nickname", tokenShalgakh, walletBillingSetNickname);
 
 router.post("/invoice", tokenShalgakh, walletInvoiceCreate);
 router.get("/invoice/:invoiceId", tokenShalgakh, walletInvoiceGet);
