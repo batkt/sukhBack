@@ -764,6 +764,8 @@ async function saveBilling(userId, billingData) {
     );
 
     if (response.data && response.data.responseCode && response.data.data) {
+      // CLEAR CACHE for this user
+      billingListCache.delete(`billing_list_${userId}`);
       return response.data.data;
     }
     throw new Error("Failed to save billing in Wallet API");
@@ -818,6 +820,8 @@ async function removeBilling(userId, billingId) {
     );
 
     if (isSuccess) {
+      // CLEAR CACHE for this user
+      billingListCache.delete(`billing_list_${userId}`);
       return response.data;
     }
 

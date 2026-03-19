@@ -493,22 +493,24 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
     let localUpdated = false;
 
     // Remove from toots array
+    let removedToots = [];
     if (orshinSuugch.toots && orshinSuugch.toots.length > 0) {
       const initialLength = orshinSuugch.toots.length;
 
       orshinSuugch.toots = orshinSuugch.toots.filter((t) => {
         if (t.source !== "WALLET_API") return true;
 
-        if (String(t.billingId) === String(billingId)) return false;
+        let shouldRemove = false;
+        if (String(t.billingId) === String(billingId)) shouldRemove = true;
 
         const bodyBairId = req.body?.bairId || req.query?.bairId;
         const bodyDoorNo = req.body?.doorNo || req.query?.doorNo;
         if (bodyBairId && bodyDoorNo) {
-           if (String(t.walletBairId) === String(bodyBairId) && String(t.walletDoorNo) === String(bodyDoorNo)) return false;
+           if (String(t.walletBairId) === String(bodyBairId) && String(t.walletDoorNo) === String(bodyDoorNo)) shouldRemove = true;
         }
 
         // A. Match by billing info from API (if we successfully fetched it)
-        if (billingToRemove) {
+        if (!shouldRemove && billingToRemove) {
           const matchByAddress =
             String(t.walletBairId || "") ===
               String(billingToRemove.bairId || "") &&
@@ -523,14 +525,43 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
             String(t.walletCustomerCode || "") ===
               String(billingToRemove.customerCode);
 
-          if (matchByAddress || matchByCustomer || matchByCustomerCode) return false;
+          if (matchByAddress || matchByCustomer || matchByCustomerCode) shouldRemove = true;
         }
-
+        
+        // Final fallback: If we couldn't fetch billingToRemove from API, but we know the UI is deleting
+        // an address from the UI, and the user HAS Wallet API toots, 
+        // We will just let the cache miss happen, and hopefully it matches by body.
+        
+        if (shouldRemove) {
+          removedToots.push(t);
+          return false;
+        }
         return true;
       });
 
       if (orshinSuugch.toots.length !== initialLength) {
         localUpdated = true;
+        
+        // Check if any removed toot matches the primary orshinSuugch fields
+        let clearPrimaryFields = false;
+        for (const rt of removedToots) {
+          if (
+            (rt.barilgiinId && String(rt.barilgiinId) === String(orshinSuugch.barilgiinId)) ||
+            (rt.baiguullagiinId && String(rt.baiguullagiinId) === String(orshinSuugch.baiguullagiinId))
+          ) {
+            clearPrimaryFields = true;
+            break;
+          }
+        }
+        
+        if (clearPrimaryFields) {
+          orshinSuugch.bairniiNer = "";
+          orshinSuugch.barilgiinId = null;
+          orshinSuugch.baiguullagiinId = null;
+          orshinSuugch.davkhar = "";
+          orshinSuugch.orts = "";
+          orshinSuugch.toot = "";
+        }
       }
     }
 
