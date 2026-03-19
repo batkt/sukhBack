@@ -4009,8 +4009,24 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
         };
 
         // saveBilling requires phoneNumber, not walletUserId
-        await walletApiService.saveBilling(phoneNumber, billingData);
+        const saveResult = await walletApiService.saveBilling(phoneNumber, billingData);
         billingConnected = true;
+
+        // ✅ Capture the billingId returned so the toot entry and parent document get it
+        if (saveResult) {
+          if (saveResult.billingId && !billingInfo.billingId) {
+            billingInfo.billingId = saveResult.billingId;
+          }
+          if (saveResult.billingName && !billingInfo.billingName) {
+            billingInfo.billingName = saveResult.billingName;
+          }
+          if (saveResult.customerName && !billingInfo.customerName) {
+            billingInfo.customerName = saveResult.customerName;
+          }
+          if (saveResult.customerAddress && !billingInfo.customerAddress) {
+            billingInfo.customerAddress = saveResult.customerAddress;
+          }
+        }
       } catch (connectError) {
         connectionError = connectError.message;
       }
