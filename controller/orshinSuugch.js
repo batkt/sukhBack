@@ -3882,6 +3882,9 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
     const phoneNumber = orshinSuugch.utas;
     const bairId = req.body.bairId;
     const doorNo = req.body.doorNo;
+    // The frontend sends the selected customer's IDs — use them to pick the right entry
+    const requestedCustomerId = req.body.customerId || req.body.walletCustomerId || null;
+    const requestedCustomerCode = req.body.customerCode || req.body.walletCustomerCode || null;
 
     let billingInfo = null;
     try {
@@ -3893,7 +3896,17 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
       );
 
       if (billingResponse && billingResponse.length > 0) {
-        billingInfo = billingResponse[0];
+        // ✅ Match by the customerId/customerCode sent from the frontend (selected customer)
+        // Fall back to first item only if no specific customer was requested or no match found
+        if (requestedCustomerId || requestedCustomerCode) {
+          billingInfo =
+            billingResponse.find((b) =>
+              (requestedCustomerId && b.customerId === requestedCustomerId) ||
+              (requestedCustomerCode && b.customerCode === requestedCustomerCode)
+            ) || billingResponse[0]; // fallback to first if truly no match
+        } else {
+          billingInfo = billingResponse[0];
+        }
 
         // If billingId is not in the response, try to get it using customerId
         if (!billingInfo.billingId && billingInfo.customerId) {
@@ -4102,19 +4115,33 @@ exports.walletBillingHavakh = asyncHandler(async (req, res, next) => {
           const walletTootEntry = {
             toot: doorNo,
             source: "WALLET_API",
+            bairniiNer: billingInfo.customerAddress || walletBairName,
+            ner: billingInfo.customerName
+              ? billingInfo.customerName.split(" ").slice(1).join(" ") || billingInfo.customerName
+              : (orshinSuugch.ner || ""),
+            ovog: billingInfo.customerName && billingInfo.customerName.split(" ").length > 1
+              ? billingInfo.customerName.split(" ")[0]
+              : (orshinSuugch.ovog || ""),
             walletBairId: bairId,
             walletDoorNo: doorNo,
             walletBairName: walletBairName,
+            walletCustomerId: billingInfo.customerId || "",
+            walletCustomerCode: billingInfo.customerCode || "",
+            billingId: billingInfo.billingId || "",
             baiguullagiinId: CENTRALIZED_ORG_ID,
             barilgiinId: barilgaResult.barilgiinId,
             createdAt: new Date(),
           };
 
+          // Deduplicate by walletBairId + walletDoorNo + walletCustomerId
+          // This allows two residents at the same address to each have their own toot
           const existingWalletTootIndex = orshinSuugch.toots.findIndex(
             (t) =>
               t.source === "WALLET_API" &&
               t.walletBairId === bairId &&
-              t.walletDoorNo === doorNo,
+              t.walletDoorNo === doorNo &&
+              (!t.walletCustomerId || !walletTootEntry.walletCustomerId ||
+                t.walletCustomerId === walletTootEntry.walletCustomerId),
           );
 
           if (existingWalletTootIndex >= 0) {
