@@ -379,12 +379,36 @@ exports.walletBillingSave = asyncHandler(async (req, res, next) => {
         tokenObject.id,
       );
 
+      const {
+        findOrCreateBarilgaFromWallet,
+        CENTRALIZED_ORG_ID,
+      } = require("./negdsenSan");
+
       if (orshinSuugch && result) {
         if (!orshinSuugch.toots) orshinSuugch.toots = [];
+
+        // Extract name parts from customerName
+        const nameParts = result.customerName
+          ? result.customerName.split(" ")
+          : [];
+        const ovog =
+          nameParts.length > 1 ? nameParts.slice(0, -1).join(" ") : "";
+        const ner = nameParts.length > 0 ? nameParts[nameParts.length - 1] : "";
+
+        // Find or create barilga in centralized org
+        const barilgaResult = await findOrCreateBarilgaFromWallet(
+          result.bairId || billingData.bairId,
+          result.bairName,
+        );
 
         const newTootEntry = {
           toot: result.doorNo || billingData.doorNo || "",
           source: "WALLET_API",
+          bairniiNer: result.bairName || "",
+          ovog: ovog,
+          ner: ner,
+          baiguullagiinId: barilgaResult.baiguullagiinId,
+          barilgiinId: barilgaResult.barilgiinId,
           walletBairId: result.bairId || billingData.bairId || "",
           walletDoorNo: result.doorNo || billingData.doorNo || "",
           walletUserId: userId, // Current walletUserId from getUserIdFromToken

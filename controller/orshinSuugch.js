@@ -896,6 +896,11 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           const walletTootEntry = {
             toot: req.body.doorNo,
             source: "WALLET_API",
+            bairniiNer: walletBairName,
+            ovog: req.body.ovog || orshinSuugch.ovog || "",
+            ner: req.body.ner || orshinSuugch.ner || "",
+            baiguullagiinId: barilgaResult.baiguullagiinId,
+            barilgiinId: barilgaResult.barilgiinId,
             walletBairId: req.body.bairId,
             walletDoorNo: req.body.doorNo,
             walletUserId: walletUserId || orshinSuugch.walletUserId || "",
@@ -903,7 +908,6 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
               req.body.customerId || req.body.walletCustomerId || "",
             walletCustomerCode:
               req.body.customerCode || req.body.walletCustomerCode || "",
-            walletBairName: walletBairName, // Include if we have it
             createdAt: new Date(),
           };
 

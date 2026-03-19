@@ -25,6 +25,8 @@ const orshinSuugchSchema = new Schema(
         horoo: Schema.Types.Mixed,
         soh: String,
         bairniiNer: String,
+        ovog: String, // Resident's ovog for this specific address
+        ner: String, // Resident's ner for this specific address
         walletUserId: String, // Global Wallet User ID
         walletCustomerId: String, // Added: For multiple wallet accounts
         walletCustomerCode: String, // Added: For multiple wallet accounts
