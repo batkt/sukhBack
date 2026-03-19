@@ -497,6 +497,27 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
     if (orshinSuugch.toots && orshinSuugch.toots.length > 0) {
       const initialLength = orshinSuugch.toots.length;
 
+      // PRE-FETCH building names to ensure robust matching if bairId is missing from API
+      let tootBuildingNames = {};
+      try {
+        const Baiguullaga = require("../models/baiguullaga");
+        for (const t of orshinSuugch.toots) {
+          if (t.barilgiinId && !tootBuildingNames[t.barilgiinId]) {
+            const org = await Baiguullaga(db.erunkhiiKholbolt).findOne({
+              "barilguud._id": t.barilgiinId
+            });
+            if (org) {
+              const blg = org.barilguud.id(t.barilgiinId);
+              if (blg && blg.ner) {
+                tootBuildingNames[t.barilgiinId] = blg.ner;
+              }
+            }
+          }
+        }
+      } catch (err) {
+         console.warn("⚠️ Could not pre-fetch building names for toots cleanup");
+      }
+
       orshinSuugch.toots = orshinSuugch.toots.filter((t) => {
         if (t.source !== "WALLET_API") return true;
 
@@ -525,7 +546,23 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
             String(t.walletCustomerCode || "") ===
               String(billingToRemove.customerCode);
 
-          if (matchByAddress || matchByCustomer || matchByCustomerCode) shouldRemove = true;
+          if (matchByAddress || matchByCustomer || matchByCustomerCode) {
+            shouldRemove = true;
+          } else {
+            // Fallback Match by text customerAddress (missing bairId in Wallet API response)
+            if (billingToRemove.customerAddress) {
+               const bName = t.bairniiNer || tootBuildingNames[t.barilgiinId];
+               if (bName) {
+                  // Some logic to ensure we loosely match it without false positives
+                  // "БГД 20-р хороо 12-р байр" and "48"
+                  const cleanCustomerAddress = String(billingToRemove.customerAddress).replace(/\s+/g, '').toLowerCase();
+                  const cleanBName = String(bName).replace(/\s+/g, '').toLowerCase();
+                  if (cleanCustomerAddress.includes(cleanBName) && cleanCustomerAddress.includes(String(t.walletDoorNo))) {
+                     shouldRemove = true;
+                  }
+               }
+            }
+          }
         }
         
         // Final fallback: If we couldn't fetch billingToRemove from API, but we know the UI is deleting
@@ -546,8 +583,8 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
         let clearPrimaryFields = false;
         for (const rt of removedToots) {
           if (
-            (rt.barilgiinId && String(rt.barilgiinId) === String(orshinSuugch.barilgiinId)) ||
-            (rt.baiguullagiinId && String(rt.baiguullagiinId) === String(orshinSuugch.baiguullagiinId))
+            rt.barilgiinId && String(rt.barilgiinId) === String(orshinSuugch.barilgiinId) &&
+            rt.toot && String(rt.toot) === String(orshinSuugch.toot)
           ) {
             clearPrimaryFields = true;
             break;
