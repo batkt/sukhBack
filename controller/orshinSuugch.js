@@ -893,12 +893,17 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           orshinSuugch.baiguullagiinId = CENTRALIZED_ORG_ID;
           orshinSuugch.barilgiinId = barilgaResult.barilgiinId;
 
+          // Parse customerName into ovog + ner if not directly provided
+          const _custNameParts = (req.body.customerName || "").split(" ").filter(Boolean);
+          const _custNer = _custNameParts.length > 0 ? _custNameParts[_custNameParts.length - 1] : "";
+          const _custOvog = _custNameParts.length > 1 ? _custNameParts.slice(0, -1).join(" ") : "";
+
           const walletTootEntry = {
             toot: req.body.doorNo,
             source: "WALLET_API",
-            bairniiNer: walletBairName || req.body.bairId,
-            ovog: req.body.ovog || orshinSuugch.ovog || "",
-            ner: req.body.ner || orshinSuugch.ner || "",
+            bairniiNer: walletBairName || req.body.customerAddress || req.body.bairId,
+            ovog: req.body.ovog || orshinSuugch.ovog || _custOvog || "",
+            ner: req.body.ner || orshinSuugch.ner || _custNer || "",
             baiguullagiinId: barilgaResult.baiguullagiinId,
             barilgiinId: barilgaResult.barilgiinId,
             walletBairId: req.body.bairId,
@@ -929,14 +934,19 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           }
         } catch (error) {
           // Fallback: just add to toots array without centralized org
+          // Parse customerName into ovog + ner if not directly provided
+          const _custNameParts2 = (req.body.customerName || "").split(" ").filter(Boolean);
+          const _custNer2 = _custNameParts2.length > 0 ? _custNameParts2[_custNameParts2.length - 1] : "";
+          const _custOvog2 = _custNameParts2.length > 1 ? _custNameParts2.slice(0, -1).join(" ") : "";
+
           const walletTootEntry = {
             toot: req.body.doorNo,
             source: "WALLET_API",
             walletBairId: req.body.bairId,
             walletDoorNo: req.body.doorNo,
-            bairniiNer: walletBairName || req.body.bairId,
-            ner: req.body.ner || orshinSuugch.ner || "",
-            ovog: req.body.ovog || orshinSuugch.ovog || "",
+            bairniiNer: walletBairName || req.body.customerAddress || req.body.bairId,
+            ner: req.body.ner || orshinSuugch.ner || _custNer2 || "",
+            ovog: req.body.ovog || orshinSuugch.ovog || _custOvog2 || "",
             walletUserId: walletUserId || orshinSuugch.walletUserId || "",
             walletCustomerId:
               req.body.customerId || req.body.walletCustomerId || "",
@@ -965,14 +975,19 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         }
       } else {
         // Fallback: add to toots array without centralized org (if bairName not provided)
+        // Parse customerName into ovog + ner if not directly provided
+        const _custNameParts3 = (req.body.customerName || "").split(" ").filter(Boolean);
+        const _custNer3 = _custNameParts3.length > 0 ? _custNameParts3[_custNameParts3.length - 1] : "";
+        const _custOvog3 = _custNameParts3.length > 1 ? _custNameParts3.slice(0, -1).join(" ") : "";
+
         const walletTootEntry = {
           toot: req.body.doorNo,
           source: "WALLET_API",
           walletBairId: req.body.bairId,
           walletDoorNo: req.body.doorNo,
-          bairniiNer: req.body.bairName || req.body.bairId,
-          ner: req.body.ner || orshinSuugch.ner || "",
-          ovog: req.body.ovog || orshinSuugch.ovog || "",
+          bairniiNer: req.body.bairName || req.body.customerAddress || req.body.bairId,
+          ner: req.body.ner || orshinSuugch.ner || _custNer3 || "",
+          ovog: req.body.ovog || orshinSuugch.ovog || _custOvog3 || "",
           walletUserId: walletUserId || orshinSuugch.walletUserId || "",
           walletCustomerId:
             req.body.customerId || req.body.walletCustomerId || "",
