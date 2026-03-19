@@ -896,7 +896,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           const walletTootEntry = {
             toot: req.body.doorNo,
             source: "WALLET_API",
-            bairniiNer: walletBairName,
+            bairniiNer: walletBairName || req.body.bairId,
             ovog: req.body.ovog || orshinSuugch.ovog || "",
             ner: req.body.ner || orshinSuugch.ner || "",
             baiguullagiinId: barilgaResult.baiguullagiinId,
@@ -932,6 +932,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
             source: "WALLET_API",
             walletBairId: req.body.bairId,
             walletDoorNo: req.body.doorNo,
+            bairniiNer: walletBairName || req.body.bairId,
+            ner: req.body.ner || orshinSuugch.ner || "",
+            ovog: req.body.ovog || orshinSuugch.ovog || "",
             walletUserId: walletUserId || orshinSuugch.walletUserId || "",
             walletCustomerId:
               req.body.customerId || req.body.walletCustomerId || "",
@@ -963,6 +966,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           source: "WALLET_API",
           walletBairId: req.body.bairId,
           walletDoorNo: req.body.doorNo,
+          bairniiNer: req.body.bairName || req.body.bairId,
+          ner: req.body.ner || orshinSuugch.ner || "",
+          ovog: req.body.ovog || orshinSuugch.ovog || "",
           walletUserId: walletUserId || orshinSuugch.walletUserId || "",
           walletCustomerId:
             req.body.customerId || req.body.walletCustomerId || "",
@@ -2161,7 +2167,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             source: "WALLET_API",
             walletBairId: bairIdToUse,
             walletDoorNo: doorNoToUse,
-            walletBairName: walletBairName,
+            bairniiNer: walletBairName || bairIdToUse,
+            ner: orshinSuugch.ner || "",
+            ovog: orshinSuugch.ovog || "",
             baiguullagiinId: CENTRALIZED_ORG_ID,
             barilgiinId: barilgaResult.barilgiinId,
             createdAt: new Date(),
@@ -2189,6 +2197,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
             source: "WALLET_API",
             walletBairId: bairIdToUse,
             walletDoorNo: doorNoToUse,
+            bairniiNer: walletBairName || bairIdToUse,
+            ner: orshinSuugch.ner || "",
+            ovog: orshinSuugch.ovog || "",
             createdAt: new Date(),
           };
 

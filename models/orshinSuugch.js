@@ -27,6 +27,7 @@ const orshinSuugchSchema = new Schema(
         bairniiNer: String,
         ovog: String, // Resident's ovog for this specific address
         ner: String, // Resident's ner for this specific address
+        billingId: String, // Added: For identifying billing in Wallet API
         walletUserId: String, // Global Wallet User ID
         walletCustomerId: String, // Added: For multiple wallet accounts
         walletCustomerCode: String, // Added: For multiple wallet accounts

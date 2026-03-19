@@ -414,6 +414,7 @@ exports.walletBillingSave = asyncHandler(async (req, res, next) => {
           walletUserId: userId, // Current walletUserId from getUserIdFromToken
           walletCustomerId: result.customerId || "",
           walletCustomerCode: result.customerCode || "",
+          billingId: result.billingId || billingData.billingId || result.id || "",
           createdAt: new Date(),
         };
 
@@ -498,6 +499,14 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
       orshinSuugch.toots = orshinSuugch.toots.filter((t) => {
         if (t.source !== "WALLET_API") return true;
 
+        if (String(t.billingId) === String(billingId)) return false;
+
+        const bodyBairId = req.body?.bairId || req.query?.bairId;
+        const bodyDoorNo = req.body?.doorNo || req.query?.doorNo;
+        if (bodyBairId && bodyDoorNo) {
+           if (String(t.walletBairId) === String(bodyBairId) && String(t.walletDoorNo) === String(bodyDoorNo)) return false;
+        }
+
         // A. Match by billing info from API (if we successfully fetched it)
         if (billingToRemove) {
           const matchByAddress =
@@ -509,14 +518,29 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
             billingToRemove.customerId &&
             String(t.walletCustomerId || "") ===
               String(billingToRemove.customerId);
+          const matchByCustomerCode =
+            billingToRemove.customerCode &&
+            String(t.walletCustomerCode || "") ===
+              String(billingToRemove.customerCode);
 
-          if (matchByAddress || matchByCustomer) return false;
+          if (matchByAddress || matchByCustomer || matchByCustomerCode) return false;
         }
 
         return true;
       });
 
       if (orshinSuugch.toots.length !== initialLength) {
+        localUpdated = true;
+      }
+    }
+
+    // Remove from billNicknames array if it exists
+    if (orshinSuugch.billNicknames && orshinSuugch.billNicknames.length > 0) {
+      const initialNicknameLength = orshinSuugch.billNicknames.length;
+      orshinSuugch.billNicknames = orshinSuugch.billNicknames.filter(
+        (n) => n.billingId !== billingId
+      );
+      if (orshinSuugch.billNicknames.length !== initialNicknameLength) {
         localUpdated = true;
       }
     }
