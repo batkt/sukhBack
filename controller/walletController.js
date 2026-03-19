@@ -418,12 +418,14 @@ exports.walletBillingSave = asyncHandler(async (req, res, next) => {
           createdAt: new Date(),
         };
 
-        // Check if already exists
+        // Check if already exists — match by customerId too so same bairId+doorNo but different customers create separate entries
         const existingIndex = orshinSuugch.toots.findIndex(
           (t) =>
             t.source === "WALLET_API" &&
             t.walletBairId === newTootEntry.walletBairId &&
-            t.walletDoorNo === newTootEntry.walletDoorNo,
+            t.walletDoorNo === newTootEntry.walletDoorNo &&
+            (!t.walletCustomerId || !newTootEntry.walletCustomerId ||
+              t.walletCustomerId === newTootEntry.walletCustomerId),
         );
 
         if (existingIndex >= 0) {
