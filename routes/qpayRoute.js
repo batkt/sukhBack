@@ -270,10 +270,12 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             if (orshinSuugch) {
               userPhoneNumber = orshinSuugch.utas;
 
+              const hasWalletData = orshinSuugch.walletUserId || (orshinSuugch.toots && orshinSuugch.toots.some(t => t.source === "WALLET_API"));
+
               // 1) If frontend explicitly asks for Wallet QPay and wallet data exists, prefer WALLET_API
               if (
                 addressSourceOverride === "WALLET_API" &&
-                (orshinSuugch.walletUserId || orshinSuugch.walletBairId)
+                hasWalletData
               ) {
                 detectedSource = "WALLET_API";
                 useWalletQPay = true;
@@ -284,7 +286,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 useWalletQPay = false;
               }
               // 3) Auto-detect: if user has wallet data, use Wallet QPay even if baiguullagiinId also exists
-              else if (orshinSuugch.walletUserId || orshinSuugch.walletBairId) {
+              else if (hasWalletData) {
                 detectedSource = "WALLET_API";
                 useWalletQPay = true;
               }

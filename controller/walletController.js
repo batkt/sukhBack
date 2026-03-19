@@ -26,14 +26,23 @@ async function getUserIdFromToken(req) {
   }
 
   const { db } = require("zevbackv2");
-  const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+  const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+    tokenObject.id,
+  );
   if (!orshinSuugch) {
     throw new aldaa("Хэрэглэгч олдсонгүй!");
   }
 
   // Wallet-Service expects walletUserId (UUID) in userId header, not phone number
-  // Return walletUserId if available, otherwise fall back to phone number
-  return orshinSuugch.walletUserId || orshinSuugch.utas || tokenObject.id;
+  // Search in toots for WALLET_API walletUserId
+  const walletToot =
+    orshinSuugch.toots &&
+    orshinSuugch.toots.find((t) => t.source === "WALLET_API" && t.walletUserId);
+  const walletUserId = walletToot
+    ? walletToot.walletUserId
+    : orshinSuugch.walletUserId;
+
+  return walletUserId || orshinSuugch.utas || tokenObject.id;
 }
 
 exports.walletBillers = asyncHandler(async (req, res, next) => {
@@ -57,23 +66,31 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
     const jwt = require("jsonwebtoken");
     const token = req.headers.authorization.split(" ")[1];
     const tokenObject = jwt.verify(token, process.env.APP_SECRET);
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
-    
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+      tokenObject.id,
+    );
+
     if (!orshinSuugch) {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
-    
+
     // Use phone number for this endpoint (Wallet-Service requirement)
     const userId = orshinSuugch.utas;
-    
+
     const { billerCode, customerCode } = req.params;
-    
+
     if (!billerCode || !customerCode) {
-      throw new aldaa("Биллер код болон хэрэглэгчийн код заавал бөглөх шаардлагатай!");
+      throw new aldaa(
+        "Биллер код болон хэрэглэгчийн код заавал бөглөх шаардлагатай!",
+      );
     }
 
-    const billing = await walletApiService.getBillingByBiller(userId, billerCode, customerCode);
-    
+    const billing = await walletApiService.getBillingByBiller(
+      userId,
+      billerCode,
+      customerCode,
+    );
+
     // Check if billing is null, undefined, or empty array
     if (!billing || (Array.isArray(billing) && billing.length === 0)) {
       // Get user info to check if they have walletCustomerCode
@@ -82,13 +99,26 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
       const jwt = require("jsonwebtoken");
       const token = req.headers.authorization.split(" ")[1];
       const tokenObject = jwt.verify(token, process.env.APP_SECRET);
-      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
-      
+      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+        tokenObject.id,
+      );
+
       let errorMessage = "Биллингийн мэдээлэл олдсонгүй";
-      if (orshinSuugch && orshinSuugch.walletCustomerCode && orshinSuugch.walletCustomerCode !== customerCode) {
-        errorMessage = `Хэрэглэгчийн код буруу байна. Таны бүртгэлтэй код: ${orshinSuugch.walletCustomerCode}`;
+
+      // Check if this customerCode belongs to any of the user's registered toots
+      const registeredCodes = orshinSuugch?.toots
+        ? orshinSuugch.toots
+            .filter((t) => t.source === "WALLET_API" && t.walletCustomerCode)
+            .map((t) => t.walletCustomerCode)
+        : [];
+
+      if (
+        registeredCodes.length > 0 &&
+        !registeredCodes.includes(customerCode)
+      ) {
+        errorMessage = `Хэрэглэгчийн код буруу байна. Таны бүртгэлтэй код: ${registeredCodes.join(", ")}`;
       }
-      
+
       return res.status(404).json({
         success: false,
         message: errorMessage,
@@ -99,7 +129,7 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
     // Sanitize null values to empty strings for String fields
     const sanitizeResponse = (data) => {
       if (Array.isArray(data)) {
-        return data.map(item => {
+        return data.map((item) => {
           const sanitized = { ...item };
           for (const key in sanitized) {
             if (sanitized[key] === null || sanitized[key] === undefined) {
@@ -108,7 +138,7 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
           }
           return sanitized;
         });
-      } else if (typeof data === 'object') {
+      } else if (typeof data === "object") {
         const sanitized = { ...data };
         for (const key in sanitized) {
           if (sanitized[key] === null || sanitized[key] === undefined) {
@@ -136,13 +166,16 @@ exports.walletBillingByCustomer = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const { customerId } = req.params;
-    
+
     if (!customerId) {
       throw new aldaa("Хэрэглэгчийн ID заавал бөглөх шаардлагатай!");
     }
 
-    const billing = await walletApiService.getBillingByCustomer(userId, customerId);
-    
+    const billing = await walletApiService.getBillingByCustomer(
+      userId,
+      customerId,
+    );
+
     if (!billing) {
       return res.status(404).json({
         success: false,
@@ -167,26 +200,30 @@ exports.walletBillingList = asyncHandler(async (req, res, next) => {
     const jwt = require("jsonwebtoken");
     const token = req.headers.authorization.split(" ")[1];
     const tokenObject = jwt.verify(token, process.env.APP_SECRET);
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
-    
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+      tokenObject.id,
+    );
+
     if (!orshinSuugch) {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
-    
+
     // Use phone number for this endpoint (Wallet-Service requirement)
     const userId = orshinSuugch.utas;
-    
+
     const billingList = await walletApiService.getBillingList(userId);
     const data = Array.isArray(billingList) ? billingList : [];
-    
-    const enrichedData = data.map(bill => {
-      const customNick = orshinSuugch.billNicknames && orshinSuugch.billNicknames.find(n => n.billingId === bill.billingId);
+
+    const enrichedData = data.map((bill) => {
+      const customNick =
+        orshinSuugch.billNicknames &&
+        orshinSuugch.billNicknames.find((n) => n.billingId === bill.billingId);
       return {
         ...bill,
-        nickname: customNick ? customNick.nickname : null
+        nickname: customNick ? customNick.nickname : null,
       };
     });
-    
+
     res.status(200).json({
       success: true,
       data: enrichedData,
@@ -194,7 +231,10 @@ exports.walletBillingList = asyncHandler(async (req, res, next) => {
   } catch (err) {
     console.error("❌ [WALLET BILLING LIST] Error:", err.message);
     if (err.response) {
-      console.error("❌ [WALLET BILLING LIST] Error response:", JSON.stringify(err.response.data));
+      console.error(
+        "❌ [WALLET BILLING LIST] Error response:",
+        JSON.stringify(err.response.data),
+      );
     }
     next(err);
   }
@@ -208,17 +248,19 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
     const jwt = require("jsonwebtoken");
     const token = req.headers.authorization.split(" ")[1];
     const tokenObject = jwt.verify(token, process.env.APP_SECRET);
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
-    
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+      tokenObject.id,
+    );
+
     if (!orshinSuugch) {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
-    
+
     // Use phone number for this endpoint (Wallet-Service requirement)
     const userId = orshinSuugch.utas;
-    
+
     const { billingId } = req.params;
-    
+
     if (!billingId) {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
     }
@@ -228,29 +270,36 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
     try {
       const walletUserInfo = await walletApiService.getUserInfo(userId);
       if (!walletUserInfo || !walletUserInfo.userId) {
-        throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд нэвтэрнэ үү.");
+        throw new aldaa(
+          "Хэтэвчний системд бүртгэлгүй байна. Эхлээд нэвтэрнэ үү.",
+        );
       }
     } catch (userCheckError) {
-      console.error("❌ [WALLET BILLING BILLS] User not found in Wallet API:", userCheckError.message);
-      throw new aldaa("Хэтэвчний системд бүртгэлгүй байна. Эхлээд нэвтэрнэ үү.");
+      console.error(
+        "❌ [WALLET BILLING BILLS] User not found in Wallet API:",
+        userCheckError.message,
+      );
+      throw new aldaa(
+        "Хэтэвчний системд бүртгэлгүй байна. Эхлээд нэвтэрнэ үү.",
+      );
     }
 
     const bills = await walletApiService.getBillingBills(userId, billingId);
     const data = Array.isArray(bills) ? bills : [];
-    
+
     // Ensure all bills are properly sanitized (double-check)
     const sanitizedData = data.map((bill) => {
       const sanitized = {};
       for (const key in bill) {
         if (bill.hasOwnProperty(key)) {
           const value = bill[key];
-          
+
           // Convert null/undefined to empty string for all fields
           if (value === null || value === undefined) {
             sanitized[key] = "";
           } else if (Array.isArray(value)) {
             sanitized[key] = value.map((item) => {
-              return (item === null || item === undefined) ? "" : item;
+              return item === null || item === undefined ? "" : item;
             });
           } else {
             sanitized[key] = value;
@@ -259,7 +308,7 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
       }
       return sanitized;
     });
-    
+
     res.status(200).json({
       success: true,
       data: sanitizedData,
@@ -267,7 +316,10 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
   } catch (err) {
     console.error("❌ [WALLET BILLING BILLS] Error:", err.message);
     if (err.response) {
-      console.error("❌ [WALLET BILLING BILLS] Error response:", JSON.stringify(err.response.data));
+      console.error(
+        "❌ [WALLET BILLING BILLS] Error response:",
+        JSON.stringify(err.response.data),
+      );
     }
     next(err);
   }
@@ -277,14 +329,17 @@ exports.walletBillingPayments = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const { billingId } = req.params;
-    
+
     if (!billingId) {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
     }
 
-    const payments = await walletApiService.getBillingPayments(userId, billingId);
+    const payments = await walletApiService.getBillingPayments(
+      userId,
+      billingId,
+    );
     const data = Array.isArray(payments) ? payments : [];
-    
+
     res.status(200).json({
       success: true,
       data: data,
@@ -292,7 +347,10 @@ exports.walletBillingPayments = asyncHandler(async (req, res, next) => {
   } catch (err) {
     console.error("❌ [WALLET BILLING PAYMENTS] Error:", err.message);
     if (err.response) {
-      console.error("❌ [WALLET BILLING PAYMENTS] Error response:", JSON.stringify(err.response.data));
+      console.error(
+        "❌ [WALLET BILLING PAYMENTS] Error response:",
+        JSON.stringify(err.response.data),
+      );
     }
     next(err);
   }
@@ -302,12 +360,62 @@ exports.walletBillingSave = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const billingData = req.body;
-    
+
     if (!billingData) {
       throw new aldaa("Биллингийн мэдээлэл заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.saveBilling(userId, billingData);
+
+    // Sync local orshinSuugch toots array
+    try {
+      const { db } = require("zevbackv2");
+      const OrshinSuugch = require("../models/orshinSuugch");
+      const jwt = require("jsonwebtoken");
+      const token = req.headers.authorization.split(" ")[1];
+      const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+
+      const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+        tokenObject.id,
+      );
+
+      if (orshinSuugch && result) {
+        if (!orshinSuugch.toots) orshinSuugch.toots = [];
+
+        const newTootEntry = {
+          toot: result.doorNo || billingData.doorNo || "",
+          source: "WALLET_API",
+          walletBairId: result.bairId || billingData.bairId || "",
+          walletDoorNo: result.doorNo || billingData.doorNo || "",
+          walletUserId: userId, // Current walletUserId from getUserIdFromToken
+          walletCustomerId: result.customerId || "",
+          walletCustomerCode: result.customerCode || "",
+          createdAt: new Date(),
+        };
+
+        // Check if already exists
+        const existingIndex = orshinSuugch.toots.findIndex(
+          (t) =>
+            t.source === "WALLET_API" &&
+            t.walletBairId === newTootEntry.walletBairId &&
+            t.walletDoorNo === newTootEntry.walletDoorNo,
+        );
+
+        if (existingIndex >= 0) {
+          orshinSuugch.toots[existingIndex] = {
+            ...orshinSuugch.toots[existingIndex].toObject(),
+            ...newTootEntry,
+          };
+        } else {
+          orshinSuugch.toots.push(newTootEntry);
+        }
+
+        await orshinSuugch.save();
+      }
+    } catch (syncErr) {
+      console.error("⚠️ [WALLET SAVE] Local sync failed:", syncErr.message);
+    }
+
     res.status(200).json({
       success: true,
       data: result,
@@ -325,16 +433,18 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
     const jwt = require("jsonwebtoken");
     const token = req.headers.authorization.split(" ")[1];
     const tokenObject = jwt.verify(token, process.env.APP_SECRET);
-    
+
     // Find orshinSuugch
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+      tokenObject.id,
+    );
     if (!orshinSuugch) {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
-    
+
     const userId = orshinSuugch.utas;
     const { billingId } = req.params;
-    
+
     if (!billingId) {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
     }
@@ -343,15 +453,13 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
     let billingToRemove = null;
     try {
       const billingList = await walletApiService.getBillingList(userId);
-      billingToRemove = billingList.find(b => b.billingId === billingId);
+      billingToRemove = billingList.find((b) => b.billingId === billingId);
     } catch (listErr) {
-      console.warn("⚠️ [WALLET REMOVE] Could not fetch billing list for cleanup info:", listErr.message);
+      console.warn(
+        "⚠️ [WALLET REMOVE] Could not fetch billing list for cleanup info:",
+        listErr.message,
+      );
     }
-
-    // Capture current primary fields for fallback matching before they are cleared
-    const primaryBairId = orshinSuugch.walletBairId;
-    const primaryDoorNo = orshinSuugch.walletDoorNo;
-    const primaryCustomerId = orshinSuugch.walletCustomerId;
 
     // 2. Remove from Wallet API
     const result = await walletApiService.removeBilling(userId, billingId);
@@ -362,26 +470,24 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
     // Remove from toots array
     if (orshinSuugch.toots && orshinSuugch.toots.length > 0) {
       const initialLength = orshinSuugch.toots.length;
-      
-      orshinSuugch.toots = orshinSuugch.toots.filter(t => {
+
+      orshinSuugch.toots = orshinSuugch.toots.filter((t) => {
         if (t.source !== "WALLET_API") return true;
 
         // A. Match by billing info from API (if we successfully fetched it)
         if (billingToRemove) {
-          const matchByAddress = String(t.walletBairId || "") === String(billingToRemove.bairId || "") && 
-                                 String(t.walletDoorNo || "") === String(billingToRemove.doorNo || "");
-          const matchByCustomer = billingToRemove.customerId && String(t.walletCustomerId || "") === String(billingToRemove.customerId);
-          
+          const matchByAddress =
+            String(t.walletBairId || "") ===
+              String(billingToRemove.bairId || "") &&
+            String(t.walletDoorNo || "") ===
+              String(billingToRemove.doorNo || "");
+          const matchByCustomer =
+            billingToRemove.customerId &&
+            String(t.walletCustomerId || "") ===
+              String(billingToRemove.customerId);
+
           if (matchByAddress || matchByCustomer) return false;
         }
-
-        // B. Fallback: Match against the primary wallet fields we captured
-        const matchPrimaryAddress = primaryBairId && primaryDoorNo && 
-                                    String(t.walletBairId || "") === String(primaryBairId) && 
-                                    String(t.walletDoorNo || "") === String(primaryDoorNo);
-        const matchPrimaryCustomer = primaryCustomerId && String(t.walletCustomerId || "") === String(primaryCustomerId);
-
-        if (matchPrimaryAddress || matchPrimaryCustomer) return false;
 
         return true;
       });
@@ -389,22 +495,6 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
       if (orshinSuugch.toots.length !== initialLength) {
         localUpdated = true;
       }
-    }
-
-    // Clear primary fields if they match the deleted billing
-    const isPrimaryMatch = billingToRemove && 
-      (orshinSuugch.walletCustomerId === billingToRemove.customerId || 
-       (orshinSuugch.walletBairId === billingToRemove.bairId && orshinSuugch.walletDoorNo === billingToRemove.doorNo));
-
-    if (isPrimaryMatch || (!billingToRemove && orshinSuugch.walletCustomerId)) {
-      // Clear wallet-specific connection fields - set to empty strings as requested
-      orshinSuugch.walletBairId = "";
-      orshinSuugch.walletDoorNo = "";
-      orshinSuugch.walletCustomerId = "";
-      orshinSuugch.walletCustomerCode = "";
-      orshinSuugch.bairniiNer = "";
-      
-      localUpdated = true;
     }
 
     if (localUpdated) {
@@ -429,18 +519,22 @@ exports.walletBillRemove = asyncHandler(async (req, res, next) => {
     const jwt = require("jsonwebtoken");
     const token = req.headers.authorization.split(" ")[1];
     const tokenObject = jwt.verify(token, process.env.APP_SECRET);
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
-    
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+      tokenObject.id,
+    );
+
     if (!orshinSuugch) {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
-    
+
     // Use phone number for this endpoint (Wallet-Service requirement)
     const userId = orshinSuugch.utas;
     const { billingId, billId } = req.params;
-    
+
     if (!billingId || !billId) {
-      throw new aldaa("Биллингийн ID болон Билл-ийн ID заавал бөглөх шаардлагатай!");
+      throw new aldaa(
+        "Биллингийн ID болон Билл-ийн ID заавал бөглөх шаардлагатай!",
+      );
     }
 
     const result = await walletApiService.removeBill(userId, billingId, billId);
@@ -458,7 +552,7 @@ exports.walletBillRecover = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const { billingId } = req.params;
-    
+
     if (!billingId) {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
     }
@@ -479,7 +573,7 @@ exports.walletBillingChangeName = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const { billingId } = req.params;
     const { name } = req.body;
-    
+
     if (!billingId) {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
     }
@@ -488,7 +582,11 @@ exports.walletBillingChangeName = asyncHandler(async (req, res, next) => {
       throw new aldaa("Биллингийн нэр заавал бөглөх шаардлагатай!");
     }
 
-    const result = await walletApiService.changeBillingName(userId, billingId, name);
+    const result = await walletApiService.changeBillingName(
+      userId,
+      billingId,
+      name,
+    );
     res.status(200).json({
       success: true,
       data: result,
@@ -509,15 +607,17 @@ exports.walletBillingSetNickname = asyncHandler(async (req, res, next) => {
     }
     const token = req.headers.authorization.split(" ")[1];
     const tokenObject = jwt.verify(token, process.env.APP_SECRET);
-    
+
     const { billingId } = req.params;
     const { nickname } = req.body;
-    
+
     if (!billingId) {
       throw new aldaa("Биллингийн ID заавал бөглөх шаардлагатай!");
     }
 
-    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(
+      tokenObject.id,
+    );
     if (!orshinSuugch) {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
@@ -526,7 +626,9 @@ exports.walletBillingSetNickname = asyncHandler(async (req, res, next) => {
       orshinSuugch.billNicknames = [];
     }
 
-    const existingIndex = orshinSuugch.billNicknames.findIndex(n => n.billingId === billingId);
+    const existingIndex = orshinSuugch.billNicknames.findIndex(
+      (n) => n.billingId === billingId,
+    );
     if (existingIndex >= 0) {
       if (nickname) {
         orshinSuugch.billNicknames[existingIndex].nickname = nickname;
@@ -543,7 +645,7 @@ exports.walletBillingSetNickname = asyncHandler(async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Биллингийн хоч нэр амжилттай хадгалагдлаа",
-      billNicknames: orshinSuugch.billNicknames
+      billNicknames: orshinSuugch.billNicknames,
     });
   } catch (err) {
     next(err);
@@ -554,13 +656,13 @@ exports.walletInvoiceCreate = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const invoiceData = req.body;
-    
+
     if (!invoiceData) {
       throw new aldaa("Нэхэмжлэхийн мэдээлэл заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.createInvoice(userId, invoiceData);
-    
+
     res.status(200).json({
       success: true,
       data: result,
@@ -576,20 +678,20 @@ exports.walletInvoiceGet = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const { invoiceId } = req.params;
-    
+
     if (!invoiceId) {
       throw new aldaa("Нэхэмжлэхийн ID заавал бөглөх шаардлагатай!");
     }
 
     const invoice = await walletApiService.getInvoice(userId, invoiceId);
-    
+
     if (!invoice) {
       return res.status(404).json({
         success: false,
         message: "Нэхэмжлэх олдсонгүй",
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: invoice,
@@ -604,13 +706,13 @@ exports.walletInvoiceCancel = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const { invoiceId } = req.params;
-    
+
     if (!invoiceId) {
       throw new aldaa("Нэхэмжлэхийн ID заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.cancelInvoice(userId, invoiceId);
-    
+
     res.status(200).json({
       success: true,
       data: result,
@@ -626,13 +728,15 @@ exports.walletPaymentCreate = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const paymentData = req.body;
-    
+
     if (!paymentData || !paymentData.invoiceId) {
-      throw new aldaa("Төлбөрийн мэдээлэл болон нэхэмжлэхийн ID заавал бөглөх шаардлагатай!");
+      throw new aldaa(
+        "Төлбөрийн мэдээлэл болон нэхэмжлэхийн ID заавал бөглөх шаардлагатай!",
+      );
     }
 
     const result = await walletApiService.createPayment(userId, paymentData);
-    
+
     res.status(200).json({
       success: true,
       data: result,
@@ -641,7 +745,10 @@ exports.walletPaymentCreate = asyncHandler(async (req, res, next) => {
   } catch (err) {
     console.error("❌ [WALLET PAYMENT CREATE] Error:", err.message);
     if (err.response) {
-      console.error("❌ [WALLET PAYMENT CREATE] Error response:", JSON.stringify(err.response.data));
+      console.error(
+        "❌ [WALLET PAYMENT CREATE] Error response:",
+        JSON.stringify(err.response.data),
+      );
     }
     next(err);
   }
@@ -651,20 +758,20 @@ exports.walletPaymentGet = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const { paymentId } = req.params;
-    
+
     if (!paymentId) {
       throw new aldaa("Төлбөрийн ID заавал бөглөх шаардлагатай!");
     }
 
     const result = await walletApiService.getPayment(userId, paymentId);
-    
+
     if (!result) {
       return res.status(404).json({
         success: false,
         message: "Төлбөр олдсонгүй",
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: result,
@@ -672,7 +779,10 @@ exports.walletPaymentGet = asyncHandler(async (req, res, next) => {
   } catch (err) {
     console.error("❌ [WALLET PAYMENT GET] Error:", err.message);
     if (err.response) {
-      console.error("❌ [WALLET PAYMENT GET] Error response:", JSON.stringify(err.response.data));
+      console.error(
+        "❌ [WALLET PAYMENT GET] Error response:",
+        JSON.stringify(err.response.data),
+      );
     }
     next(err);
   }
@@ -683,7 +793,7 @@ exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
     const userId = await getUserIdFromToken(req);
     const { paymentId } = req.params;
     const qpayData = req.body;
-    
+
     if (!paymentId) {
       throw new aldaa("Төлбөрийн ID заавал бөглөх шаардлагатай!");
     }
@@ -692,13 +802,17 @@ exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
       throw new aldaa("QPay төлбөрийн мэдээлэл заавал бөглөх шаардлагатай!");
     }
 
-    const result = await walletApiService.updateQPayPayment(userId, paymentId, qpayData);
-    
+    const result = await walletApiService.updateQPayPayment(
+      userId,
+      paymentId,
+      qpayData,
+    );
+
     // Local DB-д давхар хадгалах
     try {
       const { db } = require("zevbackv2");
       const WalletPayment = require("../models/walletPayment");
-      
+
       let orshinSuugchId = null;
       if (req.headers.authorization) {
         const jwt = require("jsonwebtoken");
@@ -713,7 +827,7 @@ exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
 
       await WalletPayment(db.erunkhiiKholbolt).findOneAndUpdate(
         { paymentId: paymentId },
-        { 
+        {
           $set: {
             userId: userId,
             orshinSuugchId: orshinSuugchId,
@@ -726,14 +840,19 @@ exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
             receiverAccountNo: qpayData.receiverAccountNo,
             receiverAccountName: qpayData.receiverAccountName,
             rawQpayData: qpayData,
-            status: "PAID"
-          }
+            status: "PAID",
+          },
         },
-        { upsert: true, new: true }
+        { upsert: true, new: true },
       );
-      console.log(`✅ [WALLET PAYMENT UPDATE QPAY] Payment saved to DB: ${paymentId}`);
+      console.log(
+        `✅ [WALLET PAYMENT UPDATE QPAY] Payment saved to DB: ${paymentId}`,
+      );
     } catch (dbError) {
-      console.error("❌ [WALLET PAYMENT UPDATE QPAY] Failed to save locally:", dbError.message);
+      console.error(
+        "❌ [WALLET PAYMENT UPDATE QPAY] Failed to save locally:",
+        dbError.message,
+      );
     }
 
     res.status(200).json({
@@ -744,7 +863,10 @@ exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
   } catch (err) {
     console.error("❌ [WALLET PAYMENT UPDATE QPAY] Error:", err.message);
     if (err.response) {
-      console.error("❌ [WALLET PAYMENT UPDATE QPAY] Error response:", JSON.stringify(err.response.data));
+      console.error(
+        "❌ [WALLET PAYMENT UPDATE QPAY] Error response:",
+        JSON.stringify(err.response.data),
+      );
     }
     next(err);
   }
@@ -754,7 +876,7 @@ exports.walletUserEdit = asyncHandler(async (req, res, next) => {
   try {
     const userId = await getUserIdFromToken(req);
     const userData = req.body;
-    
+
     if (!userData) {
       throw new aldaa("Хэрэглэгчийн мэдээлэл заавал бөглөх шаардлагатай!");
     }
@@ -769,4 +891,3 @@ exports.walletUserEdit = asyncHandler(async (req, res, next) => {
     next(err);
   }
 });
-

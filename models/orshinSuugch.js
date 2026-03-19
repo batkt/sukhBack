@@ -15,7 +15,7 @@ const orshinSuugchSchema = new Schema(
         source: {
           type: String,
           enum: ["WALLET_API", "OWN_ORG"],
-          default: "OWN_ORG"
+          default: "OWN_ORG",
         },
         baiguullagiinId: String, // Required for OWN_ORG
         barilgiinId: String, // Required for OWN_ORG
@@ -25,13 +25,16 @@ const orshinSuugchSchema = new Schema(
         horoo: Schema.Types.Mixed,
         soh: String,
         bairniiNer: String,
+        walletUserId: String, // Global Wallet User ID
+        walletCustomerId: String, // Added: For multiple wallet accounts
+        walletCustomerCode: String, // Added: For multiple wallet accounts
         walletBairId: String, // For WALLET_API source
-        walletDoorNo: String, // For WALLET_API source
+        walletDoorNo: String, // Keer multiple wallet accounts
         createdAt: {
           type: Date,
-          default: Date.now
-        }
-      }
+          default: Date.now,
+        },
+      },
     ],
     ovog: String,
     utas: String,
@@ -66,25 +69,21 @@ const orshinSuugchSchema = new Schema(
     odorZaalt: Number, // Latest Day reading for electricity
     shonoZaalt: Number, // Latest Night reading for electricity
     suuliinZaalt: Number, // Latest Total reading for electricity
-    walletUserId: String,
-    walletCustomerId: String,
-    walletCustomerCode: String,
-    walletBairId: String, // Keep for backward compatibility
-    walletDoorNo: String, // Keep for backward compatibility
-    billNicknames: [{
-      billingId: String,
-      nickname: String,
-    }],
-
+    billNicknames: [
+      {
+        billingId: String,
+        nickname: String,
+      },
+    ],
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 orshinSuugchSchema.index({ utas: 1 });
 orshinSuugchSchema.index({ baiguullagiinId: 1 });
-orshinSuugchSchema.index({ walletUserId: 1 });
+orshinSuugchSchema.index({ "toots.walletUserId": 1 });
 orshinSuugchSchema.index({ "toots.toot": 1 });
 orshinSuugchSchema.index({ "toots.baiguullagiinId": 1 });
 
@@ -95,7 +94,7 @@ orshinSuugchSchema.index({
 
 orshinSuugchSchema.methods.tokenUusgeye = function (
   duusakhOgnoo,
-  salbaruud = null
+  salbaruud = null,
 ) {
   const token = jwt.sign(
     {
@@ -109,7 +108,7 @@ orshinSuugchSchema.methods.tokenUusgeye = function (
     {
       expiresIn:
         this.baiguullagiinId == "68e4e2bff3ff09acb5705a93" ? "7d" : "12h",
-    }
+    },
   );
   return token;
 };
@@ -122,14 +121,14 @@ orshinSuugchSchema.methods.khugatsaaguiTokenUusgeye = function () {
       baiguullagiinId: this.baiguullagiinId,
     },
     process.env.APP_SECRET,
-    {}
+    {},
   );
   return token;
 };
 
 orshinSuugchSchema.methods.zochinTokenUusgye = function (
   baiguullagiinId,
-  gishuunEsekh
+  gishuunEsekh,
 ) {
   const token = jwt.sign(
     {
@@ -139,11 +138,11 @@ orshinSuugchSchema.methods.zochinTokenUusgye = function (
     process.env.APP_SECRET,
     gishuunEsekh
       ? {
-        expiresIn: "12h",
-      }
+          expiresIn: "12h",
+        }
       : {
-        expiresIn: "1h",
-      }
+          expiresIn: "1h",
+        },
   );
   return token;
 };
@@ -168,7 +167,9 @@ orshinSuugchSchema.pre("save", async function (next) {
   const toot = this.toot ? String(this.toot).trim() : "";
   const davkhar = this.davkhar ? String(this.davkhar).trim() : "";
   const barilgiinId = this.barilgiinId ? String(this.barilgiinId) : "";
-  const baiguullagiinId = this.baiguullagiinId ? String(this.baiguullagiinId) : "";
+  const baiguullagiinId = this.baiguullagiinId
+    ? String(this.baiguullagiinId)
+    : "";
   if (toot && (barilgiinId || baiguullagiinId)) {
     toCheck.push({ toot, davkhar, barilgiinId, baiguullagiinId });
   }
@@ -179,14 +180,26 @@ orshinSuugchSchema.pre("save", async function (next) {
       const tToot = t?.toot ? String(t.toot).trim() : "";
       const tDavkhar = t?.davkhar ? String(t.davkhar).trim() : "";
       const tBarilgiinId = t?.barilgiinId ? String(t.barilgiinId) : "";
-      const tBaiguullagiinId = t?.baiguullagiinId ? String(t.baiguullagiinId) : "";
+      const tBaiguullagiinId = t?.baiguullagiinId
+        ? String(t.baiguullagiinId)
+        : "";
       if (tToot && (tBarilgiinId || tBaiguullagiinId)) {
-        toCheck.push({ toot: tToot, davkhar: tDavkhar, barilgiinId: tBarilgiinId, baiguullagiinId: tBaiguullagiinId });
+        toCheck.push({
+          toot: tToot,
+          davkhar: tDavkhar,
+          barilgiinId: tBarilgiinId,
+          baiguullagiinId: tBaiguullagiinId,
+        });
       }
     }
   }
 
-  for (const { toot: t, davkhar: d, barilgiinId: bId, baiguullagiinId: baId } of toCheck) {
+  for (const {
+    toot: t,
+    davkhar: d,
+    barilgiinId: bId,
+    baiguullagiinId: baId,
+  } of toCheck) {
     const orConditions = [];
     const baseMatch = { toot: t };
     const baseTootMatch = { toot: t };
@@ -196,17 +209,23 @@ orshinSuugchSchema.pre("save", async function (next) {
     }
     if (bId) {
       orConditions.push({ ...baseMatch, barilgiinId: bId });
-      orConditions.push({ toots: { $elemMatch: { ...baseTootMatch, barilgiinId: bId } } });
+      orConditions.push({
+        toots: { $elemMatch: { ...baseTootMatch, barilgiinId: bId } },
+      });
     } else if (baId) {
       orConditions.push({ ...baseMatch, baiguullagiinId: baId });
-      orConditions.push({ toots: { $elemMatch: { ...baseTootMatch, baiguullagiinId: baId } } });
+      orConditions.push({
+        toots: { $elemMatch: { ...baseTootMatch, baiguullagiinId: baId } },
+      });
     }
     if (orConditions.length > 0) {
       const query = { $or: orConditions };
       if (this._id) query._id = { $ne: this._id };
       const existing = await OrshinSuugchModel.findOne(query);
       if (existing) {
-        return next(new Error("Энэ тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна."));
+        return next(
+          new Error("Энэ тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна."),
+        );
       }
     }
   }
