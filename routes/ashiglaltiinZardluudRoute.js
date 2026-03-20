@@ -142,10 +142,11 @@ router.get("/latestZaaltAvya", async (req, res, next) => {
     res.send({
       success: true,
       data: latest ? {
-        suuliinZaalt: latest.niitOdoo,
-        umnukhZaalt: latest.umnu,
-        odorZaalt: latest.odor,
-        shonoZaalt: latest.shone,
+        suuliinZaalt: latest.suuliinZaalt,
+        umnukhZaalt: latest.umnukhZaalt,
+        odorZaalt: latest.zaaltTog,
+        shonoZaalt: latest.zaaltUs,
+        zoruu: latest.zoruu,
         suuriKhuraamj: latest.defaultDun || latest.suuriKhuraamj,
         ognoo: latest.unshlaltiinOgnoo,
         source: "ZaaltUnshlalt"
