@@ -189,16 +189,20 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
       candidates.forEach(c => {
         const tariffVal = Number(c.tariff) || Number(c.zaaltTariff) || 0;
         const suuriVal = Number(c.suuriKhuraamj) || 0;
+        
+        // Track the maximum tariff across all candidates as a fallback
         if (tariffVal > maxTariff) maxTariff = tariffVal;
-        if (suuriVal > 0) maxSuuriKhuraamj = suuriVal;
 
         const name = (c.ner || "").trim().toLowerCase();
         const isMeter = c.zaalt ? 10000000 : 0;
         const isExact = (name === "цахилгаан" || name === "цахилгаан квт" || name === "цахилгаан кв") ? 1000000 : 0;
         const currentScore = isMeter + isExact;
+
         if (currentScore > bestScore) {
           bestScore = currentScore;
           selectedChargeName = c.ner;
+          // IMPORTANT: Take the base fee from the BEST matching candidate
+          if (suuriVal > 0) maxSuuriKhuraamj = suuriVal;
         }
       });
     } else {
@@ -363,6 +367,25 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
           const geree = contractObj || (gereeniiId ? await Geree(tukhainBaaziinKholbolt).findById(gereeniiId).catch(() => null) : null);
           if (geree) {
             debugInfo.contractFound = true;
+            const actualGereeniiId = geree._id.toString();
+
+            // LOOKUP LATEST READING FROM EXCEL IMPORT (ZaaltUnshlalt)
+            const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+            const latestZaalt = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+              .findOne({ gereeniiId: actualGereeniiId })
+              .sort({ unshlaltiinOgnoo: -1, createdAt: -1 })
+              .catch(() => null);
+
+            if (latestZaalt) {
+               debugInfo.hasLatestZaalt = true;
+               // Check for Excel-imported base fee (defaultDun or suuriKhuraamj)
+               const importSuuri = latestZaalt.defaultDun || latestZaalt.suuriKhuraamj;
+               if (importSuuri > 0) {
+                 finalSuuriKhuraamj = importSuuri;
+                 debugInfo.suuriSource = "Latest Import (ZaaltUnshlalt)";
+               }
+            }
+
             if (geree.zardluud) {
               const contractElec = geree.zardluud.find(z => {
                 const name = (z.ner || "").trim().toLowerCase();
@@ -380,19 +403,14 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
                   residentSpecificUsed = true;
                 }
 
-                // BASE FEE (Suuri Khuraamj)
+                // BASE FEE (Suuri Khuraamj) in Contract
                 const cSuuri = Number(contractElec.zaaltDefaultDun) || Number(contractElec.suuriKhuraamj) || 0;
-                if (cSuuri > 0) {
+                if (cSuuri > 0 && debugInfo.suuriSource !== "Latest Import (ZaaltUnshlalt)") {
                   finalSuuriKhuraamj = cSuuri;
                   debugInfo.suuriSource = "Contract Specific (" + (Number(contractElec.zaaltDefaultDun) > 0 ? "zaaltDefaultDun" : "suuriKhuraamj") + ")";
                 }
-              } else {
-                debugInfo.contractElecNotFoundInZardluud = true;
-                debugInfo.availableZardluud = geree.zardluud.map(z => z.ner);
               }
             }
-          } else {
-            debugInfo.contractNotFoundAtAll = true;
           }
         }
 
