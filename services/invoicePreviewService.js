@@ -49,14 +49,15 @@ const previewInvoice = async (
       (b) => String(b._id) === String(barilgiinId || geree.barilgiinId || ""),
     );
 
-    let ashiglaltiinZardluud =
-      targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
-
-    // Fallback: if building config has no ashiglaltiinZardluud, use geree.zardluud
-    // (ashiglaltiinZardluud may be stored in the standalone collection and synced
-    // to geree.zardluud but not to baiguullaga embedded array)
-    if (ashiglaltiinZardluud.length === 0 && geree.zardluud && geree.zardluud.length > 0) {
+    let ashiglaltiinZardluud = [];
+    
+    // PRIORITY 1: Use individual contract's zardluud if they exist (preserves Excel imports and manual changes)
+    if (geree.zardluud && geree.zardluud.length > 0) {
       ashiglaltiinZardluud = geree.zardluud;
+    } 
+    // PRIORITY 2: Fallback to building-level template
+    else {
+      ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
     }
 
     let filteredZardluud = ashiglaltiinZardluud

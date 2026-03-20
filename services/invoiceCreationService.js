@@ -489,14 +489,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
         (b) => String(b._id) === String(tempData.barilgiinId || ""),
       );
 
-      let ashiglaltiinZardluud =
-        targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
-
-      // Fallback: if building config has no ashiglaltiinZardluud, use geree.zardluud
-      // (ashiglaltiinZardluud may be stored in the standalone collection and synced
-      // to geree.zardluud but not to baiguullaga embedded array)
-      if (ashiglaltiinZardluud.length === 0 && tempData.zardluud && tempData.zardluud.length > 0) {
+      let ashiglaltiinZardluud = [];
+      
+      // PRIORITY 1: Use individual contract's zardluud if they exist (preserves Excel imports and manual changes)
+      if (tempData.zardluud && tempData.zardluud.length > 0) {
         ashiglaltiinZardluud = tempData.zardluud;
+      } 
+      // PRIORITY 2: Fallback to building-level template
+      else {
+        ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
       }
 
       filteredZardluud = ashiglaltiinZardluud
