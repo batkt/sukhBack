@@ -60,8 +60,19 @@ const previewInvoice = async (
       ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
     }
 
+    // Helper to check if an expense is a VARIABLE electricity/utility charge (meter-based)
+    // Only items that are NOT shared (дундын/өмчлөл) and have zaalt=true should be handled in the special calculation block
+    const isVariableElectricity = (z) => {
+      if (!z.zaalt) return false;
+      const nameLower = (z.ner || "").toLowerCase();
+      if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) {
+        return false;
+      }
+      return true;
+    };
+
     let filteredZardluud = ashiglaltiinZardluud
-      .filter((zardal) => zardal.zaalt !== true)
+      .filter((zardal) => !isVariableElectricity(zardal))
       .map((zardal) => {
         const dun = zardal.dun > 0 ? zardal.dun : zardal.tariff || 0;
         return { ...zardal, dun: dun };
@@ -194,18 +205,7 @@ const previewInvoice = async (
     // Add electricity (zaalt) entries for preview - process ALL zaalt zardals
     // Combine both contract-level and building-level electricity expenses
     try {
-      // Helper to check if an expense is a VARIABLE electricity charge (meter-based)
-      // "Дундын өмчлөл Цахилгаан" is FIXED - should NOT be processed as zaalt
-      // Only "Цахилгаан" (without "дундын" or "өмчлөл") should be processed as zaalt
-      const isVariableElectricity = (z) => {
-        if (!z.zaalt) return false;
-        const nameLower = (z.ner || "").toLowerCase();
-        // Exclude fixed electricity charges from zaalt processing
-        if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) {
-          return false;
-        }
-        return true;
-      };
+      // (isVariableElectricity is defined at the top of the function)
 
       const gereeZaaltZardluud = (geree.zardluud || []).filter(
         isVariableElectricity,
@@ -261,17 +261,13 @@ const previewInvoice = async (
           let kwhTariff = zaaltTariff; // from orshinSuugch
 
           // Variable electricity = zaalt + цахилгаан (not дундын өмчлөл) - needs Excel, don't show suuriKhuraamj alone
+          // handle variable electricity cases gracefully
           const pvNameLower = (zaaltZardal.ner || "").toLowerCase();
           const pvIsVariableElectricity =
             zaaltZardal.zaalt &&
             pvNameLower.includes("цахилгаан") &&
             !pvNameLower.includes("дундын") &&
             !pvNameLower.includes("өмчлөл");
-
-          // For variable цахилгаан: when no Excel reading, skip - match Excel behavior
-          if (pvIsVariableElectricity && !latestReading) {
-            continue;
-          }
 
           // Determine if this is a FIXED or CALCULATED electricity charge:
           // FIXED: tariffUsgeer = "₮" -> use tariff directly as the total amount
@@ -322,9 +318,9 @@ const previewInvoice = async (
                 electricityDun = zoruu * kwhTariff + defaultDun;
               }
             } else {
-              // For цахилгаан (кВт): do NOT show suuriKhuraamj when no Excel - match Excel behavior
+              // For цахилгаан (кВт): handle cases gracefully
               if (zoruu === 0) {
-                continue;
+                 // proceed but amount might be 0 unless base fee exists
               }
               // Fallback to zardal's suuriKhuraamj, zaaltDefaultDun, or tariff (for old data format)
               defaultDun =
@@ -335,15 +331,16 @@ const previewInvoice = async (
               electricityDun = zoruu * kwhTariff + defaultDun;
             }
 
-            // For calculated цахилгаан: do NOT show suuriKhuraamj alone when no Excel
+            // For calculated цахилгаан: handle 0 cases gracefully
             if (electricityDun === 0 && zoruu === 0) {
-              const wouldUseSuuriKhuraamj =
+              const suuriFee =
                 Number(zaaltZardal.suuriKhuraamj) ||
                 zaaltZardal.zaaltDefaultDun ||
                 zaaltZardal.tariff ||
                 0;
-              if (wouldUseSuuriKhuraamj > 0) {
-                continue;
+              if (suuriFee > 0) {
+                 electricityDun = suuriFee;
+                 defaultDun = suuriFee;
               }
             }
             // Final fallback: if electricityDun is still 0 but zardal has suuriKhuraamj, use that

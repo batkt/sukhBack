@@ -2278,9 +2278,10 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           geree.zardluud.push(zaaltZardalData);
         }
 
-        // Recalculate niitTulbur
+        // Recalculate niitTulbur (Total Amount)
+        // IMPORTANT: Fallback to tariff if dun is not set (typical for fixed charges)
         const niitTulbur = geree.zardluud.reduce((sum, zardal) => {
-          return sum + (zardal.dun || 0);
+          return sum + (zardal.dun || zardal.tariff || 0);
         }, 0);
 
         geree.niitTulbur = niitTulbur;

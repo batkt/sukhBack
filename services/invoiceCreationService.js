@@ -500,8 +500,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
         ashiglaltiinZardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
       }
 
+      // Helper to check if an expense is a VARIABLE electricity/utility charge (meter-based)
+      // Only items that are NOT shared (дундын/өмчлөл) and have zaalt=true should be handled in the special calculation block
+      const isVariableElectricity = (z) => {
+        if (!z.zaalt) return false;
+        const nameLower = (z.ner || "").toLowerCase();
+        if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) {
+          return false;
+        }
+        return true;
+      };
+
       filteredZardluud = ashiglaltiinZardluud
-        .filter((zardal) => zardal.zaalt !== true)
+        .filter((zardal) => !isVariableElectricity(zardal))
         .map((zardal) => {
           const dun = zardal.dun > 0 ? zardal.dun : zardal.tariff || 0;
           return {
@@ -524,8 +535,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     if (tempData.davkhar && tempData.barilgiinId && tempData.baiguullagiinId) {
       const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt)
-        .findById(tempData.baiguullagiinId)
-        .lean();
+        .findById(tempData.baiguullagiinId);
 
       const targetBarilga = baiguullaga?.barilguud?.find(
         (b) => String(b._id) === String(tempData.barilgiinId || ""),
@@ -754,18 +764,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
         const targetBarilga = baiguullaga?.barilguud?.find(
           (b) => String(b._id) === String(tempData.barilgiinId),
         );
-        // Helper to check if an expense is a VARIABLE electricity charge (meter-based)
-        // "дундын өмчлөл Цахилгаан" is FIXED - should NOT be processed as zaalt
-        // Only "Цахилгаан" (without "дундын" or "өмчлөл") should be processed as zaalt
-        const isVariableElectricity = (z) => {
-          if (!z.zaalt) return false;
-          const nameLower = (z.ner || "").toLowerCase();
-          // Exclude fixed electricity charges from zaalt processing
-          if (nameLower.includes("дундын") || nameLower.includes("өмчлөл")) {
-            return false;
-          }
-          return true;
-        };
+        // Process ALL utility/zaalt entries from BOTH contract and building level
+        // (isVariableElectricity is defined at the top of the function)
 
         const gereeZaaltZardluud = (tempData.zardluud || []).filter(
           isVariableElectricity,
@@ -827,9 +827,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
               !nameLower.includes("өмчлөл");
 
             // For variable цахилгаан: when no Excel (zoruu=0), skip - match Excel behavior (don't show suuriKhuraamj/tariff)
-            if (isVariableElectricityZardal && zoruu === 0) {
-              continue;
-            }
+            // if (isVariableElectricityZardal && zoruu === 0) {
+            //   continue;
+            // }
 
             // Determine if this is a FIXED or CALCULATED electricity charge:
             // FIXED: tariffUsgeer = "₮" -> use tariff directly as the total amount
@@ -941,16 +941,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
                 zaaltDun = zoruu * kwhTariff + zaaltDefaultDun;
               }
 
-              // For calculated цахилгаан (tariffUsgeer="кВт"): do NOT show suuriKhuraamj alone when no Excel
-              // Excel does not add a цахилгаан row when there's no import - match that behavior
+              // For calculated цахилгаан (tariffUsgeer="кВт"): handle 0 cases gracefully
               if (zaaltDun === 0 && zoruu === 0) {
-                const wouldUseSuuriKhuraamj =
+                // If it has a base fee, we still want to show it
+                const suuriFee =
                   Number(gereeZaaltZardal.suuriKhuraamj) ||
                   gereeZaaltZardal.zaaltDefaultDun ||
                   gereeZaaltZardal.tariff ||
                   0;
-                if (wouldUseSuuriKhuraamj > 0) {
-                  continue;
+                if (suuriFee > 0) {
+                   zaaltDun = suuriFee;
+                   zaaltDefaultDun = suuriFee;
                 }
               }
               // Final fallback: if zaaltDun is still 0 but zardal has suuriKhuraamj, use that
