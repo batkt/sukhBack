@@ -223,6 +223,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
         debugInfo.orgKholboltFound = true;
         let actualResidentId = residentId;
         let contractObj = null;
+        let resident = null;
 
         if (gereeniiId) {
           try {
@@ -239,7 +240,6 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
           try {
             // Check BOTH central and local org connection just in case
             const centralConn = db.erunkhiiKholbolt;
-            let resident = null;
             
             // Cast to ObjectId if possible
             let residentObjectId = actualResidentId;
@@ -411,7 +411,7 @@ router.post("/tsakhilgaanTootsool", tokenShalgakh, async (req, res, next) => {
             : parseFloat(String(odorZaaltRaw || "").replace(/,/g, "").trim()) || 0;
         const shonoZaaltNum =
           typeof shonoZaaltRaw === "number"
-            ? shonoZaaltNum
+            ? shonoZaaltRaw
             : parseFloat(String(shonoZaaltRaw || "").replace(/,/g, "").trim()) || 0;
 
         // If both Odor and Shono are provided, suuliinZaalt is their sum
