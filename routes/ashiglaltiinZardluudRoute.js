@@ -6,6 +6,7 @@ const ashiglaltiinZardluud = require("../models/ashiglaltiinZardluud");
 const Baiguullaga = require("../models/baiguullaga");
 const OrshinSuugch = require("../models/orshinSuugch");
 const Geree = require("../models/geree");
+const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
 
 // CRUD routes
 crud(router, "ashiglaltiinZardluud", ashiglaltiinZardluud, UstsanBarimt);
@@ -103,6 +104,51 @@ router.post("/ashiglaltiinZardluudNemekh", async (req, res, next) => {
       success: true,
       message: "Ашиглалтын зардал амжилттай нэмэгдлээ",
       data: newZardal,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET route to fetch latest meter readings for a resident/contract
+router.get("/latestZaaltAvya", async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const { baiguullagiinId, residentId, gereeniiId } = req.query;
+
+    if (!baiguullagiinId) {
+      return res.status(400).send({ success: false, message: "baiguullagiinId is required" });
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).send({ success: false, message: "Organization not found" });
+    }
+
+    let filter = {};
+    if (gereeniiId) filter.gereeniiId = gereeniiId;
+    else if (residentId) filter.residentId = residentId;
+    else return res.status(400).send({ success: false, message: "gereeniiId or residentId is required" });
+
+    // Fetch the absolute most recent reading from ZaaltUnshlalt (where Excel imports go)
+    const latest = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+      .findOne(filter)
+      .sort({ unshlaltiinOgnoo: -1, createdAt: -1 });
+
+    res.send({
+      success: true,
+      data: latest ? {
+        suuliinZaalt: latest.niitOdoo,
+        umnukhZaalt: latest.umnu,
+        odorZaalt: latest.odor,
+        shonoZaalt: latest.shone,
+        suuriKhuraamj: latest.defaultDun || latest.suuriKhuraamj,
+        ognoo: latest.unshlaltiinOgnoo,
+        source: "ZaaltUnshlalt"
+      } : null
     });
   } catch (err) {
     next(err);
