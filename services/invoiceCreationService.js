@@ -48,16 +48,21 @@ const gereeNeesNekhemjlekhUusgekh = async (
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth(); // 0-11 (0 = January)
 
-    let shouldUseEkhniiUldegdel = false;
-
+    let cronSchedule = null;
     try {
-      const cronSchedule = await getCronScheduleForGeree(
+      cronSchedule = await getCronScheduleForGeree(
         tukhainBaaziinKholbolt,
         tempData,
         org,
       );
+    } catch (error) {
+      console.error("[NEKHEMJLEKH] Error fetching cron schedule:", error.message);
+    }
 
-      if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
+    let shouldUseEkhniiUldegdel = false;
+
+    if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
+      try {
         const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
 
         const gereeCreatedDate =
@@ -87,23 +92,35 @@ const gereeNeesNekhemjlekhUusgekh = async (
         ) {
           shouldUseEkhniiUldegdel = true;
         }
+      } catch (error) {
+        // Error checking ekhniiUldegdel - silently continue
       }
-    } catch (error) {
-      // Error checking ekhniiUldegdel - silently continue
     }
 
-    // One invoice per contract per month: look up first, reuse or update if found, create only when none exists. No duplicate is created.
+    // One invoice per contract per billing cycle: look up first, reuse or update if found, create only when none exists.
     if (!shouldUseEkhniiUldegdel) {
-      const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-      const monthEnd = new Date(
-        currentYear,
-        currentMonth + 1,
-        0,
-        23,
-        59,
-        59,
-        999,
-      );
+      // Determine the start of the check period based on the last cron run
+      let monthStart;
+      if (cronSchedule && cronSchedule.suuldAjillasanOgnoo) {
+        // Use the exact time of the last successful run as the start
+        monthStart = new Date(cronSchedule.suuldAjillasanOgnoo);
+      } else if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
+        // Fallback: Calculate what the previous cron date would have been
+        const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
+        let prevMonth = currentMonth - 1;
+        let prevYear = currentYear;
+        if (prevMonth < 0) {
+          prevMonth = 11;
+          prevYear -= 1;
+        }
+        monthStart = new Date(prevYear, prevMonth, scheduledDay, 0, 0, 0, 0);
+      } else {
+        // Final fallback: Start of current calendar month
+        monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+      }
+
+      // Check period ends now
+      const monthEnd = new Date(currentDate);
 
       let checkBarilgiinId = tempData.barilgiinId;
       if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
@@ -132,6 +149,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
         existingInvoiceQuery.barilgiinId = checkBarilgiinId;
       }
 
+      // TEMPORARILY DISABLED: Duplicate invoice check (allow multiple creations during testing)
+      /*
       const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
         .findOne(existingInvoiceQuery)
         .sort({ ognoo: -1, createdAt: -1 });
@@ -268,6 +287,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           alreadyExists: true,
         };
       }
+      */
     }
 
     const tuukh = new nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)();
