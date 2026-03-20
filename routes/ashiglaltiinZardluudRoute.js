@@ -114,7 +114,7 @@ router.post("/ashiglaltiinZardluudNemekh", async (req, res, next) => {
 router.get("/latestZaaltAvya", async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const { baiguullagiinId, residentId, gereeniiId } = req.query;
+    const { baiguullagiinId, residentId, gereeniiId, gereeniiDugaar } = req.query;
 
     if (!baiguullagiinId) {
       return res.status(400).send({ success: false, message: "baiguullagiinId is required" });
@@ -131,7 +131,8 @@ router.get("/latestZaaltAvya", async (req, res, next) => {
     let filter = {};
     if (gereeniiId) filter.gereeniiId = gereeniiId;
     else if (residentId) filter.residentId = residentId;
-    else return res.status(400).send({ success: false, message: "gereeniiId or residentId is required" });
+    else if (gereeniiDugaar) filter.gereeniiDugaar = gereeniiDugaar;
+    else return res.status(400).send({ success: false, message: "Insufficient search criteria" });
 
     // Fetch the absolute most recent reading from ZaaltUnshlalt (where Excel imports go)
     const latest = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
