@@ -773,12 +773,20 @@ async function saveBilling(userId, billingData) {
       }
     );
 
+    console.log("🔍 [WALLET API] saveBilling response:", {
+      status: response.status,
+      responseCode: response.data?.responseCode,
+      responseMsg: response.data?.responseMsg,
+      hasData: !!response.data?.data,
+      rawData: JSON.stringify(response.data)
+    });
+
     if (response.data && response.data.responseCode && response.data.data) {
       // CLEAR CACHE for this user
       billingListCache.delete(`billing_list_${userId}`);
       return response.data.data;
     }
-    throw new Error("Failed to save billing in Wallet API");
+    throw new Error(`Failed to save billing: ${response.data?.responseMsg || "Unknown error"}`);
   } catch (error) {
     if (error.response) {
       console.error("❌ [WALLET API] Error response status:", error.response.status);
