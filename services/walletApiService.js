@@ -753,7 +753,7 @@ async function saveBilling(userId, billingData) {
     
     // STRIP disallowed fields that cause Wallet API validation errors (e.g. billingName)
     // Only allow specific creation fields
-    const allowedFields = ["customerId", "customerCode", "billerCode", "bairId", "doorNo", "billingId"];
+    const allowedFields = ["customerId", "billerCode", "bairId", "doorNo", "billingId"];
     const finalBillingData = {};
     for (const key of allowedFields) {
        if (cleanedBillingData[key] !== undefined && cleanedBillingData[key] !== null) {
