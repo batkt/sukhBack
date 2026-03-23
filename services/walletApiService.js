@@ -404,11 +404,15 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
           // Optimization: Fetch billing list ONCE for all customers
           const billingList = await getBillingList(userId);
           
-          const enrichedData = await Promise.all(data.map(async (customer) => {
-            // If billingId is already present, return as is
-            if (customer.billingId) {
-              return customer;
-            }
+          const enrichedData = await Promise.all(
+            data.map(async (customer) => {
+              // Inject billerCode into results so subsequent saveBilling calls have it
+              customer.billerCode = mappedBillerCode;
+
+              // If billingId is already present, return as is
+              if (customer.billingId) {
+                return customer;
+              }
             
             // Try to get billingId from cached billing list or by customerId
             try {
@@ -464,6 +468,9 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
         }
       } else if (typeof data === 'object') {
         // Single customer object
+        // Inject billerCode into single object result
+        data.billerCode = mappedBillerCode;
+        
         // Single customer object enrichment
         if (!data.billingId && data.customerId) {
           try {
@@ -759,6 +766,11 @@ async function saveBilling(userId, billingData) {
        if (cleanedBillingData[key] !== undefined && cleanedBillingData[key] !== null) {
           finalBillingData[key] = cleanedBillingData[key];
        }
+    }
+
+    // MANDATORY: If billerCode is missing, it causes BPay to crash with "reading 'name'"
+    if (!finalBillingData.billerCode) {
+       finalBillingData.billerCode = "ELECTRIC"; // Default to Electric if missing
     }
 
     const response = await axios.post(
