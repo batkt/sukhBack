@@ -758,19 +758,14 @@ async function saveBilling(userId, billingData) {
     // Clean the billingData to remove Mongoose objects and circular references
     const cleanedBillingData = cleanObjectForJSON(billingData);
     
-    // STRIP disallowed fields that cause Wallet API validation errors (e.g. billingName)
+    // STRIP disallowed fields that cause Wallet API validation errors (e.g. billingName, billerCode)
     // Only allow specific creation fields
-    const allowedFields = ["customerId", "billerCode", "bairId", "doorNo", "billingId"];
+    const allowedFields = ["customerId"];
     const finalBillingData = {};
     for (const key of allowedFields) {
        if (cleanedBillingData[key] !== undefined && cleanedBillingData[key] !== null) {
           finalBillingData[key] = cleanedBillingData[key];
        }
-    }
-
-    // MANDATORY: If billerCode is missing, it causes BPay to crash with "reading 'name'"
-    if (!finalBillingData.billerCode) {
-       finalBillingData.billerCode = "ELECTRIC"; // Default to Electric if missing
     }
 
     const response = await axios.post(
