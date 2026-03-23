@@ -769,6 +769,32 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
       }
     }
 
+    // 4. Sync to Wallet API if needed (Email and Phone)
+    if (req.body.mail !== undefined || req.body.utas !== undefined) {
+      try {
+        // Try to identify the user for Wallet API (prefer UUID, fallback to single phone string)
+        const walletUserId = result.walletUserId || (Array.isArray(result.utas) ? result.utas[0] : result.utas);
+        
+        if (walletUserId) {
+          const syncData = {};
+          if (req.body.mail !== undefined) syncData.email = req.body.mail;
+          if (req.body.utas !== undefined) {
+            syncData.phone = Array.isArray(req.body.utas) ? req.body.utas[0] : req.body.utas;
+          }
+          
+          if (Object.keys(syncData).length > 0) {
+            console.log(`🔄 [UPDATE] Syncing profile to Wallet API for ${walletUserId}:`, syncData);
+            const walletApiService = require("../services/walletApiService");
+            await walletApiService.editUser(walletUserId, syncData).catch(err => {
+              console.error("⚠️ [UPDATE] Wallet API sync failed:", err.message);
+            });
+          }
+        }
+      } catch (syncErr) {
+        console.error("⚠️ [UPDATE] Error during Wallet API sync:", syncErr.message);
+      }
+    }
+
     res.send(result);
   } catch (error) {
     console.error(

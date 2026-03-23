@@ -992,14 +992,47 @@ exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
 
 exports.walletUserEdit = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { db } = require("zevbackv2");
+    const jwt = require("jsonwebtoken");
+    if (!req.headers.authorization) {
+      throw new aldaa("Нэвтрэх шаардлагатай!");
+    }
+    const token = req.headers.authorization.split(" ")[1];
+    const tokenObject = jwt.verify(token, process.env.APP_SECRET);
+
+    // Find local user record to sync with Wallet API
+    const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findById(tokenObject.id);
+    if (!orshinSuugch) {
+      throw new aldaa("Хэрэглэгч олдсонгүй!");
+    }
+
+    // Try to identify the user for Wallet API
+    const walletUserId = orshinSuugch.walletUserId || orshinSuugch.utas;
     const userData = req.body;
 
     if (!userData) {
       throw new aldaa("Хэрэглэгчийн мэдээлэл заавал бөглөх шаардлагатай!");
     }
 
-    const result = await walletApiService.editUser(userId, userData);
+    // 1. Update Wallet API
+    const result = await walletApiService.editUser(walletUserId, userData);
+
+    // 2. Sync Local Document (Email and Phone)
+    let localChanged = false;
+    if (userData.email !== undefined) {
+      orshinSuugch.mail = userData.email;
+      localChanged = true;
+    }
+    if (userData.phone !== undefined) {
+      orshinSuugch.utas = userData.phone;
+      localChanged = true;
+    }
+    
+    if (localChanged) {
+      console.log(`✅ [WALLET USER EDIT] Syncing ${localChanged ? 'local' : ''} profile for user: ${orshinSuugch.utas}`);
+      await orshinSuugch.save();
+    }
+
     res.status(200).json({
       success: true,
       data: result,
