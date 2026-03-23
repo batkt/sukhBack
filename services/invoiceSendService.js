@@ -3,6 +3,7 @@ const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Medegdel = require("../models/medegdel");
+const NekhemjlekhCron = require("../models/cronSchedule");
 const { getKholboltByBaiguullagiinId } = require("../utils/dbConnection");
 const { gereeNeesNekhemjlekhUusgekh } = require("./invoiceCreationService");
 const { previewInvoice } = require("./invoicePreviewService");
@@ -88,7 +89,44 @@ const manualSendInvoice = async (
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
 
-    const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    // Determine the start of the check period based on the scheduled day
+    let monthStart;
+    try {
+      const { getCronScheduleForGeree } = require("./invoiceCreationService");
+      const cronSchedule = await getCronScheduleForGeree(
+        tukhainBaaziinKholbolt,
+        geree,
+        baiguullaga,
+      );
+
+      if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
+        const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
+        if (currentDate.getDate() >= scheduledDay) {
+          monthStart = new Date(
+            currentYear,
+            currentMonth,
+            scheduledDay,
+            0,
+            0,
+            0,
+            0,
+          );
+        } else {
+          let prevMonth = currentMonth - 1;
+          let prevYear = currentYear;
+          if (prevMonth < 0) {
+            prevMonth = 11;
+            prevYear -= 1;
+          }
+          monthStart = new Date(prevYear, prevMonth, scheduledDay, 0, 0, 0, 0);
+        }
+      } else {
+        monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+      }
+    } catch (err) {
+      monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+    }
+
     const monthEnd = new Date(
       currentYear,
       currentMonth + 1,
