@@ -591,17 +591,22 @@ const gereeNeesNekhemjlekhUusgekh = async (
         }
       }
 
-      const davkharStr = String(tempData.davkhar);
+      const davkharStr = String(tempData.davkhar || "").trim();
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
-        String(d),
+        String(d || "").trim(),
       );
 
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         filteredZardluud = filteredZardluud.filter(
-          (zardal) =>
-            zardal.zardliinTurul !== "Лифт" &&
-            !(zardal.ner && zardal.ner.trim() === "Лифт") &&
-            !(zardal.ner && zardal.ner.includes("Лифт")),
+          (zardal) => {
+            const nerLower = (zardal.ner || "").toLowerCase().trim();
+            const turulLower = (zardal.zardliinTurul || "").toLowerCase().trim();
+            const isLift = 
+              turulLower === "лифт" || 
+              nerLower === "лифт" || 
+              nerLower.includes("лифт");
+            return !isLift;
+          },
         );
       }
     }
@@ -1023,10 +1028,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   z.ner === gz.ner && z.zardliinTurul === gz.zardliinTurul,
               );
             }
-            if (z.zardliinTurul === "Лифт" && tempData.davkhar) {
-              const davkharStr = String(tempData.davkhar);
+            const zNerLower = (z.ner || "").toLowerCase().trim();
+            const zTurulLower = (z.zardliinTurul || "").toLowerCase().trim();
+            const isLiftEntry = 
+              zTurulLower === "лифт" || 
+              zNerLower === "лифт" || 
+              zNerLower.includes("лифт");
+
+            if (isLiftEntry && tempData.davkhar) {
+              const davkharStr = String(tempData.davkhar || "").trim();
               const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
-                String(d),
+                String(d || "").trim(),
               );
               if (choloolugdokhDavkharStr.includes(davkharStr)) {
                 return false;
@@ -1103,15 +1115,20 @@ const gereeNeesNekhemjlekhUusgekh = async (
     });
 
     if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
-      const davkharStr = String(tempData.davkhar);
+      const davkharStr = String(tempData.davkhar || "").trim();
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
-        String(d),
+        String(d || "").trim(),
       );
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         zardluudWithDun = zardluudWithDun.filter((zardal) => {
-          if (zardal.zardliinTurul === "Лифт") return false;
-          if (zardal.ner && zardal.ner.trim() === "Лифт") return false;
-          if (zardal.ner && zardal.ner.includes("Лифт")) return false;
+          const zNerLower = (zardal.ner || "").toLowerCase().trim();
+          const zTurulLower = (zardal.zardliinTurul || "").toLowerCase().trim();
+          const isLiftEntry = 
+            zTurulLower === "лифт" || 
+            zNerLower === "лифт" || 
+            zNerLower.includes("лифт");
+            
+          if (isLiftEntry) return false;
           return true;
         });
       }
@@ -1139,21 +1156,30 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
-      const davkharStr = String(tempData.davkhar);
+      const davkharStr = String(tempData.davkhar || "").trim();
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
-        String(d),
+        String(d || "").trim(),
       );
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         const liftCountBefore = zardluudWithDun.filter((z) => {
-          if (z.zardliinTurul === "Лифт") return true;
-          if (z.ner && z.ner.includes("Лифт")) return true;
-          return false;
+          const zNerLower = (z.ner || "").toLowerCase().trim();
+          const zTurulLower = (z.zardliinTurul || "").toLowerCase().trim();
+          const isLiftEntry = 
+            zTurulLower === "лифт" || 
+            zNerLower === "лифт" || 
+            zNerLower.includes("лифт");
+          return isLiftEntry;
         }).length;
         if (liftCountBefore > 0) {
           zardluudWithDun = zardluudWithDun.filter((z) => {
-            if (z.zardliinTurul === "Лифт") return false;
-            if (z.ner && z.ner.trim() === "Лифт") return false;
-            if (z.ner && z.ner.includes("Лифт")) return false;
+            const zNerLower = (z.ner || "").toLowerCase().trim();
+            const zTurulLower = (z.zardliinTurul || "").toLowerCase().trim();
+            const isLiftEntry = 
+              zTurulLower === "лифт" || 
+              zNerLower === "лифт" || 
+              zNerLower.includes("лифт");
+            
+            if (isLiftEntry) return false;
             return true;
           });
           const correctedZardluudTotalAfter = sumZardalDun(zardluudWithDun);

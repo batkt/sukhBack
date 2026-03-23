@@ -119,21 +119,23 @@ const previewInvoice = async (
         }
       }
 
-      const davkharStr = String(geree.davkhar);
+      const davkharStr = String(geree.davkhar || "").trim();
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
-        String(d),
+        String(d || "").trim(),
       );
 
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         filteredZardluud = filteredZardluud.filter(
-          (zardal) =>
-            zardal.zardliinTurul !== "Лифт" &&
-            !(zardal.ner && zardal.ner.trim() === "Лифт") &&
-            !(zardal.ner && zardal.ner.includes("Лифт")) &&
-            !(
-              liftTariff !== null &&
-              (zardal.dun === liftTariff || zardal.tariff === liftTariff)
-            ),
+          (zardal) => {
+            const nerLower = (zardal.ner || "").toLowerCase().trim();
+            const turulLower = (zardal.zardliinTurul || "").toLowerCase().trim();
+            const isLift = 
+              turulLower === "лифт" || 
+              nerLower === "лифт" || 
+              nerLower.includes("лифт") ||
+              (liftTariff !== null && (zardal.dun === liftTariff || zardal.tariff === liftTariff));
+            return !isLift;
+          },
         );
       }
     }
