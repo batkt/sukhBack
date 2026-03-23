@@ -1549,10 +1549,22 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           return sum + (zardal.dun || zardal.tariff || 0);
         }, 0);
 
-        geree.niitTulbur = niitTulbur;
-        geree.ashiglaltiinZardal = niitTulbur;
+        // Update geree with electricity readings using surgical update to prevent race conditions
+        const updateFields = {
+          umnukhZaalt: umnu,
+          suuliinZaalt: niitOdoo,
+          zaaltTog: odor,
+          zaaltUs: shone,
+          zardluud: geree.zardluud,
+          niitTulbur: niitTulbur,
+          ashiglaltiinZardal: niitTulbur
+        };
 
-        await geree.save();
+        await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
+          geree._id,
+          { $set: updateFields },
+          { runValidators: false }
+        );
 
         // Save to dedicated zaaltUnshlalt model for easier querying and export
         const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
