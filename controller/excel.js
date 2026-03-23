@@ -2223,8 +2223,11 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         geree.zaaltUs = shone;
 
         // Update or add electricity zardal in geree.zardluud
-        if (!geree.zardluud) {
-          geree.zardluud = [];
+        if (!geree.zardluud || (Array.isArray(geree.zardluud) && geree.zardluud.length === 0)) {
+          // If contract has no custom zardluud, initialize it with current building-level defaults
+          // to prevent losing non-electricity charges (like waste disposal, maintenance etc.)
+          // when the first custom zardal (electricity) is added to the contract.
+          geree.zardluud = JSON.parse(JSON.stringify(zardluud || []));
         }
 
         // Find existing electricity zardal
