@@ -149,8 +149,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
         existingInvoiceQuery.barilgiinId = checkBarilgiinId;
       }
 
-      // TEMPORARILY DISABLED: Duplicate invoice check (allow multiple creations during testing)
-      /*
       const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
         .findOne(existingInvoiceQuery)
         .sort({ ognoo: -1, createdAt: -1 });
@@ -222,7 +220,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
                   zaaltUs: latestReading.zaaltUs || 0,
                 };
               } else if (Array.isArray(existingInvoice.medeelel?.zardluud)) {
-                // No electricity entry existed in this month's invoice â€“ create one instead of creating a new invoice
+                // No electricity entry existed in this month's invoice – create one instead of creating a new invoice
                 const zaaltMeta = existingInvoice.medeelel.zaalt || {};
                 const newElectricityEntry = {
                   ner: zaaltMeta.tariffName || "Цахилгаан",
@@ -287,7 +285,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
           alreadyExists: true,
         };
       }
-      */
     }
 
     const tuukh = new nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)();

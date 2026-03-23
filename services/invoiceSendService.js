@@ -118,10 +118,9 @@ const manualSendInvoice = async (
     // This prevented resending/creating invoices when a month was already fully paid.
     // Now we allow creating/sending again regardless of existing paid invoices.
 
-    // Filter for UNSENT/UNPAID invoices for update logic
-    const existingUnsentInvoices = allExistingInvoices.filter(
-      (inv) => inv.tuluv === "Төлөөгүй" || inv.tuluv === "Хугацаа хэтэрсэн",
-    );
+    // We want to identify any existing invoice for this period to potentially update it
+    // instead of creating a new one. Includes all statuses to prevent duplicates.
+    const invoicesToUpdate = allExistingInvoices;
 
     if (override) {
       // If override=true, delete ALL existing invoices for this month
@@ -130,11 +129,11 @@ const manualSendInvoice = async (
           _id: invoice._id,
         });
       }
-    } else if (existingUnsentInvoices.length > 0) {
-      // If override=false but there are unsent invoices, check if we need to update
-      const oldestUnsentInvoice = existingUnsentInvoices[0];
+    } else if (invoicesToUpdate.length > 0) {
+      // If override=false but there are already invoices, check if we need to update
+      const invoiceToSync = invoicesToUpdate[0];
 
-      const hasPayments = invoiceHasPayments(oldestUnsentInvoice);
+      const hasPayments = invoiceHasPayments(invoiceToSync);
 
       // SMART UPDATE CHECK: Calculate what the new invoice WOULD look like
       // NOTE: previewInvoice includes ekhniiUldegdel, but we DON'T want to include it in manual send
@@ -153,7 +152,7 @@ const manualSendInvoice = async (
         );
         const zardluudOnlyTotal = sumZardalDun(newZardluudOnly);
 
-        const oldZardluud = oldestUnsentInvoice.medeelel?.zardluud || [];
+        const oldZardluud = invoiceToSync.medeelel?.zardluud || [];
         const oldZardluudOnly = oldZardluud.filter(
           isZardalExcludingEkhniiUldegdel,
         );
@@ -168,17 +167,17 @@ const manualSendInvoice = async (
           newZardluudCount === oldZardluudCount
         ) {
           await deleteDuplicateUnsentInvoices(
-            existingUnsentInvoices,
+            invoicesToUpdate,
             tukhainBaaziinKholbolt,
           );
           return {
             success: true,
             message: "Нэхэмжлэх хэвийн байна. Өөрчлөлт ороогүй.",
             skipped: true,
-            nekhemjlekh: oldestUnsentInvoice,
+            nekhemjlekh: invoiceToSync,
             gereeniiId: geree._id,
             gereeniiDugaar: geree.gereeniiDugaar,
-            tulbur: oldestUnsentInvoice.niitTulbur,
+            tulbur: invoiceToSync.niitTulbur,
           };
         }
 
@@ -187,17 +186,17 @@ const manualSendInvoice = async (
         // to avoid accidentally wiping invoice line items.
         if (newZardluudCount === 0 && oldZardluudCount > 0) {
           await deleteDuplicateUnsentInvoices(
-            existingUnsentInvoices,
+            invoicesToUpdate,
             tukhainBaaziinKholbolt,
           );
           return {
             success: true,
             message: "Нэхэмжлэх хэвийн байна. Өөрчлөлт ороогүй.",
             skipped: true,
-            nekhemjlekh: oldestUnsentInvoice,
+            nekhemjlekh: invoiceToSync,
             gereeniiId: geree._id,
             gereeniiDugaar: geree.gereeniiDugaar,
-            tulbur: oldestUnsentInvoice.niitTulbur,
+            tulbur: invoiceToSync.niitTulbur,
           };
         }
 
@@ -207,38 +206,38 @@ const manualSendInvoice = async (
         ];
         const newNiitTulbur = sumZardalDun(updatedZardluud);
 
-        oldestUnsentInvoice.medeelel = {
-          ...toPlainObject(oldestUnsentInvoice.medeelel),
+        invoiceToSync.medeelel = {
+          ...toPlainObject(invoiceToSync.medeelel),
           zardluud: updatedZardluud,
         };
         // Ensure original total is preserved
-        if (typeof oldestUnsentInvoice.niitTulburOriginal !== "number") {
-          oldestUnsentInvoice.niitTulburOriginal =
-            oldestUnsentInvoice.niitTulbur;
+        if (typeof invoiceToSync.niitTulburOriginal !== "number") {
+          invoiceToSync.niitTulburOriginal =
+            invoiceToSync.niitTulbur;
         }
 
-        oldestUnsentInvoice.niitTulbur = newNiitTulbur;
+        invoiceToSync.niitTulbur = newNiitTulbur;
 
         // Recalculate uldegdel based on payments
-        const totalPaid = (oldestUnsentInvoice.paymentHistory || []).reduce(
+        const totalPaid = (invoiceToSync.paymentHistory || []).reduce(
           (sum, p) => sum + (p.dun || 0),
           0,
         );
         if (totalPaid > 0) {
-          oldestUnsentInvoice.uldegdel = Math.max(0, newNiitTulbur - totalPaid);
+          invoiceToSync.uldegdel = Math.max(0, newNiitTulbur - totalPaid);
         } else {
-          oldestUnsentInvoice.uldegdel = newNiitTulbur;
+          invoiceToSync.uldegdel = newNiitTulbur;
         }
 
         // IMPORTANT: Do NOT update tuluv until uldegdel or niitTulbur reaches 0.
         // tuluv stays "Төлөөгүй" on manual send updates unless fully paid.
-        if (oldestUnsentInvoice.uldegdel <= 0.01 || newNiitTulbur <= 0.01) {
-          oldestUnsentInvoice.tuluv = "Төлсөн";
+        if (invoiceToSync.uldegdel <= 0.01 || newNiitTulbur <= 0.01) {
+          invoiceToSync.tuluv = "Төлсөн";
         } else {
-          oldestUnsentInvoice.tuluv = "Төлөөгүй";
+          invoiceToSync.tuluv = "Төлөөгүй";
         }
         // Flag to skip the pre-save hook from overriding tuluv
-        oldestUnsentInvoice._skipTuluvRecalc = true;
+        invoiceToSync._skipTuluvRecalc = true;
 
         // Update zaalt metadata if available
         const zaaltEntry = updatedZardluud.find(
@@ -248,24 +247,24 @@ const manualSendInvoice = async (
             !z.ner?.toLowerCase().includes("дундын"),
         );
         if (zaaltEntry) {
-          oldestUnsentInvoice.medeelel = {
-            ...toPlainObject(oldestUnsentInvoice.medeelel),
+          invoiceToSync.medeelel = {
+            ...toPlainObject(invoiceToSync.medeelel),
             zaalt: {
-              ...(oldestUnsentInvoice.medeelel.zaalt || {}),
+              ...(invoiceToSync.medeelel.zaalt || {}),
               zoruu: zaaltEntry.zoruu || 0,
               zaaltDun: zaaltEntry.dun || zaaltEntry.tariff || 0,
             },
           };
-          oldestUnsentInvoice.tsahilgaanNekhemjlekh =
+          invoiceToSync.tsahilgaanNekhemjlekh =
             zaaltEntry.dun ||
             zaaltEntry.tariff ||
-            oldestUnsentInvoice.tsahilgaanNekhemjlekh;
+            invoiceToSync.tsahilgaanNekhemjlekh;
         }
 
         // Mark medeelel as modified to ensure Mongoose saves the changes
-        oldestUnsentInvoice.markModified("medeelel");
+        invoiceToSync.markModified("medeelel");
 
-        await oldestUnsentInvoice.save();
+        await invoiceToSync.save();
 
         const delta = newNiitTulbur - oldZardluudOnlyTotal;
         if (Math.abs(delta) > 0.01) {
@@ -281,7 +280,7 @@ const manualSendInvoice = async (
         }
 
         await deleteDuplicateUnsentInvoices(
-          existingUnsentInvoices,
+          invoicesToUpdate,
           tukhainBaaziinKholbolt,
         );
 
@@ -314,7 +313,7 @@ const manualSendInvoice = async (
 
         return {
           success: true,
-          nekhemjlekh: oldestUnsentInvoice,
+          nekhemjlekh: invoiceToSync,
           gereeniiId: geree._id,
           gereeniiDugaar: geree.gereeniiDugaar,
           tulbur: newNiitTulbur,
@@ -327,10 +326,10 @@ const manualSendInvoice = async (
       // If preview failed, just return the existing invoice without changes
       return {
         success: true,
-        nekhemjlekh: oldestUnsentInvoice,
+        nekhemjlekh: invoiceToSync,
         gereeniiId: geree._id,
         gereeniiDugaar: geree.gereeniiDugaar,
-        tulbur: oldestUnsentInvoice.niitTulbur,
+        tulbur: invoiceToSync.niitTulbur,
         alreadyExists: true,
       };
     }
