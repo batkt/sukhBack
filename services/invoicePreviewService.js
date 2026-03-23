@@ -14,6 +14,7 @@ const previewInvoice = async (
   barilgiinId,
   targetMonth = null,
   targetYear = null,
+  includeEkhniiUldegdel = false,
 ) => {
   try {
     const tukhainBaaziinKholbolt =
@@ -140,8 +141,9 @@ const previewInvoice = async (
     let ekhniiUldegdelAmount = 0;
     let ekhniiUldegdelTailbar = ""; // Store the description from gereeniiTulukhAvlaga
 
-    // First check gereeniiTulukhAvlaga for ekhniiUldegdel records (primary source)
-    try {
+    if (includeEkhniiUldegdel) {
+      // First check gereeniiTulukhAvlaga for ekhniiUldegdel records (primary source)
+      try {
       const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
       const tulukhAvlagaRecords = await GereeniiTulukhAvlaga(
         tukhainBaaziinKholbolt,
@@ -186,6 +188,7 @@ const previewInvoice = async (
       } catch (error) {
         // Error fetching ekhniiUldegdel from orshinSuugch - silently continue
       }
+    }
     }
 
     let zardluudWithDun = filteredZardluud.map((zardal) => {
@@ -383,8 +386,9 @@ const previewInvoice = async (
 
     const zardluudTotal = sumZardalDun(zardluudWithDun);
 
-    // Always add ekhniiUldegdel row (even when 0) for display purposes
-    zardluudWithDun.push({
+    if (includeEkhniiUldegdel || ekhniiUldegdelAmount > 0) {
+      // Always add ekhniiUldegdel row if requested or if balance exists for display purposes
+      zardluudWithDun.push({
       ner: "Эхний үлдэгдэл",
       turul: "Тогтмол",
       bodokhArga: "тогтмол",
@@ -408,6 +412,7 @@ const previewInvoice = async (
       isEkhniiUldegdel: true, // Flag to identify this row
       tailbar: ekhniiUldegdelTailbar || "", // Include the description from gereeniiTulukhAvlaga
     });
+    }
 
     const finalNiitTulbur = zardluudTotal + ekhniiUldegdelAmount;
 

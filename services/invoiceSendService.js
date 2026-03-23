@@ -201,14 +201,9 @@ const manualSendInvoice = async (
           };
         }
 
-        // Update in place: new zardluud (no ekhniiUldegdel) + preserved ekhniiUldegdel from old invoice
-        const newZardluudWithoutEkhniiUldegdel = newZardluudOnly;
-        const oldEkhniiUldegdelEntries = oldZardluud.filter(
-          isEkhniiUldegdelEntry,
-        );
+        // Update in place: new zardluud (no ekhniiUldegdel)
         const updatedZardluud = [
-          ...newZardluudWithoutEkhniiUldegdel,
-          ...oldEkhniiUldegdelEntries,
+          ...newZardluudOnly,
         ];
         const newNiitTulbur = sumZardalDun(updatedZardluud);
 
@@ -246,7 +241,7 @@ const manualSendInvoice = async (
         oldestUnsentInvoice._skipTuluvRecalc = true;
 
         // Update zaalt metadata if available
-        const zaaltEntry = newZardluudWithoutEkhniiUldegdel.find(
+        const zaaltEntry = updatedZardluud.find(
           (z) =>
             z.zaalt === true &&
             z.ner?.toLowerCase().includes("цахилгаан") &&

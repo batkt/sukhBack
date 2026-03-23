@@ -36,7 +36,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
   org,
   tukhainBaaziinKholbolt,
   uusgegsenEsekh = "garan",
-  includeEkhniiUldegdel = true,
+  includeEkhniiUldegdel = false,
   ekhniiUldegdelId = null,
 ) => {
   try {
@@ -847,9 +847,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
               isFixedCharge = true;
               zaaltDun = gereeZaaltZardal.tariff || gereeZaaltZardal.dun || 0;
             } else {
-              // This is a CALCULATED electricity charge - needs Excel reading
-              // For calculated: tariff = кВт rate, suuriKhuraamj = base fee
-              // If no kWh rate from orshinSuugch, use tariff from zardal as kWh rate
               if (!kwhTariff || kwhTariff === 0) {
                 kwhTariff = gereeZaaltZardal.tariff || 0;
               }

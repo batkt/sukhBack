@@ -13,7 +13,6 @@ const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 
 /**
- * Format date for LedgerRow.ognoo (ISO or YYYY-MM-DD string).
  * @param {Date|string|null} d
  * @returns {string}
  */
@@ -25,8 +24,6 @@ function toOgnooString(d) {
 }
 
 /**
- * Build flat ledger rows from invoices, tulukh avlaga, and tulsun avlaga for one contract,
- * then sort by date (oldest first) and compute running balance.
  *
  * @param {Object} options
  * @param {string} options.gereeniiId - Contract ID
