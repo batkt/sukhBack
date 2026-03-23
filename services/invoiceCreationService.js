@@ -99,21 +99,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // One invoice per contract per billing cycle: look up first, reuse or update if found, create only when none exists.
     if (!shouldUseEkhniiUldegdel) {
-      // Determine the start of the check period based on the last cron run
+      // Determine the start of the check period based on the scheduled day
       let monthStart;
-      if (cronSchedule && cronSchedule.suuldAjillasanOgnoo) {
-        // Use the exact time of the last successful run as the start
-        monthStart = new Date(cronSchedule.suuldAjillasanOgnoo);
-      } else if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
-        // Fallback: Calculate what the previous cron date would have been
+      if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
         const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
-        let prevMonth = currentMonth - 1;
-        let prevYear = currentYear;
-        if (prevMonth < 0) {
-          prevMonth = 11;
-          prevYear -= 1;
+        // If today is on or after the scheduled day, the current cycle started this month.
+        // If today is before the scheduled day, the current cycle started last month.
+        if (currentDate.getDate() >= scheduledDay) {
+          monthStart = new Date(currentYear, currentMonth, scheduledDay, 0, 0, 0, 0);
+        } else {
+          let prevMonth = currentMonth - 1;
+          let prevYear = currentYear;
+          if (prevMonth < 0) {
+            prevMonth = 11;
+            prevYear -= 1;
+          }
+          monthStart = new Date(prevYear, prevMonth, scheduledDay, 0, 0, 0, 0);
         }
-        monthStart = new Date(prevYear, prevMonth, scheduledDay, 0, 0, 0, 0);
       } else {
         // Final fallback: Start of current calendar month
         monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
