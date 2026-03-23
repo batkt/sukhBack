@@ -329,34 +329,36 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       throw new aldaa("Байгууллагын ID заавал бөглөх шаардлагатай!");
     }
     // If email is provided but no baiguullagiinId, we'll try to get it from address selection later
+    // ALWAYS check and register with Wallet API in orshinSuugchBurtgey
     let walletUserInfo = null;
     let walletUserId = null;
 
-    if (email) {
-      try {
-        // First, try to get existing user from Wallet API
-        walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+    try {
+      // First, try to get existing user from Wallet API
+      walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+
+      if (walletUserInfo && walletUserInfo.userId) {
+        // User exists in Wallet API
+        walletUserId = walletUserInfo.userId;
+      } else {
+        // User doesn't exist in Wallet API, register them
+        // Use provided email or fallback to phone@amarhome.mn
+        const regEmail = email || `${phoneNumber}@amarhome.mn`;
+        
+        console.log(`🔍 [BURTGEY] User ${phoneNumber} not in Wallet API. Auto-registering with ${regEmail}...`);
+        walletUserInfo = await walletApiService.registerUser(
+          phoneNumber,
+          regEmail,
+        );
 
         if (walletUserInfo && walletUserInfo.userId) {
-          // User exists in Wallet API
           walletUserId = walletUserInfo.userId;
-        } else {
-          // User doesn't exist in Wallet API, register them
-          walletUserInfo = await walletApiService.registerUser(
-            phoneNumber,
-            email,
-          );
-
-          if (!walletUserInfo || !walletUserInfo.userId) {
-            throw new aldaa("Хэтэвчний системд бүртгүүлэхэд алдаа гарлаа.");
-          }
-
-          walletUserId = walletUserInfo.userId;
+          console.log(`✅ [BURTGEY] Auto-registered ${phoneNumber} in Wallet API.`);
         }
-      } catch (walletError) {
-        // If Wallet API fails, we can still proceed with registration
-        // but user won't be able to login via mobile until they register there
       }
+    } catch (walletError) {
+      console.error(`⚠️ [BURTGEY] Wallet API auto-registration failed:`, walletError.message);
+      // Proceed with registration - we don't want to block our own registration if BPay is down
     }
 
     // Check for existing user by utas OR walletUserId (unified check)
@@ -1751,6 +1753,22 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     }
 
     let walletUserId = walletUserInfo?.userId || null;
+
+    // AUTO-REGISTER: If user exists locally but not in Wallet API, register them now
+    if (orshinSuugch && !walletUserId) {
+      console.log(`🔍 [NEVTREY] User ${phoneNumber} not in Wallet API. Attempting auto-registration during login...`);
+      const emailToUse = orshinSuugch.mail || `${phoneNumber}@amarhome.mn`;
+      
+      try {
+        const newWalletUser = await walletApiService.registerUser(phoneNumber, emailToUse);
+        if (newWalletUser && newWalletUser.userId) {
+          walletUserId = newWalletUser.userId;
+          console.log(`✅ [NEVTREY] Auto-registered ${phoneNumber} in Wallet API during login.`);
+        }
+      } catch (regErr) {
+        console.error(`⚠️ [NEVTREY] Wallet API auto-registration failed during login:`, regErr.message);
+      }
+    }
 
     // Validate password - only use local password (stored in our own DB)
     // Password is NOT sent to Wallet API, only stored in our database
@@ -5183,6 +5201,28 @@ exports.walletAddressDetails = asyncHandler(async (req, res, next) => {
       bairId,
       doorNo,
     });
+
+    // AUTO-REGISTER check: If this user is in our DB but not in Wallet API, register them now
+    // Address search (getBillingByAddress) fails at Wallet API if the user doesn't exist there
+    try {
+      const walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
+      if (!walletUserInfo || !walletUserInfo.userId) {
+        console.log(`🔍 [WALLET ADDRESS DETAILS] User ${phoneNumber} not in Wallet API. Attempting auto-registration...`);
+        
+        // Find existing record in our DB to get their email
+        const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas: phoneNumber });
+        const emailToUse = orshinSuugch?.mail || `${phoneNumber}@amarhome.mn`;
+        
+        try {
+          await walletApiService.registerUser(phoneNumber, emailToUse);
+          console.log(`✅ [WALLET ADDRESS DETAILS] Auto-registered ${phoneNumber} with email: ${emailToUse}`);
+        } catch (regErr) {
+          console.error(`⚠️ [WALLET ADDRESS DETAILS] Auto-registration failed for ${phoneNumber}:`, regErr.message);
+        }
+      }
+    } catch (userInfoErr) {
+      // Just log and continue - registration might have been the problem anyway
+    }
 
     const data = await walletApiService.getBillingByAddress(
       phoneNumber,
