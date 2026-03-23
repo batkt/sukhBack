@@ -799,7 +799,7 @@ async function saveBilling(userId, billingData) {
       console.error("❌ [WALLET API] Error response status:", error.response.status);
       console.error("❌ [WALLET API] Error response data:", JSON.stringify(error.response.data));
       
-      const errorMessage = error.response.data?.responseMsg || error.response.data?.message || "Failed to save billing";
+      const errorMessage = "Хэрэглэгчийн код буруу байна";
       throw new Error(errorMessage);
     }
     console.error("❌ [WALLET API] Error saving billing:", error.message);
