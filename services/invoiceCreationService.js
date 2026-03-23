@@ -1114,6 +1114,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     const normalizedZardluud = normalizeZardluudTurul(finalZardluud);
 
+    console.log(`[LIFT DEBUG] normalizedZardluud entries:`, normalizedZardluud.map(z => `"${z.ner}"|${z.zardliinTurul}|zaalt=${z.zaalt}`));
+
     let zardluudWithDun = normalizedZardluud.map((zardal) => {
       if (zardal.zaalt === true) {
         return zardal;
