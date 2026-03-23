@@ -604,7 +604,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
             const isLift = 
               turulLower === "лифт" || 
               nerLower === "лифт" || 
-              nerLower.includes("лифт");
+              nerLower.includes("лифт") ||
+              turulLower === "lift" ||
+              nerLower === "lift" ||
+              nerLower.includes("lift");
             return !isLift;
           },
         );
@@ -1033,7 +1036,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
             const isLiftEntry = 
               zTurulLower === "лифт" || 
               zNerLower === "лифт" || 
-              zNerLower.includes("лифт");
+              zNerLower.includes("лифт") ||
+              zTurulLower === "lift" || 
+              zNerLower === "lift" || 
+              zNerLower.includes("lift");
 
             if (isLiftEntry && tempData.davkhar) {
               const davkharStr = String(tempData.davkhar || "").trim();
@@ -1126,7 +1132,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
           const isLiftEntry = 
             zTurulLower === "лифт" || 
             zNerLower === "лифт" || 
-            zNerLower.includes("лифт");
+            zNerLower.includes("лифт") ||
+            zTurulLower === "lift" || 
+            zNerLower === "lift" || 
+            zNerLower.includes("lift");
             
           if (isLiftEntry) return false;
           return true;
@@ -1167,7 +1176,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
           const isLiftEntry = 
             zTurulLower === "лифт" || 
             zNerLower === "лифт" || 
-            zNerLower.includes("лифт");
+            zNerLower.includes("лифт") ||
+            zTurulLower === "lift" || 
+            zNerLower === "lift" || 
+            zNerLower.includes("lift");
           return isLiftEntry;
         }).length;
         if (liftCountBefore > 0) {
@@ -1177,7 +1189,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
             const isLiftEntry = 
               zTurulLower === "лифт" || 
               zNerLower === "лифт" || 
-              zNerLower.includes("лифт");
+              zNerLower.includes("лифт") ||
+              zTurulLower === "lift" || 
+              zNerLower === "lift" || 
+              zNerLower.includes("lift");
             
             if (isLiftEntry) return false;
             return true;

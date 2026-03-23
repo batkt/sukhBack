@@ -133,6 +133,9 @@ const previewInvoice = async (
               turulLower === "лифт" || 
               nerLower === "лифт" || 
               nerLower.includes("лифт") ||
+              turulLower === "lift" ||
+              nerLower === "lift" ||
+              nerLower.includes("lift") ||
               (liftTariff !== null && (zardal.dun === liftTariff || zardal.tariff === liftTariff));
             return !isLift;
           },
