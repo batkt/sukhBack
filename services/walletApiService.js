@@ -793,7 +793,7 @@ async function saveBilling(userId, billingData) {
       billingListCache.delete(`billing_list_${userId}`);
       return response.data.data;
     }
-    throw new Error(`Failed to save billing: ${response.data?.responseMsg || "Unknown error"}`);
+    throw new Error(`Хэрэгчлэгчийн код буруу байна`);
   } catch (error) {
     if (error.response) {
       console.error("❌ [WALLET API] Error response status:", error.response.status);
