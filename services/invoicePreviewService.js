@@ -124,7 +124,10 @@ const previewInvoice = async (
         String(d || "").trim(),
       );
 
+      console.log(`[LIFT PREVIEW DEBUG] Geree: ${geree.gereeniiDugaar || gereeId}, Davkhar: "${davkharStr}", Free Floors: [${choloolugdokhDavkharStr.join(", ")}]`);
+
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
+        console.log(`[LIFT PREVIEW DEBUG] Match found for floor ${davkharStr}. Filtering...`);
         filteredZardluud = filteredZardluud.filter(
           (zardal) => {
             const nerLower = (zardal.ner || "").toLowerCase().trim();
@@ -137,9 +140,15 @@ const previewInvoice = async (
               nerLower === "lift" ||
               nerLower.includes("lift") ||
               (liftTariff !== null && (zardal.dun === liftTariff || zardal.tariff === liftTariff));
+            
+            if (isLift) {
+               console.log(`[LIFT PREVIEW DEBUG] EXCLUDING charge: "${zardal.ner}" (type: ${zardal.zardliinTurul})`);
+            }
             return !isLift;
           },
         );
+      } else {
+         console.log(`[LIFT PREVIEW DEBUG] No match for floor ${davkharStr}. Skipping filter.`);
       }
     }
 

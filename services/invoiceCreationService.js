@@ -596,7 +596,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
         String(d || "").trim(),
       );
 
+      console.log(`[LIFT DEBUG] Geree: ${tempData.gereeniiDugaar || tempData._id}, Davkhar: "${davkharStr}", Free Floors: [${choloolugdokhDavkharStr.join(", ")}]`);
+
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
+        console.log(`[LIFT DEBUG] Match found for floor ${davkharStr}. Filtering zardluud...`);
         filteredZardluud = filteredZardluud.filter(
           (zardal) => {
             const nerLower = (zardal.ner || "").toLowerCase().trim();
@@ -608,9 +611,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
               turulLower === "lift" ||
               nerLower === "lift" ||
               nerLower.includes("lift");
+            
+            if (isLift) {
+               console.log(`[LIFT DEBUG] EXCLUDING charge: "${zardal.ner}" (type: ${zardal.zardliinTurul})`);
+            }
             return !isLift;
           },
         );
+      } else {
+         console.log(`[LIFT DEBUG] No match for floor ${davkharStr}. Skipping lift filter.`);
       }
     }
 

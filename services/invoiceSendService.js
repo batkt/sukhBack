@@ -267,8 +267,7 @@ const manualSendInvoice = async (
 
         await oldestUnsentInvoice.save();
 
-        const oldNiitTulbur = sumZardalDun(oldZardluud);
-        const delta = newNiitTulbur - oldNiitTulbur;
+        const delta = newNiitTulbur - oldZardluudOnlyTotal;
         if (Math.abs(delta) > 0.01) {
           try {
             await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
