@@ -751,9 +751,19 @@ async function saveBilling(userId, billingData) {
     // Clean the billingData to remove Mongoose objects and circular references
     const cleanedBillingData = cleanObjectForJSON(billingData);
     
+    // STRIP disallowed fields that cause Wallet API validation errors (e.g. billingName)
+    // Only allow specific creation fields
+    const allowedFields = ["customerId", "customerCode", "billerCode", "bairId", "doorNo", "billingId"];
+    const finalBillingData = {};
+    for (const key of allowedFields) {
+       if (cleanedBillingData[key] !== undefined && cleanedBillingData[key] !== null) {
+          finalBillingData[key] = cleanedBillingData[key];
+       }
+    }
+
     const response = await axios.post(
       `${WALLET_API_BASE_URL}/api/billing`,
-      cleanedBillingData,
+      finalBillingData,
       {
         headers: {
           userId: userId,
@@ -1150,9 +1160,16 @@ async function editUser(userId, userData) {
   try {
     const token = await getWalletServiceToken();
     
+    // Strip fields that are not allowed in User update
+    const allowedUserData = { ...userData };
+    delete allowedUserData.billingName;
+    delete allowedUserData.billingId;
+    delete allowedUserData.id;
+    delete allowedUserData._id;
+    
     const response = await axios.put(
       `${WALLET_API_BASE_URL}/api/user`,
-      userData,
+      allowedUserData,
       {
         headers: {
           userId: userId,
