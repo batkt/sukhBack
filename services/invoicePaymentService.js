@@ -120,13 +120,7 @@ async function markInvoicesAsPaid(options) {
     .sort({ ognoo: -1, createdAt: -1 }) // Latest month first
     .lean();
 
-  if (invoices.length > 0) {
-    console.log(
-      "[NEKHEMJLEKH] markInvoicesAsPaid invoices found",
-      invoices.length,
-      invoices.map((i) => i._id),
-    );
-  }
+
   if (invoices.length === 0) {
     // No invoices found - save entire payment as positiveBalance
     let gereeToUpdate = null;

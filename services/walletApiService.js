@@ -130,13 +130,6 @@ async function getBillingByAddress(userId, bairId, doorNo) {
     const token = await getWalletServiceToken();
     const encodedDoorNo = encodeURIComponent(doorNo);
     
-    console.log("🔍 [WALLET API] getBillingByAddress request:", {
-      userId: userId,
-      bairId: bairId,
-      doorNo: doorNo,
-      url: `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${encodedDoorNo}`
-    });
-    
     const cacheKey = `${userId}:${bairId}:${doorNo}`;
     const cached = billingByAddressCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
@@ -153,12 +146,7 @@ async function getBillingByAddress(userId, bairId, doorNo) {
       }
     );
 
-    console.log("🔍 [WALLET API] getBillingByAddress response:", {
-      responseCode: response.data?.responseCode,
-      responseMsg: response.data?.responseMsg,
-      dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A',
-      data: JSON.stringify(response.data?.data).substring(0, 500)
-    });
+
 
     if (response.data && response.data.responseCode && response.data.data) {
       const data = response.data.data;
@@ -354,13 +342,7 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
     const encodedCustomerCode = encodeURIComponent(customerCode);
     
     // Log request parameters for debugging
-    console.log("🔍 [WALLET API] getBillingByBiller request:", {
-      userId: userId,
-      originalBillerCode: billerCode,
-      mappedBillerCode: mappedBillerCode,
-      customerCode: customerCode,
-      url: `${WALLET_API_BASE_URL}/api/billing/biller/${encodedBillerCode}/${encodedCustomerCode}`
-    });
+
     
     const response = await axios.get(
       `${WALLET_API_BASE_URL}/api/billing/biller/${encodedBillerCode}/${encodedCustomerCode}`,
@@ -373,14 +355,7 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
     );
 
     // Log response for debugging
-    console.log("🔍 [WALLET API] getBillingByBiller response:", {
-      responseCode: response.data?.responseCode,
-      responseMsg: response.data?.responseMsg,
-      hasData: !!response.data?.data,
-      dataType: Array.isArray(response.data?.data) ? 'array' : typeof response.data?.data,
-      dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A',
-      fullResponse: JSON.stringify(response.data).substring(0, 500)
-    });
+
 
     // Check if response is successful (responseCode can be true or "true" or truthy)
     const isSuccess = response.data && (
@@ -568,10 +543,7 @@ async function getBillingList(userId) {
     const token = await getWalletServiceToken();
     
     // Log request for debugging
-    console.log("🔍 [WALLET API] getBillingList request:", {
-      userId: userId,
-      url: `${WALLET_API_BASE_URL}/api/billing/list`
-    });
+
     
     // Check cache first
     const cacheKey = `billing_list_${userId}`;
@@ -582,7 +554,7 @@ async function getBillingList(userId) {
 
     // Check if a request is already inflight
     if (inflightRequests.has(cacheKey)) {
-        console.log(`⏳ [WALLET API] Waiting for inflight request: ${cacheKey}`);
+
         return await inflightRequests.get(cacheKey);
     }
 
@@ -596,12 +568,7 @@ async function getBillingList(userId) {
         });
         
         // Log response for debugging
-        console.log("🔍 [WALLET API] getBillingList response:", {
-          responseCode: response.data?.responseCode,
-          responseMsg: response.data?.responseMsg,
-          dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A',
-          hasData: !!response.data?.data
-        });
+
 
         const isSuccess = response.data && (
           response.data.responseCode === true || 
@@ -780,13 +747,7 @@ async function saveBilling(userId, billingData) {
       }
     );
 
-    console.log("🔍 [WALLET API] saveBilling response:", {
-      status: response.status,
-      responseCode: response.data?.responseCode,
-      responseMsg: response.data?.responseMsg,
-      hasData: !!response.data?.data,
-      rawData: JSON.stringify(response.data)
-    });
+
 
     if (response.data && response.data.responseCode && response.data.data) {
       // CLEAR CACHE for this user
@@ -814,11 +775,7 @@ async function removeBilling(userId, billingId) {
   try {
     const token = await getWalletServiceToken();
     
-    console.log("🔍 [WALLET API] removeBilling request:", {
-      userId: userId,
-      billingId: billingId,
-      url: `${WALLET_API_BASE_URL}/api/billing/${billingId}`
-    });
+
 
     const response = await axios.delete(
       `${WALLET_API_BASE_URL}/api/billing/${billingId}`,
@@ -830,11 +787,7 @@ async function removeBilling(userId, billingId) {
       }
     );
 
-    console.log("🔍 [WALLET API] removeBilling response:", {
-      responseCode: response.data?.responseCode,
-      responseMsg: response.data?.responseMsg,
-      data: JSON.stringify(response.data?.data).substring(0, 500)
-    });
+
 
     // Check if response is successful (responseCode can be true or "true" or truthy)
     const isSuccess = response.data && (
@@ -867,12 +820,7 @@ async function removeBill(userId, billingId, billId) {
   try {
     const token = await getWalletServiceToken();
     
-    console.log("🔍 [WALLET API] removeBill request:", {
-      userId: userId,
-      billingId: billingId,
-      billId: billId,
-      url: `${WALLET_API_BASE_URL}/api/billing/${billingId}/bill/${billId}`
-    });
+
 
     const response = await axios.delete(
       `${WALLET_API_BASE_URL}/api/billing/${billingId}/bill/${billId}`,
@@ -884,11 +832,7 @@ async function removeBill(userId, billingId, billId) {
       }
     );
 
-    console.log("🔍 [WALLET API] removeBill response:", {
-      responseCode: response.data?.responseCode,
-      responseMsg: response.data?.responseMsg,
-      data: JSON.stringify(response.data?.data).substring(0, 500)
-    });
+
 
     // Check if response is successful (responseCode can be true or "true" or truthy)
     const isSuccess = response.data && (

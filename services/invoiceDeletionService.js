@@ -162,11 +162,7 @@ async function deleteAllInvoicesForOrg(baiguullagiinId) {
       },
     });
   }
-  if (gereesInOrg.length > 0) {
-    console.log(
-      `📉 [deleteAllInvoicesForOrg] Reset globalUldegdel and cleared guilgeenuudForNekhemjlekh for ${gereesInOrg.length} geree(s) in org ${orgId}`,
-    );
-  }
+
 
   return {
     success: true,
@@ -185,11 +181,7 @@ async function deleteAllInvoicesForOrg(baiguullagiinId) {
  * @param {Object} doc - The invoice document being deleted (must have gereeniiId, baiguullagiinId)
  */
 async function runDeleteSideEffects(doc) {
-  console.log(
-    "[NEKHEMJLEKH] runDeleteSideEffects entry",
-    doc?._id?.toString(),
-    doc?.gereeniiId?.toString(),
-  );
+
   if (!doc || !doc.gereeniiId || !doc.baiguullagiinId) {
     return;
   }
@@ -208,11 +200,7 @@ async function runDeleteSideEffects(doc) {
         baiguullagiinId: oid,
         $or: [{ nekhemjlekhId: String(invId) }, { nekhemjlekhId: invId }],
       });
-      if (tulsunDeleteResult.deletedCount > 0) {
-        console.log(
-          `🗑️ [Middleware] Cascade deleted ${tulsunDeleteResult.deletedCount} gereeniiTulsunAvlaga for nekhemjlekh ${invId}`,
-        );
-      }
+
     } catch (tulsunError) {
       console.error(
         "Error cascade deleting gereeniiTulsunAvlaga:",
@@ -227,11 +215,7 @@ async function runDeleteSideEffects(doc) {
         baiguullagiinId: oid,
         $or: [{ nekhemjlekhId: String(invId) }, { nekhemjlekhId: invId }],
       });
-      if (tulukhDeleteResult.deletedCount > 0) {
-        console.log(
-          `🗑️ [Middleware] Cascade deleted ${tulukhDeleteResult.deletedCount} gereeniiTulukhAvlaga for nekhemjlekh ${invId}`,
-        );
-      }
+
     } catch (tulukhError) {
       console.error(
         "Error cascade deleting gereeniiTulukhAvlaga:",
@@ -242,9 +226,7 @@ async function runDeleteSideEffects(doc) {
     await recalculateGereeGlobalUldegdel(doc.gereeniiId, oid, kholbolt, {
       excludeInvoiceId: invId,
     });
-    console.log(
-      `📉 [Middleware] Recalculated geree.globalUldegdel for contract ${doc.gereeniiId} after invoice delete`,
-    );
+
   } catch (error) {
     console.error("Error in runDeleteSideEffects:", error);
   }

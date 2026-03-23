@@ -42,7 +42,6 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     let baiguullagiinId = req.body.baiguullagiinId || guilgee.baiguullagiinId;
 
     if (!baiguullagiinId) {
-      console.log("🔍 [GEREE SAVE] baiguullagiinId missing, searching in connections...");
       const allConnections = db.kholboltuud || [];
       let foundGeree = null;
 

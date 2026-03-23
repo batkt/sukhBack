@@ -40,10 +40,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
   ekhniiUldegdelId = null,
 ) => {
   try {
-    console.log(
-      "[NEKHEMJLEKH] gereeNeesNekhemjlekhUusgekh create path",
-      tempData?._id?.toString() || tempData?.gereeniiDugaar,
-    );
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth(); // 0-11 (0 = January)
@@ -56,7 +52,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
         org,
       );
     } catch (error) {
-      console.error("[NEKHEMJLEKH] Error fetching cron schedule:", error.message);
     }
 
     let shouldUseEkhniiUldegdel = false;
@@ -608,10 +603,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
         String(d || "").trim(),
       );
 
-      console.log(`[LIFT DEBUG] Geree: ${tempData.gereeniiDugaar || tempData._id}, Davkhar: "${davkharStr}", Free Floors: [${choloolugdokhDavkharStr.join(", ")}]`);
+
 
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
-        console.log(`[LIFT DEBUG] Match found for floor ${davkharStr}. Filtering zardluud...`);
         filteredZardluud = filteredZardluud.filter(
           (zardal) => {
             const nerLower = (zardal.ner || "").toLowerCase().trim();
@@ -624,14 +618,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
               nerLower === "lift" ||
               nerLower.includes("lift");
             
-            if (isLift) {
-               console.log(`[LIFT DEBUG] EXCLUDING charge: "${zardal.ner}" (type: ${zardal.zardliinTurul})`);
-            }
+            
             return !isLift;
           },
         );
       } else {
-         console.log(`[LIFT DEBUG] No match for floor ${davkharStr}. Skipping lift filter.`);
       }
     }
 
@@ -1068,7 +1059,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
               const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
                 String(d || "").trim(),
               );
-              console.log(`[LIFT DEBUG - ELEC BLOCK] Charge: "${z.ner}" is lift. Davkhar: "${davkharStr}", FreeFloors: [${choloolugdokhDavkharStr.join(", ")}], matches: ${choloolugdokhDavkharStr.includes(davkharStr)}`);
+
               if (choloolugdokhDavkharStr.includes(davkharStr)) {
                 return false;
               }
@@ -1127,8 +1118,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     const normalizedZardluud = normalizeZardluudTurul(finalZardluud);
 
-    console.log(`[LIFT DEBUG] normalizedZardluud entries:`, normalizedZardluud.map(z => `"${z.ner}"|${z.zardliinTurul}|zaalt=${z.zaalt}`));
-
     let zardluudWithDun = normalizedZardluud.map((zardal) => {
       if (zardal.zaalt === true) {
         return zardal;
@@ -1153,7 +1142,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
         String(d || "").trim(),
       );
 
-      console.log(`[LIFT DEBUG] Final filter check for Geree: ${tempData.gereeniiDugaar}, Davkhar: "${davkharStr}", FreeFloors: [${choloolugdokhDavkharStr.join(", ")}], zardluudWithDun count: ${zardluudWithDun.length}`);
+
 
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
         const before = zardluudWithDun.length;
@@ -1167,15 +1156,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
             zTurulLower === "lift" ||
             zNerLower === "lift" ||
             zNerLower.includes("lift");
-          console.log(`[LIFT DEBUG] Final check: "${zardal.ner}" (zardliinTurul: "${zardal.zardliinTurul}") -> isLift: ${isLiftEntry}`);
-          if (isLiftEntry) {
-            console.log(`[LIFT DEBUG] REMOVING lift charge: "${zardal.ner}"`);
-          }
+          
+          
           return !isLiftEntry;
         });
-        console.log(`[LIFT DEBUG] Lift filter done. Before: ${before}, After: ${zardluudWithDun.length}`);
+        
       } else {
-        console.log(`[LIFT DEBUG] Davkhar "${davkharStr}" NOT in free floor list. Lift kept.`);
       }
     }
 

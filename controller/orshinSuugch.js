@@ -345,7 +345,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         // Use provided email or empty string (frontend will handle email)
         const regEmail = email || "";
         
-        console.log(`🔍 [BURTGEY] User ${phoneNumber} not in Wallet API. Auto-registering with ${regEmail}...`);
+
         walletUserInfo = await walletApiService.registerUser(
           phoneNumber,
           regEmail,
@@ -1756,7 +1756,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     // AUTO-REGISTER: If user exists locally but not in Wallet API, register them now
     if (orshinSuugch && !walletUserId) {
-      console.log(`🔍 [NEVTREY] User ${phoneNumber} not in Wallet API. Attempting auto-registration during login...`);
+
       const emailToUse = orshinSuugch.mail || "";
       
       try {
@@ -5039,7 +5039,7 @@ exports.walletAddressDetails = asyncHandler(async (req, res, next) => {
     try {
       const walletUserInfo = await walletApiService.getUserInfo(phoneNumber);
       if (!walletUserInfo || !walletUserInfo.userId) {
-        console.log(`🔍 [WALLET ADDRESS DETAILS] User ${phoneNumber} not in Wallet API. Attempting auto-registration...`);
+
         
         // Find existing record in our DB to get their email
         const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({ utas: phoneNumber });

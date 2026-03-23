@@ -109,7 +109,6 @@ const serveMedegdelImage = (req, res, next) => {
     }
   }
 
-  console.log(`🔍 [INDEX DEBUG] URL: ${req.url} -> file: ${filePath || "not found"}`);
 
   if (filePath) {
     res.sendFile(filePath);

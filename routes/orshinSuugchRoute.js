@@ -782,8 +782,7 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
             syncData.phone = Array.isArray(req.body.utas) ? req.body.utas[0] : req.body.utas;
           }
           
-          if (Object.keys(syncData).length > 0) {
-            console.log(`🔄 [UPDATE] Syncing profile to Wallet API for ${walletUserId}:`, syncData);
+           if (Object.keys(syncData).length > 0) {
             const walletApiService = require("../services/walletApiService");
             await walletApiService.editUser(walletUserId, syncData).catch(err => {
               console.error("⚠️ [UPDATE] Wallet API sync failed:", err.message);

@@ -202,11 +202,7 @@ async function deleteInvoiceZardal(invoiceId, zardalId, baiguullagiinId) {
     await updatedInvoice.save();
   }
 
-  console.log(
-    "[NEKHEMJLEKH] deleteInvoiceZardal success",
-    invoiceId,
-    updatedInvoice?.niitTulbur ?? 0,
-  );
+
   return {
     success: true,
     message: "Зардал амжилттай устгагдлаа",
