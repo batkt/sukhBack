@@ -38,9 +38,38 @@ async function getUserIdFromToken(req) {
   const walletToot =
     orshinSuugch.toots &&
     orshinSuugch.toots.find((t) => t.source === "WALLET_API" && t.walletUserId);
-  const walletUserId = walletToot
+  let walletUserId = walletToot
     ? walletToot.walletUserId
     : orshinSuugch.walletUserId;
+
+  // JIT AUTO-REGISTRATION: If no walletUserId exists, try to register with Wallet API
+  if (!walletUserId) {
+    try {
+        // Try to identify user in Wallet API by phone
+        let walletUserInfo = await walletApiService.getUserInfo(orshinSuugch.utas);
+        
+        if (!walletUserInfo || !walletUserInfo.userId) {
+            // Not registered in Wallet API, try auto-registering
+            try {
+                walletUserInfo = await walletApiService.registerUser(
+                    orshinSuugch.utas,
+                    orshinSuugch.mail || ""
+                );
+            } catch (regErr) {
+                // If registration fails, it might be already registered but getUserInfo failed, or BPay is down
+            }
+        }
+
+        if (walletUserInfo && walletUserInfo.userId) {
+            walletUserId = walletUserInfo.userId;
+            // Update local user with the new walletUserId for future requests
+            orshinSuugch.walletUserId = walletUserId;
+            await orshinSuugch.save();
+        }
+    } catch (err) {
+        // Ignore errors during auto-reg to not break local flow
+    }
+  }
 
   return walletUserId || orshinSuugch.utas || tokenObject.id;
 }

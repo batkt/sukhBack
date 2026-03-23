@@ -14,6 +14,8 @@ const inflightRequests = new Map();
 
 const CACHE_TTL = 30000; // 30 seconds for general billing cache
 const POLLING_CACHE_TTL = 5000; // 5 seconds for status polling cache
+const UNREGISTERED_USER_CACHE_TTL = 60000; // 1 minute for unregistered users
+const unregisteredUsersCache = new Map();
 
 function sanitizeNullValues(obj) {
   if (obj === null || obj === undefined) {
@@ -193,6 +195,8 @@ async function registerUser(phone, email) {
     );
 
     if (response.data && response.data.responseCode && response.data.data) {
+      // Clear from unregistered cache if registration was successful
+      unregisteredUsersCache.delete(phone);
       return response.data.data;
     }
 
@@ -341,7 +345,11 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
     const encodedBillerCode = encodeURIComponent(mappedBillerCode);
     const encodedCustomerCode = encodeURIComponent(customerCode);
     
-    // Log request parameters for debugging
+    // Guard against hammering API for unregistered users
+    const unregistered = unregisteredUsersCache.get(userId);
+    if (unregistered && (Date.now() - unregistered.timestamp < UNREGISTERED_USER_CACHE_TTL)) {
+       return null;
+    }
 
     
     const response = await axios.get(
@@ -482,23 +490,17 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
     // If responseCode is false, return null but log the error message
     if (response.data && response.data.responseCode === false) {
       const errorMsg = response.data.responseMsg || "Биллингийн мэдээлэл олдсонгүй";
-      console.error("❌ [WALLET API] Wallet-Service returned error:", {
-        responseCode: response.data.responseCode,
-        responseMsg: errorMsg,
-        billerCode: billerCode,
-        customerCode: customerCode,
-        userId: userId
-      });
+      
+      // Update unregistered cache if necessary
+      if (errorMsg.includes('бүртгэл хийгдээгүй') || errorMsg.includes('Notfound Error')) {
+        unregisteredUsersCache.set(userId, { timestamp: Date.now() });
+      }
+
       // Return null so controller can handle 404
       return null;
     }
 
-    // If responseCode is false or data is missing, return null
-    console.error("❌ [WALLET API] Invalid response structure:", {
-      hasResponse: !!response.data,
-      responseCode: response.data?.responseCode,
-      hasData: !!response.data?.data
-    });
+    // If responseCode is false or data is missing, we don't log the entire structure to avoid clutter
     return null;
   } catch (error) {
     if (error.response && error.response.status === 404) {
@@ -511,6 +513,12 @@ async function getBillingByBiller(userId, billerCode, customerCode) {
 
 async function getBillingByCustomer(userId, customerId) {
   try {
+    // Guard against hammering API for unregistered users
+    const unregistered = unregisteredUsersCache.get(userId);
+    if (unregistered && (Date.now() - unregistered.timestamp < UNREGISTERED_USER_CACHE_TTL)) {
+       return null;
+    }
+
     const token = await getWalletServiceToken();
     
     const response = await axios.get(
@@ -544,6 +552,11 @@ async function getBillingList(userId) {
     
     // Log request for debugging
 
+    // Check if user is known to be not registered to avoid hammering the API
+    const unregistered = unregisteredUsersCache.get(userId);
+    if (unregistered && (Date.now() - unregistered.timestamp < UNREGISTERED_USER_CACHE_TTL)) {
+       return [];
+    }
     
     // Check cache first
     const cacheKey = `billing_list_${userId}`;
@@ -583,6 +596,15 @@ async function getBillingList(userId) {
           billingListCache.set(cacheKey, { timestamp: Date.now(), data: finalData });
           return finalData;
         }
+
+        // Handle 'User not registered' specifically to avoid hammering the API
+        const responseMsg = response.data?.responseMsg || "";
+        if (response.data?.responseCode === false && (responseMsg.includes('бүртгэл хийгдээгүй') || responseMsg.includes('Notfound Error'))) {
+          // Cache empty result for unregistered users too, to prevent infinite loops/retries
+          billingListCache.set(cacheKey, { timestamp: Date.now(), data: [], isNotRegistered: true });
+          unregisteredUsersCache.set(userId, { timestamp: Date.now() }); // Mark user as unregistered
+        }
+
         return [];
       } finally {
         inflightRequests.delete(cacheKey);
