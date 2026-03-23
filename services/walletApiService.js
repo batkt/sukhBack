@@ -147,20 +147,33 @@ async function getBillingByAddress(userId, bairId, doorNo) {
       `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${encodedDoorNo}`,
       {
         headers: {
-           userId: userId,
+           userId: userId || "SYSTEM",
            Authorization: `Bearer ${token}`,
         },
       }
     );
 
+    const fullUrl = `${WALLET_API_BASE_URL}/api/billing/address/${bairId}/${encodedDoorNo}`;
+    
+    // Robust check for responseCode (boolean true or string "true")
+    const isSuccess = response.data && (
+      response.data.responseCode === true || 
+      response.data.responseCode === "true" || 
+      (typeof response.data.responseCode === 'boolean' && response.data.responseCode) ||
+      (typeof response.data.responseCode === 'string' && response.data.responseCode.toLowerCase() === 'true')
+    );
+
     console.log("🔍 [WALLET API] getBillingByAddress response:", {
+      url: fullUrl,
+      userId: userId,
+      isSuccess: isSuccess,
       responseCode: response.data?.responseCode,
       responseMsg: response.data?.responseMsg,
-      dataLength: Array.isArray(response.data?.data) ? response.data.data.length : 'N/A',
-      data: JSON.stringify(response.data?.data).substring(0, 500)
+      dataLength: Array.isArray(response.data?.data) ? response.data.data.length : (response.data?.data ? 'object' : 'N/A'),
+      rawData: JSON.stringify(response.data?.data).substring(0, 1000)
     });
 
-    if (response.data && response.data.responseCode && response.data.data) {
+    if (isSuccess && response.data.data) {
       const data = response.data.data;
       let finalData = [];
       if (Array.isArray(data)) {
@@ -171,6 +184,11 @@ async function getBillingByAddress(userId, bairId, doorNo) {
       
       billingByAddressCache.set(cacheKey, { timestamp: Date.now(), data: finalData });
       return finalData;
+    }
+
+    // If responseCode is false, return empty array but log the message
+    if (response.data && (response.data.responseCode === false || response.data.responseCode === "false")) {
+       console.log("⚠️ [WALLET API] Wallet-Service returned empty/negative for address:", response.data.responseMsg);
     }
 
     return [];
