@@ -511,20 +511,33 @@ const gereeNeesNekhemjlekhUusgekh = async (
         return true;
       };
 
+      // Helper: convert Mongoose subdocument -> plain JS object so spread works correctly.
+      // Mongoose schema-defined properties are NOT enumerable own-properties, so {...doc} loses them.
+      const toPlainZardal = (z) => {
+        if (!z || typeof z !== "object") return z;
+        if (typeof z.toObject === "function") return z.toObject();
+        if (z._doc) return { ...z._doc };
+        return { ...z };
+      };
+
       filteredZardluud = ashiglaltiinZardluud
         .filter((zardal) => !isVariableElectricity(zardal))
         .map((zardal) => {
-          const dun = zardal.dun > 0 ? zardal.dun : zardal.tariff || 0;
+          const plain = toPlainZardal(zardal);
+          const dun = plain.dun > 0 ? plain.dun : plain.tariff || 0;
           return {
-            ...zardal,
+            ...plain,
             dun: dun,
           };
         });
     } catch (error) {
-      filteredZardluud = (tempData.zardluud || []).map((zardal) => ({
-        ...zardal,
-        dun: zardal.dun || zardal.tariff || 0,
-      }));
+      filteredZardluud = (tempData.zardluud || []).map((zardal) => {
+        const plain = (typeof zardal.toObject === "function") ? zardal.toObject() : (zardal._doc ? { ...zardal._doc } : { ...zardal });
+        return {
+          ...plain,
+          dun: plain.dun || plain.tariff || 0,
+        };
+      });
     }
 
     filteredZardluud = normalizeZardluudTurul(filteredZardluud);
@@ -784,9 +797,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
         // Process ALL utility/zaalt entries from BOTH contract and building level
         // (isVariableElectricity is defined at the top of the function)
 
-        const gereeZaaltZardluud = (tempData.zardluud || []).filter(
-          isVariableElectricity,
-        );
+        const gereeZaaltZardluud = (tempData.zardluud || []).map(z => {
+          const p = (typeof z.toObject === "function") ? z.toObject() : (z._doc ? { ...z._doc } : { ...z });
+          return p;
+        }).filter(isVariableElectricity);
 
         const zardluud = targetBarilga?.tokhirgoo?.ashiglaltiinZardluud || [];
         const zaaltZardluud = zardluud.filter(isVariableElectricity);
