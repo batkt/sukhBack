@@ -1143,6 +1143,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
         zardluudWithDun = zardluudWithDun.filter((zardal) => {
           const zNerLower = (zardal.ner || "").toLowerCase().trim();
           const zTurulLower = (zardal.zardliinTurul || "").toLowerCase().trim();
+          
           const isLiftEntry = 
             zTurulLower === "лифт" || 
             zNerLower === "лифт" || 
@@ -1150,6 +1151,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
             zTurulLower === "lift" || 
             zNerLower === "lift" || 
             zNerLower.includes("lift");
+          
+          // CRITICAL DEBUG: Log every single item being checked
+          console.log(`[LIFT DEBUG] Checking charge: "${zardal.ner}" (Type: "${zardal.zardliinTurul}") -> isLift: ${isLiftEntry}`);
           
           if (isLiftEntry) {
             console.log(`[LIFT DEBUG] EXCLUDING charge: "${zardal.ner}" (type: ${zardal.zardliinTurul})`);
