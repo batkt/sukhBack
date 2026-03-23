@@ -1055,6 +1055,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
               const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
                 String(d || "").trim(),
               );
+              console.log(`[LIFT DEBUG - ELEC BLOCK] Charge: "${z.ner}" is lift. Davkhar: "${davkharStr}", FreeFloors: [${choloolugdokhDavkharStr.join(", ")}], matches: ${choloolugdokhDavkharStr.includes(davkharStr)}`);
               if (choloolugdokhDavkharStr.includes(davkharStr)) {
                 return false;
               }
@@ -1129,40 +1130,37 @@ const gereeNeesNekhemjlekhUusgekh = async (
       return result;
     });
 
-    // CONSOLIDATED LIFT FILTER: Exclude lift charges if resident is on a free floor
+    // FINAL CONSOLIDATED LIFT FILTER — runs after full zardluudWithDun assembly
+    // This is the single source of truth for lift exclusion
     if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
       const davkharStr = String(tempData.davkhar || "").trim();
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
         String(d || "").trim(),
       );
 
-      console.log(`[LIFT DEBUG] Final filter check for Geree: ${tempData.gereeniiDugaar || tempData._id}, Davkhar: "${davkharStr}"`);
+      console.log(`[LIFT DEBUG] Final filter check for Geree: ${tempData.gereeniiDugaar}, Davkhar: "${davkharStr}", FreeFloors: [${choloolugdokhDavkharStr.join(", ")}], zardluudWithDun count: ${zardluudWithDun.length}`);
 
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
-        const countBefore = zardluudWithDun.length;
+        const before = zardluudWithDun.length;
         zardluudWithDun = zardluudWithDun.filter((zardal) => {
           const zNerLower = (zardal.ner || "").toLowerCase().trim();
           const zTurulLower = (zardal.zardliinTurul || "").toLowerCase().trim();
-          
-          const isLiftEntry = 
-            zTurulLower === "лифт" || 
-            zNerLower === "лифт" || 
+          const isLiftEntry =
+            zTurulLower === "лифт" ||
+            zNerLower === "лифт" ||
             zNerLower.includes("лифт") ||
-            zTurulLower === "lift" || 
-            zNerLower === "lift" || 
+            zTurulLower === "lift" ||
+            zNerLower === "lift" ||
             zNerLower.includes("lift");
-          
-          // CRITICAL DEBUG: Log every single item being checked
-          console.log(`[LIFT DEBUG] Checking charge: "${zardal.ner}" (Type: "${zardal.zardliinTurul}") -> isLift: ${isLiftEntry}`);
-          
+          console.log(`[LIFT DEBUG] Final check: "${zardal.ner}" (zardliinTurul: "${zardal.zardliinTurul}") -> isLift: ${isLiftEntry}`);
           if (isLiftEntry) {
-            console.log(`[LIFT DEBUG] EXCLUDING charge: "${zardal.ner}" (type: ${zardal.zardliinTurul})`);
+            console.log(`[LIFT DEBUG] REMOVING lift charge: "${zardal.ner}"`);
           }
           return !isLiftEntry;
         });
-        if (countBefore > zardluudWithDun.length) {
-          console.log(`[LIFT DEBUG] Removed ${countBefore - zardluudWithDun.length} lift-related charges.`);
-        }
+        console.log(`[LIFT DEBUG] Lift filter done. Before: ${before}, After: ${zardluudWithDun.length}`);
+      } else {
+        console.log(`[LIFT DEBUG] Davkhar "${davkharStr}" NOT in free floor list. Lift kept.`);
       }
     }
 
