@@ -138,8 +138,7 @@ const previewInvoice = async (
               nerLower.includes("лифт") ||
               turulLower === "lift" ||
               nerLower === "lift" ||
-              nerLower.includes("lift") ||
-              (liftTariff !== null && (zardal.dun === liftTariff || zardal.tariff === liftTariff));
+              nerLower.includes("lift");
             
             if (isLift) {
                console.log(`[LIFT PREVIEW DEBUG] EXCLUDING charge: "${zardal.ner}" (type: ${zardal.zardliinTurul})`);

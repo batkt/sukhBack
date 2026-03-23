@@ -1129,12 +1129,17 @@ const gereeNeesNekhemjlekhUusgekh = async (
       return result;
     });
 
+    // CONSOLIDATED LIFT FILTER: Exclude lift charges if resident is on a free floor
     if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
       const davkharStr = String(tempData.davkhar || "").trim();
       const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
         String(d || "").trim(),
       );
+
+      console.log(`[LIFT DEBUG] Final filter check for Geree: ${tempData.gereeniiDugaar || tempData._id}, Davkhar: "${davkharStr}"`);
+
       if (choloolugdokhDavkharStr.includes(davkharStr)) {
+        const countBefore = zardluudWithDun.length;
         zardluudWithDun = zardluudWithDun.filter((zardal) => {
           const zNerLower = (zardal.ner || "").toLowerCase().trim();
           const zTurulLower = (zardal.zardliinTurul || "").toLowerCase().trim();
@@ -1145,10 +1150,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
             zTurulLower === "lift" || 
             zNerLower === "lift" || 
             zNerLower.includes("lift");
-            
-          if (isLiftEntry) return false;
-          return true;
+          
+          if (isLiftEntry) {
+            console.log(`[LIFT DEBUG] EXCLUDING charge: "${zardal.ner}" (type: ${zardal.zardliinTurul})`);
+          }
+          return !isLiftEntry;
         });
+        if (countBefore > zardluudWithDun.length) {
+          console.log(`[LIFT DEBUG] Removed ${countBefore - zardluudWithDun.length} lift-related charges.`);
+        }
       }
     }
 
@@ -1171,48 +1181,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
         correctedFinalNiitTulbur - positiveBalanceUsed,
       );
       remainingPositiveBalance = gereePositiveBalance - positiveBalanceUsed;
-    }
-
-    if (tempData.davkhar && choloolugdokhDavkhar.length > 0) {
-      const davkharStr = String(tempData.davkhar || "").trim();
-      const choloolugdokhDavkharStr = choloolugdokhDavkhar.map((d) =>
-        String(d || "").trim(),
-      );
-      if (choloolugdokhDavkharStr.includes(davkharStr)) {
-        const liftCountBefore = zardluudWithDun.filter((z) => {
-          const zNerLower = (z.ner || "").toLowerCase().trim();
-          const zTurulLower = (z.zardliinTurul || "").toLowerCase().trim();
-          const isLiftEntry = 
-            zTurulLower === "лифт" || 
-            zNerLower === "лифт" || 
-            zNerLower.includes("лифт") ||
-            zTurulLower === "lift" || 
-            zNerLower === "lift" || 
-            zNerLower.includes("lift");
-          return isLiftEntry;
-        }).length;
-        if (liftCountBefore > 0) {
-          zardluudWithDun = zardluudWithDun.filter((z) => {
-            const zNerLower = (z.ner || "").toLowerCase().trim();
-            const zTurulLower = (z.zardliinTurul || "").toLowerCase().trim();
-            const isLiftEntry = 
-              zTurulLower === "лифт" || 
-              zNerLower === "лифт" || 
-              zNerLower.includes("лифт") ||
-              zTurulLower === "lift" || 
-              zNerLower === "lift" || 
-              zNerLower.includes("lift");
-            
-            if (isLiftEntry) return false;
-            return true;
-          });
-          const correctedZardluudTotalAfter = sumZardalDun(zardluudWithDun);
-          correctedFinalNiitTulbur =
-            correctedZardluudTotalAfter +
-            guilgeenuudTotal +
-            ekhniiUldegdelAmount;
-        }
-      }
     }
 
     // Always add ekhniiUldegdel row (even when 0) for display purposes
