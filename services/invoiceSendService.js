@@ -5,7 +5,10 @@ const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Medegdel = require("../models/medegdel");
 const NekhemjlekhCron = require("../models/cronSchedule");
 const { getKholboltByBaiguullagiinId } = require("../utils/dbConnection");
-const { gereeNeesNekhemjlekhUusgekh } = require("./invoiceCreationService");
+const {
+  gereeNeesNekhemjlekhUusgekh,
+  getCronScheduleForGeree,
+} = require("./invoiceCreationService");
 const { previewInvoice } = require("./invoicePreviewService");
 
 function isZardalExcludingEkhniiUldegdel(z) {
@@ -92,7 +95,6 @@ const manualSendInvoice = async (
     // Determine the start of the check period based on the scheduled day
     let monthStart;
     try {
-      const { getCronScheduleForGeree } = require("./invoiceCreationService");
       const cronSchedule = await getCronScheduleForGeree(
         tukhainBaaziinKholbolt,
         geree,

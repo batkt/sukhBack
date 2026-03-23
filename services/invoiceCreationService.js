@@ -1547,4 +1547,5 @@ async function sendInvoiceSmsToOrshinSuugch(
 
 module.exports = {
   gereeNeesNekhemjlekhUusgekh,
+  getCronScheduleForGeree,
 };
