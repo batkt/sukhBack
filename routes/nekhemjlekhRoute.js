@@ -485,6 +485,12 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
           }
           originalTotal = Math.round((originalTotal || 0) * 100) / 100;
 
+          // If this is the newest invoice, let it absorb any un-invoiced manual Avlaga
+          // so that they coexist as one unified remaining balance
+          if (inv === allInvoices[0]) {
+            originalTotal = Math.max(originalTotal, Math.round(remainingDebt * 100) / 100);
+          }
+
           // How much of the global debt belongs to this invoice?
           const targetUldegdel = Math.round(Math.min(originalTotal, Math.max(0, remainingDebt)) * 100) / 100;
           remainingDebt = Math.round(Math.max(0, remainingDebt - targetUldegdel) * 100) / 100;

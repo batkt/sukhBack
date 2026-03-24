@@ -113,6 +113,88 @@ async function recalcGlobalUldegdel({
 
   console.log(`📊 [RECALC ${gid}] ✅ SAVED: globalUldegdel ${oldGlobalUldegdel} → ${newGlobalUldegdel}, positiveBalance ${oldPositiveBalance} → ${newPositiveBalance}`);
 
+  // --- AUTOMATIC INVOICE SYSTEM SYNC ---
+  // Ensure the invoice document mathematically tracks the newly calculated ledger globalUldegdel
+  try {
+    const allInvoices = await NekhemjlekhiinTuukhModel
+      .find({ gereeniiId: gid })
+      .sort({ ognoo: -1, createdAt: -1 });
+
+    if (allInvoices.length > 0) {
+      let remainingDebt = Math.round(newGlobalUldegdel * 100) / 100;
+      for (const inv of allInvoices) {
+        let originalTotal = typeof inv.niitTulburOriginal === "number" && inv.niitTulburOriginal > 0
+          ? inv.niitTulburOriginal
+          : null;
+        if (!originalTotal && Array.isArray(inv.medeelel?.zardluud)) {
+          const zardalTotal = inv.medeelel.zardluud
+            .filter(z => !z.isEkhniiUldegdel)
+            .reduce((s, z) => s + (Number(z.dun) || Number(z.tariff) || 0), 0);
+          originalTotal = Math.round(zardalTotal * 100) / 100;
+        }
+        originalTotal = Math.round((originalTotal || 0) * 100) / 100;
+
+        // The newest invoice dynamically absorbs any un-invoiced Avlagas so they coexist as ONE balance
+        if (inv === allInvoices[0]) {
+          originalTotal = Math.max(originalTotal, Math.round(remainingDebt * 100) / 100);
+        }
+
+        const targetUldegdel = Math.round(Math.min(originalTotal, Math.max(0, remainingDebt)) * 100) / 100;
+        remainingDebt = Math.round(Math.max(0, remainingDebt - targetUldegdel) * 100) / 100;
+
+        const targetTuluv = targetUldegdel <= 0.01 ? "Төлсөн" : "Төлөөгүй";
+        const targetTotalPaid = Math.round((originalTotal - targetUldegdel) * 100) / 100;
+        const currentTotalPaid = Math.round(
+          (inv.paymentHistory || []).reduce((s, p) => s + (Number(p.dun) || 0), 0) * 100
+        ) / 100;
+
+        const paymentDiff = Math.round((targetTotalPaid - currentTotalPaid) * 100) / 100;
+
+        const needsFix =
+          Math.abs((inv.uldegdel ?? 0) - targetUldegdel) > 0.01 ||
+          Math.abs((inv.niitTulbur ?? 0) - targetUldegdel) > 0.01 ||
+          inv.tuluv !== targetTuluv ||
+          Math.abs(paymentDiff) > 0.01 ||
+          (inv.niitTulburOriginal !== originalTotal && originalTotal > 0);
+
+        if (needsFix && (!excludeInvoiceId || String(inv._id) !== String(excludeInvoiceId))) {
+          inv.niitTulburOriginal = originalTotal;
+          if (Math.abs(paymentDiff) > 0.01) {
+            const existingSyncIdx = (inv.paymentHistory || []).findIndex(p => p.turul === 'system_sync');
+            if (existingSyncIdx > -1) {
+              inv.paymentHistory[existingSyncIdx].dun = Math.round((inv.paymentHistory[existingSyncIdx].dun + paymentDiff) * 100) / 100;
+              if (inv.paymentHistory[existingSyncIdx].dun <= 0.01) {
+                inv.paymentHistory.splice(existingSyncIdx, 1);
+              }
+            } else if (paymentDiff > 0) {
+              if (!inv.paymentHistory) inv.paymentHistory = [];
+              inv.paymentHistory.push({
+                ognoo: inv.tulsunOgnoo || new Date(),
+                dun: paymentDiff,
+                turul: "system_sync",
+                guilgeeniiId: `sync_${Date.now()}`,
+                tailbar: "Системээс тэгшитгэв (Эерэг үлдэгдэл / Төлбөр)"
+              });
+            } else if (paymentDiff < 0) {
+              if (!inv.paymentHistory) inv.paymentHistory = [];
+              inv.paymentHistory.push({
+                ognoo: new Date(),
+                dun: paymentDiff,
+                turul: "system_sync",
+                guilgeeniiId: `sync_neg_${Date.now()}`,
+                tailbar: "Системээс илүү гарсан төлөлтийг тэгшитгэж хасав"
+              });
+            }
+          }
+          inv.markModified("paymentHistory");
+          await inv.save();
+        }
+      }
+    }
+  } catch (invSyncErr) {
+    console.error(`❌ [RECALC ${gid}] Invoice sync failed:`, invSyncErr.message);
+  }
+
   return freshGeree;
 }
 
