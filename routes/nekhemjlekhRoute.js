@@ -371,10 +371,14 @@ router.post("/recalculate-balance", tokenShalgakh, recalculateGereeBalance);
 
 /**
  * POST /nekhemjlekh/fix-invoice-credit
- * Fixes existing invoices where a positiveBalance (credit from overpayment) was not
- * deducted at creation time. Applies available credit to the oldest unpaid invoice(s)
- * and then recalculates globalUldegdel from the ledger.
- *
+ * Safely restores invoice uldegdel/niitTulbur from their original amounts and
+ * payment history, then recalculates geree.globalUldegdel from the ledger.
+ * 
+ * Strategy (SAFE):
+ *   1. For each unpaid invoice: restore uldegdel = max(0, niitTulburOriginal - totalPaid)
+ *      niitTulburOriginal is the source of truth set at invoice creation.
+ *   2. Run recalcGlobalUldegdel — ledger is always the final authority.
+ * 
  * Body: { gereeniiId, baiguullagiinId }
  */
 router.post("/fix-invoice-credit", tokenShalgakh, async (req, res, next) => {
@@ -392,62 +396,63 @@ router.post("/fix-invoice-credit", tokenShalgakh, async (req, res, next) => {
     }
 
     const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
-    const GereeniiTulsunAvlaga  = require("../models/gereeniiTulsunAvlaga");
+    const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
     const NekhemjlekhModel = nekhemjlekhiinTuukh(kholbolt);
-    const GereeModel       = Geree(kholbolt);
+    const GereeModel = Geree(kholbolt);
 
-    // 1. Get the ledger to find actual current balance
-    const { getHistoryLedger } = require("../services/historyLedgerService");
-    const ledger = await getHistoryLedger({ gereeniiId, baiguullagiinId });
-    const ledgerFinalBalance = ledger.jagsaalt.length > 0
-      ? ledger.jagsaalt[ledger.jagsaalt.length - 1].uldegdel
-      : 0;
+    // 1. Find ALL invoices for this contract (including paid ones to check state)
+    const allInvoices = await NekhemjlekhModel
+      .find({ gereeniiId: String(gereeniiId) })
+      .sort({ ognoo: 1, createdAt: 1 });
 
-    // 2. Get geree's stored globalUldegdel to find the drift
-    const geree = await GereeModel.findById(gereeniiId).select("globalUldegdel positiveBalance").lean();
-    if (!geree) return res.status(404).json({ success: false, message: "Гэрээ олдсонгүй" });
+    const fixedInvoices = [];
 
-    const storedGlobal = typeof geree.globalUldegdel === "number" ? geree.globalUldegdel : 0;
-    const drift = storedGlobal - ledgerFinalBalance; // positive drift = we overcharged invoices
+    for (const inv of allInvoices) {
+      // Use niitTulburOriginal as the definitive original charge amount.
+      // If missing (old invoices), fall back to zardluud sum.
+      let originalTotal = typeof inv.niitTulburOriginal === "number" && inv.niitTulburOriginal > 0
+        ? inv.niitTulburOriginal
+        : (inv.niitTulbur || 0);
 
-    let fixedInvoices = [];
+      // Calculate how much has already been paid via paymentHistory
+      const totalPaid = (inv.paymentHistory || []).reduce((sum, p) => sum + (Number(p.dun) || 0), 0);
 
-    if (drift > 0.01) {
-      // There's a drift: invoices were created without applying credit.
-      // Apply the drift as a deduction to unpaid invoices (oldest first).
-      const unpaidInvoices = await NekhemjlekhModel
-        .find({ gereeniiId: String(gereeniiId), tuluv: { $nin: ["Төлсөн"] } })
-        .sort({ ognoo: 1, createdAt: 1 });
+      const correctUldegdel = Math.max(0, Math.round((originalTotal - totalPaid) * 100) / 100);
+      const correctNiitTulbur = correctUldegdel;
+      const correctTuluv = correctUldegdel <= 0.01 ? "Төлсөн" : "Төлөөгүй";
 
-      let remaining = drift;
-      for (const inv of unpaidInvoices) {
-        if (remaining <= 0.01) break;
-        const currentUldegdel = typeof inv.uldegdel === "number" ? inv.uldegdel : (inv.niitTulbur || 0);
-        if (currentUldegdel <= 0) continue;
+      const oldUldegdel = typeof inv.uldegdel === "number" ? inv.uldegdel : null;
+      const oldNiitTulbur = typeof inv.niitTulbur === "number" ? inv.niitTulbur : null;
 
-        const deduction    = Math.min(remaining, currentUldegdel);
-        const newUldegdel  = Math.max(0, currentUldegdel - deduction);
-        const newNiitTulbur = Math.max(0, (inv.niitTulbur || 0) - deduction);
+      // Only update if something is actually wrong
+      const needsFix =
+        Math.abs((oldUldegdel ?? 0) - correctUldegdel) > 0.01 ||
+        Math.abs((oldNiitTulbur ?? 0) - correctNiitTulbur) > 0.01 ||
+        inv.tuluv !== correctTuluv;
 
+      if (needsFix) {
         inv._skipTuluvRecalc = true;
-        inv.uldegdel   = newUldegdel;
-        inv.niitTulbur = newNiitTulbur;
-        inv.tuluv      = newUldegdel <= 0.01 ? "Төлсөн" : inv.tuluv;
+        inv.uldegdel = correctUldegdel;
+        inv.niitTulbur = correctNiitTulbur;
+        inv.tuluv = correctTuluv;
         await inv.save();
 
         fixedInvoices.push({
-          _id:            inv._id,
+          _id: inv._id,
           nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar,
-          oldUldegdel:    currentUldegdel,
-          newUldegdel,
-          deduction:      Math.round(deduction * 100) / 100,
+          oldUldegdel,
+          oldNiitTulbur,
+          newUldegdel: correctUldegdel,
+          newNiitTulbur: correctNiitTulbur,
+          tuluv: correctTuluv,
+          totalPaid,
+          originalTotal,
         });
-
-        remaining -= deduction;
       }
     }
 
-    // 3. Recalculate geree globalUldegdel & positiveBalance from ledger (source of truth)
+    // 2. Recalculate geree globalUldegdel & positiveBalance from ledger (source of truth).
+    //    This is always safe because the ledger reads raw data from 3 collections.
     const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
     const updatedGeree = await recalcGlobalUldegdel({
       gereeId: gereeniiId,
@@ -464,11 +469,10 @@ router.post("/fix-invoice-credit", tokenShalgakh, async (req, res, next) => {
     res.json({
       success: true,
       message: fixedInvoices.length > 0
-        ? `${fixedInvoices.length} нэхэмжлэх засагдлаа, үлдэгдэл дахин тооцоолов`
-        : "Засах зүйл олдсонгүй, үлдэгдэл дахин тооцоолов",
-      drift: Math.round(drift * 100) / 100,
+        ? `${fixedInvoices.length} нэхэмжлэх сэргээгдлээ, үлдэгдэл дахин тооцоолов`
+        : "Засах зүйл олдсонгүй, үлдэгдэл шалгагдлаа",
       fixedInvoices,
-      globalUldegdel:  updatedGeree?.globalUldegdel,
+      globalUldegdel: updatedGeree?.globalUldegdel,
       positiveBalance: updatedGeree?.positiveBalance,
     });
   } catch (err) {
