@@ -114,7 +114,6 @@ router.post("/ashiglaltiinZardluudNemekh", async (req, res, next) => {
 router.get("/zaaltJagsaaltAvya", tokenShalgakh, async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    // Parameters can be in query (GET) or body (POST/PUT fallback)
     const params = { ...req.query, ...req.body };
     const { 
       baiguullagiinId, 

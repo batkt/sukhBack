@@ -377,15 +377,30 @@ const gereeNeesNekhemjlekhUusgekh = async (
       // Error fetching dans info - silently continue
     }
 
-    // Get fresh geree data to check for positiveBalance
+    // Get fresh geree data to check for positiveBalance (credit from overpayment).
+    // We cross-check BOTH geree.positiveBalance field AND geree.globalUldegdel:
+    //   - geree.positiveBalance: explicitly stored credit
+    //   - geree.globalUldegdel < 0: means customer overpaid → |globalUldegdel| is usable credit
+    // We take the MAX of the two to avoid missing credit when one field is stale.
     let gereePositiveBalance = 0;
     try {
       const freshGeree = await Geree(tukhainBaaziinKholbolt)
         .findById(tempData._id)
-        .select("positiveBalance")
+        .select("positiveBalance globalUldegdel")
         .lean();
-      if (freshGeree && freshGeree.positiveBalance) {
-        gereePositiveBalance = freshGeree.positiveBalance;
+      if (freshGeree) {
+        const storedCredit = Number(freshGeree.positiveBalance) || 0;
+        // If globalUldegdel is negative it means the customer has a credit balance
+        const creditFromGlobal =
+          typeof freshGeree.globalUldegdel === "number" && freshGeree.globalUldegdel < 0
+            ? Math.abs(freshGeree.globalUldegdel)
+            : 0;
+        gereePositiveBalance = Math.max(storedCredit, creditFromGlobal);
+        if (gereePositiveBalance > 0) {
+          console.log(
+            `💳 [INVOICE] geree ${tempData._id} has credit: storedCredit=${storedCredit}, creditFromGlobal=${creditFromGlobal}, using=${gereePositiveBalance}`
+          );
+        }
       }
     } catch (error) {
       // Error fetching geree positiveBalance - silently continue
@@ -1358,28 +1373,40 @@ const gereeNeesNekhemjlekhUusgekh = async (
       }
     }
 
-    // Update geree: latest invoice date, globalUldegdel, and deduct used overpayment (positiveBalance)
+    // Update geree: set latest invoice date, then recalculate globalUldegdel & positiveBalance
+    // via the ledger so the two fields never drift apart.
     try {
-      const gereeInc = {
-        globalUldegdel: tuukh.niitTulbur || 0,
-      };
-      if (positiveBalanceUsed > 0) {
-        gereeInc.positiveBalance = -positiveBalanceUsed;
-      }
+      // 1) Stamp the invoice date
       await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
         tempData._id,
-        {
-          $set: {
-            nekhemjlekhiinOgnoo: new Date(),
-          },
-          $inc: gereeInc,
-        },
-        {
-          runValidators: false,
-        },
+        { $set: { nekhemjlekhiinOgnoo: new Date() } },
+        { runValidators: false },
       );
     } catch (gereeUpdateError) {
-      // Error updating geree after invoice creation - silently continue
+      // Error updating geree nekhemjlekhiinOgnoo - silently continue
+    }
+
+    // 2) Full recalculation so globalUldegdel & positiveBalance always match the ledger.
+    //    This replaces the old $inc approach which could leave them out of sync.
+    try {
+      const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
+      const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+      const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+      const baiguullagiinIdStr = org._id
+        ? org._id.toString()
+        : org.id
+          ? org.id.toString()
+          : String(tempData.baiguullagiinId || "");
+      await recalcGlobalUldegdel({
+        gereeId: tempData._id.toString(),
+        baiguullagiinId: baiguullagiinIdStr,
+        GereeModel: Geree(tukhainBaaziinKholbolt),
+        NekhemjlekhiinTuukhModel: nekhemjlekhiinTuukh(tukhainBaaziinKholbolt),
+        GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(tukhainBaaziinKholbolt),
+        GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(tukhainBaaziinKholbolt),
+      });
+    } catch (recalcErr) {
+      console.error("⚠️ [INVOICE] recalcGlobalUldegdel after invoice create failed:", recalcErr.message);
     }
 
     // TEMPORARILY DISABLED: Send SMS to orshinSuugch when invoice is created

@@ -369,6 +369,113 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
 // Recalculate and re-sync contract balance
 router.post("/recalculate-balance", tokenShalgakh, recalculateGereeBalance);
 
+/**
+ * POST /nekhemjlekh/fix-invoice-credit
+ * Fixes existing invoices where a positiveBalance (credit from overpayment) was not
+ * deducted at creation time. Applies available credit to the oldest unpaid invoice(s)
+ * and then recalculates globalUldegdel from the ledger.
+ *
+ * Body: { gereeniiId, baiguullagiinId }
+ */
+router.post("/fix-invoice-credit", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { gereeniiId, baiguullagiinId } = req.body;
+    if (!gereeniiId || !baiguullagiinId) {
+      return res.status(400).json({ success: false, message: "gereeniiId болон baiguullagiinId шаардлагатай" });
+    }
+
+    const kholbolt = db.kholboltuud?.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res.status(404).json({ success: false, message: "Холболт олдсонгүй" });
+    }
+
+    const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+    const GereeniiTulsunAvlaga  = require("../models/gereeniiTulsunAvlaga");
+    const NekhemjlekhModel = nekhemjlekhiinTuukh(kholbolt);
+    const GereeModel       = Geree(kholbolt);
+
+    // 1. Get the ledger to find actual current balance
+    const { getHistoryLedger } = require("../services/historyLedgerService");
+    const ledger = await getHistoryLedger({ gereeniiId, baiguullagiinId });
+    const ledgerFinalBalance = ledger.jagsaalt.length > 0
+      ? ledger.jagsaalt[ledger.jagsaalt.length - 1].uldegdel
+      : 0;
+
+    // 2. Get geree's stored globalUldegdel to find the drift
+    const geree = await GereeModel.findById(gereeniiId).select("globalUldegdel positiveBalance").lean();
+    if (!geree) return res.status(404).json({ success: false, message: "Гэрээ олдсонгүй" });
+
+    const storedGlobal = typeof geree.globalUldegdel === "number" ? geree.globalUldegdel : 0;
+    const drift = storedGlobal - ledgerFinalBalance; // positive drift = we overcharged invoices
+
+    let fixedInvoices = [];
+
+    if (drift > 0.01) {
+      // There's a drift: invoices were created without applying credit.
+      // Apply the drift as a deduction to unpaid invoices (oldest first).
+      const unpaidInvoices = await NekhemjlekhModel
+        .find({ gereeniiId: String(gereeniiId), tuluv: { $nin: ["Төлсөн"] } })
+        .sort({ ognoo: 1, createdAt: 1 });
+
+      let remaining = drift;
+      for (const inv of unpaidInvoices) {
+        if (remaining <= 0.01) break;
+        const currentUldegdel = typeof inv.uldegdel === "number" ? inv.uldegdel : (inv.niitTulbur || 0);
+        if (currentUldegdel <= 0) continue;
+
+        const deduction    = Math.min(remaining, currentUldegdel);
+        const newUldegdel  = Math.max(0, currentUldegdel - deduction);
+        const newNiitTulbur = Math.max(0, (inv.niitTulbur || 0) - deduction);
+
+        inv._skipTuluvRecalc = true;
+        inv.uldegdel   = newUldegdel;
+        inv.niitTulbur = newNiitTulbur;
+        inv.tuluv      = newUldegdel <= 0.01 ? "Төлсөн" : inv.tuluv;
+        await inv.save();
+
+        fixedInvoices.push({
+          _id:            inv._id,
+          nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar,
+          oldUldegdel:    currentUldegdel,
+          newUldegdel,
+          deduction:      Math.round(deduction * 100) / 100,
+        });
+
+        remaining -= deduction;
+      }
+    }
+
+    // 3. Recalculate geree globalUldegdel & positiveBalance from ledger (source of truth)
+    const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
+    const updatedGeree = await recalcGlobalUldegdel({
+      gereeId: gereeniiId,
+      baiguullagiinId,
+      GereeModel,
+      NekhemjlekhiinTuukhModel: NekhemjlekhModel,
+      GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(kholbolt),
+      GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(kholbolt),
+    });
+
+    // Emit socket update
+    try { req.app.get("socketio")?.emit(`tulburUpdated:${baiguullagiinId}`, {}); } catch (_) {}
+
+    res.json({
+      success: true,
+      message: fixedInvoices.length > 0
+        ? `${fixedInvoices.length} нэхэмжлэх засагдлаа, үлдэгдэл дахин тооцоолов`
+        : "Засах зүйл олдсонгүй, үлдэгдэл дахин тооцоолов",
+      drift: Math.round(drift * 100) / 100,
+      fixedInvoices,
+      globalUldegdel:  updatedGeree?.globalUldegdel,
+      positiveBalance: updatedGeree?.positiveBalance,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Delete a specific zardal from an invoice
 router.post(
   "/nekhemjlekhiinTuukh/deleteZardal",
