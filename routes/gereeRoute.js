@@ -232,6 +232,14 @@ router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
     if (!doc) return res.status(404).json({ error: "Олдсонгүй" });
 
     const gereeniiId = doc.gereeniiId;
+
+    // Clean up inside invoice if it was attached
+    const NekhemjlekhiinTuukhModel = require("../models/nekhemjlekhiinTuukh")(kholbolt);
+    await NekhemjlekhiinTuukhModel.updateMany(
+      { "medeelel.guilgeenuud._id": doc._id },
+      { $pull: { "medeelel.guilgeenuud": { _id: doc._id } } }
+    );
+
     await Model.collection.deleteOne({ _id: doc._id });
 
     try {
@@ -261,6 +269,22 @@ router.delete("/gereeniiTulsunAvlaga/:id", tokenShalgakh, async (req, res) => {
     if (!doc) return res.status(404).json({ error: "Олдсонгүй" });
 
     const gereeniiId = doc.gereeniiId;
+
+    // Remove from any invoice's paymentHistory before recalculating
+    const NekhemjlekhiinTuukhModel = require("../models/nekhemjlekhiinTuukh")(kholbolt);
+    await NekhemjlekhiinTuukhModel.updateMany(
+      { "paymentHistory.guilgeeniiId": String(doc._id) },
+      { $pull: { paymentHistory: { guilgeeniiId: String(doc._id) } } }
+    );
+
+    // Save each affected invoice so its pre-save hook computes properly before the global sync
+    const affectedInvoices = await NekhemjlekhiinTuukhModel.find({ "paymentHistory.guilgeeniiId": String(doc._id) });
+    for (const inv of affectedInvoices) {
+      inv.paymentHistory = inv.paymentHistory.filter(p => String(p.guilgeeniiId) !== String(doc._id));
+      inv.markModified("paymentHistory");
+      await inv.save();
+    }
+
     await Model.collection.deleteOne({ _id: doc._id });
 
     try {
