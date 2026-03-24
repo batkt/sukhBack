@@ -1727,6 +1727,23 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
 
+    // App version validation - block versions 1.0.0 to 2.1.3
+    const appVersion = req.body.version || req.headers["app-version"] || req.headers["x-app-version"];
+    if (appVersion) {
+      const parts = String(appVersion).split(".").map((num) => parseInt(num) || 0);
+      const major = parts[0];
+      const minor = parts[1];
+      const patch = parts[2];
+
+      const isBlocked = major < 2 || 
+                        (major === 2 && minor < 1) || 
+                        (major === 2 && minor === 1 && patch <= 3);
+
+      if (isBlocked) {
+        throw new aldaa("Та шинэчэлэлт хийнэ үү");
+      }
+    }
+
     if (!req.body.utas) {
       throw new aldaa("Утасны дугаар заавал бөглөх шаардлагатай!");
     }
