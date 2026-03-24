@@ -512,6 +512,7 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
           if (needsFix) {
             invoiceChanges.push({
               _id: inv._id,
+              utas: inv.utas,
               nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar,
               oldUldegdel, oldNiitTulbur, oldTuluv: inv.tuluv,
               newUldegdel: targetUldegdel, newNiitTulbur: targetUldegdel, newTuluv: targetTuluv,
