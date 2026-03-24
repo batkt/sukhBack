@@ -1728,9 +1728,22 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     const { db } = require("zevbackv2");
 
     // App version validation - block versions 1.0.0 to 2.1.3
-    const appVersion = req.body.version || req.headers["app-version"] || req.headers["x-app-version"];
+    const appVersion = req.body.version || 
+                       req.body.appVersion || 
+                       req.body.v || 
+                       req.headers["app-version"] || 
+                       req.headers["x-app-version"] || 
+                       req.headers["version"] || 
+                       req.headers["client-version"];
+
+    console.log(`[DEBUG] orshinSuugchNevtrey login attempt from: ${req.body.utas}`);
+    console.log(`[DEBUG] Detected App Version: "${appVersion}"`);
+    console.log(`[DEBUG] All headers:`, JSON.stringify(req.headers));
+
     if (appVersion) {
-      const parts = String(appVersion).split(".").map((num) => parseInt(num) || 0);
+      // Sanitize: handle "v1.2.3" -> "1.2.3"
+      const versionStr = String(appVersion).toLowerCase().startsWith("v") ? String(appVersion).slice(1) : String(appVersion);
+      const parts = versionStr.split(".").map((num) => parseInt(num) || 0);
       const major = parts[0];
       const minor = parts[1];
       const patch = parts[2];
@@ -1740,6 +1753,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                         (major === 2 && minor === 1 && patch <= 3);
 
       if (isBlocked) {
+        console.log(`[DEBUG] BLOCKING login attempt from ${req.body.utas} due to old version: "${appVersion}"`);
         throw new aldaa("Та шинэчэлэлт хийнэ үү");
       }
     }
