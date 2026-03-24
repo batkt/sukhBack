@@ -393,7 +393,7 @@ router.post(
  */
 router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
   try {
-    const { baiguullagiinId, dryRun = false, minOgnoo } = req.body;
+    const { baiguullagiinId, dryRun = false, minOgnoo, dugaarPrefix } = req.body;
     if (!baiguullagiinId) {
       return res.status(400).json({ success: false, message: "baiguullagiinId шаардлагатай" });
     }
@@ -432,6 +432,9 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
         const query = { gereeniiId };
         if (minOgnoo) {
           query.ognoo = { $gte: new Date(minOgnoo) };
+        }
+        if (dugaarPrefix) {
+          query.nekhemjlekhiinDugaar = { $regex: `^${dugaarPrefix}` };
         }
         
         const allInvoices = await NekhemjlekhModel
