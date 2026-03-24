@@ -110,36 +110,43 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
     }
 
     if (typeof invoice.niitTulbur === "number") {
-      // If we don't have original total yet, set it now from initial niitTulbur
+      // Always round niitTulbur to 2dp to clean up any float arithmetic artifacts
+      // e.g. 113284.80000000005 → 113284.80,  5.82e-11 → 0
+      invoice.niitTulbur = Math.round(invoice.niitTulbur * 100) / 100;
+
+      // If we don't have original total yet, set it now from initial niitTulbur (already rounded)
       if (typeof invoice.niitTulburOriginal !== "number") {
         invoice.niitTulburOriginal = invoice.niitTulbur;
+      } else {
+        // Round existing original too (in case it was stored with float artifacts)
+        invoice.niitTulburOriginal = Math.round(invoice.niitTulburOriginal * 100) / 100;
       }
 
-      const totalPaid = (invoice.paymentHistory || []).reduce(
-        (sum, p) => sum + (p.dun || 0),
-        0,
-      );
+      const totalPaid = Math.round(
+        (invoice.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0) * 100
+      ) / 100;
 
-      // Use original total for calculation if we have it
-      const baseTotal = invoice.niitTulburOriginal;
-      const remaining = Math.max(0, baseTotal - totalPaid);
+      // remaining = originalTotal - paid, rounded to 2dp
+      const remaining = Math.round(
+        Math.max(0, invoice.niitTulburOriginal - totalPaid) * 100
+      ) / 100;
 
       invoice.uldegdel = remaining;
 
       if (remaining <= 0.01) {
-        // Fully paid
+        invoice.niitTulbur = 0;
+        invoice.uldegdel = 0;
         invoice.tuluv = "Төлсөн";
       } else {
-        // Not fully paid → NEVER keep as "Төлсөн"
+        invoice.niitTulbur = remaining;
         if (invoice.tuluv === "Хугацаа хэтэрсэн") {
-          // Keep overdue if it was already overdue and still has balance
           invoice.tuluv = "Хугацаа хэтэрсэн";
         } else {
-          // Per user request: Stay "Төлөөгүй" even if partially paid
           invoice.tuluv = "Төлөөгүй";
         }
       }
     }
+
 
     next();
   } catch (err) {

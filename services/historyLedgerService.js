@@ -317,17 +317,18 @@ async function getHistoryLedger(options) {
   });
 
   // Running balance: uldegdel = cumulative charges - cumulative payments after this row
+  // Round to 2dp at each step to eliminate float precision artifacts (e.g. -5999.199999999996)
   let runningBalance = 0;
   let jagsaalt = rawRows.map((row) => {
-    const charge = row.tulukhDun ?? 0;
-    const pay = row.tulsunDun ?? 0;
-    runningBalance += charge - pay;
+    const charge = Math.round((row.tulukhDun ?? 0) * 100) / 100;
+    const pay = Math.round((row.tulsunDun ?? 0) * 100) / 100;
+    runningBalance = Math.round((runningBalance + charge - pay) * 100) / 100;
     return {
       _id: row._id,
       ognoo: toOgnooString(row.ognoo),
       ner: row.ner,
-      tulukhDun: row.tulukhDun ?? 0,
-      tulsunDun: row.tulsunDun ?? 0,
+      tulukhDun: charge,
+      tulsunDun: pay,
       uldegdel: runningBalance,
       isSystem: !!row.isSystem,
       tailbar: row.tailbar ?? "",
@@ -344,17 +345,17 @@ async function getHistoryLedger(options) {
   // No normalization — running balance is the pure cumulative sum of each row's charge minus payment.
   // globalUldegdel from geree is returned separately for the frontend summary/total display.
 
-  const globalUldegdel =
+  const rawGlobalUldegdel =
     gereeDoc && typeof gereeDoc.globalUldegdel === "number"
       ? gereeDoc.globalUldegdel
       : jagsaalt.length > 0
         ? jagsaalt[jagsaalt.length - 1].uldegdel
         : 0;
+  const globalUldegdel = Math.round(rawGlobalUldegdel * 100) / 100;
   const positiveBalance =
     gereeDoc && typeof gereeDoc.positiveBalance === "number"
-      ? gereeDoc.positiveBalance
+      ? Math.round(gereeDoc.positiveBalance * 100) / 100
       : 0;
-
 
   return { jagsaalt, globalUldegdel, positiveBalance };
 }

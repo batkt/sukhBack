@@ -369,23 +369,33 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
 // Recalculate and re-sync contract balance
 router.post("/recalculate-balance", tokenShalgakh, recalculateGereeBalance);
 
+
+
+// Delete a specific zardal from an invoice
+router.post(
+  "/nekhemjlekhiinTuukh/deleteZardal",
+  tokenShalgakh,
+  deleteInvoiceZardal,
+);
+
 /**
- * POST /nekhemjlekh/fix-invoice-credit
- * Safely restores invoice uldegdel/niitTulbur from their original amounts and
- * payment history, then recalculates geree.globalUldegdel from the ledger.
+ * POST /nekhemjlekh/sync-all-from-ledger
  * 
- * Strategy (SAFE):
- *   1. For each unpaid invoice: restore uldegdel = max(0, niitTulburOriginal - totalPaid)
- *      niitTulburOriginal is the source of truth set at invoice creation.
- *   2. Run recalcGlobalUldegdel — ledger is always the final authority.
+ * Uses the history ledger as the single source of truth to sync:
+ *   1. Each invoice's niitTulbur, uldegdel, tuluv  (from niitTulburOriginal - paymentHistory)
+ *   2. Each geree's globalUldegdel, positiveBalance (from ledger final balance)
  * 
- * Body: { gereeniiId, baiguullagiinId }
+ * Processes ALL contracts for the given baiguullaga.
+ * 
+ * Body: { baiguullagiinId, dryRun?: boolean }
+ *   dryRun = true  → only report what would change, don't write to DB
+ *   dryRun = false → apply all changes (default)
  */
-router.post("/fix-invoice-credit", tokenShalgakh, async (req, res, next) => {
+router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
   try {
-    const { gereeniiId, baiguullagiinId } = req.body;
-    if (!gereeniiId || !baiguullagiinId) {
-      return res.status(400).json({ success: false, message: "gereeniiId болон baiguullagiinId шаардлагатай" });
+    const { baiguullagiinId, dryRun = false } = req.body;
+    if (!baiguullagiinId) {
+      return res.status(400).json({ success: false, message: "baiguullagiinId шаардлагатай" });
     }
 
     const kholbolt = db.kholboltuud?.find(
@@ -396,95 +406,137 @@ router.post("/fix-invoice-credit", tokenShalgakh, async (req, res, next) => {
     }
 
     const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
-    const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
-    const NekhemjlekhModel = nekhemjlekhiinTuukh(kholbolt);
-    const GereeModel = Geree(kholbolt);
+    const GereeniiTulsunAvlaga  = require("../models/gereeniiTulsunAvlaga");
+    const NekhemjlekhModel      = nekhemjlekhiinTuukh(kholbolt);
+    const GereeModel            = Geree(kholbolt);
+    const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
 
-    // 1. Find ALL invoices for this contract (including paid ones to check state)
-    const allInvoices = await NekhemjlekhModel
-      .find({ gereeniiId: String(gereeniiId) })
-      .sort({ ognoo: 1, createdAt: 1 });
+    // 1. Get all distinct gereeniiIds for this baiguullaga
+    const gereeList = await GereeModel
+      .find({ baiguullagiinId: String(baiguullagiinId) })
+      .select("_id globalUldegdel positiveBalance")
+      .lean();
 
-    const fixedInvoices = [];
+    const summary = {
+      totalGeree: gereeList.length,
+      fixedInvoices: 0,
+      fixedGeree: 0,
+      errors: [],
+      details: [],
+    };
 
-    for (const inv of allInvoices) {
-      // Use niitTulburOriginal as the definitive original charge amount.
-      // If missing (old invoices), fall back to zardluud sum.
-      let originalTotal = typeof inv.niitTulburOriginal === "number" && inv.niitTulburOriginal > 0
-        ? inv.niitTulburOriginal
-        : (inv.niitTulbur || 0);
+    for (const geree of gereeList) {
+      const gereeniiId = String(geree._id);
+      try {
+        // ── STEP 1: Restore each invoice from its own original data ──────────
+        const allInvoices = await NekhemjlekhModel
+          .find({ gereeniiId })
+          .sort({ ognoo: 1, createdAt: 1 });
 
-      // Calculate how much has already been paid via paymentHistory
-      const totalPaid = (inv.paymentHistory || []).reduce((sum, p) => sum + (Number(p.dun) || 0), 0);
+        const invoiceChanges = [];
+        for (const inv of allInvoices) {
+          // niitTulburOriginal is the charge before any payments.
+          // If missing or 0 but niitTulbur exists, rebuild from zardluud.
+          let originalTotal = typeof inv.niitTulburOriginal === "number" && inv.niitTulburOriginal > 0
+            ? inv.niitTulburOriginal
+            : null;
 
-      const correctUldegdel = Math.max(0, Math.round((originalTotal - totalPaid) * 100) / 100);
-      const correctNiitTulbur = correctUldegdel;
-      const correctTuluv = correctUldegdel <= 0.01 ? "Төлсөн" : "Төлөөгүй";
+          // Fallback: sum medeelel.zardluud (excluding ekhniiUldegdel items)
+          if (!originalTotal && Array.isArray(inv.medeelel?.zardluud)) {
+            const zardalTotal = inv.medeelel.zardluud
+              .filter(z => !z.isEkhniiUldegdel)
+              .reduce((s, z) => s + (Number(z.dun) || Number(z.tariff) || 0), 0);
+            originalTotal = Math.round(zardalTotal * 100) / 100;
+          }
 
-      const oldUldegdel = typeof inv.uldegdel === "number" ? inv.uldegdel : null;
-      const oldNiitTulbur = typeof inv.niitTulbur === "number" ? inv.niitTulbur : null;
+          originalTotal = Math.round((originalTotal || 0) * 100) / 100;
 
-      // Only update if something is actually wrong
-      const needsFix =
-        Math.abs((oldUldegdel ?? 0) - correctUldegdel) > 0.01 ||
-        Math.abs((oldNiitTulbur ?? 0) - correctNiitTulbur) > 0.01 ||
-        inv.tuluv !== correctTuluv;
+          const totalPaid = Math.round(
+            (inv.paymentHistory || []).reduce((s, p) => s + (Number(p.dun) || 0), 0) * 100
+          ) / 100;
 
-      if (needsFix) {
-        inv._skipTuluvRecalc = true;
-        inv.uldegdel = correctUldegdel;
-        inv.niitTulbur = correctNiitTulbur;
-        inv.tuluv = correctTuluv;
-        await inv.save();
+          const correctUldegdel   = Math.round(Math.max(0, originalTotal - totalPaid) * 100) / 100;
+          const correctNiitTulbur = correctUldegdel;
+          const correctTuluv      = correctUldegdel <= 0.01 ? "Төлсөн" : "Төлөөгүй";
 
-        fixedInvoices.push({
-          _id: inv._id,
-          nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar,
-          oldUldegdel,
-          oldNiitTulbur,
-          newUldegdel: correctUldegdel,
-          newNiitTulbur: correctNiitTulbur,
-          tuluv: correctTuluv,
-          totalPaid,
-          originalTotal,
-        });
+          const oldUldegdel   = typeof inv.uldegdel   === "number" ? inv.uldegdel   : null;
+          const oldNiitTulbur = typeof inv.niitTulbur === "number" ? inv.niitTulbur : null;
+
+          const needsFix =
+            Math.abs((oldUldegdel ?? 0)   - correctUldegdel)   > 0.01 ||
+            Math.abs((oldNiitTulbur ?? 0) - correctNiitTulbur) > 0.01 ||
+            inv.tuluv !== correctTuluv ||
+            (inv.niitTulburOriginal !== originalTotal && originalTotal > 0);
+
+          if (needsFix) {
+            invoiceChanges.push({
+              _id: inv._id,
+              nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar,
+              oldUldegdel, oldNiitTulbur, oldTuluv: inv.tuluv,
+              newUldegdel: correctUldegdel, newNiitTulbur: correctNiitTulbur, newTuluv: correctTuluv,
+              niitTulburOriginal: originalTotal,
+              totalPaid,
+            });
+
+            if (!dryRun) {
+              inv._skipTuluvRecalc = true;
+              inv.niitTulburOriginal = originalTotal;
+              inv.niitTulbur  = correctNiitTulbur;
+              inv.uldegdel    = correctUldegdel;
+              inv.tuluv       = correctTuluv;
+              await inv.save();
+            }
+          }
+        }
+
+        summary.fixedInvoices += invoiceChanges.length;
+
+        // ── STEP 2: Recalc geree balance from ledger (source of truth) ───────
+        let newGeree = null;
+        if (!dryRun) {
+          newGeree = await recalcGlobalUldegdel({
+            gereeId: gereeniiId,
+            baiguullagiinId,
+            GereeModel,
+            NekhemjlekhiinTuukhModel: NekhemjlekhModel,
+            GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(kholbolt),
+            GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(kholbolt),
+          });
+        }
+
+        if (invoiceChanges.length > 0 || 
+            Math.abs((geree.globalUldegdel || 0) - (newGeree?.globalUldegdel ?? geree.globalUldegdel)) > 0.01) {
+          summary.fixedGeree++;
+        }
+
+        if (invoiceChanges.length > 0) {
+          summary.details.push({
+            gereeniiId,
+            invoiceChanges,
+            oldGlobalUldegdel: geree.globalUldegdel,
+            newGlobalUldegdel: newGeree?.globalUldegdel ?? "(dryRun)",
+          });
+        }
+
+      } catch (gErr) {
+        summary.errors.push({ gereeniiId, error: gErr.message });
       }
     }
-
-    // 2. Recalculate geree globalUldegdel & positiveBalance from ledger (source of truth).
-    //    This is always safe because the ledger reads raw data from 3 collections.
-    const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
-    const updatedGeree = await recalcGlobalUldegdel({
-      gereeId: gereeniiId,
-      baiguullagiinId,
-      GereeModel,
-      NekhemjlekhiinTuukhModel: NekhemjlekhModel,
-      GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(kholbolt),
-      GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(kholbolt),
-    });
 
     // Emit socket update
     try { req.app.get("socketio")?.emit(`tulburUpdated:${baiguullagiinId}`, {}); } catch (_) {}
 
     res.json({
       success: true,
-      message: fixedInvoices.length > 0
-        ? `${fixedInvoices.length} нэхэмжлэх сэргээгдлээ, үлдэгдэл дахин тооцоолов`
-        : "Засах зүйл олдсонгүй, үлдэгдэл шалгагдлаа",
-      fixedInvoices,
-      globalUldegdel: updatedGeree?.globalUldegdel,
-      positiveBalance: updatedGeree?.positiveBalance,
+      dryRun,
+      message: dryRun
+        ? `DryRun: ${summary.fixedInvoices} нэхэмжлэх өөрчлөгдөх байсан (бичигдсэнгүй)`
+        : `${summary.fixedInvoices} нэхэмжлэх, ${summary.fixedGeree} гэрээний үлдэгдэл синхрончлогдлоо`,
+      summary,
     });
   } catch (err) {
     next(err);
   }
 });
-
-// Delete a specific zardal from an invoice
-router.post(
-  "/nekhemjlekhiinTuukh/deleteZardal",
-  tokenShalgakh,
-  deleteInvoiceZardal,
-);
 
 module.exports = router;

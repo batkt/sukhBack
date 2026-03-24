@@ -1279,7 +1279,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
       tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
     tuukh.nekhemjlekhiinOgnoo = new Date();
     tuukh.niitTulbur = correctedFinalNiitTulbur;
-    tuukh.niitTulburOriginal = correctedFinalNiitTulbur;
+    // niitTulburOriginal = total BEFORE credit deduction.
+    // This is the true original charge amount.
+    // Used by pre-save hook: remaining = niitTulburOriginal - totalPaid
+    // If invoice was created with positiveBalance applied, niitTulburOriginal stays
+    // at the pre-credit value while niitTulbur reflects the discounted amount.
+    const preCreditTotal = Math.round(
+      (correctedZardluudTotal + guilgeenuudTotal + ekhniiUldegdelAmount) * 100
+    ) / 100;
+    tuukh.niitTulburOriginal = preCreditTotal;
 
     if (tsahilgaanNekhemjlekh > 0) {
       tuukh.tsahilgaanNekhemjlekh = tsahilgaanNekhemjlekh;
