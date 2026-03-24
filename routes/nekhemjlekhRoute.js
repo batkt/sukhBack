@@ -393,7 +393,7 @@ router.post(
  */
 router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
   try {
-    const { baiguullagiinId, dryRun = false } = req.body;
+    const { baiguullagiinId, dryRun = false, minOgnoo } = req.body;
     if (!baiguullagiinId) {
       return res.status(400).json({ success: false, message: "baiguullagiinId шаардлагатай" });
     }
@@ -429,8 +429,13 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
       const gereeniiId = String(geree._id);
       try {
         // ── STEP 1: Restore each invoice from its own original data ──────────
+        const query = { gereeniiId };
+        if (minOgnoo) {
+          query.ognoo = { $gte: new Date(minOgnoo) };
+        }
+        
         const allInvoices = await NekhemjlekhModel
-          .find({ gereeniiId })
+          .find(query)
           .sort({ ognoo: 1, createdAt: 1 });
 
         const invoiceChanges = [];
