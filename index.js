@@ -84,6 +84,28 @@ app.use((req, res, next) => {
   next();
 });
 
+// Block common exploit bot scanning patterns to keep logs clean
+app.use((req, res, next) => {
+  const urlLower = req.url.toLowerCase();
+  
+  // Check for common sensitive file targets
+  if (
+    urlLower.includes('.env') ||
+    urlLower.includes('tokhirgoo') ||
+    urlLower.includes('database.') ||
+    urlLower.includes('.sql') ||
+    urlLower.includes('.ini') ||
+    urlLower.includes('.aws/') ||
+    urlLower.includes('/aws') ||
+    urlLower.includes('.git/')
+  ) {
+    // Immediately terminate the request with 404
+    return res.status(404).end();
+  }
+  
+  next();
+});
+
 app.use(requestContextMiddleware);
 
 const { getMedegdelRoots, getMedegdelPublicRoot } = require("./config/medegdelPaths");
