@@ -445,8 +445,10 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
           newGlobalUldegdel = updatedGeree?.globalUldegdel;
           newPositiveBalance = updatedGeree?.positiveBalance;
         } else {
-          const tukhainBaaziinKholbolt = kholbolt;
-          const ledgerData = await getHistoryLedger(gereeniiId, tukhainBaaziinKholbolt);
+          const ledgerData = await getHistoryLedger({
+            gereeniiId,
+            baiguullagiinId,
+          });
           newGlobalUldegdel = ledgerData.globalUldegdel;
           newPositiveBalance = ledgerData.positiveBalance;
         }
