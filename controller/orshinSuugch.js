@@ -1771,7 +1771,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     const providedPassword = String(req.body.nuutsUg).trim();
 
-    // Optimized: Parallelize local user lookup and Wallet API info fetch
     const [orshinSuugch, walletUserInfo] = await Promise.all([
       OrshinSuugch(db.erunkhiiKholbolt)
         .findOne({ utas: phoneNumber })
@@ -1785,7 +1784,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
 
     let walletUserId = walletUserInfo?.userId || null;
 
-    // AUTO-REGISTER: If user exists locally but not in Wallet API, register them now
     if (orshinSuugch && !walletUserId) {
 
       const emailToUse = orshinSuugch.mail || "";
@@ -1801,8 +1799,6 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       }
     }
 
-    // Validate password - only use local password (stored in our own DB)
-    // Password is NOT sent to Wallet API, only stored in our database
     let passwordValid = false;
 
     if (!orshinSuugch) {

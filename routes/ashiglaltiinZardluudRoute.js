@@ -110,6 +110,108 @@ router.post("/ashiglaltiinZardluudNemekh", async (req, res, next) => {
   }
 });
 
+// GET route to fetch a list of meter readings (each month's data)
+router.get("/zaaltJagsaaltAvya", tokenShalgakh, async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    // Parameters can be in query (GET) or body (POST/PUT fallback)
+    const params = { ...req.query, ...req.body };
+    const { 
+      baiguullagiinId, 
+      barilgiinId, 
+      ekhlekhOgnoo, 
+      duusakhOgnoo, 
+      gereeniiDugaar,
+      toot
+    } = params;
+
+    if (!baiguullagiinId) {
+      return res.status(400).send({ success: false, message: "baiguullagiinId is required" });
+    }
+
+    const tukhainBaaziinKholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+
+    if (!tukhainBaaziinKholbolt) {
+      return res.status(404).send({ success: false, message: "Organization connection not found" });
+    }
+
+    // Build filter
+    const filter = { baiguullagiinId: String(baiguullagiinId) };
+    if (barilgiinId) filter.barilgiinId = String(barilgiinId);
+    if (gereeniiDugaar) filter.gereeniiDugaar = { $regex: gereeniiDugaar, $options: "i" };
+    if (toot) filter.toot = { $regex: toot, $options: "i" };
+
+    // Date filtering (for selecting specific months)
+    if (ekhlekhOgnoo || duusakhOgnoo) {
+      filter.unshlaltiinOgnoo = {};
+      if (ekhlekhOgnoo) filter.unshlaltiinOgnoo.$gte = new Date(ekhlekhOgnoo);
+      if (duusakhOgnoo) filter.unshlaltiinOgnoo.$lte = new Date(duusakhOgnoo);
+    }
+
+    const jagsaalt = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+      .find(filter)
+      .sort({ unshlaltiinOgnoo: -1, createdAt: -1 })
+      .limit(2000)
+      .lean();
+
+    // Secondary lookup: Fetch previous month's readings for these contracts to allow comparison
+    const gereeIds = jagsaalt.map(item => item.gereeniiId);
+    let prevMonthReadings = [];
+    if (ekhlekhOgnoo && gereeIds.length > 0) {
+      const prevEkhlekh = new Date(new Date(ekhlekhOgnoo).setMonth(new Date(ekhlekhOgnoo).getMonth() - 1));
+      const prevDuusakh = new Date(new Date(ekhlekhOgnoo).getTime() - 1); // Up to the millisecond before this month
+      
+      prevMonthReadings = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+        .find({
+          gereeniiId: { $in: gereeIds },
+          unshlaltiinOgnoo: { $gte: prevEkhlekh, $lte: prevDuusakh }
+        })
+        .lean();
+    }
+
+    const prevMap = {};
+    prevMonthReadings.forEach(r => {
+      prevMap[r.gereeniiId] = r;
+    });
+
+    res.send({
+      success: true,
+      count: jagsaalt.length,
+      data: jagsaalt.map(item => {
+        const prev = prevMap[item.gereeniiId];
+        return {
+          _id: item._id,
+          gereeniiId: item.gereeniiId,
+          gereeniiDugaar: item.gereeniiDugaar || "",
+          toot: item.toot || "",
+          suuliinZaalt: item.suuliinZaalt,
+          umnukhZaalt: item.umnukhZaalt,
+          odorZaalt: item.zaaltTog,
+          shonoZaalt: item.zaaltUs,
+          zoruu: item.zoruu,
+          tariff: item.tariff,
+          suuriKhuraamj: item.defaultDun || item.suuriKhuraamj,
+          zaaltDun: item.zaaltDun,
+          ognoo: item.unshlaltiinOgnoo,
+          importOgnoo: item.importOgnoo || item.createdAt,
+          // Comparison with previous month
+          prevMonth: prev ? {
+            suuliinZaalt: prev.suuliinZaalt,
+            zoruu: prev.zoruu,
+            zaaltDun: prev.zaaltDun,
+            ognoo: prev.unshlaltiinOgnoo
+          } : null,
+          source: "ZaaltUnshlalt"
+        };
+      })
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET route to fetch latest meter readings for a resident/contract
 router.get("/latestZaaltAvya", async (req, res, next) => {
   try {
