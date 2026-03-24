@@ -378,9 +378,22 @@ router.post(
   deleteInvoiceZardal,
 );
 
+/**
+ * POST /nekhemjlekh/sync-all-from-ledger
+ * 
+ * Uses the history ledger as the single source of truth to sync:
+ *   1. Each invoice's niitTulbur, uldegdel, tuluv  (from niitTulburOriginal - paymentHistory)
+ *   2. Each geree's globalUldegdel, positiveBalance (from ledger final balance)
+ * 
+ * Processes ALL contracts for the given baiguullaga.
+ * 
+ * Body: { baiguullagiinId, dryRun?: boolean }
+ *   dryRun = true  → only report what would change, don't write to DB
+ *   dryRun = false → apply all changes (default)
+ */
 router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
   try {
-    const { baiguullagiinId, dryRun = false, minOgnoo, dugaarPrefix } = req.body;
+    const { baiguullagiinId, dryRun = false, minOgnoo } = req.body;
     if (!baiguullagiinId) {
       return res.status(400).json({ success: false, message: "baiguullagiinId шаардлагатай" });
     }
@@ -397,12 +410,11 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
     const NekhemjlekhModel      = nekhemjlekhiinTuukh(kholbolt);
     const GereeModel            = Geree(kholbolt);
     const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
-    const { getHistoryLedger } = require("../services/historyLedgerService");
 
     // 1. Get all distinct gereeniiIds for this baiguullaga
     const gereeList = await GereeModel
       .find({ baiguullagiinId: String(baiguullagiinId) })
-      .select("_id globalUldegdel positiveBalance zardluud gereeniiOgnoo createdAt")
+      .select("_id globalUldegdel positiveBalance")
       .lean();
 
     const summary = {
@@ -416,82 +428,49 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
     for (const geree of gereeList) {
       const gereeniiId = String(geree._id);
       try {
-        // --- STEP 1: Always RECALC Ledger to get the true current globalUldegdel ---
-        let newGlobalUldegdel = geree.globalUldegdel;
-        let newPositiveBalance = geree.positiveBalance;
-        
-        if (!dryRun) {
-          const updatedGeree = await recalcGlobalUldegdel({
-            gereeId: gereeniiId,
-            baiguullagiinId,
-            GereeModel,
-            NekhemjlekhiinTuukhModel: NekhemjlekhModel,
-            GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(kholbolt),
-            GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(kholbolt),
-          });
-          newGlobalUldegdel = updatedGeree?.globalUldegdel;
-          newPositiveBalance = updatedGeree?.positiveBalance;
-        } else {
-          const tukhainBaaziinKholbolt = kholbolt;
-          const ledgerData = await getHistoryLedger(gereeniiId, tukhainBaaziinKholbolt);
-          newGlobalUldegdel = ledgerData.globalUldegdel;
-          newPositiveBalance = ledgerData.positiveBalance;
-        }
-
-        if (newGlobalUldegdel == null) newGlobalUldegdel = 0;
-
-        // --- STEP 2: Fetch all invoices to distribute the true globalUldegdel ---
-        const invoiceQuery = { gereeniiId, baiguullagiinId: String(baiguullagiinId) };
+        // ── STEP 1: Restore each invoice from its own original data ──────────
+        const query = { gereeniiId };
         if (minOgnoo) {
-          invoiceQuery.ognoo = { $gte: new Date(minOgnoo) };
-        }
-        if (dugaarPrefix) {
-          invoiceQuery.nekhemjlekhiinDugaar = { $regex: `^${dugaarPrefix}` };
+          query.ognoo = { $gte: new Date(minOgnoo) };
         }
         
-        // Fetch ALL invoices sorted Newest -> Oldest
         const allInvoices = await NekhemjlekhModel
-          .find(invoiceQuery)
-          .sort({ ognoo: -1, createdAt: -1 });
+          .find(query)
+          .sort({ ognoo: 1, createdAt: 1 });
 
         const invoiceChanges = [];
-        let remainingDebt = Math.round(newGlobalUldegdel * 100) / 100;
-
         for (const inv of allInvoices) {
-          // Rebuild originalTotal if missing
+          // niitTulburOriginal is the charge before any payments.
+          // If missing or 0 but niitTulbur exists, rebuild from zardluud.
           let originalTotal = typeof inv.niitTulburOriginal === "number" && inv.niitTulburOriginal > 0
             ? inv.niitTulburOriginal
             : null;
+
+          // Fallback: sum medeelel.zardluud (excluding ekhniiUldegdel items)
           if (!originalTotal && Array.isArray(inv.medeelel?.zardluud)) {
             const zardalTotal = inv.medeelel.zardluud
               .filter(z => !z.isEkhniiUldegdel)
               .reduce((s, z) => s + (Number(z.dun) || Number(z.tariff) || 0), 0);
             originalTotal = Math.round(zardalTotal * 100) / 100;
           }
+
           originalTotal = Math.round((originalTotal || 0) * 100) / 100;
 
-          // How much of the global debt belongs to this invoice?
-          const targetUldegdel = Math.round(Math.min(originalTotal, Math.max(0, remainingDebt)) * 100) / 100;
-          remainingDebt = Math.round(Math.max(0, remainingDebt - targetUldegdel) * 100) / 100;
-
-          const targetTuluv = targetUldegdel <= 0.01 ? "Төлсөн" : "Төлөөгүй";
-          
-          // To make the pre-save hook arrive exactly at `targetUldegdel`, totalPaid must be:
-          const targetTotalPaid = Math.round((originalTotal - targetUldegdel) * 100) / 100;
-
-          const oldUldegdel   = typeof inv.uldegdel === "number" ? inv.uldegdel : null;
-          const oldNiitTulbur = typeof inv.niitTulbur === "number" ? inv.niitTulbur : null;
-          const currentTotalPaid = Math.round(
+          const totalPaid = Math.round(
             (inv.paymentHistory || []).reduce((s, p) => s + (Number(p.dun) || 0), 0) * 100
           ) / 100;
 
-          const paymentDiff = Math.round((targetTotalPaid - currentTotalPaid) * 100) / 100;
+          const correctUldegdel   = Math.round(Math.max(0, originalTotal - totalPaid) * 100) / 100;
+          const correctNiitTulbur = correctUldegdel;
+          const correctTuluv      = correctUldegdel <= 0.01 ? "Төлсөн" : "Төлөөгүй";
+
+          const oldUldegdel   = typeof inv.uldegdel   === "number" ? inv.uldegdel   : null;
+          const oldNiitTulbur = typeof inv.niitTulbur === "number" ? inv.niitTulbur : null;
 
           const needsFix =
-            Math.abs((oldUldegdel ?? 0) - targetUldegdel) > 0.01 ||
-            Math.abs((oldNiitTulbur ?? 0) - targetUldegdel) > 0.01 ||
-            inv.tuluv !== targetTuluv ||
-            Math.abs(paymentDiff) > 0.01 ||
+            Math.abs((oldUldegdel ?? 0)   - correctUldegdel)   > 0.01 ||
+            Math.abs((oldNiitTulbur ?? 0) - correctNiitTulbur) > 0.01 ||
+            inv.tuluv !== correctTuluv ||
             (inv.niitTulburOriginal !== originalTotal && originalTotal > 0);
 
           if (needsFix) {
@@ -499,58 +478,39 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
               _id: inv._id,
               nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar,
               oldUldegdel, oldNiitTulbur, oldTuluv: inv.tuluv,
-              newUldegdel: targetUldegdel, newNiitTulbur: targetUldegdel, newTuluv: targetTuluv,
+              newUldegdel: correctUldegdel, newNiitTulbur: correctNiitTulbur, newTuluv: correctTuluv,
               niitTulburOriginal: originalTotal,
-              appendedPhantomPayment: paymentDiff !== 0 ? paymentDiff : 0,
+              totalPaid,
             });
 
             if (!dryRun) {
+              inv._skipTuluvRecalc = true;
               inv.niitTulburOriginal = originalTotal;
-              
-              if (Math.abs(paymentDiff) > 0.01) {
-                // Determine if there already is a system sync payment
-                const existingSyncIdx = (inv.paymentHistory || []).findIndex(p => p.turul === 'system_sync');
-                
-                if (existingSyncIdx > -1) {
-                  // Adjust existing sync payment
-                  inv.paymentHistory[existingSyncIdx].dun = Math.round((inv.paymentHistory[existingSyncIdx].dun + paymentDiff) * 100) / 100;
-                  // Remove if it drops below 0
-                  if (inv.paymentHistory[existingSyncIdx].dun <= 0.01) {
-                    inv.paymentHistory.splice(existingSyncIdx, 1);
-                  }
-                } else if (paymentDiff > 0) {
-                  // Inject positive balance usage / missing payment
-                  if (!inv.paymentHistory) inv.paymentHistory = [];
-                  inv.paymentHistory.push({
-                    ognoo: inv.tulsunOgnoo || new Date(),
-                    dun: paymentDiff,
-                    turul: "system_sync",
-                    guilgeeniiId: `sync_${Date.now()}`,
-                    tailbar: "Системээс тэгшитгэв (Эерэг үлдэгдэл / Төлбөр)"
-                  });
-                } else if (paymentDiff < 0) {
-                  // In extremely rare cases where paymentHistory is somehow larger, we'd adjust it.
-                  // Easiest is to add a negative correction
-                  if (!inv.paymentHistory) inv.paymentHistory = [];
-                  inv.paymentHistory.push({
-                    ognoo: new Date(),
-                    dun: paymentDiff,
-                    turul: "system_sync",
-                    guilgeeniiId: `sync_neg_${Date.now()}`,
-                    tailbar: "Системээс илүү гарсан төлөлтийг тэгшитгэж хасав"
-                  });
-                }
-              }
-
-              // Let the pre-save hook naturally hit targetUldegdel because we mathematically forced paymentHistory to equal targetTotalPaid
-              inv.markModified("paymentHistory");
+              inv.niitTulbur  = correctNiitTulbur;
+              inv.uldegdel    = correctUldegdel;
+              inv.tuluv       = correctTuluv;
               await inv.save();
             }
           }
         }
 
+        summary.fixedInvoices += invoiceChanges.length;
+
+        // ── STEP 2: Recalc geree balance from ledger (source of truth) ───────
+        let newGeree = null;
+        if (!dryRun) {
+          newGeree = await recalcGlobalUldegdel({
+            gereeId: gereeniiId,
+            baiguullagiinId,
+            GereeModel,
+            NekhemjlekhiinTuukhModel: NekhemjlekhModel,
+            GereeniiTulukhAvlagaModel: GereeniiTulukhAvlaga(kholbolt),
+            GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(kholbolt),
+          });
+        }
+
         if (invoiceChanges.length > 0 || 
-            Math.abs((geree.globalUldegdel || 0) - newGlobalUldegdel) > 0.01) {
+            Math.abs((geree.globalUldegdel || 0) - (newGeree?.globalUldegdel ?? geree.globalUldegdel)) > 0.01) {
           summary.fixedGeree++;
         }
 
@@ -559,9 +519,8 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
             gereeniiId,
             invoiceChanges,
             oldGlobalUldegdel: geree.globalUldegdel,
-            newGlobalUldegdel: newGlobalUldegdel,
+            newGlobalUldegdel: newGeree?.globalUldegdel ?? "(dryRun)",
           });
-          summary.fixedInvoices += invoiceChanges.length;
         }
 
       } catch (gErr) {
