@@ -2484,8 +2484,7 @@ exports.tailanTsutslasanGereeniiAvlaga = asyncHandler(
 exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
-    const source =
-      req.method === "GET" ? req.query : req.body;
+    const source = req.method === "GET" ? req.query : req.body;
 
     const {
       baiguullagiinId,
@@ -2496,7 +2495,7 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       khuudasniiKhemjee = 500,
       search,
       gereeniiDugaar,
-      tuluv, // optional: "Төлсөн" | "Төлөөгүй" | "Хугацаа хэтэрсэн" – filter by invoice status
+      tuluv, // optional: "Төлсөн" | "Төлөөгүй" | "Хугацаа хэтэрсэн"
     } = source || {};
 
     if (!baiguullagiinId || !ekhlekhOgnoo || !duusakhOgnoo) {
@@ -2518,123 +2517,222 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
 
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 
-    // ── Date range ──────────────────────────────────────────────────────────
+    // ── Date range ───────────────────────────────────────────────────────────
     const startDate = new Date(ekhlekhOgnoo);
     startDate.setHours(0, 0, 0, 0);
     const endDate = new Date(duusakhOgnoo);
     endDate.setHours(23, 59, 59, 999);
 
-    // ── Base match ──────────────────────────────────────────────────────────
-    const match = {
+    // ── Build DB query ────────────────────────────────────────────────────────
+    const query = {
       baiguullagiinId: String(baiguullagiinId),
       ognoo: { $gte: startDate, $lte: endDate },
     };
-    if (barilgiinId) match.barilgiinId = String(barilgiinId);
-    if (tuluv) match.tuluv = tuluv;
+    if (barilgiinId) query.barilgiinId = String(barilgiinId);
+    if (tuluv) query.tuluv = tuluv;
     if (gereeniiDugaar) {
-      match.gereeniiDugaar = {
+      query.gereeniiDugaar = {
         $regex: escapeRegex(String(gereeniiDugaar).trim()),
         $options: "i",
       };
     }
 
-    // ── Aggregation pipeline ─────────────────────────────────────────────────
-    const pipeline = [
-      { $match: match },
+    // Fetch all matching invoices (lean – no model hooks)
+    const invoices = await NekhemjlekhiinTuukh(kholbolt)
+      .find(query)
+      .lean({ virtuals: false });
 
-      // Group by contract identity fields
-      {
-        $group: {
-          _id: {
-            gereeniiId: "$gereeniiId",
-            gereeniiDugaar: "$gereeniiDugaar",
-            register: "$register",
-            ovog: "$ovog",
-            ner: "$ner",
-            utas: "$utas",
-            toot: "$toot",
-            davkhar: "$davkhar",
-            bairNer: "$bairNer",
-            orts: "$orts",
-          },
-          // Collect each invoice as a row in the avlaga array
-          avlaga: {
-            $push: {
-              _id: "$_id",
-              ognoo: "$ognoo",
-              tailbar: {
-                $ifNull: [
-                  "$tailbar",
-                  { $ifNull: ["$zagvariinNer", "Нэхэмжлэх"] },
-                ],
-              },
-              tulukhDun: { $ifNull: ["$niitTulburOriginal", "$niitTulbur"] },
-              niitTulbur: "$niitTulbur",
-              uldegdel: { $ifNull: ["$uldegdel", 0] },
-              tuluv: "$tuluv",
-              nekhemjlekhiinDugaar: "$nekhemjlekhiinDugaar",
-            },
-          },
-          // Running totals
-          niitTulukhDun: {
-            $sum: { $ifNull: ["$niitTulburOriginal", "$niitTulbur"] },
-          },
-          niitTulsunDun: {
-            $sum: {
-              $cond: [
-                { $eq: ["$tuluv", "Төлсөн"] },
-                { $ifNull: ["$niitTulburOriginal", "$niitTulbur"] },
-                0,
-              ],
-            },
-          },
-          niitUldegdel: { $sum: { $ifNull: ["$uldegdel", 0] } },
-          invoiceToo: { $sum: 1 },
-        },
-      },
-    ];
+    // ── Helper: extract per-type sums from medeelel.zardluud ─────────────────
+    // Known tailbar labels (case-insensitive matching)
+    const TUREES = /түрээс/i;
+    const MENEJ = /менежмент/i;
+    const TSAKHILGAAN = /цахилгаан/i;
+    const US = /^ус$/i;
+    const DULAAN = /дулаан/i;
+    const ALDANGI = /алданги/i;
+    const BARITSAA = /барьцаа/i;
 
-    // ── Post-group search across grouped identity fields ───────────────────
-    if (search && String(search).trim()) {
-      const re = escapeRegex(String(search).trim());
-      pipeline.push({
-        $match: {
-          $or: [
-            { "_id.ner": { $regex: re, $options: "i" } },
-            { "_id.ovog": { $regex: re, $options: "i" } },
-            { "_id.register": { $regex: re, $options: "i" } },
-            { "_id.gereeniiDugaar": { $regex: re, $options: "i" } },
-            { "_id.toot": { $regex: re, $options: "i" } },
-          ],
-        },
-      });
+    function classifyZardal(tailbar = "") {
+      if (TUREES.test(tailbar)) return "turees";
+      if (MENEJ.test(tailbar)) return "menejment";
+      if (TSAKHILGAAN.test(tailbar)) return "tsakhilgaan";
+      if (US.test(tailbar)) return "us";
+      if (DULAAN.test(tailbar)) return "dulaan";
+      if (ALDANGI.test(tailbar)) return "aldangi";
+      if (BARITSAA.test(tailbar)) return "baritsaa";
+      return "busad"; // other
     }
 
-    // ── Count total groups before pagination ─────────────────────────────────
-    const countPipeline = [...pipeline, { $count: "niit" }];
-    const [countResult] = await NekhemjlekhiinTuukh(kholbolt).aggregate(
-      countPipeline
-    );
-    const niitToo = countResult?.niit || 0;
+    function summarizeZardluud(zardluud = []) {
+      const sums = {
+        turees: 0,
+        menejment: 0,
+        tsakhilgaan: 0,
+        us: 0,
+        dulaan: 0,
+        aldangi: 0,
+        baritsaa: 0,
+        busad: 0,
+      };
+      for (const z of zardluud) {
+        const key = classifyZardal(z.tailbar || z.ner || "");
+        sums[key] += Number(z.tulukhDun || z.dun || 0);
+      }
+      return sums;
+    }
 
-    // ── Sort + Paginate ──────────────────────────────────────────────────────
+    // ── Group invoices by gereeniiId (contract) ───────────────────────────────
+    const groupMap = new Map(); // key = gereeniiId || gereeniiDugaar
+
+    for (const inv of invoices) {
+      const groupKey =
+        inv.gereeniiId || inv.gereeniiDugaar || String(inv._id);
+
+      if (!groupMap.has(groupKey)) {
+        const toot =
+          inv.medeelel?.toot || inv.toot || "";
+        groupMap.set(groupKey, {
+          gereeniiId: inv.gereeniiId || "",
+          gereeniiDugaar: inv.gereeniiDugaar || "",
+          register: inv.register || "",
+          ovog: inv.ovog || "",
+          ner: inv.ner || "",
+          utas: Array.isArray(inv.utas) ? inv.utas : inv.utas ? [inv.utas] : [],
+          toot,
+          davkhar: inv.davkhar || "",
+          bairNer: inv.bairNer || "",
+          orts: inv.orts || "",
+          avlaga: [],
+          // group-level running totals
+          niitTulukhDun: 0,
+          niitTulsunDun: 0,
+          niitUldegdel: 0,
+          invoiceToo: 0,
+          // breakdown sums across all invoices in the group
+          dun: {
+            turees: 0,
+            menejment: 0,
+            tsakhilgaan: 0,
+            us: 0,
+            dulaan: 0,
+            aldangi: 0,
+            baritsaa: 0,
+            busad: 0,
+          },
+          niitKhungulult: 0,
+        });
+      }
+
+      const group = groupMap.get(groupKey);
+
+      // ----- per-invoice breakdown from medeelel -----
+      const zardluud = inv.medeelel?.zardluud || [];
+      const khungulultuud = inv.medeelel?.khungulultuud || [];
+      const guilgeenuud = inv.medeelel?.guilgeenuud || [];
+      const zardluudSums = summarizeZardluud(zardluud);
+
+      // Total khungulult for this invoice
+      const invoiceKhungulult = khungulultuud.reduce(
+        (s, k) => s + Number(k.khungulultiinDun || k.tulukhDun || 0),
+        0
+      );
+
+      const tulukhDun = Number(
+        inv.niitTulburOriginal != null ? inv.niitTulburOriginal : inv.niitTulbur
+      ) || 0;
+      const uldegdel = Number(inv.uldegdel || 0);
+
+      const avlagaRow = {
+        _id: inv._id,
+        nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar || "",
+        ognoo: inv.ognoo || null,
+        tailbar: inv.tailbar || inv.zagvariinNer || "Нэхэмжлэх",
+        toot: inv.medeelel?.toot || inv.toot || "",
+        tulukhDun,
+        niitTulbur: Number(inv.niitTulbur || 0),
+        uldegdel,
+        tuluv: inv.tuluv || "Төлөөгүй",
+        // Full ashiglaltiinZardluud line-items
+        zardluud: zardluud.map((z) => ({
+          ner: z.ner || "",
+          tailbar: z.tailbar || "",
+          turul: z.turul || "",
+          zardliinTurul: z.zardliinTurul || "",
+          tulukhDun: Number(z.tulukhDun || z.dun || 0),
+          // electricity-specific fields
+          zaalt: z.zaalt || false,
+          zaaltTog: z.zaaltTog || null,
+          zaaltUs: z.zaaltUs || null,
+          tsakhilgaanUrjver: z.tsakhilgaanUrjver || null,
+          // water
+          tseverUsDun: z.tseverUsDun || null,
+          bokhirUsDun: z.bokhirUsDun || null,
+        })),
+        // Discounts
+        khungulultuud: khungulultuud.map((k) => ({
+          turul: k.turul || "",
+          khungulukhTurul: k.khungulukhTurul || "",
+          khungulultiinDun: Number(k.khungulultiinDun || k.tulukhDun || 0),
+          tailbar: k.tailbar || "",
+        })),
+        // Payments on this invoice
+        guilgeenuud: guilgeenuud.map((g) => ({
+          ognoo: g.ognoo || null,
+          tailbar: g.tailbar || "",
+          tulsunDun: Number(g.tulsunDun || g.dun || 0),
+        })),
+        // Per-type sums for quick frontend consumption
+        dunByTurul: zardluudSums,
+        niitKhungulult: invoiceKhungulult,
+      };
+
+      group.avlaga.push(avlagaRow);
+      group.niitTulukhDun += tulukhDun;
+      group.niitUldegdel += uldegdel;
+      group.invoiceToo += 1;
+      if (inv.tuluv === "Төлсөн") group.niitTulsunDun += tulukhDun;
+      group.niitKhungulult += invoiceKhungulult;
+
+      // Accumulate breakdown sums at group level
+      for (const key of Object.keys(zardluudSums)) {
+        group.dun[key] = (group.dun[key] || 0) + zardluudSums[key];
+      }
+    }
+
+    // ── Convert map to array ──────────────────────────────────────────────────
+    let groups = Array.from(groupMap.values());
+
+    // ── Post-group search ─────────────────────────────────────────────────────
+    if (search && String(search).trim()) {
+      const re = new RegExp(escapeRegex(String(search).trim()), "i");
+      groups = groups.filter(
+        (g) =>
+          re.test(g.ner) ||
+          re.test(g.ovog) ||
+          re.test(g.register) ||
+          re.test(g.gereeniiDugaar) ||
+          re.test(g.toot)
+      );
+    }
+
+    // ── Sort ──────────────────────────────────────────────────────────────────
+    groups.sort((a, b) => {
+      const n = (a.ner || "").localeCompare(b.ner || "", "mn");
+      return n !== 0 ? n : (a.gereeniiDugaar || "").localeCompare(b.gereeniiDugaar || "", "mn");
+    });
+
+    // ── Pagination ────────────────────────────────────────────────────────────
+    const niitToo = groups.length;
     const page = Math.max(1, Number(khuudasniiDugaar));
     const pageSize = Math.min(1000, Math.max(1, Number(khuudasniiKhemjee)));
-
-    pipeline.push(
-      { $sort: { "_id.ner": 1, "_id.gereeniiDugaar": 1 } },
-      { $skip: (page - 1) * pageSize },
-      { $limit: pageSize }
-    );
-
-    const result = await NekhemjlekhiinTuukh(kholbolt).aggregate(pipeline);
+    const paginatedGroups = groups.slice((page - 1) * pageSize, page * pageSize);
 
     res.json({
       success: true,
       niitToo,
       khuudasniiDugaar: page,
       khuudasniiKhemjee: pageSize,
-      data: result,
+      data: paginatedGroups,
     });
   } catch (error) {
     next(error);
