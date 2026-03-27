@@ -1489,6 +1489,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
       "udsan-avlaga": exports.tailanUdsanAvlaga,
       "tsutslasan-gereenii-avlaga": exports.tailanTsutslasanGereeniiAvlaga,
       "zogsool": exports.tailanZogsool,
+      "negtgel": exports.tailanNegtgelTailan,
     };
 
     const reportFunction = reportMap[report];
@@ -1609,6 +1610,156 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         r.tuluv || "",
       ]);
       fileName = "orlogo_avlaga";
+    } else if (report === "negtgel") {
+      const ExcelJS = require("exceljs");
+      const Baiguullaga = require("../models/baiguullaga");
+      const { db } = require("zevbackv2");
+
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt)
+        .findById(baiguullagiinId)
+        .lean();
+      const orgName = baiguullaga?.ner || "";
+
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Нэгтгэл тайлан");
+
+      // Group data by year-month for headers
+      const periods = new Set();
+      data.data.forEach((group) => {
+        group.avlaga.forEach((inv) => {
+          if (inv.ognoo) {
+            const d = new Date(inv.ognoo);
+            periods.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+          }
+        });
+      });
+      const sortedPeriods = Array.from(periods).sort();
+
+      // Column mapping
+      const serviceColumns = [
+        { label: "Хог", regex: /хог/i },
+        { label: "Үйлчлэгчийн цалин", regex: /үйлчлэгч/i },
+        { label: "Ариутгал цэвэрлэгээний материал", regex: /ариутгал|цэвэрлэгээний материал/i },
+        { label: "Дулаан, агаар сэлгэлт", regex: /дулаан|агаар/i },
+        { label: "Лифт", regex: /лифт/i },
+        { label: "Засвар үйлчилгээ", regex: /засвар/i },
+        { label: "Орон сууцны ашиглалт", regex: /ажилтан|байцаагч/i },
+        { label: "Дундын Цахилгаан", regex: /дундын/i },
+        { label: "Цахилгаан", regex: /^(?!.*дундын).*цахилгаан/i },
+        { label: "Бусад", regex: null },
+      ];
+
+      // Build Headers
+      // Row 1: Fixed Headers | <Period merged cells> | Grand Total
+      // Row 2: № | Харилцагч | Тоот | Утас | <Services per Period...> | Нийт
+      
+      const fixedHeaders = ["№", "Харилцагч", "Тоот", "Утас"];
+      const periodColCount = serviceColumns.length;
+      
+      // Calculate start col for each period
+      const startColRaw = fixedHeaders.length + 1;
+      
+      // We'll stick to one period for now if that's what's most common, 
+      // but let's assume the user wants the structure they provided.
+      // If we use multiple periods, the table will be very wide.
+      // Let's assume they want the breakdown as columns for the whole range if not specified.
+      
+      const headerRow2 = [];
+      fixedHeaders.forEach(h => headerRow2.push(h));
+      
+      // For each period (e.g. 2026-03), add the service columns
+      sortedPeriods.forEach(p => {
+        serviceColumns.forEach(sc => headerRow2.push(sc.label));
+        headerRow2.push("Нийт (" + p + ")");
+      });
+      headerRow2.push("Ерөнхий Нийт");
+
+      // Row 1: Merge period headers
+      const row1Data = new Array(headerRow2.length).fill("");
+      row1Data[0] = "НЭГТГЭЛ ТАЙЛАН";
+      
+      let currentCol = fixedHeaders.length + 1;
+      sortedPeriods.forEach(p => {
+        row1Data[currentCol - 1] = p;
+        worksheet.mergeCells(4, currentCol, 4, currentCol + serviceColumns.length);
+        currentCol += serviceColumns.length + 1;
+      });
+
+      // Title & Org info
+      worksheet.mergeCells("A1:" + worksheet.getColumn(headerRow2.length).letter + "1");
+      const titleCell = worksheet.getCell("A1");
+      titleCell.value = "НЭГТГЭЛ ТАЙЛАН (" + (orgName || "") + ")";
+      titleCell.font = { size: 14, bold: true };
+      titleCell.alignment = { horizontal: "center" };
+
+      const rangeStr = sortedPeriods.join(", ");
+      worksheet.mergeCells("A2:" + worksheet.getColumn(headerRow2.length).letter + "2");
+      const subTitle = worksheet.getCell("A2");
+      subTitle.value = "Хугацаа: " + rangeStr;
+      subTitle.alignment = { horizontal: "center" };
+
+      const headerRowObj = worksheet.addRow(headerRow2);
+      headerRowObj.eachCell((cell) => {
+        cell.font = { bold: true };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E0E0' } };
+        cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      });
+
+      // Data Rows
+      data.data.forEach((group, idx) => {
+        const rowData = [
+          idx + 1,
+          `${group._id.ovog || ""} ${group._id.ner || ""}`.trim(),
+          group._id.toot || "",
+          Array.isArray(group._id.utas) ? group._id.utas.join(", ") : group._id.utas || ""
+        ];
+
+        let grandTotal = 0;
+        sortedPeriods.forEach(period => {
+          const periodCosts = new Array(serviceColumns.length).fill(0);
+          let periodTotal = 0;
+
+          // Find invoices in this period
+          group.avlaga.forEach(inv => {
+            if (!inv.ognoo) return;
+            const invP = `${new Date(inv.ognoo).getFullYear()}-${String(new Date(inv.ognoo).getMonth() + 1).padStart(2, "0")}`;
+            if (invP !== period) return;
+
+            inv.zardluud.forEach(z => {
+              const amount = Number(z.dun || z.tulukhDun || 0);
+              let matched = false;
+              for (let i = 0; i < serviceColumns.length - 1; i++) {
+                if (serviceColumns[i].regex.test(z.ner || z.tailbar || "")) {
+                  periodCosts[i] += amount;
+                  matched = true;
+                  break;
+                }
+              }
+              if (!matched) periodCosts[serviceColumns.length - 1] += amount; // "Busad"
+              periodTotal += amount;
+            });
+          });
+
+          periodCosts.forEach(c => rowData.push(c));
+          rowData.push(periodTotal);
+          grandTotal += periodTotal;
+        });
+        rowData.push(grandTotal);
+
+        const row = worksheet.addRow(rowData);
+        row.eachCell((cell, colNumber) => {
+          cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+          if (colNumber > 4) {
+             cell.numFmt = '#,##0.00';
+          }
+        });
+      });
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="negtgel_${Date.now()}.xlsx"`);
+      return res.send(buffer);
     } else if (report === "orlogo-tovchoo") {
       const ExcelJS = require("exceljs");
       const Baiguullaga = require("../models/baiguullaga");
