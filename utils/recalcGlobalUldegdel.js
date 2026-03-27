@@ -123,16 +123,25 @@ async function recalcGlobalUldegdel({
     if (allInvoices.length > 0) {
       let remainingDebt = Math.round(newGlobalUldegdel * 100) / 100;
       for (const inv of allInvoices) {
-        let originalTotal = typeof inv.niitTulburOriginal === "number" && inv.niitTulburOriginal > 0
-          ? inv.niitTulburOriginal
-          : null;
-        if (!originalTotal && Array.isArray(inv.medeelel?.zardluud)) {
-          const zardalTotal = inv.medeelel.zardluud
-            .filter(z => !z.isEkhniiUldegdel)
-            .reduce((s, z) => s + (Number(z.dun) || Number(z.tariff) || 0), 0);
-          originalTotal = Math.round(zardalTotal * 100) / 100;
+        // ALWAYS recalculate originalTotal from zardluud to pick up newly added charges (like Electricity)
+        let calculatedOriginalTotal = 0;
+        if (Array.isArray(inv.medeelel?.zardluud)) {
+          calculatedOriginalTotal = inv.medeelel.zardluud
+            .filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл")
+            .reduce((s, z) => {
+              const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
+              const d = z.dun != null ? Number(z.dun) : null;
+              const tariff = z.tariff != null ? Number(z.tariff) : 0;
+              const val = t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
+              return s + (Number(val) || 0);
+            }, 0);
         }
-        originalTotal = Math.round((originalTotal || 0) * 100) / 100;
+        
+        // If we found zero from zardluud (unlikely for a real invoice), use niitTulburOriginal if it exists
+        let originalTotal = Math.round(calculatedOriginalTotal * 100) / 100;
+        if (originalTotal <= 0 && typeof inv.niitTulburOriginal === "number" && inv.niitTulburOriginal > 0) {
+          originalTotal = inv.niitTulburOriginal;
+        }
 
         // The newest invoice dynamically absorbs any un-invoiced Avlagas so they coexist as ONE balance
         if (inv === allInvoices[0]) {
@@ -163,7 +172,7 @@ async function recalcGlobalUldegdel({
             const existingSyncIdx = (inv.paymentHistory || []).findIndex(p => p.turul === 'system_sync');
             if (existingSyncIdx > -1) {
               inv.paymentHistory[existingSyncIdx].dun = Math.round((inv.paymentHistory[existingSyncIdx].dun + paymentDiff) * 100) / 100;
-              if (inv.paymentHistory[existingSyncIdx].dun <= 0.01) {
+              if (Math.abs(inv.paymentHistory[existingSyncIdx].dun) <= 0.01) {
                 inv.paymentHistory.splice(existingSyncIdx, 1);
               }
             } else if (paymentDiff > 0) {
@@ -186,7 +195,36 @@ async function recalcGlobalUldegdel({
               });
             }
           }
+
+          // SYNCHRONIZE ZARDLUUD PAID STATUS:
+          // We must ensure the sum(z.tulsunDun) matches the net payment history sum.
+          const finalNetPayment = Math.round((originalTotal - targetUldegdel) * 100) / 100;
+          if (inv.medeelel && Array.isArray(inv.medeelel.zardluud)) {
+            let runningPaymentTotal = finalNetPayment;
+            inv.medeelel.zardluud = inv.medeelel.zardluud.map(z => {
+                if (z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл") return z;
+                
+                const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
+                const d = z.dun != null ? Number(z.dun) : null;
+                const tariff = z.tariff != null ? Number(z.tariff) : 0;
+                const zItemTotal = t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
+                
+                const applyToThis = Math.max(0, Math.min(runningPaymentTotal, zItemTotal));
+                runningPaymentTotal -= applyToThis;
+                
+                return {
+                    ...z,
+                    tulsunDun: Math.round(applyToThis * 100) / 100,
+                    tulsenEsekh: applyToThis >= zItemTotal - 0.01
+                };
+            });
+            inv.markModified("medeelel.zardluud");
+          }
+
           inv.markModified("paymentHistory");
+          inv.uldegdel = targetUldegdel;
+          inv.niitTulbur = targetUldegdel;
+          inv.tuluv = targetTuluv;
           await inv.save();
         }
       }
