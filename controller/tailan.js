@@ -1706,6 +1706,17 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       });
 
+      // Set column widths
+      worksheet.getColumn(1).width = 5;   // №
+      worksheet.getColumn(2).width = 30;  // Харилцагч
+      worksheet.getColumn(3).width = 10;  // Тоот
+      worksheet.getColumn(4).width = 15;  // Утас
+      
+      // Cost columns width
+      for (let i = 5; i <= headerRow2.length; i++) {
+        worksheet.getColumn(i).width = 18;
+      }
+
       // Data Rows
       data.data.forEach((group, idx) => {
         const rowData = [
