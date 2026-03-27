@@ -2478,3 +2478,165 @@ exports.tailanTsutslasanGereeniiAvlaga = asyncHandler(
     }
   }
 );
+
+// Нэгтгэл тайлан - Гэрээгээр бүлэглэсэн нэхэмжлэлийн авлагын нэгтгэл
+// POST /tailan/negtgel
+exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const source =
+      req.method === "GET" ? req.query : req.body;
+
+    const {
+      baiguullagiinId,
+      barilgiinId,
+      ekhlekhOgnoo,
+      duusakhOgnoo,
+      khuudasniiDugaar = 1,
+      khuudasniiKhemjee = 500,
+      search,
+      gereeniiDugaar,
+      tuluv, // optional: "Төлсөн" | "Төлөөгүй" | "Хугацаа хэтэрсэн" – filter by invoice status
+    } = source || {};
+
+    if (!baiguullagiinId || !ekhlekhOgnoo || !duusakhOgnoo) {
+      return res.status(400).json({
+        success: false,
+        aldaa: "Мэдээлэл дутуу байна",
+        required: ["baiguullagiinId", "ekhlekhOgnoo", "duusakhOgnoo"],
+      });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Холболтын мэдээлэл олдсонгүй" });
+    }
+
+    const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+
+    // ── Date range ──────────────────────────────────────────────────────────
+    const startDate = new Date(ekhlekhOgnoo);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(duusakhOgnoo);
+    endDate.setHours(23, 59, 59, 999);
+
+    // ── Base match ──────────────────────────────────────────────────────────
+    const match = {
+      baiguullagiinId: String(baiguullagiinId),
+      ognoo: { $gte: startDate, $lte: endDate },
+    };
+    if (barilgiinId) match.barilgiinId = String(barilgiinId);
+    if (tuluv) match.tuluv = tuluv;
+    if (gereeniiDugaar) {
+      match.gereeniiDugaar = {
+        $regex: escapeRegex(String(gereeniiDugaar).trim()),
+        $options: "i",
+      };
+    }
+
+    // ── Aggregation pipeline ─────────────────────────────────────────────────
+    const pipeline = [
+      { $match: match },
+
+      // Group by contract identity fields
+      {
+        $group: {
+          _id: {
+            gereeniiId: "$gereeniiId",
+            gereeniiDugaar: "$gereeniiDugaar",
+            register: "$register",
+            ovog: "$ovog",
+            ner: "$ner",
+            utas: "$utas",
+            toot: "$toot",
+            davkhar: "$davkhar",
+            bairNer: "$bairNer",
+            orts: "$orts",
+          },
+          // Collect each invoice as a row in the avlaga array
+          avlaga: {
+            $push: {
+              _id: "$_id",
+              ognoo: "$ognoo",
+              tailbar: {
+                $ifNull: [
+                  "$tailbar",
+                  { $ifNull: ["$zagvariinNer", "Нэхэмжлэх"] },
+                ],
+              },
+              tulukhDun: { $ifNull: ["$niitTulburOriginal", "$niitTulbur"] },
+              niitTulbur: "$niitTulbur",
+              uldegdel: { $ifNull: ["$uldegdel", 0] },
+              tuluv: "$tuluv",
+              nekhemjlekhiinDugaar: "$nekhemjlekhiinDugaar",
+            },
+          },
+          // Running totals
+          niitTulukhDun: {
+            $sum: { $ifNull: ["$niitTulburOriginal", "$niitTulbur"] },
+          },
+          niitTulsunDun: {
+            $sum: {
+              $cond: [
+                { $eq: ["$tuluv", "Төлсөн"] },
+                { $ifNull: ["$niitTulburOriginal", "$niitTulbur"] },
+                0,
+              ],
+            },
+          },
+          niitUldegdel: { $sum: { $ifNull: ["$uldegdel", 0] } },
+          invoiceToo: { $sum: 1 },
+        },
+      },
+    ];
+
+    // ── Post-group search across grouped identity fields ───────────────────
+    if (search && String(search).trim()) {
+      const re = escapeRegex(String(search).trim());
+      pipeline.push({
+        $match: {
+          $or: [
+            { "_id.ner": { $regex: re, $options: "i" } },
+            { "_id.ovog": { $regex: re, $options: "i" } },
+            { "_id.register": { $regex: re, $options: "i" } },
+            { "_id.gereeniiDugaar": { $regex: re, $options: "i" } },
+            { "_id.toot": { $regex: re, $options: "i" } },
+          ],
+        },
+      });
+    }
+
+    // ── Count total groups before pagination ─────────────────────────────────
+    const countPipeline = [...pipeline, { $count: "niit" }];
+    const [countResult] = await NekhemjlekhiinTuukh(kholbolt).aggregate(
+      countPipeline
+    );
+    const niitToo = countResult?.niit || 0;
+
+    // ── Sort + Paginate ──────────────────────────────────────────────────────
+    const page = Math.max(1, Number(khuudasniiDugaar));
+    const pageSize = Math.min(1000, Math.max(1, Number(khuudasniiKhemjee)));
+
+    pipeline.push(
+      { $sort: { "_id.ner": 1, "_id.gereeniiDugaar": 1 } },
+      { $skip: (page - 1) * pageSize },
+      { $limit: pageSize }
+    );
+
+    const result = await NekhemjlekhiinTuukh(kholbolt).aggregate(pipeline);
+
+    res.json({
+      success: true,
+      niitToo,
+      khuudasniiDugaar: page,
+      khuudasniiKhemjee: pageSize,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
