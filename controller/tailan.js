@@ -2542,148 +2542,69 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       .find(query)
       .lean({ virtuals: false });
 
-    // ── Helper: extract per-type sums from medeelel.zardluud ─────────────────
-    // Known tailbar labels (case-insensitive matching)
-    const TUREES = /түрээс/i;
-    const MENEJ = /менежмент/i;
-    const TSAKHILGAAN = /цахилгаан/i;
-    const US = /^ус$/i;
-    const DULAAN = /дулаан/i;
-    const ALDANGI = /алданги/i;
-    const BARITSAA = /барьцаа/i;
-
-    function classifyZardal(tailbar = "") {
-      if (TUREES.test(tailbar)) return "turees";
-      if (MENEJ.test(tailbar)) return "menejment";
-      if (TSAKHILGAAN.test(tailbar)) return "tsakhilgaan";
-      if (US.test(tailbar)) return "us";
-      if (DULAAN.test(tailbar)) return "dulaan";
-      if (ALDANGI.test(tailbar)) return "aldangi";
-      if (BARITSAA.test(tailbar)) return "baritsaa";
-      return "busad"; // other
-    }
-
-    function summarizeZardluud(zardluud = []) {
-      const sums = {
-        turees: 0,
-        menejment: 0,
-        tsakhilgaan: 0,
-        us: 0,
-        dulaan: 0,
-        aldangi: 0,
-        baritsaa: 0,
-        busad: 0,
-      };
-      for (const z of zardluud) {
-        const key = classifyZardal(z.tailbar || z.ner || "");
-        sums[key] += Number(z.tulukhDun || z.dun || 0);
-      }
-      return sums;
-    }
-
-    // ── Group invoices by gereeniiId (contract) ───────────────────────────────
-    const groupMap = new Map(); // key = gereeniiId || gereeniiDugaar
+    // ── Group invoices by contract ───────────────────────────────────────────
+    const groupMap = new Map();
 
     for (const inv of invoices) {
-      const groupKey =
-        inv.gereeniiId || inv.gereeniiDugaar || String(inv._id);
+      const groupKey = inv.gereeniiId || inv.gereeniiDugaar || String(inv._id);
 
       if (!groupMap.has(groupKey)) {
-        const toot =
-          inv.medeelel?.toot || inv.toot || "";
         groupMap.set(groupKey, {
-          gereeniiId: inv.gereeniiId || "",
-          gereeniiDugaar: inv.gereeniiDugaar || "",
-          register: inv.register || "",
-          ovog: inv.ovog || "",
-          ner: inv.ner || "",
-          utas: Array.isArray(inv.utas) ? inv.utas : inv.utas ? [inv.utas] : [],
-          toot,
-          davkhar: inv.davkhar || "",
-          bairNer: inv.bairNer || "",
-          orts: inv.orts || "",
+          // Maintaining the nested _id structure as the user preferred in their snippet
+          _id: {
+            gereeniiId: inv.gereeniiId || "",
+            gereeniiDugaar: inv.gereeniiDugaar || "",
+            register: inv.register || "",
+            ovog: inv.ovog || "",
+            ner: inv.ner || "",
+            utas: Array.isArray(inv.utas) ? inv.utas : inv.utas ? [inv.utas] : [],
+            davkhar: inv.davkhar || "",
+            orts: inv.orts || "",
+            toot: inv.toot || inv.medeelel?.toot || "",
+          },
           avlaga: [],
-          // group-level running totals
           niitTulukhDun: 0,
           niitTulsunDun: 0,
           niitUldegdel: 0,
           invoiceToo: 0,
-          // breakdown sums across all invoices in the group
-          dun: {
-            turees: 0,
-            menejment: 0,
-            tsakhilgaan: 0,
-            us: 0,
-            dulaan: 0,
-            aldangi: 0,
-            baritsaa: 0,
-            busad: 0,
-          },
-          niitKhungulult: 0,
         });
       }
 
       const group = groupMap.get(groupKey);
 
-      // ----- per-invoice breakdown from medeelel -----
+      // Extract details from medeelel
       const zardluud = inv.medeelel?.zardluud || [];
       const khungulultuud = inv.medeelel?.khungulultuud || [];
-      const guilgeenuud = inv.medeelel?.guilgeenuud || [];
-      const zardluudSums = summarizeZardluud(zardluud);
 
-      // Total khungulult for this invoice
-      const invoiceKhungulult = khungulultuud.reduce(
-        (s, k) => s + Number(k.khungulultiinDun || k.tulukhDun || 0),
-        0
-      );
-
-      const tulukhDun = Number(
-        inv.niitTulburOriginal != null ? inv.niitTulburOriginal : inv.niitTulbur
-      ) || 0;
+      const tulukhDun = Number(inv.niitTulburOriginal != null ? inv.niitTulburOriginal : inv.niitTulbur) || 0;
       const uldegdel = Number(inv.uldegdel || 0);
 
       const avlagaRow = {
         _id: inv._id,
-        nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar || "",
+        toot: inv.toot || inv.medeelel?.toot || "",
         ognoo: inv.ognoo || null,
         tailbar: inv.tailbar || inv.zagvariinNer || "Нэхэмжлэх",
-        toot: inv.medeelel?.toot || inv.toot || "",
         tulukhDun,
         niitTulbur: Number(inv.niitTulbur || 0),
         uldegdel,
         tuluv: inv.tuluv || "Төлөөгүй",
-        // Full ashiglaltiinZardluud line-items
+        nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar || "",
+        // Each individual cost item names/amounts
         zardluud: zardluud.map((z) => ({
-          ner: z.ner || "",
+          ner: z.ner || z.tailbar || "Бусад зардал",
+          dun: Number(z.tulukhDun || z.dun || 0),
           tailbar: z.tailbar || "",
           turul: z.turul || "",
           zardliinTurul: z.zardliinTurul || "",
-          tulukhDun: Number(z.tulukhDun || z.dun || 0),
-          // electricity-specific fields
-          zaalt: z.zaalt || false,
+          // Electricity readings if any
           zaaltTog: z.zaaltTog || null,
           zaaltUs: z.zaaltUs || null,
-          tsakhilgaanUrjver: z.tsakhilgaanUrjver || null,
-          // water
-          tseverUsDun: z.tseverUsDun || null,
-          bokhirUsDun: z.bokhirUsDun || null,
         })),
-        // Discounts
         khungulultuud: khungulultuud.map((k) => ({
+          ner: k.tailbar || "Хөнгөлөлт",
+          dun: Number(k.khungulultiinDun || k.tulukhDun || 0),
           turul: k.turul || "",
-          khungulukhTurul: k.khungulukhTurul || "",
-          khungulultiinDun: Number(k.khungulultiinDun || k.tulukhDun || 0),
-          tailbar: k.tailbar || "",
         })),
-        // Payments on this invoice
-        guilgeenuud: guilgeenuud.map((g) => ({
-          ognoo: g.ognoo || null,
-          tailbar: g.tailbar || "",
-          tulsunDun: Number(g.tulsunDun || g.dun || 0),
-        })),
-        // Per-type sums for quick frontend consumption
-        dunByTurul: zardluudSums,
-        niitKhungulult: invoiceKhungulult,
       };
 
       group.avlaga.push(avlagaRow);
@@ -2691,12 +2612,6 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       group.niitUldegdel += uldegdel;
       group.invoiceToo += 1;
       if (inv.tuluv === "Төлсөн") group.niitTulsunDun += tulukhDun;
-      group.niitKhungulult += invoiceKhungulult;
-
-      // Accumulate breakdown sums at group level
-      for (const key of Object.keys(zardluudSums)) {
-        group.dun[key] = (group.dun[key] || 0) + zardluudSums[key];
-      }
     }
 
     // ── Convert map to array ──────────────────────────────────────────────────
@@ -2707,18 +2622,18 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       const re = new RegExp(escapeRegex(String(search).trim()), "i");
       groups = groups.filter(
         (g) =>
-          re.test(g.ner) ||
-          re.test(g.ovog) ||
-          re.test(g.register) ||
-          re.test(g.gereeniiDugaar) ||
-          re.test(g.toot)
+          re.test(g._id.ner) ||
+          re.test(g._id.ovog) ||
+          re.test(g._id.register) ||
+          re.test(g._id.gereeniiDugaar) ||
+          re.test(g._id.toot)
       );
     }
 
     // ── Sort ──────────────────────────────────────────────────────────────────
     groups.sort((a, b) => {
-      const n = (a.ner || "").localeCompare(b.ner || "", "mn");
-      return n !== 0 ? n : (a.gereeniiDugaar || "").localeCompare(b.gereeniiDugaar || "", "mn");
+      const n = (a._id.ner || "").localeCompare(b._id.ner || "", "mn");
+      return n !== 0 ? n : (a._id.gereeniiDugaar || "").localeCompare(b._id.gereeniiDugaar || "", "mn");
     });
 
     // ── Pagination ────────────────────────────────────────────────────────────
@@ -2738,3 +2653,4 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
     next(error);
   }
 });
+
