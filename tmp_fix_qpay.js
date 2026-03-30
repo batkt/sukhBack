@@ -81,8 +81,8 @@ async function fix() {
 
   invoice.niitTulbur = amount; 
   
-  // Try 2202 for Bayanzurkh (Ulaanbaatar)
-  const finalDistrictCode = "2202"; 
+  // From Ebarimt branch info: BZD 13-r khoroo is branch 24, subbranch 13 -> 2413
+  const finalDistrictCode = "2413"; 
   console.log(`Retrying E-Barimt Service with DistrictCode: ${finalDistrictCode}...`);
   const ebarimtData = await nekhemjlekheesEbarimtShineUusgye(
     invoice,
