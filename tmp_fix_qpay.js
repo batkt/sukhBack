@@ -16,16 +16,37 @@ async function fix() {
   const amount = 119889.2;
   const mongoUriBase = "mongodb://admin:Br1stelback1@127.0.0.1:27017/";
 
-  console.log("Connecting to Databases...");
-  const primaryConn = mongoose.createConnection(`${mongoUriBase}amarSukh?authSource=admin`);
-  const tenantConn = mongoose.createConnection(`${mongoUriBase}nairamdalSukh?authSource=admin`);
+  console.log("Connecting to Primary DB (amarSukh)...");
+  const primaryConn = mongoose.createConnection(`${mongoUriBase}amarSukh?authSource=admin`, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+  });
+  
+  primaryConn.on('error', err => console.log('❌ Primary DB error:', err.message));
+  primaryConn.on('open', () => console.log('✅ Primary DB connected.'));
 
-  await Promise.all([
-    new Promise(r => primaryConn.on('open', r)),
-    new Promise(r => tenantConn.on('open', r))
-  ]);
+  console.log("Connecting to Tenant DB (nairamdalSukh)...");
+  const tenantConn = mongoose.createConnection(`${mongoUriBase}nairamdalSukh?authSource=admin`, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+  });
 
-  console.log("✅ Databases Connected.");
+  tenantConn.on('error', err => console.log('❌ Tenant DB error:', err.message));
+  tenantConn.on('open', () => console.log('✅ Tenant DB connected.'));
+
+  // wait for both
+  let primaryOpen = false;
+  let tenantOpen = false;
+  
+  for(let i=0; i<20; i++) {
+      if (primaryConn.readyState === 1) primaryOpen = true;
+      if (tenantConn.readyState === 1) tenantOpen = true;
+      if (primaryOpen && tenantOpen) break;
+      console.log(`Connection Status: Primary=${primaryConn.readyState}, Tenant=${tenantConn.readyState}...`);
+      await new Promise(r => setTimeout(r, 2000));
+  }
+
+  if (!primaryOpen || !tenantOpen) throw new Error("Timed out connecting to databases.");
   
   db.erunkhiiKholbolt = { kholbolt: primaryConn };
   const kholbolt = { kholbolt: tenantConn, baiguullagiinId: baiguullagiinId };
@@ -37,7 +58,7 @@ async function fix() {
     { tulsunEsekh: true },
     { new: true }
   );
-  console.log("Qpay updated:", !!qpayUpdate);
+  console.log("QPay updated:", !!qpayUpdate);
 
   // 2. Fix Bank Record
   console.log("Updating Bank Record amount...");
@@ -55,10 +76,14 @@ async function fix() {
   const bldg = org.barilguud.find(b => String(b._id) === String(invoice.barilgiinId));
   const tokhirgoo = bldg.tokhirgoo;
 
+  console.log("Original Config - MerchantTin:", tokhirgoo.merchantTin);
+  console.log("Original Config - DistrictCode:", tokhirgoo.districtCode);
+
   invoice.niitTulbur = amount; 
-  const finalDistrictCode = "2204"; // BZD
   
-  console.log(`Calling E-Barimt Service (District code: ${finalDistrictCode})...`);
+  // Try 2103 if 2204 failed (Common codes for BZD are 2103 or 2202)
+  const finalDistrictCode = "2103"; 
+  console.log(`Retrying E-Barimt Service with DistrictCode: ${finalDistrictCode}...`);
   const ebarimtData = await nekhemjlekheesEbarimtShineUusgye(
     invoice,
     "", // customerNo
