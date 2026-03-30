@@ -253,9 +253,8 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
               const newTotal = sumZardalDun(existingInvoice.medeelel.zardluud);
               
-              // CRITICAL: Update niitTulburOriginal from all non-initial entries in the medeelel
+              // CRITICAL: Update niitTulburOriginal from all entries in the medeelel (including initial balance)
               const calculatedOriginalTotal = existingInvoice.medeelel.zardluud
-                .filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл")
                 .reduce((s, z) => s + (Number(z.dun || z.tariff || 0)), 0);
               
               existingInvoice.niitTulburOriginal = calculatedOriginalTotal;

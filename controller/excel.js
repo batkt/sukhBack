@@ -1107,7 +1107,7 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
       baiguullagiinId: baiguullaga._id.toString(),
       barilgiinId: barilgiinId,
       tuluv: "Идэвхтэй",
-    }).select("gereeniiDugaar toot orshinSuugchId").lean();
+    }).select("gereeniiDugaar toot orshinSuugchId suuliinZaalt").lean();
 
     // Fetch orshinSuugch data to get name, phone, and electricity tariff (кВт)
     const orshinSuugchIds = [...new Set(gereenuud.map(g => g.orshinSuugchId).filter(id => id))];
@@ -1161,7 +1161,7 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
         toot: geree.toot || "",
         ner: orshinSuugch?.ner || "",
         utas: orshinSuugch?.utas || "",
-        umnu: "",
+        umnu: geree.suuliinZaalt || 0,
         odor: "",
         shone: "",
         niitOdoo: "",
@@ -1330,8 +1330,19 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
       const row = data[i];
       const rowNumber = i + 2; 
 
+      // Robust field lookup helper
+      const getVal = (row, ...names) => {
+        for (const name of names) {
+          if (row[name] !== undefined && row[name] !== null) return row[name];
+          // Try case-insensitive and trimmed versions
+          const foundKey = Object.keys(row).find(k => k.trim().toLowerCase() === name.toLowerCase());
+          if (foundKey) return row[foundKey];
+        }
+        return undefined;
+      };
+
       try {
-        const gereeniiDugaar = row["Гэрээний дугаар"]?.toString().trim();
+        const gereeniiDugaar = (getVal(row, "Гэрээний дугаар", "gereeniiDugaar") || "").toString().trim();
         if (!gereeniiDugaar) {
           results.failed.push({
             row: rowNumber,
@@ -1356,15 +1367,15 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
           continue;
         }
 
-        // Parse readings with comma handling
-        const umnu = parseExcelNum(row["Өмнө"]);
-        const odor = parseExcelNum(row["Өдөр"]);
-        const shone = parseExcelNum(row["Шөнө"]);
-        const niitOdooRaw = row["Нийт (одоо)"];
-        const niitOdoo = niitOdooRaw ? parseExcelNum(niitOdooRaw) : (odor + shone);
+        // Parse readings with comma handling and robust column naming
+        const umnu = parseExcelNum(getVal(row, "Өмнө", "Өмнөх", "umnu", "Өмнөх заалт"));
+        const odor = parseExcelNum(getVal(row, "Өдөр", "odor", "Өдрийн заалт"));
+        const shone = parseExcelNum(getVal(row, "Шөнө", "shone", "Шөнийн заалт"));
+        const niitOdooRaw = getVal(row, "Нийт (одоо)", "Нийт", "niit", "suuliinZaalt");
+        const niitOdoo = niitOdooRaw !== undefined ? parseExcelNum(niitOdooRaw) : (odor + shone);
         
         // Base fee from Excel (Support multiple naming variations)
-        const defaultDunFromExcel = parseExcelNum(row["Суурь хураамж"] || row["Суурь хүраамж"] || row["defaultDun"]);
+        const defaultDunFromExcel = parseExcelNum(getVal(row, "Суурь хураамж", "Суурь хүраамж", "defaultDun", "baseFee"));
 
         // Usage amount and calculation
         const zoruuValue = Math.abs(niitOdoo - umnu);

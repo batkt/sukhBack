@@ -370,8 +370,7 @@ const previewInvoice = async (
             }
           }
 
-          if (electricityDun > 0) {
-            zardluudWithDun.push({
+          zardluudWithDun.push({
               ner: zaaltZardal.ner || "Цахилгаан",
               turul: zaaltZardal.turul || "Тогтмол",
               bodokhArga: "тогтмол",
@@ -387,7 +386,6 @@ const previewInvoice = async (
               suuriKhuraamj: defaultDun,
               ognoonuud: [],
             });
-          }
         }
       }
     } catch (error) {

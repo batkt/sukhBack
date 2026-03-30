@@ -250,11 +250,13 @@ const manualSendInvoice = async (
           ...toPlainObject(invoiceToSync.medeelel),
           zardluud: updatedZardluud,
         };
-        // Ensure original total is preserved
-        if (typeof invoiceToSync.niitTulburOriginal !== "number") {
-          invoiceToSync.niitTulburOriginal =
-            invoiceToSync.niitTulbur;
-        }
+        // CRITICAL: Recalculate niitTulburOriginal from the updated zardluud
+        // (including initial balance) so the pre-save hook doesn't overwrite it
+        // with the stale original total.
+        const calculatedOriginalTotal = updatedZardluud
+          .reduce((sum, z) => sum + (Number(z.dun || z.tariff || 0)), 0);
+          
+        invoiceToSync.niitTulburOriginal = calculatedOriginalTotal;
 
         invoiceToSync.niitTulbur = newNiitTulbur;
 
