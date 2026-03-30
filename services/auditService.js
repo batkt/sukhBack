@@ -152,6 +152,29 @@ async function logEdit(req, db, modelName, documentId, oldDoc, newDoc, additiona
       return;
     }
 
+    // --- DE-DUPLICATION CHECK ---
+    // Prevent logging the same change twice within a very short timeframe (2 seconds).
+    // This happens if multiple hooks (save, update) trigger for the same operation.
+    try {
+      const twoSecondsAgo = new Date(Date.now() - 2000);
+      const duplicate = await ZasakhTuukh(db.erunkhiiKholbolt).findOne({
+        modelName: modelName,
+        documentId: documentId?.toString(),
+        ajiltniiId: ajiltan.id,
+        ognoo: { $gte: twoSecondsAgo },
+        // Simple string comparison of changes to detect exact matches
+        changes: { $size: changes.length, $all: changes }
+      }).lean();
+
+      if (duplicate) {
+        // console.log(`[AUDIT] Skipping duplicate log for ${modelName}:${documentId}`);
+        return;
+      }
+    } catch (dupErr) {
+      // Ignore errors in duplicate check, proceed to log
+    }
+
+
     const documentCreatedAt = oldDoc?.createdAt || 
                               oldDoc?.createdDate || 
                               oldDoc?.ekhlekhOgnoo || 

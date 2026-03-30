@@ -242,15 +242,6 @@ orshinSuugchSchema.pre("updateOne", async function () {
     const salt = await bcrypt.genSalt(12);
     this._update.nuutsUg = await bcrypt.hash(this._update.nuutsUg, salt);
   }
-
-  // Store old document for audit logging
-  if (!this._oldDoc) {
-    try {
-      this._oldDoc = await this.model.findOne(this.getQuery()).lean();
-    } catch (err) {
-      // Ignore errors
-    }
-  }
 });
 
 // Add audit hooks for tracking changes
