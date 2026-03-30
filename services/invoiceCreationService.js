@@ -165,7 +165,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
             .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1 })
             .lean();
 
-          if (latestReading && latestReading.zaaltDun > 0) {
+          if (latestReading) {
             // Find existing electricity entry in the invoice
             const existingElectricityIdx =
               existingInvoice.medeelel?.zardluud?.findIndex(
@@ -252,11 +252,30 @@ const gereeNeesNekhemjlekhUusgekh = async (
               }
 
               const newTotal = sumZardalDun(existingInvoice.medeelel.zardluud);
+              
+              // CRITICAL: Update niitTulburOriginal from all non-initial entries in the medeelel
+              const calculatedOriginalTotal = existingInvoice.medeelel.zardluud
+                .filter(z => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл")
+                .reduce((s, z) => s + (Number(z.dun || z.tariff || 0)), 0);
+              
+              existingInvoice.niitTulburOriginal = calculatedOriginalTotal;
               existingInvoice.niitTulbur = newTotal;
               existingInvoice.tsahilgaanNekhemjlekh = newZaaltDun;
               existingInvoice.uldegdel = newTotal;
 
               await existingInvoice.save();
+
+              // Trigger contract-wide balance recalculation to ensure consistency
+              const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
+              const baiguullagiinIdStr = String(tempData.baiguullagiinId);
+              await recalcGlobalUldegdel({
+                gereeId: tempData._id,
+                baiguullagiinId: baiguullagiinIdStr,
+                GereeModel: Geree(tukhainBaaziinKholbolt),
+                NekhemjlekhiinTuukhModel: nekhemjlekhiinTuukh(tukhainBaaziinKholbolt),
+                GereeniiTulukhAvlagaModel: require("../models/gereeniiTulukhAvlaga")(tukhainBaaziinKholbolt),
+                GereeniiTulsunAvlagaModel: require("../models/gereeniiTulsunAvlaga")(tukhainBaaziinKholbolt),
+              });
 
               return {
                 success: true,
@@ -270,7 +289,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
             }
           }
         } catch (updateError) {
-          // Error checking for electricity update - silently continue
+          console.error("⚠️ [INVOICE] Electricity update in existing invoice failed:", updateError.message);
         }
 
         return {
@@ -949,9 +968,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
                     zaaltDun = readingZoruu * kwhTariff + zaaltDefaultDun;
                   }
                 } else {
-                  // For цахилгаан (кВт): do NOT show suuriKhuraamj when no Excel - match Excel behavior
+                  // For цахилгаан (кВт): if no Excel reading, still allow the entry with 0 usage
                   if (zoruu === 0) {
-                    continue;
+                    // console.log("zoruu is 0, keeping entry as 0");
                   }
 
                   // Fallback to zardal's suuriKhuraamj, zaaltDefaultDun, or tariff (for old data format)
@@ -1002,9 +1021,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
               }
             }
 
-            // Skip if no amount
+            // Skip if no amount BUT only if it's not a standard charge we want to preserve
             if (zaaltDun === 0) {
-              continue;
+               // We still add it as a 0 entry to prevent it from "disappearing" from the UI/invoice
+               // unless it's truly dynamic and has no reason to be there (redundant check)
             }
 
             totalTsahilgaanNekhemjlekh += zaaltDun;

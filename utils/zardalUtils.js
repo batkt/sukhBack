@@ -40,7 +40,8 @@ function normalizeZardluudTurul(zardluud) {
  */
 function sumZardalDun(zardluud) {
   if (!Array.isArray(zardluud)) return 0;
-  return zardluud.reduce((sum, z) => sum + (z.dun || z.tariff || 0), 0);
+  const total = zardluud.reduce((sum, z) => sum + (Number(z.dun || z.tariff || 0) || 0), 0);
+  return Math.round(total * 100) / 100;
 }
 
 /**
