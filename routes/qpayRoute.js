@@ -1544,6 +1544,7 @@ router.get(
       }
 
       let paymentTransactionId = null;
+      let actualPaidAmountFromQPay = null;
 
       if (nekhemjlekh.qpayInvoiceId) {
         try {
@@ -1554,6 +1555,11 @@ router.get(
           if (khariu?.payments?.[0]?.transactions?.[0]?.id) {
             paymentTransactionId = khariu.payments[0].transactions[0].id;
             nekhemjlekh.qpayPaymentId = paymentTransactionId;
+            
+            // Get actual paid amount from QPay if available
+            if (khariu.payments[0].amount) {
+              actualPaidAmountFromQPay = parseFloat(khariu.payments[0].amount);
+            }
           }
         } catch (err) {}
       }
@@ -1564,13 +1570,15 @@ router.get(
       }
 
       // Calculate uldegdel properly based on actual paid amount
-      const paidAmount = nekhemjlekh.niitTulbur || 0;
+      // Prefer amount from QPay if local niitTulbur is zero or doesn't match
+      const paidAmount = actualPaidAmountFromQPay || nekhemjlekh.niitTulbur || 0;
       const currentUldegdel =
         typeof nekhemjlekh.uldegdel === "number" &&
         !isNaN(nekhemjlekh.uldegdel) &&
         nekhemjlekh.uldegdel > 0
           ? nekhemjlekh.uldegdel
-          : paidAmount;
+          : (nekhemjlekh.niitTulbur || paidAmount);
+      
       const newUldegdel = Math.max(0, currentUldegdel - paidAmount);
       const isFullyPaid = newUldegdel <= 0.01;
 
@@ -1589,6 +1597,9 @@ router.get(
       });
 
       await nekhemjlekh.save();
+
+      // Ensure bank record also uses the correct amount
+      const finalPaidAmountForBank = paidAmount;
 
       // NOTE: Do NOT reset geree.ekhniiUldegdel to 0 here.
       // The recalculation formula depends on it as a permanent charge component.
@@ -1635,14 +1646,16 @@ router.get(
             });
           }
 
-          if (
-            qpayObject &&
-            (!qpayObject.sukhNekhemjlekh ||
-              !qpayObject.sukhNekhemjlekh.nekhemjlekhiinId)
-          ) {
+          if (qpayObject) {
+            const updateData = { tulsunEsekh: true };
+            // Also ensure metadata is synced if it's missing
+            if (!qpayObject.sukhNekhemjlekh || !qpayObject.sukhNekhemjlekh.nekhemjlekhiinId) {
+              updateData.sukhNekhemjlekh = sukhemjlekhData;
+            }
+            
             await QuickQpayObject(kholbolt).findByIdAndUpdate(
               qpayObject._id,
-              { sukhNekhemjlekh: sukhemjlekhData, tulsunEsekh: true },
+              updateData,
               { new: true },
             );
           }
@@ -1660,7 +1673,7 @@ router.get(
         const bankGuilgee = new BankniiGuilgee(kholbolt)();
 
         bankGuilgee.tranDate = new Date();
-        bankGuilgee.amount = nekhemjlekh.niitTulbur;
+        bankGuilgee.amount = finalPaidAmountForBank;
         bankGuilgee.description = `QPay төлбөр - Гэрээ ${nekhemjlekh.gereeniiDugaar}`;
         bankGuilgee.accName = nekhemjlekh.nekhemjlekhiinDansniiNer || "";
         bankGuilgee.accNum = nekhemjlekh.nekhemjlekhiinDans || "";
@@ -1678,7 +1691,7 @@ router.get(
         bankGuilgee.bank = nekhemjlekh.nekhemjlekhiinBank || "qpay";
         bankGuilgee.baiguullagiinId = nekhemjlekh.baiguullagiinId;
         bankGuilgee.barilgiinId = nekhemjlekh.barilgiinId || "";
-        bankGuilgee.kholbosonDun = nekhemjlekh.niitTulbur;
+        bankGuilgee.kholbosonDun = finalPaidAmountForBank;
         bankGuilgee.ebarimtAvsanEsekh = false;
         bankGuilgee.drOrCr = "Credit";
         bankGuilgee.tranCrnCode = "MNT";
@@ -2515,6 +2528,19 @@ router.get(
       });
 
       await Promise.all(updatePromises);
+      
+      // Update qpayObject to mark it as paid for consistency
+      if (firstInvoice && firstInvoice.qpayInvoiceId) {
+        try {
+          await QuickQpayObject(kholbolt).findOneAndUpdate(
+            { invoice_id: firstInvoice.qpayInvoiceId },
+            { tulsunEsekh: true },
+            { new: true }
+          );
+        } catch (qpayUpdateErr) {
+          console.error("❌ [QPAY MULTI CALLBACK] Error updating qpayObject:", qpayUpdateErr.message);
+        }
+      }
 
       req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
 
