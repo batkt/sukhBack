@@ -81,8 +81,8 @@ async function fix() {
 
   invoice.niitTulbur = amount; 
   
-  // Try 2103 if 2204 failed (Common codes for BZD are 2103 or 2202)
-  const finalDistrictCode = "2103"; 
+  // Try 2202 for Bayanzurkh (Ulaanbaatar)
+  const finalDistrictCode = "2202"; 
   console.log(`Retrying E-Barimt Service with DistrictCode: ${finalDistrictCode}...`);
   const ebarimtData = await nekhemjlekheesEbarimtShineUusgye(
     invoice,
