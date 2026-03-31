@@ -472,6 +472,21 @@ exports.walletBillingSave = asyncHandler(async (req, res, next) => {
       console.error("⚠️ [WALLET SAVE] Local sync failed:", syncErr.message);
     }
 
+    // Emit socket notification for real-time UI refresh
+    try {
+      const io = req.app.get("socketio");
+      if (io && tokenObject.id) {
+        io.emit(`orshinSuugch${tokenObject.id}`, {
+          type: "billing_update",
+          action: "add",
+          billingId: result.billingId || result.id || "",
+          message: "Шинэ биллинг нэмэгдлээ"
+        });
+      }
+    } catch (socketErr) {
+      console.warn("⚠️ [WALLET SAVE] Socket emission failed:", socketErr.message);
+    }
+
     res.status(200).json({
       success: true,
       data: result,
@@ -648,6 +663,21 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
 
     if (localUpdated) {
       await orshinSuugch.save();
+    }
+
+    // Emit socket notification for real-time UI refresh
+    try {
+      const io = req.app.get("socketio");
+      if (io && tokenObject.id) {
+        io.emit(`orshinSuugch${tokenObject.id}`, {
+          type: "billing_update",
+          action: "remove",
+          billingId: billingId,
+          message: "Биллинг устгагдлаа"
+        });
+      }
+    } catch (socketErr) {
+      console.warn("⚠️ [WALLET REMOVE] Socket emission failed:", socketErr.message);
     }
 
     res.status(200).json({
