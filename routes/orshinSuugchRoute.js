@@ -509,6 +509,7 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                 baiguullaga,
                 tukhainBaaziinKholbolt,
                 "automataar",
+                true,
               );
               if (invoiceResult.success) {
                 console.log(

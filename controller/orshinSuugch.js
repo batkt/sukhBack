@@ -1389,6 +1389,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
                 baiguullaga,
                 tukhainBaaziinKholbolt,
                 "automataar",
+                true,
               );
             } catch (invErr) {}
 
@@ -1420,6 +1421,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
                   baiguullaga,
                   tukhainBaaziinKholbolt,
                   "automataar",
+                  true,
                 );
               } catch (invErr) {}
             }
@@ -2850,6 +2852,20 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
                       contractData,
                     );
                     await geree.save();
+
+                    // Create invoice immediately (Like Excel Import)
+                    try {
+                      const {
+                        gereeNeesNekhemjlekhUusgekh,
+                      } = require("./nekhemjlekhController");
+                      await gereeNeesNekhemjlekhUusgekh(
+                        geree,
+                        baiguullaga,
+                        tukhainBaaziinKholbolt,
+                        "automataar",
+                        true,
+                      );
+                    } catch (invErr) {}
 
                     // Update davkhar with toot if provided
                     if (orshinSuugch.toot && orshinSuugch.davkhar) {
