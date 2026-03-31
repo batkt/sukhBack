@@ -9,11 +9,35 @@ const sessionSchema = new Schema(
       required: true,
       unique: true,
     },
+    ajiltanId: {
+      type: String,
+      required: true,
+      index: true,
+    },
+    baiguullagiinId: {
+      type: String,
+      required: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    deviceInfo: {
+      userAgent: String,
+      ip: String,
+      platform: String,
+      browser: String,
+    },
+    lastAccessedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 sessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 43200 });
+sessionSchema.index({ ajiltanId: 1, isActive: 1 });
 
 module.exports = function a(conn) {
   if (!conn || !conn.kholbolt)

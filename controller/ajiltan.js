@@ -26,7 +26,7 @@ function duusakhOgnooAvya(ugugdul, onFinish, next) {
       else {
         onFinish(body);
       }
-    }
+    },
   );
 }
 
@@ -39,7 +39,7 @@ async function nevtreltiinTuukhKhadgalya(tuukh, tukhainBaaziinKholbolt) {
     try {
       var axiosKhariu = await axios.get(
         "https://api.ipgeolocation.io/ipgeo?apiKey=8ee349f1c7304c379fdb6b855d1e9df4&ip=" +
-          tuukh.ip.toString()
+          tuukh.ip.toString(),
       );
       ipTuukh = new IpTuukh(tukhainBaaziinKholbolt)();
       ipTuukh.ognoo = new Date();
@@ -80,7 +80,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
     throw new aldaa("Хэрэглэгчийн нэр эсвэл нууц үг буруу байна!");
   }
   var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-    ajiltan.baiguullagiinId
+    ajiltan.baiguullagiinId,
   );
 
   var butsaakhObject = {
@@ -122,18 +122,32 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
           }
           const jwt = await ajiltan.tokenUusgeye(
             khariu.duusakhOgnoo,
-            butsaakhObject.salbaruud
+            butsaakhObject.salbaruud,
           );
 
           butsaakhObject.duusakhOgnoo = khariu.duusakhOgnoo;
           if (!!butsaakhObject.result) {
             butsaakhObject.result = JSON.parse(
-              JSON.stringify(butsaakhObject.result)
+              JSON.stringify(butsaakhObject.result),
             );
             butsaakhObject.result.salbaruud = butsaakhObject.salbaruud;
             butsaakhObject.result.duusakhOgnoo = khariu.duusakhOgnoo;
           }
           butsaakhObject.token = jwt;
+
+          // Create session for single session policy
+          try {
+            await exports.sessionUusgekh(
+              jwt,
+              ajiltan._id.toString(),
+              ajiltan.baiguullagiinId,
+              req,
+            );
+          } catch (sessionError) {
+            console.error("Session creation failed:", sessionError);
+            // Continue even if session creation fails
+          }
+
           //doorxiig zogsooliinPos-d zoriulj oruulaw
           if (!!baiguullaga?.tokhirgoo?.zogsoolNer)
             butsaakhObject.result.zogsoolNer =
@@ -168,7 +182,7 @@ exports.ajiltanNevtrey = asyncHandler(async (req, res, next) => {
         next(err);
       }
     },
-    next
+    next,
   );
 });
 
@@ -256,7 +270,7 @@ exports.backAvya = asyncHandler(async (req, res, next) => {
             });
           }
         }
-      }
+      },
     );
   } catch (error) {
     next(error);
@@ -403,21 +417,24 @@ exports.erkhiinMedeelelAvya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      req.body.baiguullagiinId
+      req.body.baiguullagiinId,
     );
     if (!baiguullaga) throw new Error("Байгууллагын мэдээлэл олдсонгүй!");
     request.post(
       "http://103.143.40.123:8282/erkhiinMedeelelAvya",
       {
         json: true,
-        body: { system: process.env.SYSTEM_NAME, register: baiguullaga.register },
+        body: {
+          system: process.env.SYSTEM_NAME,
+          register: baiguullaga.register,
+        },
       },
       (err, res1, body) => {
         if (err) next(err);
         else {
           res.send(body);
         }
-      }
+      },
     );
   } catch (error) {
     next(error);
@@ -431,7 +448,7 @@ function msgIlgeeye(
   khariu,
   index,
   tukhainBaaziinKholbolt,
-  baiguullagiinId
+  baiguullagiinId,
 ) {
   try {
     url =
@@ -478,7 +495,7 @@ function msgIlgeeye(
             khariu,
             index + 1,
             tukhainBaaziinKholbolt,
-            baiguullagiinId
+            baiguullagiinId,
           );
         } else {
           khariu.push(body[0]);
@@ -700,7 +717,7 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
       var baiguullaguud;
       if (!!baiguullagiinId) {
         baiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).findById(
-          baiguullagiinId
+          baiguullagiinId,
         );
         baiguullaguud = [baiguullaguud];
       } else {
@@ -715,10 +732,10 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
         });
       }
       var ekhlekhOgnoo = new Date(
-        Date.now() - (tsag == "20:00" || tsag == "22:00" ? 0 : 86400000)
+        Date.now() - (tsag == "20:00" || tsag == "22:00" ? 0 : 86400000),
       );
       var duusakhOgnoo = new Date(
-        Date.now() - (tsag == "20:00" || tsag == "22:00" ? 0 : 86400000)
+        Date.now() - (tsag == "20:00" || tsag == "22:00" ? 0 : 86400000),
       );
       ekhlekhOgnoo.setHours(0, 0, 0, 0);
       duusakhOgnoo.setHours(23, 59, 59, 999);
@@ -726,7 +743,7 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
         try {
           var kholboltuud = db.kholboltuud;
           var kholbolt = kholboltuud.find(
-            (a) => a.baiguullagiinId == baiguullaga._id.toString()
+            (a) => a.baiguullagiinId == baiguullaga._id.toString(),
           );
           var textuud = [];
           if (
@@ -802,7 +819,7 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
                 var barilgiinNer = "";
                 try {
                   barilgiinNer = baiguullaga.barilguud.find(
-                    (x) => x._id == a._id
+                    (x) => x._id == a._id,
                   ).ner;
                 } catch (aldaa) {}
                 barilgiinNer = await orchuulya(barilgiinNer);
@@ -975,7 +992,7 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
                 const gishuun = new Ajiltan(kholbolt)();
                 shineSession.sessionToken = await gishuun.zochinTokenUusgye(
                   baiguullaga._id.toString(),
-                  true
+                  true,
                 );
                 await shineSession
                   .save()
@@ -1023,14 +1040,14 @@ exports.orlogiinMsgIlgeeye = asyncHandler(
         }
       }
     } catch (error) {}
-  }
+  },
 );
 
 exports.baiguullagaIdgaarAvya = asyncHandler(async (req, res, next) => {
   try {
     const { db } = require("zevbackv2");
     var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      req.body.baiguullagiinId
+      req.body.baiguullagiinId,
     );
     if (!baiguullaga) throw new Error("Байгууллагын мэдээлэл олдсонгүй!");
     res.send(baiguullaga);
@@ -1051,7 +1068,7 @@ exports.licenseOgnooShalgakh = asyncHandler(
       if (kholboltuud) {
         for await (const kholbolt of kholboltuud) {
           var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-            kholbolt.baiguullagiinId
+            kholbolt.baiguullagiinId,
           );
           if (!!baiguullaga && !!baiguullaga.register) {
             duusakhOgnooAvya(
@@ -1064,13 +1081,13 @@ exports.licenseOgnooShalgakh = asyncHandler(
                     if (
                       io &&
                       moment(odooOgnoo).isSameOrAfter(
-                        moment(khariu.duusakhOgnoo)
+                        moment(khariu.duusakhOgnoo),
                       )
                     )
                       io.emit(`autoLogout${baiguullagiinId}`, khariu);
                   }
                 } catch (err) {}
-              }
+              },
             );
           }
         }
@@ -1078,5 +1095,156 @@ exports.licenseOgnooShalgakh = asyncHandler(
     } catch (error) {
       if (next) next(error);
     }
-  }
+  },
 );
+
+// Session management functions
+exports.ajiltanGaraa = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+
+    if (!req.headers.authorization) {
+      return res.status(401).json({
+        success: false,
+        message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
+      });
+    }
+
+    const token = req.headers.authorization.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Token is required",
+      });
+    }
+
+    let tokenObject;
+    try {
+      tokenObject = jwt.verify(token, process.env.APP_SECRET);
+    } catch (jwtError) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token",
+      });
+    }
+
+    if (tokenObject.id === "zochin") {
+      return res.status(401).json({
+        success: false,
+        message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
+      });
+    }
+
+    // Invalidate all sessions for this user
+    await session(db.erunkhiiKholbolt).updateMany(
+      {
+        ajiltanId: tokenObject.id,
+        isActive: true,
+      },
+      {
+        isActive: false,
+        updatedAt: new Date(),
+      },
+    );
+
+    res.json({
+      success: true,
+      message: "Амжилттай гарлаа!",
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+exports.sessionUusgekh = asyncHandler(
+  async (token, ajiltanId, baiguullagiinId, req) => {
+    try {
+      const { db } = require("zevbackv2");
+      const Session = session(db.erunkhiiKholbolt);
+
+      // Invalidate old sessions for this user (single session policy)
+      await Session.updateMany(
+        {
+          ajiltanId: ajiltanId,
+          isActive: true,
+        },
+        {
+          isActive: false,
+          updatedAt: new Date(),
+        },
+      );
+
+      // Get device info
+      const source = req.headers["user-agent"];
+      const ua = useragent.parse(source);
+      const ip = req.headers["x-real-ip"] || req.ip;
+      if (ip && ip.substr(0, 7) == "::ffff:") {
+        ip.substr(7);
+      }
+
+      // Create new session
+      const newSession = new Session({
+        sessionToken: token,
+        ajiltanId: ajiltanId,
+        baiguullagiinId: baiguullagiinId,
+        deviceInfo: {
+          userAgent: source,
+          ip: ip,
+          platform: ua.platform,
+          browser: ua.browser,
+        },
+        lastAccessedAt: new Date(),
+      });
+
+      await newSession.save();
+      return newSession;
+    } catch (error) {
+      console.error("Session creation error:", error);
+      throw error;
+    }
+  },
+);
+
+exports.sessionShalgakh = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+
+    if (!req.headers.authorization) {
+      return res.status(401).json({
+        success: false,
+        message: "Энэ үйлдлийг хийх эрх байхгүй байна!",
+      });
+    }
+
+    const token = req.headers.authorization.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Token is required",
+      });
+    }
+
+    // Check if session exists and is active
+    const activeSession = await session(db.erunkhiiKholbolt).findOne({
+      sessionToken: token,
+      isActive: true,
+    });
+
+    if (!activeSession) {
+      return res.status(401).json({
+        success: false,
+        message: "Session идэвхгүй байна. Дахин нэвтэрнэ үү!",
+      });
+    }
+
+    // Update last accessed time
+    await session(db.erunkhiiKholbolt).updateOne(
+      { _id: activeSession._id },
+      { lastAccessedAt: new Date() },
+    );
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});

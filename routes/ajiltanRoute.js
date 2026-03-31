@@ -20,6 +20,8 @@ const {
   erkhiinMedeelelAvya,
   khugatsaaguiTokenAvya,
   baiguullagaIdgaarAvya,
+  ajiltanGaraa,
+  tokenBaidSessionShalgakh,
 } = require("../controller/ajiltan");
 
 crudWithFile(
@@ -35,11 +37,11 @@ crudWithFile(
     try {
       const { db } = require("zevbackv2");
       var ajiltanModel = Ajiltan(db.erunkhiiKholbolt);
-      
+
       // Log albanTushaal if present in request body
       if (req.body?.albanTushaal !== undefined) {
       }
-      
+
       if (req.params.id) {
         var ObjectId = require("mongodb").ObjectId;
         var ajiltan = await ajiltanModel.findOne({
@@ -59,7 +61,7 @@ crudWithFile(
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 crud(router, "nevtreltiinTuukh", NevtreltiinTuukh, UstsanBarimt);
 
@@ -83,10 +85,13 @@ router.route("/tokenoorAjiltanAvya").post(tokenoorAjiltanAvya);
 router.route("/nuutsUgShalgakhAjiltan").post(nuutsUgShalgakhAjiltan);
 router.route("/zochiniiTokenAvya/:baiguullagiinId").get(zochiniiTokenAvya);
 router.route("/khugatsaaguiTokenAvya").post(khugatsaaguiTokenAvya);
-router.route("/erkhiinMedeelelAvya").post(tokenShalgakh, erkhiinMedeelelAvya);
+router
+  .route("/erkhiinMedeelelAvya")
+  .post(tokenBaidSessionShalgakh, erkhiinMedeelelAvya);
+router.route("/ajiltanGaraa").post(ajiltanGaraa);
 router
   .route("/baiguullagaIdgaarAvya")
-  .post(tokenShalgakh, baiguullagaIdgaarAvya);
+  .post(tokenBaidSessionShalgakh, baiguullagaIdgaarAvya);
 router.get("/ajiltniiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   const fileName = req.params.ner;
   const directoryPath = "zurag/ajiltan/" + req.params.baiguullaga + "/";
@@ -128,7 +133,7 @@ router.get("/ustsanBarimt", tokenShalgakh, async (req, res, next) => {
       .skip((body.khuudasniiDugaar - 1) * body.khuudasniiKhemjee)
       .limit(body.khuudasniiKhemjee);
     let niitMur = await UstsanBarimt(
-      req.body.tukhainBaaziinKholbolt
+      req.body.tukhainBaaziinKholbolt,
     ).countDocuments(body.query);
     let niitKhuudas =
       niitMur % khuudasniiKhemjee == 0
@@ -164,7 +169,7 @@ router.post(
           baiguullagiinId: baiguullaga._id,
         };
         var ajiltanErkhiinToo = await Ajiltan(
-          db.erunkhiiKholbolt
+          db.erunkhiiKholbolt,
         ).countDocuments(queryAjiltan);
         element.odoogiin = ajiltanErkhiinToo;
       }
@@ -172,7 +177,7 @@ router.post(
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 router.post("/ajiltandTokenOnooyo", tokenShalgakh, (req, res, next) => {
@@ -209,7 +214,7 @@ router.post(
           await Ajiltan(db.erunkhiiKholbolt)
             .updateOne(
               { _id: ajiltan._id },
-              { $set: { [turul]: ajiltan.utga } }
+              { $set: { [turul]: ajiltan.utga } },
             )
             .catch((err) => {
               next(err);
@@ -220,7 +225,7 @@ router.post(
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 router.post("/ajiltandErkhUgyu/:id", tokenShalgakh, async (req, res, next) => {
@@ -228,7 +233,7 @@ router.post("/ajiltandErkhUgyu/:id", tokenShalgakh, async (req, res, next) => {
     const { db } = require("zevbackv2");
     if (!!req.body) {
       var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-        req.body.baiguullagiinId
+        req.body.baiguullagiinId,
       );
       var ajiltan = new Ajiltan(db.erunkhiiKholbolt)({
         _id: req.params.id,
@@ -236,7 +241,7 @@ router.post("/ajiltandErkhUgyu/:id", tokenShalgakh, async (req, res, next) => {
       });
       await Ajiltan(db.erunkhiiKholbolt).updateOne(
         { _id: req.params.id },
-        ajiltan
+        ajiltan,
       );
       if (req.body.erkhuud && req.body.erkhuud.length > 0) {
         for await (const element of req.body.erkhuud) {
@@ -245,7 +250,7 @@ router.post("/ajiltandErkhUgyu/:id", tokenShalgakh, async (req, res, next) => {
             baiguullagiinId: req.body.baiguullagiinId,
           };
           var ajiltanErkhiinToo = await Ajiltan(
-            db.erunkhiiKholbolt
+            db.erunkhiiKholbolt,
           ).countDocuments(queryAjiltan);
           element.too = ajiltanErkhiinToo;
         }
@@ -258,7 +263,7 @@ router.post("/ajiltandErkhUgyu/:id", tokenShalgakh, async (req, res, next) => {
           { json: true, body: ilgeekhBody },
           (err, res1, body) => {
             if (err) next(err);
-          }
+          },
         );
       }
       res.send("Amjilttai");
@@ -299,7 +304,7 @@ router.get("/licenseOgnooAvya", tokenShalgakh, async (req, res, next) => {
         else {
           res.send(body);
         }
-      }
+      },
     );
   } catch (error) {
     next(error);
