@@ -498,7 +498,8 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
       throw new aldaa("Хэрэглэгч олдсонгүй!");
     }
 
-    const userId = orshinSuugch.utas;
+    // Get correct userId (UUID or phone) for Wallet API
+    const userId = await getUserIdFromToken(req);
     const { billingId } = req.params;
 
     if (!billingId) {
@@ -508,7 +509,8 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
     // 1. Identify which address this billing belongs to before deleting
     let billingToRemove = null;
     try {
-      const billingList = await walletApiService.getBillingList(userId);
+      // For getBillingList, use phone number as required by the API's listing endpoint
+      const billingList = await walletApiService.getBillingList(orshinSuugch.utas);
       billingToRemove = billingList.find((b) => b.billingId === billingId);
     } catch (listErr) {
       console.warn(
@@ -517,7 +519,7 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
       );
     }
 
-    // 2. Remove from Wallet API
+    // 2. Remove from Wallet API using the proper mapping (UUID or phone) from the token
     const result = await walletApiService.removeBilling(userId, billingId);
 
     // 3. Local Cleanup
