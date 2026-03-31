@@ -17,6 +17,13 @@ const POLLING_CACHE_TTL = 5000; // 5 seconds for status polling cache
 const UNREGISTERED_USER_CACHE_TTL = 60000; // 1 minute for unregistered users
 const unregisteredUsersCache = new Map();
 
+// Address data caches (long TTL as these change rarely)
+const addressCityCache = new Map();
+const addressDistrictCache = new Map();
+const addressKhorooCache = new Map();
+const addressBairCache = new Map();
+const ADDRESS_CACHE_TTL = 3600000; // 1 hour
+
 function sanitizeNullValues(obj) {
   if (obj === null || obj === undefined) {
     return {};
@@ -213,19 +220,32 @@ async function registerUser(phone, email) {
 
 async function getAddressCities() {
   try {
+    // Check cache
+    const cacheKey = 'all_cities';
+    const cached = addressCityCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < ADDRESS_CACHE_TTL)) {
+      return cached.data;
+    }
+
     const token = await getWalletServiceToken();
     
     const response = await axios.get(`${WALLET_API_BASE_URL}/api/address/city`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
+      timeout: 15000,
     });
 
     if (response.data && response.data.responseCode && response.data.data) {
+      addressCityCache.set(cacheKey, { timestamp: Date.now(), data: response.data.data });
       return response.data.data;
     }
 
-    return response.data?.data || [];
+    const result = response.data?.data || [];
+    if (result.length > 0) {
+      addressCityCache.set(cacheKey, { timestamp: Date.now(), data: result });
+    }
+    return result;
   } catch (error) {
     console.error("Error getting cities from wallet API:", error.message);
     throw error;
@@ -234,6 +254,12 @@ async function getAddressCities() {
 
 async function getAddressDistricts(cityId) {
   try {
+    // Check cache
+    const cached = addressDistrictCache.get(cityId);
+    if (cached && (Date.now() - cached.timestamp < ADDRESS_CACHE_TTL)) {
+      return cached.data;
+    }
+
     const token = await getWalletServiceToken();
     
     const response = await axios.get(
@@ -242,14 +268,20 @@ async function getAddressDistricts(cityId) {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        timeout: 15000,
       }
     );
 
     if (response.data && response.data.responseCode && response.data.data) {
+      addressDistrictCache.set(cityId, { timestamp: Date.now(), data: response.data.data });
       return response.data.data;
     }
 
-    return response.data?.data || [];
+    const result = response.data?.data || [];
+    if (result.length > 0) {
+      addressDistrictCache.set(cityId, { timestamp: Date.now(), data: result });
+    }
+    return result;
   } catch (error) {
     console.error("Error getting districts from wallet API:", error.message);
     throw error;
@@ -258,6 +290,12 @@ async function getAddressDistricts(cityId) {
 
 async function getAddressKhoroo(districtId) {
   try {
+    // Check cache
+    const cached = addressKhorooCache.get(districtId);
+    if (cached && (Date.now() - cached.timestamp < ADDRESS_CACHE_TTL)) {
+      return cached.data;
+    }
+
     const token = await getWalletServiceToken();
     
     const response = await axios.get(
@@ -266,14 +304,20 @@ async function getAddressKhoroo(districtId) {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        timeout: 15000,
       }
     );
 
     if (response.data && response.data.responseCode && response.data.data) {
+      addressKhorooCache.set(districtId, { timestamp: Date.now(), data: response.data.data });
       return response.data.data;
     }
 
-    return response.data?.data || [];
+    const result = response.data?.data || [];
+    if (result.length > 0) {
+      addressKhorooCache.set(districtId, { timestamp: Date.now(), data: result });
+    }
+    return result;
   } catch (error) {
     console.error("Error getting khoroo from wallet API:", error.message);
     throw error;
@@ -282,6 +326,12 @@ async function getAddressKhoroo(districtId) {
 
 async function getAddressBair(khorooId) {
   try {
+    // Check cache
+    const cached = addressBairCache.get(khorooId);
+    if (cached && (Date.now() - cached.timestamp < ADDRESS_CACHE_TTL)) {
+      return cached.data;
+    }
+
     const token = await getWalletServiceToken();
     
     const response = await axios.get(
@@ -290,14 +340,20 @@ async function getAddressBair(khorooId) {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        timeout: 15000,
       }
     );
 
     if (response.data && response.data.responseCode && response.data.data) {
+      addressBairCache.set(khorooId, { timestamp: Date.now(), data: response.data.data });
       return response.data.data;
     }
 
-    return response.data?.data || [];
+    const result = response.data?.data || [];
+    if (result.length > 0) {
+      addressBairCache.set(khorooId, { timestamp: Date.now(), data: result });
+    }
+    return result;
   } catch (error) {
     console.error("Error getting bair from wallet API:", error.message);
     throw error;
