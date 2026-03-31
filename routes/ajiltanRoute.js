@@ -87,11 +87,11 @@ router.route("/zochiniiTokenAvya/:baiguullagiinId").get(zochiniiTokenAvya);
 router.route("/khugatsaaguiTokenAvya").post(khugatsaaguiTokenAvya);
 router
   .route("/erkhiinMedeelelAvya")
-  .post(sessionShalgakh, erkhiinMedeelelAvya);
+  .post(tokenShalgakh, sessionShalgakh, erkhiinMedeelelAvya);
 router.route("/ajiltanGaraa").post(ajiltanGaraa);
 router
   .route("/baiguullagaIdgaarAvya")
-  .post(sessionShalgakh, baiguullagaIdgaarAvya);
+  .post(tokenShalgakh, sessionShalgakh, baiguullagaIdgaarAvya);
 router.get("/ajiltniiZuragAvya/:baiguullaga/:ner", (req, res, next) => {
   const fileName = req.params.ner;
   const directoryPath = "zurag/ajiltan/" + req.params.baiguullaga + "/";
