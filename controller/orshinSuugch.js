@@ -5109,7 +5109,7 @@ exports.walletAddressDetails = asyncHandler(async (req, res, next) => {
  * Get door numbers for a specific building
  * GET /api/walletAddress/toots/:bairId
  */
-const getBuildingToots = asyncHandler(async (req, res, next) => {
+exports.getBuildingToots = asyncHandler(async (req, res, next) => {
   const { bairId } = req.params;
   const { db } = require("zevbackv2");
 
@@ -5193,8 +5193,3 @@ const getBuildingToots = asyncHandler(async (req, res, next) => {
     res.status(200).json({ responseCode: false, data: [] });
   }
 });
-
-module.exports = {
-  walletAddressDetails,
-  getBuildingToots,
-};
