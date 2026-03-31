@@ -5104,3 +5104,97 @@ exports.walletAddressDetails = asyncHandler(async (req, res, next) => {
     next(err);
   }
 });
+
+/**
+ * Get door numbers for a specific building
+ * GET /api/walletAddress/toots/:bairId
+ */
+const getBuildingToots = asyncHandler(async (req, res, next) => {
+  const { bairId } = req.params;
+  const { db } = require("zevbackv2");
+
+  try {
+    let toots = [];
+
+    if (bairId.startsWith("own_")) {
+      // Fetch from own database
+      const realBuildingId = bairId.replace("own_", "");
+      const kholboltuud = db.kholboltuud || [];
+
+      for (const kholbolt of kholboltuud) {
+        const baiguullaga = await Baiguullaga(kholbolt).findOne({
+          "barilguud._id": realBuildingId
+        }).select("barilguud").lean();
+
+        if (baiguullaga && baiguullaga.barilguud) {
+          const barilga = baiguullaga.barilguud.find(b => b._id.toString() === realBuildingId);
+          if (barilga && barilga.tokhirgoo && barilga.tokhirgoo.davkhariinToonuud) {
+            const davkhars = barilga.tokhirgoo.davkhariinToonuud;
+            const uniqueToots = new Set();
+
+            for (const floorArray of Object.values(davkhars)) {
+              if (Array.isArray(floorArray)) {
+                floorArray.forEach(t => {
+                  if (typeof t === 'string' && t.includes(',')) {
+                    t.split(',').forEach(subT => uniqueToots.add(subT.trim()));
+                  } else {
+                    uniqueToots.add(String(t).trim());
+                  }
+                });
+              }
+            }
+            toots = Array.from(uniqueToots).filter(t => t).sort((a, b) => {
+              // Try numeric sort
+              const numA = parseInt(a.replace(/\D/g, ''));
+              const numB = parseInt(b.replace(/\D/g, ''));
+              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+              return a.localeCompare(b);
+            });
+            break;
+          }
+        }
+      }
+    } else {
+      // Wallet API buildings
+      // Look up residents in our DB who have this bairId to provide a selection list
+      const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+      const residents = await OrshinSuugchModel.find({
+        $or: [
+          { bairId: bairId },
+          { "toots.bairId": bairId }
+        ]
+      }).select("toot toots.toot toots.bairId").lean();
+
+      const uniqueToots = new Set();
+      residents.forEach(r => {
+        if (String(r.bairId) === String(bairId) && r.toot) uniqueToots.add(String(r.toot).trim());
+        if (Array.isArray(r.toots)) {
+          r.toots.forEach(t => {
+            if (String(t.bairId) === String(bairId) && t.toot) uniqueToots.add(String(t.toot).trim());
+          });
+        }
+      });
+
+      toots = Array.from(uniqueToots).filter(t => t).sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, ''));
+        const numB = parseInt(b.replace(/\D/g, ''));
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.localeCompare(b);
+      });
+    }
+
+    res.status(200).json({
+      responseCode: true,
+      responseMsg: "Амжилттай",
+      data: toots
+    });
+  } catch (error) {
+    console.error("❌ [GET TOOTS] Error:", error.message);
+    res.status(200).json({ responseCode: false, data: [] });
+  }
+});
+
+module.exports = {
+  walletAddressDetails,
+  getBuildingToots,
+};

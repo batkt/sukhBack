@@ -37,6 +37,7 @@ const {
   tootShalgaya,
   validateOwnOrgToot,
   utasBatalgaajuulakhLogin,
+  getBuildingToots,
 } = require("../controller/orshinSuugch");
 const aldaa = require("../components/aldaa");
 const session = require("../models/session");
@@ -816,6 +817,7 @@ router.route("/walletAddress/city").get(walletAddressCities);
 router.route("/walletAddress/district/:cityId").get(walletAddressDistricts);
 router.route("/walletAddress/khoroo/:districtId").get(walletAddressKhoroo);
 router.route("/walletAddress/bair/:khorooId").get(walletAddressBair);
+router.route("/walletAddress/toots/:bairId").get(getBuildingToots);
 router.route("/walletAddress/details/:bairId/:doorNo").get(walletAddressDetails);
 router.route("/tokenoorOrshinSuugchAvya").post(tokenoorOrshinSuugchAvya);
 router.route("/nuutsUgShalgakhOrshinSuugch").post(nuutsUgShalgakhOrshinSuugch);
