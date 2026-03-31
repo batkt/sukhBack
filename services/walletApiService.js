@@ -183,7 +183,7 @@ async function registerUser(phone, email) {
     const response = await axios.post(
       `${WALLET_API_BASE_URL}/api/user`,
       {
-        email: email,
+        email: email || `${phone}@sukh.mn`, // Default email if empty
         phone: phone,
       },
       {
@@ -1147,6 +1147,11 @@ async function editUser(userId, userData) {
     delete allowedUserData.billingId;
     delete allowedUserData.id;
     delete allowedUserData._id;
+
+    // Remove empty email if present, as Wallet API doesn't allow empty strings for validation
+    if (allowedUserData.email === "") {
+      delete allowedUserData.email;
+    }
     
     const response = await axios.put(
       `${WALLET_API_BASE_URL}/api/user`,
