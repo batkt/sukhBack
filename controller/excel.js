@@ -1368,11 +1368,37 @@ exports.zaaltExcelTatya = asyncHandler(async (req, res, next) => {
         }
 
         // Parse readings with comma handling and robust column naming
-        const umnu = parseExcelNum(getVal(row, "Өмнө", "Өмнөх", "umnu", "Өмнөх заалт"));
-        const odor = parseExcelNum(getVal(row, "Өдөр", "odor", "Өдрийн заалт"));
-        const shone = parseExcelNum(getVal(row, "Шөнө", "shone", "Шөнийн заалт"));
-        const niitOdooRaw = getVal(row, "Нийт (одоо)", "Нийт", "niit", "suuliinZaalt");
-        const niitOdoo = niitOdooRaw !== undefined ? parseExcelNum(niitOdooRaw) : (odor + shone);
+        let umnuValue = getVal(row, "Өмнө", "Өмнөх", "umnu", "Өмнөх заалт");
+        let odorValue = getVal(row, "Өдөр", "odor", "Өдрийн заалт");
+        let shoneValue = getVal(row, "Шөнө", "shone", "Шөнийн заалт");
+        let niitOdooRaw = getVal(row, "Нийт (одоо)", "Нийт", "niit", "suuliinZaalt");
+
+        const isEmptyStr = (v) => v === undefined || v === null || String(v).trim() === "";
+        
+        // If the user uploads the excel template but leaves these columns blank for this row, skip it.
+        // "if i insert one data only change that dont make other data empty value like 0 0 0 0"
+        if (isEmptyStr(umnuValue) && isEmptyStr(odorValue) && isEmptyStr(shoneValue) && isEmptyStr(niitOdooRaw)) {
+            // No reading data provided for this geree. Skip to avoid billing 0 or duplicating baseFee.
+            results.success.push({
+              row: rowNumber,
+              gereeniiDugaar: gereeniiDugaar,
+              message: "Уншилтын мэдээлэл хоосон тул алгасав",
+            });
+            continue;
+        }
+
+        let umnu = !isEmptyStr(umnuValue) ? parseExcelNum(umnuValue) : (geree.suuliinZaalt || 0);
+        let odor = !isEmptyStr(odorValue) ? parseExcelNum(odorValue) : (geree.zaaltTog || 0);
+        let shone = !isEmptyStr(shoneValue) ? parseExcelNum(shoneValue) : (geree.zaaltUs || 0);
+        
+        let niitOdoo = geree.suuliinZaalt || 0;
+        
+        if (!isEmptyStr(niitOdooRaw)) {
+            niitOdoo = parseExcelNum(niitOdooRaw);
+        } else if (!isEmptyStr(odorValue) || !isEmptyStr(shoneValue)) {
+            // Re-calculate if odor or shone is provided
+            niitOdoo = odor + shone;
+        }
         
         // Base fee from Excel (Support multiple naming variations)
         const defaultDunFromExcel = parseExcelNum(getVal(row, "Суурь хураамж", "Суурь хүраамж", "defaultDun", "baseFee"));
