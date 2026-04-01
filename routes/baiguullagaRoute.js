@@ -253,6 +253,61 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
     
     // Save the updated baiguullaga
     await baiguullaga.save();
+
+    // ======== SYNC ZOCHIN TOKHIRGOO TO MASHIN ========
+    try {
+      const { db } = require("zevbackv2");
+      const kholbolt = db.kholboltuud?.find(k => String(k.baiguullagiinId) === String(baiguullaga._id));
+      if (kholbolt && kholbolt.kholbolt) {
+        const Mashin = require("../models/mashin");
+        
+        // 1. Sync org defaults to all resident cars
+        if (baiguullaga.tokhirgoo && baiguullaga.tokhirgoo.zochinTokhirgoo) {
+           const orgSettings = baiguullaga.tokhirgoo.zochinTokhirgoo;
+           await Mashin(kholbolt.kholbolt).updateMany({
+             baiguullagiinId: String(baiguullaga._id),
+             zochinTurul: "Оршин суугч"
+           }, {
+             $set: {
+               zochinUrikhEsekh: orgSettings.zochinUrikhEsekh,
+               zochinErkhiinToo: orgSettings.zochinErkhiinToo,
+               zochinTusBurUneguiMinut: orgSettings.zochinTusBurUneguiMinut,
+               zochinNiitUneguiMinut: orgSettings.zochinNiitUneguiMinut,
+               davtamjiinTurul: orgSettings.davtamjiinTurul,
+               davtamjUtga: orgSettings.davtamjUtga,
+               zochinTailbar: orgSettings.zochinTailbar
+             }
+           });
+        }
+        
+        // 2. Sync building specific overrides
+        if (baiguullaga.barilguud && baiguullaga.barilguud.length > 0) {
+           for (const b of baiguullaga.barilguud) {
+              if (b.tokhirgoo && b.tokhirgoo.zochinTokhirgoo) {
+                 const bSettings = b.tokhirgoo.zochinTokhirgoo;
+                 await Mashin(kholbolt.kholbolt).updateMany({
+                   baiguullagiinId: String(baiguullaga._id),
+                   barilgiinId: String(b._id),
+                   zochinTurul: "Оршин суугч"
+                 }, {
+                   $set: {
+                     zochinUrikhEsekh: bSettings.zochinUrikhEsekh,
+                     zochinErkhiinToo: bSettings.zochinErkhiinToo,
+                     zochinTusBurUneguiMinut: bSettings.zochinTusBurUneguiMinut,
+                     zochinNiitUneguiMinut: bSettings.zochinNiitUneguiMinut,
+                     davtamjiinTurul: bSettings.davtamjiinTurul,
+                     davtamjUtga: bSettings.davtamjUtga,
+                     zochinTailbar: bSettings.zochinTailbar
+                   }
+                 });
+              }
+           }
+        }
+      }
+    } catch(err) {
+      console.log("Sync guest settings error:", err);
+    }
+    // ===========================================
     
     res.json({
       success: true,
