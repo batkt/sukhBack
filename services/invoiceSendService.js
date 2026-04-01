@@ -194,13 +194,67 @@ const manualSendInvoice = async (
         // Merge in electricity entries from old invoice that might be missing from preview
         const oldZardluud = invoiceToSync.medeelel?.zardluud || [];
         const oldElectricity = oldZardluud.filter(z => z.ner?.toLowerCase().includes("цахилгаан"));
-        
+
         oldElectricity.forEach(oldZ => {
           const exists = newZardluudOnly.find(newZ => newZ.ner === oldZ.ner);
           if (!exists) {
-            newZardluudOnly.push(oldZ);
+            newZardluudOnly.push({ ...oldZ });
           }
         });
+
+        // ── ZaaltUnshlalt lookup ──────────────────────────────────────────
+        // For any electricity entry in newZardluudOnly that was NOT resolved
+        // via zaalt=true in preview (i.e. it came from geree.zardluud with
+        // tariffUsgeer=кВт), consult the latest ZaaltUnshlalt reading so
+        // that a fresh April reading triggers an invoice update rather than
+        // being silently skipped because the stored dun is still from March.
+        try {
+          const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+          const latestReading = await ZaaltUnshlalt(tukhainBaaziinKholbolt)
+            .findOne({
+              $or: [
+                { gereeniiId: String(gereeId) },
+                { gereeniiDugaar: geree.gereeniiDugaar },
+              ],
+            })
+            .sort({ importOgnoo: -1, "zaaltCalculation.calculatedAt": -1 })
+            .lean();
+
+          if (latestReading && latestReading.zaaltDun > 0) {
+            // Find the variable electricity entry in newZardluudOnly
+            // (name contains цахилгаан but NOT дундын/өмчлөл)
+            const elecIdx = newZardluudOnly.findIndex(z => {
+              const n = (z.ner || "").toLowerCase();
+              return (
+                n.includes("цахилгаан") &&
+                !n.includes("дундын") &&
+                !n.includes("өмчлөл")
+              );
+            });
+            if (elecIdx >= 0) {
+              const currentDun = newZardluudOnly[elecIdx].dun || newZardluudOnly[elecIdx].tariff || 0;
+              const newDun = latestReading.zaaltDun;
+              if (Math.abs(currentDun - newDun) > 0.5) {
+                // New reading → update the entry so the skip check detects a change
+                newZardluudOnly[elecIdx] = {
+                  ...newZardluudOnly[elecIdx],
+                  dun: newDun,
+                  tariff: newDun,
+                  tariffUsgeer: "₮",
+                  zaalt: true,
+                  zoruu: latestReading.zaaltCalculation?.zoruu || latestReading.zoruu || 0,
+                  zaaltDefaultDun: latestReading.zaaltCalculation?.defaultDun || latestReading.defaultDun || 0,
+                  zaaltTariff: latestReading.zaaltCalculation?.tariff || latestReading.tariff || 0,
+                  umnukhZaalt: latestReading.umnukhZaalt || 0,
+                  suuliinZaalt: latestReading.suuliinZaalt || 0,
+                };
+              }
+            }
+          }
+        } catch (_zaaltErr) {
+          // ZaaltUnshlalt lookup failed — continue with existing amounts
+        }
+        // ─────────────────────────────────────────────────────────────────
 
         const zardluudOnlyTotal = sumZardalDun(newZardluudOnly);
         const oldZardluudOnly = oldZardluud.filter(
