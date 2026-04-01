@@ -190,9 +190,19 @@ const manualSendInvoice = async (
         const newZardluudOnly = previewZardluud.filter(
           isZardalExcludingEkhniiUldegdel,
         );
-        const zardluudOnlyTotal = sumZardalDun(newZardluudOnly);
-
+        
+        // Merge in electricity entries from old invoice that might be missing from preview
         const oldZardluud = invoiceToSync.medeelel?.zardluud || [];
+        const oldElectricity = oldZardluud.filter(z => z.ner?.toLowerCase().includes("цахилгаан"));
+        
+        oldElectricity.forEach(oldZ => {
+          const exists = newZardluudOnly.find(newZ => newZ.ner === oldZ.ner);
+          if (!exists) {
+            newZardluudOnly.push(oldZ);
+          }
+        });
+
+        const zardluudOnlyTotal = sumZardalDun(newZardluudOnly);
         const oldZardluudOnly = oldZardluud.filter(
           isZardalExcludingEkhniiUldegdel,
         );
@@ -281,26 +291,28 @@ const manualSendInvoice = async (
         // Flag to skip the pre-save hook from overriding tuluv
         invoiceToSync._skipTuluvRecalc = true;
 
-        // Update zaalt metadata if available
+        // Update zaalt metadata if available — find electricity entry (with or without zaalt flag)
         const zaaltEntry = updatedZardluud.find(
           (z) =>
-            z.zaalt === true &&
             z.ner?.toLowerCase().includes("цахилгаан") &&
-            !z.ner?.toLowerCase().includes("дундын"),
+            !z.ner?.toLowerCase().includes("дундын") &&
+            !z.ner?.toLowerCase().includes("өмчлөл") &&
+            (z.zaalt === true || z.dun > 0 || z.tariff > 0),
         );
         if (zaaltEntry) {
-          invoiceToSync.medeelel = {
-            ...toPlainObject(invoiceToSync.medeelel),
-            zaalt: {
-              ...(invoiceToSync.medeelel.zaalt || {}),
-              zoruu: zaaltEntry.zoruu || 0,
-              zaaltDun: zaaltEntry.dun || zaaltEntry.tariff || 0,
-            },
-          };
+          const elecDun = zaaltEntry.dun || zaaltEntry.tariff || 0;
+          if (zaaltEntry.zaalt === true) {
+            invoiceToSync.medeelel = {
+              ...toPlainObject(invoiceToSync.medeelel),
+              zaalt: {
+                ...(invoiceToSync.medeelel.zaalt || {}),
+                zoruu: zaaltEntry.zoruu || 0,
+                zaaltDun: elecDun,
+              },
+            };
+          }
           invoiceToSync.tsahilgaanNekhemjlekh =
-            zaaltEntry.dun ||
-            zaaltEntry.tariff ||
-            invoiceToSync.tsahilgaanNekhemjlekh;
+            elecDun || invoiceToSync.tsahilgaanNekhemjlekh;
         }
 
         // Mark medeelel as modified to ensure Mongoose saves the changes
