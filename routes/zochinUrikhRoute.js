@@ -606,7 +606,8 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
           message: `Машин хадгалахад алдаа: ${error.message}`,
         });
       }
-    } else if (mashiniiDugaar && mashiniiDugaar !== "БҮРТГЭЛГҮЙ") {
+    } else if (!mashinResult && mashiniiDugaar && mashiniiDugaar !== "БҮРТГЭЛГҮЙ") {
+      const Mashin = require("../models/mashin");
       // Машины мэдээлэл байхгүй бол анхны логикоор шинээр үүсгэнэ
       var existingMashin = await Mashin(tukhainBaaziinKholbolt).findOne({
         dugaar: mashiniiDugaar,
