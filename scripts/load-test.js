@@ -1,44 +1,46 @@
 const http = require('http');
 
-async function testDurability(url, name) {
-    console.log(`🚀 Starting Concurrency Test for ${name} at ${url}...`);
-    const totalRequests = 1000; // Lowered to 1000 for a fast test
-    const concurrentRequests = 10;
-    let successCount = 0;
-    let failCount = 0;
-
+async function heavyTest() {
+    const url = 'http://localhost:8084/baiguullagaBairshilaarAvya';
+    const TOTAL = 10000;
+    const CONCURRENT = 100; // 100 simultaneous requests
+    
+    console.log(`🔥 STARTING TURBO LOAD TEST 🔥`);
+    console.log(`Target: ${url}`);
+    console.log(`Pressure: ${CONCURRENT} simultaneous connections`);
+    
+    let success = 0;
+    let fail = 0;
     const start = Date.now();
 
-    for (let i = 0; i < totalRequests; i += concurrentRequests) {
-        const batch = [];
-        for (let j = 0; j < concurrentRequests; j++) {
-            batch.push(
-                new Promise((resolve) => {
-                    const req = http.get(url, (res) => {
-                        if (res.statusCode === 200) successCount++;
-                        else failCount++;
-                        res.on('data', () => {});
-                        res.on('end', resolve);
-                    });
-                    req.on('error', () => { failCount++; resolve(); });
-                    req.setTimeout(5000, () => { req.destroy(); failCount++; resolve(); });
-                })
-            );
-        }
+    for (let i = 0; i < TOTAL; i += CONCURRENT) {
+        const batch = Array.from({ length: CONCURRENT }).map(() => {
+            return new Promise((resolve) => {
+                const req = http.get(url, (res) => {
+                    if (res.statusCode === 200) success++;
+                    else fail++;
+                    res.on('data', () => {}); // consume
+                    res.on('end', resolve);
+                });
+                req.on('error', () => { fail++; resolve(); });
+                req.setTimeout(10000, () => { req.destroy(); fail++; resolve(); });
+            });
+        });
+
         await Promise.all(batch);
         
-        // --- ADDED PROGRESS LOGS ---
-        if (i % 100 === 0 && i > 0) {
-            console.log(`📡 Progress: ${i}/${totalRequests} requests sent...`);
+        if (i % 500 === 0) {
+            const speed = (i / ((Date.now() - start) / 1000)).toFixed(2);
+            console.log(`🚀 ${i}/${TOTAL} requests fired... (${speed} req/sec)`);
         }
     }
 
-    const duration = Date.now() - start;
-    console.log(`\n📊 FINAL RESULTS for ${name}:`);
-    console.log(`✅ Success: ${successCount}`);
-    console.log(`❌ Fail:    ${failCount}`);
-    console.log(`⏱️  Time:    ${duration}ms (${(totalRequests / (duration/1000)).toFixed(2)} req/sec)`);
+    const totalTime = (Date.now() - start) / 1000;
+    console.log(`\n💎 HEAVY LOAD COMPLETE 💎`);
+    console.log(`✅ Success: ${success}`);
+    console.log(`❌ Fail:    ${fail}`);
+    console.log(`⏱️  Total Time: ${totalTime.toFixed(2)}s`);
+    console.log(`🏎️  Final Speed: ${(TOTAL / totalTime).toFixed(2)} req/sec`);
 }
 
-const BACKEND_URL = 'http://localhost:8084/baiguullagaBairshilaarAvya';
-testDurability(BACKEND_URL, 'AmarSukh Cluster');
+heavyTest();
