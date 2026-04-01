@@ -827,7 +827,7 @@ router
   .get(khayagaarBaiguullagaAvya);
 
 // router.post("/dugaarBatalgaajuulya", dugaarBatalgaajuulya);
-// router.post("/dugaarBatalgaajuulakh", dugaarBatalgaajuulakh);
+router.post("/dugaarBatalgaajuulakh", dugaarBatalgaajuulakh);
 
 router.post("/orshinSuugchBatalgaajuulya", orshinSuugchBatalgaajuulya);
 router.post("/utasBatalgaajuulakhLogin", utasBatalgaajuulakhLogin);
