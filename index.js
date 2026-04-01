@@ -88,9 +88,13 @@ app.use(
   })
 );
 
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin";
+const maskedUri = MONGODB_URI.replace(/:([^:@]+)@/, ":****@");
+console.log(`🔌 [DB] Connecting to main database: ${maskedUri}`);
+
 db.kholboltUusgey(
   app,
-  "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin"
+  MONGODB_URI
 );
 
 app.use(
@@ -442,6 +446,8 @@ if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === "0") {
 console.log(
   "🕐 Cron job тохируулагдлаа: Өдөр бүр 16:18 цагт автоматаар нэхэмжлэх үүсгэх"
 );
-console.log(
-  `🕐 Cron job status: ${cronJob.running ? "Ажиллаж байна" : "Зогссон"}`
-);
+if (typeof cronJob !== 'undefined') {
+  console.log(
+    `🕐 Cron job status: ${cronJob.running ? "Ажиллаж байна" : "Зогссон"}`
+  );
+}
