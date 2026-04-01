@@ -33,7 +33,7 @@ async function verifyCodeHelper(baiguullagiinId, utas, code) {
   }
 
   const tukhainBaaziinKholbolt = db.kholboltuud.find(
-    (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId,
+    (kholbolt) => String(kholbolt.baiguullagiinId) === String(baiguullagiinId),
   );
 
   if (!tukhainBaaziinKholbolt) {
@@ -77,7 +77,7 @@ async function validateCodeOnly(
   }
 
   const tukhainBaaziinKholbolt = db.kholboltuud.find(
-    (kholbolt) => kholbolt.baiguullagiinId === baiguullagiinId,
+    (kholbolt) => String(kholbolt.baiguullagiinId) === String(baiguullagiinId),
   );
 
   if (!tukhainBaaziinKholbolt) {
