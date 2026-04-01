@@ -797,6 +797,23 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
     }
 
     res.send(result);
+
+    // Emit socket event so web clients refresh resident list in realtime
+    try {
+      const io = req.app.get("socketio");
+      if (io && result) {
+        const orgIds = new Set();
+        if (result.baiguullagiinId) orgIds.add(result.baiguullagiinId.toString());
+        if (Array.isArray(result.toots)) {
+          result.toots.forEach(t => { if (t.baiguullagiinId) orgIds.add(t.baiguullagiinId.toString()); });
+        }
+        for (const orgId of orgIds) {
+          io.emit("baiguullagiin" + orgId, { type: "orshinSuugch.updated", data: result });
+        }
+      }
+    } catch (socketErr) {
+      // Don't block response if socket emit fails
+    }
   } catch (error) {
     console.error(
       "❌ [UPDATE] Error updating orshinSuugch/geree:",
