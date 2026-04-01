@@ -9,6 +9,9 @@ const io = require("socket.io")(server, {
   pingTimeout: 20000,
   pingInterval: 10000,
 });
+const { createAdapter } = require("@socket.io/redis-adapter");
+const { pubClient, subClient, connectRedis } = require("./utils/redisClient");
+
 const dotenv = require("dotenv");
 const cron = require("node-cron");
 
@@ -56,7 +59,24 @@ const NekhemjlekhCron = require("./models/cronSchedule");
 process.setMaxListeners(0);
 process.env.UV_THREADPOOL_SIZE = 20;
 
-server.listen(8084);
+(async () => {
+  try {
+    // 1. Connect to Redis
+    await connectRedis();
+
+    // 2. Attach Redis adapter to Socket.io
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log("✅ Socket.IO Redis adapter connected");
+
+    // 3. Start the server
+    server.listen(8084, () => {
+      console.log("🚀 Server listening on port 8084");
+    });
+  } catch (err) {
+    console.error("❌ Failed to initialize server:", err);
+    process.exit(1);
+  }
+})();
 
 process.env.TZ = "Asia/Ulaanbaatar";
 app.set("socketio", io);
@@ -378,34 +398,46 @@ async function automataarNekhemjlekhUusgekh() {
   }
 }
 
-//nehemjleh ilgeeh tsag
-const cronJob = cron.schedule(
-  "20 16 * * *",
-  function () {
-    const now = new Date();
-    console.log(
-      `⏰ [CRON] Cron job triggered at ${now.toLocaleString("mn-MN", {
-        timeZone: "Asia/Ulaanbaatar",
-      })}`
-    );
-    automataarNekhemjlekhUusgekh();
-  },
-  {
-    scheduled: true,
-    timezone: "Asia/Ulaanbaatar",
-  }
-);
+// Only the first instance in PM2 (instance 0) or the standalone process handles crons
+if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === "0") {
+  // nehemjleh ilgeeh tsag
+  const cronJob = cron.schedule(
+    "20 16 * * *",
+    function () {
+      const now = new Date();
+      console.log(
+        `⏰ [CRON] Cron job triggered at ${now.toLocaleString("mn-MN", {
+          timeZone: "Asia/Ulaanbaatar",
+        })}`
+      );
+      automataarNekhemjlekhUusgekh();
+    },
+    {
+      scheduled: true,
+      timezone: "Asia/Ulaanbaatar",
+    }
+  );
 
-cron.schedule(
-  "20 7 * * * ",
-  async function () {
-    await zogsool.archiveUilchluulegchKhonog();
-  },
-  {
-    scheduled: true,
-    timezone: "Asia/Ulaanbaatar",
-  },
-);
+  cron.schedule(
+    "20 7 * * * ",
+    async function () {
+      const zogsool = require("./controller/zogsool");
+      if (zogsool && zogsool.archiveUilchluulegchKhonog) {
+        await zogsool.archiveUilchluulegchKhonog();
+      }
+    },
+    {
+      scheduled: true,
+      timezone: "Asia/Ulaanbaatar",
+    },
+  );
+
+  console.log(
+    "🕐 [CRON] Schedules enabled on Instance 0: 16:20 (Invoices) and 07:20 (Parking Archive)"
+  );
+} else {
+  console.log(`🕐 [CRON] Schedules disabled on Instance ${process.env.NODE_APP_INSTANCE}`);
+}
 
 console.log(
   "🕐 Cron job тохируулагдлаа: Өдөр бүр 16:18 цагт автоматаар нэхэмжлэх үүсгэх"
