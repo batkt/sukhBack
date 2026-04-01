@@ -264,7 +264,7 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
         // 1. Sync org defaults to all resident cars
         if (baiguullaga.tokhirgoo && baiguullaga.tokhirgoo.zochinTokhirgoo) {
            const orgSettings = baiguullaga.tokhirgoo.zochinTokhirgoo;
-           await Mashin(kholbolt.kholbolt).updateMany({
+           await Mashin(kholbolt).updateMany({
              baiguullagiinId: String(baiguullaga._id),
              zochinTurul: "Оршин суугч"
            }, {
@@ -285,7 +285,7 @@ router.post("/baiguullaga/:id", tokenShalgakh, async (req, res, next) => {
            for (const b of baiguullaga.barilguud) {
               if (b.tokhirgoo && b.tokhirgoo.zochinTokhirgoo) {
                  const bSettings = b.tokhirgoo.zochinTokhirgoo;
-                 await Mashin(kholbolt.kholbolt).updateMany({
+                 await Mashin(kholbolt).updateMany({
                    baiguullagiinId: String(baiguullaga._id),
                    barilgiinId: String(b._id),
                    zochinTurul: "Оршин суугч"
