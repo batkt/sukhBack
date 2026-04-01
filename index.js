@@ -61,25 +61,53 @@ process.env.UV_THREADPOOL_SIZE = 20;
 
 (async () => {
   try {
-    // 1. Connect to Redis
+    console.log("🛠️ [INIT] Starting AmarSukh server initialization...");
+
+    // 1. Connect to Redis (async)
+    console.log("🛠️ [INIT] Connecting to Redis...");
     await connectRedis();
 
     // 2. Attach Redis adapter to Socket.io
+    console.log("🛠️ [INIT] Attaching Socket.IO Redis adapter...");
     io.adapter(createAdapter(pubClient, subClient));
     console.log("✅ Socket.IO Redis adapter connected");
 
-    // 3. Start the server
-    server.listen(8084, () => {
-      console.log("🚀 Server listening on port 8084");
+    // 3. Connect to MongoDB (zevbackv2) - Moved inside to catch errors
+    const MONGODB_URI = process.env.MONGODB_URI || "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin";
+    const maskedUri = MONGODB_URI.replace(/:([^:@]+)@/, ":****@");
+    console.log(`🔌 [INIT] Connecting to MongoDB: ${maskedUri}`);
+    
+    db.kholboltUusgey(app, MONGODB_URI);
+    console.log("✅ MongoDB initialization started");
+
+    // 4. Final settings
+    process.env.TZ = "Asia/Ulaanbaatar";
+    app.set("socketio", io);
+
+    // 5. Start the HTTP server
+    const PORT = process.env.PORT || 8084;
+    console.log(`🚀 [INIT] Opening server on port ${PORT}...`);
+    server.listen(PORT, () => {
+      console.log(`✅ SUCCESS: AmarSukh server listening on port ${PORT}`);
     });
+
   } catch (err) {
-    console.error("❌ Failed to initialize server:", err);
+    console.error("❌ CRITICAL: Failed to initialize server:", err);
+    // Print stack trace in logs for easier debugging
+    console.error(err.stack);
     process.exit(1);
   }
 })();
 
-process.env.TZ = "Asia/Ulaanbaatar";
-app.set("socketio", io);
+// Safety for unhandled async errors
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ UNHANDLED REJECTION:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("❌ UNCAUGHT EXCEPTION:", err);
+  process.exit(1);
+});
+
 app.use(cors());
 app.use(
   express.json({
@@ -88,14 +116,7 @@ app.use(
   })
 );
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin";
-const maskedUri = MONGODB_URI.replace(/:([^:@]+)@/, ":****@");
-console.log(`🔌 [DB] Connecting to main database: ${maskedUri}`);
-
-db.kholboltUusgey(
-  app,
-  MONGODB_URI
-);
+// db.kholboltUusgey moved inside init block for crash safety
 
 app.use(
   express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 })
