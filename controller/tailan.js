@@ -2554,7 +2554,7 @@ exports.tailanTsutslasanGereeniiAvlaga = asyncHandler(
       // Find all cancelled gerees
       const gereeMatch = {
         baiguullagiinId: String(baiguullagiinId),
-        tuluv: "Цуцалсан", // Cancelled contracts
+        tuluv: { $in: ["Цуцалсан", "цуцалсан", "Цуцлагдсан", "цуцлагдсан", "Tsutlsasan", "tsutlsasan"] },
       };
 
       if (barilgiinId) gereeMatch.barilgiinId = String(barilgiinId);
