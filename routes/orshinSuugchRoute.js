@@ -735,16 +735,14 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
             );
           }
 
-          // 2. Update Invoices (nekhemjlekhiinTuukh) - only unpaid ones
+          // 2. Update Invoices (nekhemjlekhiinTuukh) - update all associated records for consistency
           if (Object.keys(invoiceUpdateData).length > 0) {
             await NekhemjlekhModel.updateMany(
               {
-                gereeniiId: { $exists: true }, // Ensure it's a contract-linked invoice
                 $or: [
                   { orshinSuugchId: result._id.toString() },
-                  { ner: oldDoc?.ner, utas: { $in: Array.isArray(oldDoc?.utas) ? oldDoc.utas : [oldDoc?.utas] } }
-                ],
-                tuluv: { $ne: "Төлсөн" }
+                  { gereeniiId: { $exists: true }, ner: oldDoc?.ner, utas: { $in: Array.isArray(oldDoc?.utas) ? oldDoc.utas : [oldDoc?.utas] } }
+                ]
               },
               { $set: invoiceUpdateData }
             );

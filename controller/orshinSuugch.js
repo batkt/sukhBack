@@ -4866,28 +4866,23 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
     }
 
     // Mark all gerees as "Цуцалсан" (Cancelled) instead of deleting
-    // Don't delete nekhemjlekhiinTuukh, ebarimt, or any other related data
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) =>
-        kholbolt.baiguullagiinId === orshinSuugch.baiguullagiinId?.toString(),
-    );
+    const orgIdsForDel = new Set();
+    if (orshinSuugch.baiguullagiinId) orgIdsForDel.add(orshinSuugch.baiguullagiinId.toString());
+    if (Array.isArray(orshinSuugch.toots)) {
+      orshinSuugch.toots.forEach(t => { if (t.baiguullagiinId) orgIdsForDel.add(t.baiguullagiinId.toString()); });
+    }
 
-    let gereesToCancel = [];
-    if (tukhainBaaziinKholbolt) {
-      const GereeModel = Geree(tukhainBaaziinKholbolt);
-      gereesToCancel = await GereeModel.find({
-        orshinSuugchId: userIdString,
-      });
-
-      if (gereesToCancel.length > 0) {
-        // Mark all gerees as "Цуцалсан" (Cancelled) - update ONLY tuluv field
-        // IMPORTANT: Do NOT update barilgiinId or any other fields - preserve all original data
-        await GereeModel.updateMany(
+    for (const orgId of orgIdsForDel) {
+      const conn = db.kholboltuud.find(k => String(k.baiguullagiinId) === String(orgId));
+      if (conn) {
+        await Geree(conn).updateMany(
           { orshinSuugchId: userIdString },
-          { $set: { tuluv: "Цуцалсан" } },
+          { $set: { tuluv: "Цуцалсан" } }
         );
       }
     }
+
+    let gereesToCancel = [];
 
     // Don't delete nekhemjlekhiinTuukh - keep all invoice history
     // Don't delete nevtreltiinTuukh - keep login history
@@ -4925,7 +4920,7 @@ exports.orshinSuugchOorooUstgakh = asyncHandler(async (req, res, next) => {
       message: "Хэрэглэгчийн данс устгагдлаа. Бүх мэдээлэл хадгалагдсан байна.",
       data: {
         userId: userId,
-        cancelledGerees: gereesToCancel?.length || 0,
+        status: "Cancelled"
       },
     });
   } catch (error) {
@@ -4959,28 +4954,23 @@ exports.orshinSuugchUstgakh = asyncHandler(async (req, res, next) => {
     }
 
     // Mark all gerees as "Цуцалсан" (Cancelled) instead of deleting
-    // Don't delete nekhemjlekhiinTuukh, ebarimt, or any other related data
-    const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) =>
-        kholbolt.baiguullagiinId === orshinSuugch.baiguullagiinId?.toString(),
-    );
+    const orgIdsForDel = new Set();
+    if (orshinSuugch.baiguullagiinId) orgIdsForDel.add(orshinSuugch.baiguullagiinId.toString());
+    if (Array.isArray(orshinSuugch.toots)) {
+      orshinSuugch.toots.forEach(t => { if (t.baiguullagiinId) orgIdsForDel.add(t.baiguullagiinId.toString()); });
+    }
 
-    let gereesToCancel = [];
-    if (tukhainBaaziinKholbolt) {
-      const GereeModel = Geree(tukhainBaaziinKholbolt);
-      gereesToCancel = await GereeModel.find({
-        orshinSuugchId: userIdString,
-      });
-
-      if (gereesToCancel.length > 0) {
-        // Mark all gerees as "Цуцалсан" (Cancelled) - update ONLY tuluv field
-        // IMPORTANT: Do NOT update barilgiinId or any other fields - preserve all original data
-        await GereeModel.updateMany(
+    for (const orgId of orgIdsForDel) {
+      const conn = db.kholboltuud.find(k => String(k.baiguullagiinId) === String(orgId));
+      if (conn) {
+        await Geree(conn).updateMany(
           { orshinSuugchId: userIdString },
-          { $set: { tuluv: "Цуцалсан" } },
+          { $set: { tuluv: "Цуцалсан" } }
         );
       }
     }
+
+    let gereesToCancel = [];
 
     // Don't delete nekhemjlekhiinTuukh - keep all invoice history
     // Don't delete nevtreltiinTuukh - keep login history
@@ -5018,7 +5008,7 @@ exports.orshinSuugchUstgakh = asyncHandler(async (req, res, next) => {
       message: "Хэрэглэгчийн данс устгагдлаа. Бүх мэдээлэл хадгалагдсан байна.",
       data: {
         userId: userId,
-        cancelledGerees: gereesToCancel?.length || 0,
+        status: "Cancelled"
       },
     });
   } catch (error) {
