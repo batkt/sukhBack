@@ -2,7 +2,7 @@ const http = require('http');
 
 async function heavyTest() {
     const url = 'http://localhost:8084/baiguullagaBairshilaarAvya';
-    const TOTAL = 10000;
+    const TOTAL = 100000;
     const CONCURRENT = 100; // 100 simultaneous requests
     
     console.log(`🔥 STARTING TURBO LOAD TEST 🔥`);
