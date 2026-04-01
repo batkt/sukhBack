@@ -533,9 +533,22 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
 
 router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
   try {
+    // Identify requester to protect sensitive fields on self-updates
+    const requesterId = req.body.nevtersenAjiltniiToken?.id || req.body.nevtersenAjiltniiToken?.sub;
+    const requesterRole = req.body.nevtersenAjiltniiToken?.erkh;
+    
     delete req.body.nevtersenAjiltniiToken;
     delete req.body.erunkhiiKholbolt;
     delete req.body.tukhainBaaziinKholbolt;
+
+    // Protection: Residents should NOT be able to change their own baiguullagiinId, barilgiinId, or linked toots array
+    // This often happens when the frontend doesn't send them and a middleware injects 'null'.
+    if (requesterRole === "OrshinSuugch" || (requesterId && String(requesterId) === String(req.params.id))) {
+       delete req.body.baiguullagiinId;
+       delete req.body.barilgiinId;
+       delete req.body.toots;
+       delete req.body.erkh;
+    }
 
     // Get old document before update for audit logging
     const oldDoc = await OrshinSuugch(db.erunkhiiKholbolt)

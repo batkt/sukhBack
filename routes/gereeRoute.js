@@ -308,6 +308,9 @@ crud(
   Geree,
   UstsanBarimt,
   async (req, res, next) => {
+    // This middleware is specifically for resident auto-creation/association during contract creation (POST)
+    if (req.method !== "POST") return next();
+
     try {
       const { db } = require("zevbackv2");
       const tukhainBaaziinKholbolt = db.kholboltuud.find(

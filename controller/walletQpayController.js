@@ -79,6 +79,14 @@ exports.createWalletQpayInvoice = asyncHandler(async (req, res, next) => {
 
   if (!baiguullagiinId && orshinSuugch) {
     baiguullagiinId = orshinSuugch.baiguullagiinId;
+    
+    // Fallback: If missing at top level, check the 'toots' array (multi-unit or lite user)
+    if (!baiguullagiinId && Array.isArray(orshinSuugch.toots) && orshinSuugch.toots.length > 0) {
+      baiguullagiinId = orshinSuugch.toots[0].baiguullagiinId;
+      if (!req.body.barilgiinId) {
+        req.body.barilgiinId = orshinSuugch.toots[0].barilgiinId;
+      }
+    }
   }
 
   if (!baiguullagiinId) {
