@@ -156,14 +156,17 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
 }
 
 // Full password login - used as initial login or when refresh fails
-async function ebarimtPasswordLogin(baiguullagiinId, tukhainBaaziinKholbolt) {
+async function ebarimtPasswordLogin(baiguullagiinId, tukhainBaaziinKholbolt, isTest = false) {
   return new Promise((resolve, reject) => {
-    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
+    let authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
+    if (isTest) {
+      authUrl = 'https://st-auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
+    }
     const clientId = process.env.EBARIMTSHINE_CLIENT_ID || 'vatps';
     const username = process.env.EBARIMTSHINE_USERNAME || 'Rooden_like@yahoo.com';
     const password = process.env.EBARIMTSHINE_PASSWORD || 'Br1stelback@';
 
-    console.log(`[EBARIMT TOKEN] Password login for org: ${baiguullagiinId}`);
+    console.log(`[EBARIMT TOKEN] Password login for org: ${baiguullagiinId} (isTest: ${isTest})`);
 
     request.post({
       url: authUrl,
@@ -214,12 +217,15 @@ async function ebarimtPasswordLogin(baiguullagiinId, tukhainBaaziinKholbolt) {
 }
 
 // Refresh token - uses existing refresh_token to get new access_token
-async function ebarimtRefreshToken(refreshTokenValue, baiguullagiinId, tukhainBaaziinKholbolt) {
+async function ebarimtRefreshToken(refreshTokenValue, baiguullagiinId, tukhainBaaziinKholbolt, isTest = false) {
   return new Promise((resolve, reject) => {
-    const authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
+    let authUrl = process.env.EBARIMTSHINE_AUTH_URL || 'https://auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
+    if (isTest) {
+      authUrl = 'https://st-auth.itc.gov.mn/auth/realms/ITC/protocol/openid-connect/token';
+    }
     const clientId = process.env.EBARIMTSHINE_CLIENT_ID || 'vatps';
 
-    console.log(`[EBARIMT TOKEN] Refreshing token for org: ${baiguullagiinId}`);
+    console.log(`[EBARIMT TOKEN] Refreshing token for org: ${baiguullagiinId} (isTest: ${isTest})`);
 
     request.post({
       url: authUrl,
@@ -267,7 +273,7 @@ async function ebarimtRefreshToken(refreshTokenValue, baiguullagiinId, tukhainBa
   });
 }
 
-async function getEbarimtToken(baiguullagiinId, tukhainBaaziinKholbolt) {
+async function getEbarimtToken(baiguullagiinId, tukhainBaaziinKholbolt, isTest = false) {
   try {
     // 1. Check if we have a valid (non-expired) token in DB
     const tokenObject = await Token(tukhainBaaziinKholbolt).findOne({
@@ -287,7 +293,7 @@ async function getEbarimtToken(baiguullagiinId, tukhainBaaziinKholbolt) {
     if (tokenObject && tokenObject.refreshToken) {
       try {
         console.log(`[EBARIMT TOKEN] Token expired, attempting refresh...`);
-        return await ebarimtRefreshToken(tokenObject.refreshToken, baiguullagiinId, tukhainBaaziinKholbolt);
+        return await ebarimtRefreshToken(tokenObject.refreshToken, baiguullagiinId, tukhainBaaziinKholbolt, isTest);
       } catch (refreshErr) {
         console.error(`[EBARIMT TOKEN] Refresh failed, falling back to password login:`, refreshErr.message);
         // Fall through to password login
@@ -296,7 +302,7 @@ async function getEbarimtToken(baiguullagiinId, tukhainBaaziinKholbolt) {
 
     // 3. No token, no refresh token, or refresh failed — full password login
     console.log(`[EBARIMT TOKEN] Performing full password login...`);
-    return await ebarimtPasswordLogin(baiguullagiinId, tukhainBaaziinKholbolt);
+    return await ebarimtPasswordLogin(baiguullagiinId, tukhainBaaziinKholbolt, isTest);
   } catch (error) {
     console.error(`[EBARIMT TOKEN] getEbarimtToken failed:`, error.message);
     throw error;
@@ -383,7 +389,7 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
     // Get token using the proper reuse + refresh system
     let token;
     if (connectionObj && orgId) {
-      token = await getEbarimtToken(orgId, connectionObj);
+      token = await getEbarimtToken(orgId, connectionObj, shouldUseTest);
     } else {
       token = process.env.EBARIMTSHINE_TOKEN;
     }
