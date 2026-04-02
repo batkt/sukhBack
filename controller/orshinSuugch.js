@@ -4480,15 +4480,12 @@ function msgIlgeeye(
   } catch (err) {}
 }
 
-// Verify login code for first-time login
 exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
 
-    // TEMPORARILY DISABLED: SMS verification for login
-    const ENABLE_LOGIN_SMS = true; // Set to true to re-enable SMS verification on login
+    const ENABLE_LOGIN_SMS = true; 
 
-    // If SMS is disabled, automatically verify without checking code
     if (!ENABLE_LOGIN_SMS) {
       const { db } = require("zevbackv2");
       const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
@@ -4505,12 +4502,9 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
       return res.json({
         success: true,
         message: "Баталгаажуулалт амжилттай (SMS идэвхгүй)",
-        // Frontend should save verification status to local storage
       });
     }
 
-    // If baiguullagiinId is not provided, skip OTP verification and proceed
-    // This allows wallet-only registrations (without organization) to proceed
     if (!baiguullagiinId) {
       const { db } = require("zevbackv2");
       const orshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
@@ -4527,11 +4521,9 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
       return res.json({
         success: true,
         message: "Баталгаажуулалт алгассан (байгууллагын ID байхгүй)",
-        // Frontend should save verification status to local storage
       });
     }
 
-    // If baiguullagiinId is provided, proceed with normal OTP verification
     if (!utas || !code) {
       return res.status(400).json({
         success: false,
@@ -4565,7 +4557,7 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
       baiguullagiinId,
       utas,
       code,
-      "login", // Purpose: login verification
+      "login", 
     );
 
     if (!verificationResult.success) {
@@ -4589,7 +4581,6 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
     res.json({
       success: true,
       message: "Код амжилттай баталгаажлаа",
-      // Frontend should save verification status to local storage
     });
   } catch (error) {
     next(error);
