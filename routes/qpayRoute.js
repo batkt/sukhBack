@@ -1317,29 +1317,61 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
     const khariu = await qpayShalgay(req.body, req.body.tukhainBaaziinKholbolt);
     res.send(khariu);
   } catch (err) {
-    // Enhanced error logging for QPay Shalgay errors
-    let errorBody = null;
+    // If QPay API itself returns 500, try to fall back to DB invoice status
+    // (BPay-format invoices stored with invoice_status field instead of QPay payments[])
     try {
-      // Try to extract response body in different ways
-      if (err?.response?.body !== undefined) {
-        errorBody =
-          typeof err.response.body === "string"
-            ? err.response.body
-            : JSON.stringify(err.response.body);
-      } else if (err?.body !== undefined) {
-        errorBody =
-          typeof err.body === "string" ? err.body : JSON.stringify(err.body);
-      } else if (err?.response) {
-        // Response exists but body is undefined
-        errorBody = "Response exists but body is undefined";
-      } else {
-        errorBody = "No response object found";
+      const { db } = require("zevbackv2");
+      const invoiceId = req.body.invoice_id;
+      const baiguullagiinId = req.body.baiguullagiinId;
+
+      if (invoiceId) {
+        // Look up in QuickQpayObject by invoice_id
+        let kholbolt = req.body.tukhainBaaziinKholbolt;
+        if (!kholbolt && baiguullagiinId) {
+          kholbolt = db.kholboltuud.find(
+            (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+          );
+        }
+
+        if (kholbolt) {
+          const qpayObj = await QuickQpayObject(kholbolt).findOne({
+            invoice_id: invoiceId,
+          }).lean();
+
+          if (qpayObj) {
+            // Return a synthetic response that the app can parse
+            const isPaid = qpayObj.tulsunEsekh === true ||
+              qpayObj.invoice_status === "PAID" ||
+              qpayObj.invoice_status === "CLOSED";
+
+            return res.send({
+              invoice_id: invoiceId,
+              invoice_status: isPaid ? "PAID" : "OPEN",
+              tuluv: isPaid ? "Төлсөн" : "Төлөөгүй",
+              paid_amount: isPaid ? (qpayObj.qpay?.amount || 0) : 0,
+              payments: isPaid ? [{
+                payment_status: "PAID",
+                status: "PAID",
+                amount: qpayObj.qpay?.amount || 0,
+                transactions: [],
+              }] : [],
+            });
+          }
+        }
       }
-    } catch (parseError) {
-      errorBody = "Could not parse error body: " + parseError.message;
+    } catch (fallbackErr) {
+      console.error("❌ [QPAY SHALGAY] Fallback DB lookup also failed:", fallbackErr.message);
     }
 
-    next(err);
+    // If fallback also fails, return not-paid response (don't crash)
+    const invoiceId = req.body.invoice_id;
+    return res.send({
+      invoice_id: invoiceId || null,
+      invoice_status: "OPEN",
+      tuluv: "Төлөөгүй",
+      paid_amount: 0,
+      payments: [],
+    });
   }
 });
 router.post("/qpayGuilgeeUtgaAvya", tokenShalgakh, qpayGuilgeeUtgaAvya);
