@@ -1975,7 +1975,21 @@ router.get(
 
               shineBarimt
                 .save()
-                .then(() => {
+                .then(async () => {
+                  // Update BankniiGuilgee record to reflect e-barimt status
+                  try {
+                    const BankniiGuilgee = require("../models/bankniiGuilgee");
+                    const recordId = khariuObject.qpayPaymentId || khariuObject.qpayInvoiceId;
+                    if (recordId) {
+                      await BankniiGuilgee(kholbolt).updateMany(
+                        { record: recordId, baiguullagiinId: khariuObject.baiguullagiinId },
+                        { $set: { ebarimtAvsanEsekh: true } }
+                      );
+                    }
+                  } catch (bankUpdateErr) {
+                    console.error("❌ [QPAY CALLBACK] Error updating BankniiGuilgee ebarimtAvsanEsekh:", bankUpdateErr.message);
+                  }
+
                   // Auto-approve QR for Easy Register if customerNo and qrData are available
                   if (khariuObject.customerNo && d.qrData) {
                     autoApproveQr(
@@ -1992,14 +2006,24 @@ router.get(
                     });
                   }
                 })
-                .catch((saveErr) => {});
-            } catch (err) {}
+                .catch((saveErr) => {
+                  console.error("❌ [QPAY CALLBACK] Error saving EbarimtShine:", saveErr.message);
+                });
+            } catch (err) {
+              console.error("❌ [QPAY CALLBACK] Error in butsaakhMethod:", err.message);
+            }
           };
+
+          // Attach QPay IDs to ebarimt metadata so they are available in butsaakhMethod
+          ebarimt.qpayPaymentId = nekhemjlekh.qpayPaymentId;
+          ebarimt.qpayInvoiceId = nekhemjlekh.qpayInvoiceId;
 
           ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
         } else {
         }
-      } catch (ebarimtError) {}
+      } catch (ebarimtError) {
+        console.error("❌ [QPAY CALLBACK] Error in E-barimt block:", ebarimtError.message);
+      }
 
       const io = req.app.get("socketio");
       io.emit(`nekhemjlekhPayment/${baiguullagiinId}/${nekhemjlekhiinId}`, {
@@ -2482,7 +2506,21 @@ router.get(
 
                         shineBarimt
                           .save()
-                          .then(() => {
+                          .then(async () => {
+                            // Update BankniiGuilgee record to reflect e-barimt status
+                            try {
+                              const BankniiGuilgee = require("../models/bankniiGuilgee");
+                              const recordId = ebarimtObject.qpayPaymentId || ebarimtObject.qpayInvoiceId;
+                              if (recordId) {
+                                await BankniiGuilgee(kholbolt).updateMany(
+                                  { record: recordId, baiguullagiinId: ebarimtObject.baiguullagiinId },
+                                  { $set: { ebarimtAvsanEsekh: true } }
+                                );
+                              }
+                            } catch (bankUpdateErr) {
+                              console.error("❌ [QPAY MULTI CALLBACK] Error updating BankniiGuilgee ebarimtAvsanEsekh:", bankUpdateErr.message);
+                            }
+
                             // Auto-approve QR for Easy Register if customerNo and qrData are available
                             if (ebarimtObject.customerNo && d.qrData) {
                               autoApproveQr(
@@ -2499,9 +2537,17 @@ router.get(
                               });
                             }
                           })
-                          .catch((saveErr) => {});
-                      } catch (err) {}
+                          .catch((saveErr) => {
+                            console.error("❌ [QPAY MULTI CALLBACK] Error saving EbarimtShine:", saveErr.message);
+                          });
+                      } catch (err) {
+                         console.error("❌ [QPAY MULTI CALLBACK] Error in butsaakhMethod:", err.message);
+                      }
                     };
+
+                    // Attach QPay IDs to ebarimt metadata so they are available in butsaakhMethod
+                    ebarimt.qpayPaymentId = paymentTransactionId;
+                    ebarimt.qpayInvoiceId = updatedInvoice.qpayInvoiceId;
 
                     // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
                     // The ebarimt object already contains invoice data, and it's passed as second param to onFinish

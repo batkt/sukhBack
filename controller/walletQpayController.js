@@ -725,7 +725,52 @@ async function settleWalletPayment(
       );
       console.log(`✅ [WALLET QPAY] Wallet paidByQpay success`);
 
-      // Sync E-barimt to local DB and Easy Register
+      // 3.5. Create official BankniiGuilgee record for AmarSukh accountants
+      try {
+        const BankniiGuilgee = require("../models/bankniiGuilgee");
+        const bankGuilgee = new (BankniiGuilgee(tukhainBaaziinKholbolt))();
+
+        bankGuilgee.tranDate = new Date(trxDate) || new Date();
+        bankGuilgee.amount = trxAmount;
+        bankGuilgee.description =
+          qpayObject.qpay?.description ||
+          `QPay төлбөр (Wallet) - ${walletPaymentId}`;
+        bankGuilgee.accName = qpayObject.qpay?.receiver_account_name || "";
+        bankGuilgee.accNum = qpayObject.qpay?.receiver_account_number || "";
+
+        bankGuilgee.record = walletPaymentId;
+        bankGuilgee.tranId = qpayPaymentId || walletPaymentId;
+        bankGuilgee.balance = 0;
+        bankGuilgee.requestId = walletPaymentId;
+
+        bankGuilgee.kholbosonGereeniiId = [qpayObject.gereeniiId];
+        bankGuilgee.kholbosonTalbainId = qpayObject.talbainDugaar
+          ? [qpayObject.talbainDugaar]
+          : [];
+        bankGuilgee.dansniiDugaar =
+          qpayObject.qpay?.receiver_account_number || "";
+        bankGuilgee.bank = "qpay";
+        bankGuilgee.baiguullagiinId = baiguullagiinId;
+        bankGuilgee.barilgiinId = qpayObject.barilgiinId || "";
+        bankGuilgee.kholbosonDun = trxAmount;
+        bankGuilgee.ebarimtAvsanEsekh = false;
+        bankGuilgee.drOrCr = "Credit";
+        bankGuilgee.tranCrnCode = "MNT";
+        bankGuilgee.exchRate = 1;
+        bankGuilgee.postDate = new Date();
+
+        bankGuilgee.indexTalbar = `${bankGuilgee.barilgiinId}${bankGuilgee.bank}${bankGuilgee.dansniiDugaar}${bankGuilgee.record}${bankGuilgee.amount}`;
+
+        await bankGuilgee.save();
+        console.log(`✅ [WALLET QPAY] BankniiGuilgee created: ${walletPaymentId}`);
+      } catch (bankErr) {
+        console.error(
+          "❌ [WALLET QPAY] Error creating BankniiGuilgee:",
+          bankErr.message
+        );
+      }
+
+      // 3.6. Sync E-barimt to local DB and Easy Register
       await handleWalletEbarimt(
         userId,
         walletPaymentId,
@@ -733,7 +778,10 @@ async function settleWalletPayment(
         tukhainBaaziinKholbolt
       );
     } catch (walletErr) {
-      console.error("❌ [WALLET QPAY] Wallet paidByQpay failed:", walletErr.message);
+      console.error(
+        "❌ [WALLET QPAY] Wallet paidByQpay failed:",
+        walletErr.message
+      );
     }
   } else {
     console.warn(
@@ -870,9 +918,29 @@ async function handleWalletEbarimt(
   tukhainBaaziinKholbolt
 ) {
   try {
-    const payment = await walletApiService.getPayment(userId, walletPaymentId);
+    const { autoApproveQr } = require("../routes/ebarimtRoute");
+
+    // Retry logic is crucial because the Wallet API generates VAT-info asynchronously
+    let payment = null;
+    let retryCount = 1;
+    const maxRetries = 5;
+
+    while (retryCount <= maxRetries) {
+      payment = await walletApiService.getPayment(userId, walletPaymentId);
+      if (payment?.vatInformation?.vatDdtd) break;
+
+      console.log(
+        `ℹ️ [WALLET EBARIMT] No VAT info for payment ${walletPaymentId}, retry ${retryCount}/${maxRetries}...`
+      );
+      // Wait 3 seconds before next retry
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      retryCount++;
+    }
+
     if (!payment?.vatInformation?.vatDdtd) {
-      console.log(`ℹ️ [WALLET EBARIMT] No VAT info for payment: ${walletPaymentId}`);
+      console.log(
+        `ℹ️ [WALLET EBARIMT] Permanent skip: No VAT info for payment: ${walletPaymentId}`
+      );
       return;
     }
 
@@ -913,6 +981,20 @@ async function handleWalletEbarimt(
 
     await ebarimt.save();
     console.log(`✅ [WALLET EBARIMT] Saved local ebarimt: ${vat.vatDdtd}`);
+
+    // Update BankniiGuilgee record to reflect e-barimt status
+    try {
+      const BankniiGuilgee = require("../models/bankniiGuilgee");
+      await BankniiGuilgee(tukhainBaaziinKholbolt).updateMany(
+        { record: walletPaymentId, baiguullagiinId: baiguullagiinId },
+        { $set: { ebarimtAvsanEsekh: true } }
+      );
+    } catch (bankUpdateErr) {
+      console.error(
+        "❌ [WALLET EBARIMT] Error updating BankniiGuilgee ebarimt flag:",
+        bankUpdateErr.message
+      );
+    }
 
     // Auto-approve to Easy Register locally
     const easyUser = await EasyRegisterUser(tukhainBaaziinKholbolt).findOne({
