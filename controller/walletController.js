@@ -71,12 +71,15 @@ async function getUserIdFromToken(req) {
     }
   }
 
-  return walletUserId || orshinSuugch.utas || tokenObject.id;
+  return {
+    userId: walletUserId || orshinSuugch.utas || tokenObject.id,
+    utas: orshinSuugch.utas
+  };
 }
 
 exports.walletBillers = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const billers = await walletApiService.getBillers(userId);
     res.status(200).json({
       success: true,
@@ -193,7 +196,7 @@ exports.walletBillingByBiller = asyncHandler(async (req, res, next) => {
 
 exports.walletBillingByCustomer = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const { customerId } = req.params;
 
     if (!customerId) {
@@ -356,7 +359,7 @@ exports.walletBillingBills = asyncHandler(async (req, res, next) => {
 
 exports.walletBillingPayments = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const { billingId } = req.params;
 
     if (!billingId) {
@@ -387,7 +390,7 @@ exports.walletBillingPayments = asyncHandler(async (req, res, next) => {
 
 exports.walletBillingSave = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId, utas } = await getUserIdFromToken(req);
     const billingData = req.body;
 
     if (!billingData) {
@@ -514,7 +517,7 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
     }
 
     // Get correct userId (UUID or phone) for Wallet API
-    const userId = await getUserIdFromToken(req);
+    const { userId, utas } = await getUserIdFromToken(req);
     const { billingId } = req.params;
 
     if (!billingId) {
@@ -729,7 +732,7 @@ exports.walletBillRemove = asyncHandler(async (req, res, next) => {
 
 exports.walletBillRecover = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const { billingId } = req.params;
 
     if (!billingId) {
@@ -749,7 +752,7 @@ exports.walletBillRecover = asyncHandler(async (req, res, next) => {
 
 exports.walletBillingChangeName = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const { billingId } = req.params;
     const { name } = req.body;
 
@@ -833,7 +836,7 @@ exports.walletBillingSetNickname = asyncHandler(async (req, res, next) => {
 
 exports.walletInvoiceCreate = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const invoiceData = req.body;
 
     if (!invoiceData) {
@@ -855,7 +858,7 @@ exports.walletInvoiceCreate = asyncHandler(async (req, res, next) => {
 
 exports.walletInvoiceGet = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const { invoiceId } = req.params;
 
     if (!invoiceId) {
@@ -883,7 +886,7 @@ exports.walletInvoiceGet = asyncHandler(async (req, res, next) => {
 
 exports.walletInvoiceCancel = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const { invoiceId } = req.params;
 
     if (!invoiceId) {
@@ -905,7 +908,7 @@ exports.walletInvoiceCancel = asyncHandler(async (req, res, next) => {
 
 exports.walletPaymentCreate = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const paymentData = req.body;
 
     if (!paymentData || !paymentData.invoiceId) {
@@ -935,7 +938,7 @@ exports.walletPaymentCreate = asyncHandler(async (req, res, next) => {
 
 exports.walletPaymentGet = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId } = await getUserIdFromToken(req);
     const { paymentId } = req.params;
 
     if (!paymentId) {
@@ -969,7 +972,7 @@ exports.walletPaymentGet = asyncHandler(async (req, res, next) => {
 
 exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
   try {
-    const userId = await getUserIdFromToken(req);
+    const { userId, utas } = await getUserIdFromToken(req);
     const { paymentId } = req.params;
     const qpayData = req.body;
 
@@ -986,6 +989,10 @@ exports.walletPaymentUpdateQPay = asyncHandler(async (req, res, next) => {
       paymentId,
       qpayData,
     );
+    
+    // Clear cache for BOTH ID types to be safe
+    walletApiService.clearBillingListCache(userId);
+    walletApiService.clearBillingListCache(utas);
 
     // Local DB-д давхар хадгалах
     try {

@@ -24,6 +24,11 @@ const addressKhorooCache = new Map();
 const addressBairCache = new Map();
 const ADDRESS_CACHE_TTL = 3600000; // 1 hour
 
+function clearBillingListCache(userId) {
+  if (!userId) return;
+  billingListCache.delete(`billing_list_${userId}`);
+}
+
 function sanitizeNullValues(obj) {
   if (obj === null || obj === undefined) {
     return {};
@@ -1179,6 +1184,9 @@ async function updateQPayPayment(userId, paymentId, qpayData) {
     );
 
     if (response.data && response.data.responseCode) {
+      // Clear billing list cache for the user so next list fetch is fresh
+      billingListCache.delete(`billing_list_${userId}`);
+      
       return response.data.data || response.data;
     }
 
@@ -1308,5 +1316,6 @@ module.exports = {
   createPayment,
   editUser,
   loginUser,
+  clearBillingListCache,
 };
 
