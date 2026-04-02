@@ -4163,8 +4163,11 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     var msgIlgeekhKey = "aa8e588459fdd9b7ac0b809fc29cfae3";
     var msgIlgeekhDugaar = "72002002";
 
-    const { baiguullagiinId, utas } = req.body;
-    const purpose = req.body.purpose || "password_reset"; // "register" | "password_reset"
+    const { baiguullagiinId, utas, purpose: purposeRaw } = req.body;
+    const purpose =
+      purposeRaw === "register" || purposeRaw === "signup"
+        ? "registration"
+        : purposeRaw || "password_reset";
 
     if (!baiguullagiinId || !utas) {
       return res.status(400).json({
@@ -4590,8 +4593,11 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
-    const purposeRaw = req.body.purpose || "password_reset"; // "registration" | "register" | "password_reset"
-    const purpose = purposeRaw === "register" ? "registration" : purposeRaw;
+    const purposeRaw = req.body.purpose || "password_reset"; // "registration" | "register" | "signup" | "password_reset"
+    const purpose =
+      purposeRaw === "register" || purposeRaw === "signup"
+        ? "registration"
+        : purposeRaw;
 
     if (!baiguullagiinId || !utas || !code) {
       return res.status(400).json({
