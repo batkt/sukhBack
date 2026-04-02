@@ -724,8 +724,22 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
             syncData.umnukhZaalt = zaalt;
           }
 
+          if (req.body.ekhniiUldegdel !== undefined && result.baiguullagiinId && result.baiguullagiinId.toString() === orgId) {
+            syncData.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
+          }
+
           // 1. Update Contracts (Geree)
           if (Object.keys(syncData).length > 0) {
+            // Find active contracts first if we need to do subsequent processing (like recalc)
+            let affectedGereeIds = [];
+            if (syncData.ekhniiUldegdel !== undefined) {
+               const gerees = await GereeModel.find({
+                  orshinSuugchId: result._id.toString(),
+                  tuluv: "Идэвхтэй",
+               }).select("_id");
+               affectedGereeIds = gerees.map(g => g._id);
+            }
+
             await GereeModel.updateMany(
               {
                 orshinSuugchId: result._id.toString(),
@@ -733,6 +747,31 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
               },
               { $set: syncData },
             );
+
+            // If ekhniiUldegdel was updated, trigger recalculation of globalUldegdel for all affected contracts
+            if (syncData.ekhniiUldegdel !== undefined && affectedGereeIds.length > 0) {
+              try {
+                const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
+                const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+                const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+                
+                const TulukhModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
+                const TulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);
+
+                for (const gId of affectedGereeIds) {
+                  await recalcGlobalUldegdel({
+                    gereeId: gId,
+                    baiguullagiinId: orgId,
+                    GereeModel: GereeModel,
+                    NekhemjlekhiinTuukhModel: NekhemjlekhModel,
+                    GereeniiTulukhAvlagaModel: TulukhModel,
+                    GereeniiTulsunAvlagaModel: TulsunModel,
+                  });
+                }
+              } catch (recalcErr) {
+                console.error("❌ [RECALC] Error during orshinSuugch sync:", recalcErr.message);
+              }
+            }
           }
 
           // 2. Update Invoices (nekhemjlekhiinTuukh) - update all associated records for consistency
