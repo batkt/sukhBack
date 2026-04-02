@@ -1319,14 +1319,28 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
     let baiguullagiinId = req.body.baiguullagiinId;
     let tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
+    console.log(`🔍 [QPAY] Status Check: invoice_id=${req.body.invoice_id}, baiguullagiinId=${baiguullagiinId}`);
+
     // Resolve connection object correctly
     if (baiguullagiinId) {
       const kholbolt = db.kholboltuud.find(
         (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
       );
       if (kholbolt) {
+        console.log(`✅ [QPAY] Resolved connection for org: ${baiguullagiinId}`);
         tukhainBaaziinKholbolt = kholbolt;
         req.body.tukhainBaaziinKholbolt = kholbolt;
+      } else {
+        console.warn(`⚠️ [QPAY] No connection found for org: ${baiguullagiinId} in registry of ${db.kholboltuud.length} connections`);
+      }
+    } else {
+      console.warn(`⚠️ [QPAY] No baiguullagiinId provided in body: ${JSON.stringify(req.body)}`);
+      // Fallback: If there's ONLY ONE connection in the pool, use it as a best-effort fallback
+      if (db.kholboltuud.length === 1) {
+        console.log(`ℹ️ [QPAY] Best-effort fallback using the only connection: ${db.kholboltuud[0].baiguullagiinId}`);
+        tukhainBaaziinKholbolt = db.kholboltuud[0];
+        req.body.baiguullagiinId = db.kholboltuud[0].baiguullagiinId;
+        req.body.tukhainBaaziinKholbolt = db.kholboltuud[0];
       }
     }
 

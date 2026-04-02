@@ -4164,10 +4164,15 @@ exports.dugaarBatalgaajuulya = asyncHandler(async (req, res, next) => {
     var msgIlgeekhDugaar = "72002002";
 
     const { baiguullagiinId, utas, purpose: purposeRaw } = req.body;
-    const purpose =
-      purposeRaw === "register" || purposeRaw === "signup"
-        ? "registration"
-        : purposeRaw || "password_reset";
+    
+    // Canonicalize purpose to match enum: ["password_reset", "registration", "login", "signup"]
+    // We already added "signup" to the model enum, but we map common variations for robustness.
+    let purpose = purposeRaw || "password_reset";
+    if (purpose === "register") purpose = "registration";
+    if (purpose === "signup") purpose = "registration"; // Most apps use registration
+    if (purpose === "forgot_password") purpose = "password_reset";
+
+    console.log(`[OTP] Generating code for ${utas} (${purpose}) at org ${baiguullagiinId}`);
 
     if (!baiguullagiinId || !utas) {
       return res.status(400).json({
@@ -4593,11 +4598,12 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
 exports.dugaarBatalgaajuulakh = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
-    const purposeRaw = req.body.purpose || "password_reset"; // "registration" | "register" | "signup" | "password_reset"
-    const purpose =
-      purposeRaw === "register" || purposeRaw === "signup"
-        ? "registration"
-        : purposeRaw;
+    const purposeRaw = req.body.purpose || "password_reset";
+    
+    // Canonicalize purpose for verification lookup
+    let purpose = purposeRaw;
+    if (purpose === "register" || purpose === "signup") purpose = "registration";
+    if (purpose === "forgot_password") purpose = "password_reset";
 
     if (!baiguullagiinId || !utas || !code) {
       return res.status(400).json({
