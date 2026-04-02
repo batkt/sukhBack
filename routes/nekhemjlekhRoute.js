@@ -5,6 +5,7 @@ const { crud, UstsanBarimt, tokenShalgakh } = require("zevbackv2");
 const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh.js");
 const {
   downloadNekhemjlekhiinTuukhExcel,
+  downloadExcelList,
 } = require("../controller/excelImportController");
 const {
   previewInvoice,
@@ -24,6 +25,12 @@ router.post(
   "/nekhemjlekhiinTuukhExcelDownload",
   tokenShalgakh,
   downloadNekhemjlekhiinTuukhExcel,
+);
+
+router.post(
+  "/generateGenericExcel",
+  tokenShalgakh,
+  downloadExcelList,
 );
 
 // Emit tulburUpdated on delete of invoices so web clients refresh
