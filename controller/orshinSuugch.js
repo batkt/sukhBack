@@ -1825,7 +1825,7 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
     // Send SMS verification code on login
     // Frontend will handle verification status in local storage
     // TEMPORARILY DISABLED: SMS sending for login
-    const ENABLE_LOGIN_SMS = true; // Set to true to re-enable SMS verification on login
+    const ENABLE_LOGIN_SMS = false; // Set to true to re-enable SMS verification on login
 
     if (ENABLE_LOGIN_SMS) {
       try {
@@ -4484,7 +4484,7 @@ exports.utasBatalgaajuulakhLogin = asyncHandler(async (req, res, next) => {
   try {
     const { baiguullagiinId, utas, code } = req.body;
 
-    const ENABLE_LOGIN_SMS = true; 
+    const ENABLE_LOGIN_SMS = false; 
 
     if (!ENABLE_LOGIN_SMS) {
       const { db } = require("zevbackv2");
