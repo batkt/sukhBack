@@ -817,10 +817,11 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
     }
 
     // Continue with custom QPay (OWN_ORG or fallback)
-    if (!req.body.tukhainBaaziinKholbolt && req.body.baiguullagiinId) {
-      req.body.tukhainBaaziinKholbolt = db.kholboltuud.find(
+    if (req.body.baiguullagiinId) {
+      const kholbolt = db.kholboltuud.find(
         (k) => String(k.baiguullagiinId) === String(req.body.baiguullagiinId),
       );
+      if (kholbolt) req.body.tukhainBaaziinKholbolt = kholbolt;
     }
 
     var maxDugaar = 1;
@@ -1314,7 +1315,22 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
 
 router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
   try {
-    const khariu = await qpayShalgay(req.body, req.body.tukhainBaaziinKholbolt);
+    const { db } = require("zevbackv2");
+    let baiguullagiinId = req.body.baiguullagiinId;
+    let tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+
+    // Resolve connection object correctly
+    if (baiguullagiinId) {
+      const kholbolt = db.kholboltuud.find(
+        (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
+      );
+      if (kholbolt) {
+        tukhainBaaziinKholbolt = kholbolt;
+        req.body.tukhainBaaziinKholbolt = kholbolt;
+      }
+    }
+
+    const khariu = await qpayShalgay(req.body, tukhainBaaziinKholbolt);
     res.send(khariu);
   } catch (err) {
     // If QPay API itself returns 500, try to fall back to DB invoice status
@@ -1327,7 +1343,7 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
       if (invoiceId) {
         // Look up in QuickQpayObject by invoice_id
         let kholbolt = req.body.tukhainBaaziinKholbolt;
-        if (!kholbolt && baiguullagiinId) {
+        if ((!kholbolt || typeof kholbolt !== "object") && baiguullagiinId) {
           kholbolt = db.kholboltuud.find(
             (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
           );
