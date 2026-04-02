@@ -78,6 +78,12 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
         throw new aldaa("Холболтын мэдээлэл олдсонгүй!");
       }
 
+      // If the frontend supplies exact pre-calculated and pre-filtered table data,
+      // bypass the legacy DB query and immediately process it directly into Excel.
+      if (req.body.data && Array.isArray(req.body.data) && req.body.data.length > 0) {
+        return exports.downloadExcelList(req, res, next);
+      }
+
       const { baiguullagiinId, barilgiinId, filters } = req.body;
 
       // Build query
