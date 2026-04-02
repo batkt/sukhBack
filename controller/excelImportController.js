@@ -1,5 +1,6 @@
 const asyncHandler = require("express-async-handler");
 const XLSX = require("xlsx");
+const excel = require("exceljs");
 const OrshinSuugch = require("../models/orshinSuugch");
 const Baiguullaga = require("../models/baiguullaga");
 const Geree = require("../models/geree");
@@ -838,32 +839,114 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
 
 exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
   try {
-    // Building detection is automatic based on davkhar + orts + toot combination
-    const headers = ["Овог", "Нэр", "Утас", "Имэйл", "Орц", "Давхар", "Тоот", "Эхний үлдэгдэл", "Цахилгаан кВт", "Тайлбар"];
+    const { db } = require("zevbackv2");
+    const Baiguullaga = require("../models/baiguullaga");
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const { baiguullagiinId, barilgiinId } = req.query;
 
-    const colWidths = [
-      { wch: 15 }, // Овог
-      { wch: 15 }, // Нэр
-      { wch: 12 }, // Утас
-      { wch: 25 }, // Имэйл
-      { wch: 10 }, // Орц
-      { wch: 10 }, // Давхар
-      { wch: 10 }, // Тоот
-      { wch: 15 }, // Эхний үлдэгдэл
-      { wch: 15 }, // Цахилгаан кВт
-      { wch: 30 }, // Тайлбар
+    let ortsList = ["1"]; // Default
+    let davkharList = [];
+
+    if (baiguullagiinId && barilgiinId) {
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+      if (baiguullaga) {
+        const targetBarilga = baiguullaga.barilguud?.find(
+          (b) => String(b._id) === String(barilgiinId)
+        );
+
+        if (targetBarilga) {
+          const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+          const ortsSet = new Set();
+          const davkharSet = new Set();
+
+          Object.keys(davkhariinToonuud).forEach((key) => {
+            if (key.includes("::")) {
+              const parts = key.split("::");
+              if (parts.length === 2) {
+                ortsSet.add(parts[0].trim());
+                davkharSet.add(parts[1].trim());
+              }
+            } else {
+              davkharSet.add(key.trim());
+            }
+          });
+
+          // Fallback to directly stored floors if set is empty
+          if (davkharSet.size === 0 && targetBarilga.tokhirgoo?.davkhar) {
+            targetBarilga.tokhirgoo.davkhar.forEach((f) => davkharSet.add(String(f).trim()));
+          }
+
+          if (ortsSet.size > 0) {
+            ortsList = Array.from(ortsSet).sort((a, b) => {
+              const numA = parseInt(a);
+              const numB = parseInt(b);
+              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+              return a.localeCompare(b);
+            });
+          }
+
+          if (davkharSet.size > 0) {
+            davkharList = Array.from(davkharSet).sort((a, b) => {
+              const numA = parseInt(a);
+              const numB = parseInt(b);
+              if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+              return a.localeCompare(b);
+            });
+          }
+        }
+      }
+    }
+
+    const headers = [
+      "Овог",
+      "Нэр",
+      "Утас",
+      "Имэйл",
+      "Орц",
+      "Давхар",
+      "Тоот",
+      "Эхний үлдэгдэл",
+      "Цахилгаан кВт",
+      "Тайлбар",
     ];
-    ws["!cols"] = colWidths;
 
-    XLSX.utils.book_append_sheet(wb, ws, "Хэрэглэгч бүртгэх");
+    let workbook = new excel.Workbook();
+    let worksheet = workbook.addWorksheet("Хэрэглэгч бүртгэх");
 
-    const excelBuffer = XLSX.write(wb, {
-      type: "buffer",
-      bookType: "xlsx",
-    });
+    worksheet.columns = headers.map((h, i) => ({
+      header: h,
+      key: h,
+      width: [15, 15, 12, 25, 10, 10, 10, 15, 15, 30][i] || 15,
+    }));
+
+    // Add dropdowns for Орц (Column E - index 5, 1-indexed for formula range is easier or just use A1 notation)
+    // Column E is 5, Column F is 6
+    const ortsFormula = `"${ortsList.join(",")}"`;
+    const davkharFormula =
+      davkharList.length > 0 ? `"${davkharList.join(",")}"` : null;
+
+    // Apply data validation to rows 2 to 1000
+    if (ortsFormula) {
+      worksheet.dataValidations.add("E2:E1000", {
+        type: "list",
+        allowBlank: true,
+        formulae: [ortsFormula],
+        showErrorMessage: true,
+        errorStyle: "error",
+        error: "Жагсаалтаас сонгоно уу!",
+      });
+    }
+
+    if (davkharFormula) {
+      worksheet.dataValidations.add("F2:F1000", {
+        type: "list",
+        allowBlank: true,
+        formulae: [davkharFormula],
+        showErrorMessage: true,
+        errorStyle: "error",
+        error: "Жагсаалтаас сонгоно уу!",
+      });
+    }
 
     res.setHeader(
       "Content-Type",
@@ -874,7 +957,8 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       `attachment; filename="orshinSuugch_import_template_${Date.now()}.xlsx"`
     );
 
-    res.send(excelBuffer);
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (error) {
     next(error);
   }
