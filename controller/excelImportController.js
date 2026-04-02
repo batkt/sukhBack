@@ -847,6 +847,7 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
     let ortsList = ["1"]; // Default
     let davkharList = [];
 
+    // Fetch building structure if IDs are provided
     if (baiguullagiinId && barilgiinId) {
       const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
       if (baiguullaga) {
@@ -919,15 +920,13 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       width: [15, 15, 12, 25, 10, 10, 10, 15, 15, 30][i] || 15,
     }));
 
-    // Add dropdowns for Орц (Column E - index 5, 1-indexed for formula range is easier or just use A1 notation)
-    // Column E is 5, Column F is 6
+    // Data validation for Orts (Column E) and Davkhar (Column F)
     const ortsFormula = `"${ortsList.join(",")}"`;
-    const davkharFormula =
-      davkharList.length > 0 ? `"${davkharList.join(",")}"` : null;
+    const davkharFormula = davkharList.length > 0 ? `"${davkharList.join(",")}"` : null;
 
-    // Apply data validation to rows 2 to 1000
-    if (ortsFormula) {
-      worksheet.dataValidations.add("E2:E1000", {
+    // Apply to rows 2 to 2000
+    if (ortsFormula && ortsFormula.length < 255) {
+      worksheet.dataValidations.add("E2:E2000", {
         type: "list",
         allowBlank: true,
         formulae: [ortsFormula],
@@ -937,8 +936,8 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       });
     }
 
-    if (davkharFormula) {
-      worksheet.dataValidations.add("F2:F1000", {
+    if (davkharFormula && davkharFormula.length < 255) {
+      worksheet.dataValidations.add("F2:F2000", {
         type: "list",
         allowBlank: true,
         formulae: [davkharFormula],
@@ -2428,6 +2427,7 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
         });
       }
     }
+    
 
     res.json({
       success: true,
