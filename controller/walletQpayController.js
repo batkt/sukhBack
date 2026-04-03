@@ -616,27 +616,11 @@ exports.getWalletQpayList = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    const rawPayments = await WalletInvoice(db.erunkhiiKholbolt)
+    const payments = await WalletInvoice(db.erunkhiiKholbolt)
       .find({ userId: userPhone })
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
-      
-    // Parallelize paid-status lookups for performance
-    const payments = await Promise.all(rawPayments.map(async (p) => {
-       const qpayObject = await QuickQpayObject(db.kholboltuud.find(k => String(k.baiguullagiinId) === String(p.baiguullagiinId))).findOne({
-         $or: [
-           { walletPaymentId: p.walletPaymentId },
-           { zakhialgiinDugaar: p.zakhialgiinDugaar }
-         ]
-       }).select('tulsunEsekh updatedAt').lean();
-       
-       return {
-         ...p,
-         tulsunEsekh: qpayObject?.tulsunEsekh || false,
-         updatedAt: qpayObject?.updatedAt || p.updatedAt
-       };
-    }));
       
     res.status(200).json({
       success: true,
@@ -650,9 +634,9 @@ exports.getWalletQpayList = asyncHandler(async (req, res, next) => {
 
 exports.debugWalletCheck = asyncHandler(async (req, res, next) => {
   const { db } = require("zevbackv2");
-  const { baiguullagiinId, walletPaymentId: searchId } = req.params;
+  const { baiguullagiinId, walletPaymentId } = req.params;
 
-  console.log(`🔍 [WALLET CHECK] baiguullagiinId=${baiguullagiinId}, searchId=${searchId}`);
+  console.log(`🔍 [WALLET CHECK] baiguullagiinId=${baiguullagiinId}, walletPaymentId=${walletPaymentId}`);
 
   const tukhainBaaziinKholbolt = db.kholboltuud.find(
     (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
@@ -661,53 +645,36 @@ exports.debugWalletCheck = asyncHandler(async (req, res, next) => {
     return res.status(404).json({ success: false, message: "Organization not found" });
   }
 
-  /* ── 1. Find the local QPay record and metadata ── */
-  const [qpayObject, walletInvoiceDoc] = await Promise.all([
-    QuickQpayObject(tukhainBaaziinKholbolt).findOne({
-      $or: [
-        { walletPaymentId: searchId },
-        { zakhialgiinDugaar: searchId }
-      ]
-    }).lean(),
-    WalletInvoice(db.erunkhiiKholbolt).findOne({
-      $or: [
-        { walletPaymentId: searchId },
-        { zakhialgiinDugaar: searchId }
-      ]
-    }).lean()
-  ]);
+  /* ── 1. Find userId from WalletInvoice metadata ── */
+  let userId = null;
+  try {
+    const walletInvoiceDoc = await WalletInvoice(db.erunkhiiKholbolt)
+      .findOne({ walletPaymentId })
+      .lean();
+    userId = walletInvoiceDoc?.userId || null;
+  } catch (err) {
+    console.warn("⚠️ [WALLET CHECK] Metadata lookup failed:", err.message);
+  }
 
-  // Use the canonical walletPaymentId and userId from our records
-  const walletPaymentId = qpayObject?.walletPaymentId || walletInvoiceDoc?.walletPaymentId || (searchId.length > 30 ? searchId : null);
-  const userId = walletInvoiceDoc?.userId || qpayObject?.userId;
-
-  if (!walletPaymentId) {
+  if (!userId) {
     return res.status(404).json({
       success: false,
-      message: "Could not find a valid walletPaymentId for this identifier.",
-      searchId
+      message: "Could not find userId for this payment in local metadata. Check your walletPaymentId.",
     });
   }
 
-  /* ── 2. Call Wallet API for the real meat (VAT info, etc) ── */
+  /* ── 2. Call Wallet API ── */
   try {
-    let payment = null;
-    if (userId) {
-      payment = await walletApiService.getPayment(userId, walletPaymentId);
-    } else {
-      // Last-ditch attempt if userId is missing but we have orshinSuugch profile
-      const orshinSuugch = await getOrshinSuugchFromToken(req);
-      if (orshinSuugch?.utas) {
-        payment = await walletApiService.getPayment(orshinSuugch.utas, walletPaymentId);
-      }
-    }
+    const [payment, qpayObject] = await Promise.all([
+      walletApiService.getPayment(userId, walletPaymentId),
+      QuickQpayObject(tukhainBaaziinKholbolt).findOne({ walletPaymentId }).lean()
+    ]);
 
     res.json({
       success: true,
       walletPaymentId,
-      zakhialgiinDugaar: qpayObject?.zakhialgiinDugaar || walletInvoiceDoc?.zakhialgiinDugaar,
-      userId: userId || "unknown",
-      tulsunEsekh: qpayObject?.tulsunEsekh || walletInvoiceDoc?.tulsunEsekh || false,
+      userId,
+      tulsunEsekh: qpayObject?.tulsunEsekh || false,
       data: payment,
     });
   } catch (err) {
