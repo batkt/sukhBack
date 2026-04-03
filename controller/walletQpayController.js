@@ -703,6 +703,8 @@ async function settleWalletPayment(
 
   if (userId) {
     try {
+      // ── Read receiver details from bank_accounts[0] (actual QPay schema field) ──
+      const bankAccount = qpayObject.qpay?.bank_accounts?.[0] || {};
       const paidByQpayData = {
         qpayPaymentId: qpayPaymentId,
         trxDate: trxDate,
@@ -710,9 +712,9 @@ async function settleWalletPayment(
         trxDescription:
           qpayObject.qpay?.description || `WalletQPay-${walletPaymentId}`,
         amount: trxAmount,
-        receiverBankCode: qpayObject.qpay?.receiver_bank_code || "",
-        receiverAccountNo: qpayObject.qpay?.receiver_account_number || "",
-        receiverAccountName: qpayObject.qpay?.receiver_account_name || "",
+        receiverBankCode: bankAccount.account_bank_code || "",
+        receiverAccountNo: bankAccount.account_number || "",
+        receiverAccountName: bankAccount.account_name || "",
       };
 
       console.log(
@@ -735,8 +737,8 @@ async function settleWalletPayment(
         bankGuilgee.description =
           qpayObject.qpay?.description ||
           `QPay төлбөр (Wallet) - ${walletPaymentId}`;
-        bankGuilgee.accName = qpayObject.qpay?.receiver_account_name || "";
-        bankGuilgee.accNum = qpayObject.qpay?.receiver_account_number || "";
+        bankGuilgee.accName = bankAccount.account_name || "";
+        bankGuilgee.accNum = bankAccount.account_number || "";
 
         bankGuilgee.record = walletPaymentId;
         bankGuilgee.tranId = qpayPaymentId || walletPaymentId;
@@ -748,7 +750,7 @@ async function settleWalletPayment(
           ? [qpayObject.talbainDugaar]
           : [];
         bankGuilgee.dansniiDugaar =
-          qpayObject.qpay?.receiver_account_number || "";
+          bankAccount.account_number || "";
         bankGuilgee.bank = "qpay";
         bankGuilgee.baiguullagiinId = baiguullagiinId;
         bankGuilgee.barilgiinId = qpayObject.barilgiinId || "";
