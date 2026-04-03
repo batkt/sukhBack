@@ -616,11 +616,27 @@ exports.getWalletQpayList = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    const payments = await WalletInvoice(db.erunkhiiKholbolt)
+    const rawPayments = await WalletInvoice(db.erunkhiiKholbolt)
       .find({ userId: userPhone })
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
+      
+    // Parallelize paid-status lookups for performance
+    const payments = await Promise.all(rawPayments.map(async (p) => {
+       const qpayObject = await QuickQpayObject(db.kholboltuud.find(k => String(k.baiguullagiinId) === String(p.baiguullagiinId))).findOne({
+         $or: [
+           { walletPaymentId: p.walletPaymentId },
+           { zakhialgiinDugaar: p.zakhialgiinDugaar }
+         ]
+       }).select('tulsunEsekh updatedAt').lean();
+       
+       return {
+         ...p,
+         tulsunEsekh: qpayObject?.tulsunEsekh || false,
+         updatedAt: qpayObject?.updatedAt || p.updatedAt
+       };
+    }));
       
     res.status(200).json({
       success: true,
