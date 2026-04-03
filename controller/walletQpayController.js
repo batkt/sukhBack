@@ -715,11 +715,16 @@ exports.debugWalletCheck = asyncHandler(async (req, res, next) => {
 
   /* ── 2. Call Wallet API ── */
   try {
-    const payment = await walletApiService.getPayment(userId, walletPaymentId);
+    const [payment, qpayObject] = await Promise.all([
+      walletApiService.getPayment(userId, walletPaymentId),
+      QuickQpayObject(tukhainBaaziinKholbolt).findOne({ walletPaymentId }).lean()
+    ]);
+
     res.json({
       success: true,
       walletPaymentId,
       userId,
+      tulsunEsekh: qpayObject?.tulsunEsekh || false,
       data: payment,
     });
   } catch (err) {
