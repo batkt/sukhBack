@@ -740,8 +740,13 @@ exports.resyncWalletPayment = asyncHandler(async (req, res, next) => {
     }
   }
 
-  // Last-resort fallback: use legacy_id stored on the QPay object
-  // (QPay saves this as the payment reference even if payment_id is not set)
+  // Fallback 1: invoice_id — this is what the Wallet Service expects as qpayPaymentId
+  if (!qpayPaymentId && qpayObject.invoice_id) {
+    qpayPaymentId = qpayObject.invoice_id;
+    console.log(`ℹ️ [WALLET QPAY RESYNC] Using invoice_id as qpayPaymentId: ${qpayPaymentId}`);
+  }
+
+  // Fallback 2: legacy_id
   if (!qpayPaymentId && qpayObject.legacy_id) {
     qpayPaymentId = String(qpayObject.legacy_id);
     console.log(`ℹ️ [WALLET QPAY RESYNC] Using legacy_id as qpayPaymentId: ${qpayPaymentId}`);
@@ -859,7 +864,8 @@ async function settleWalletPayment(
   }
 
   /* ── 2. Get QPay details if needed ── */
-  let qpayPaymentId = qpayPaymentIdFromRequest || qpayObject.payment_id || "";
+  // qpayPaymentId = QPay invoice_id is what the Wallet Service expects
+  let qpayPaymentId = qpayPaymentIdFromRequest || qpayObject.payment_id || qpayObject.invoice_id || "";
   let trxNo = "";
   let trxDate = new Date().toISOString();
   let trxAmount = parseFloat(qpayObject.qpay?.amount || 0);
