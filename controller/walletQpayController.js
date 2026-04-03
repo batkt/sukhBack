@@ -803,6 +803,82 @@ exports.debugBillCheck = asyncHandler(async (req, res, next) => {
 });
 
 // ──────────────────────────────────────────────────────
+//  GET /walletQpay/easy-check/:baiguullagiinId/:walletPaymentId
+//  Debug: Trace Easy Register lookup logic for a payment
+// ──────────────────────────────────────────────────────
+exports.debugEasyCheck = asyncHandler(async (req, res, next) => {
+  const { db } = require("zevbackv2");
+  const { baiguullagiinId, walletPaymentId } = req.params;
+
+  console.log(`🔍 [EASY CHECK] baiguullagiinId=${baiguullagiinId}, walletPaymentId=${walletPaymentId}`);
+
+  const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+  if (!tukhainBaaziinKholbolt) {
+    return res.status(404).json({ success: false, message: "Organization not found" });
+  }
+
+  /* ── 1. Find WalletInvoice metadata ── */
+  let walletDoc = null;
+  try {
+    const WalletInvoice = require("../models/walletInvoice");
+    walletDoc = await WalletInvoice(db.erunkhiiKholbolt)
+      .findOne({ walletPaymentId })
+      .lean();
+  } catch (err) {
+    console.warn("⚠️ [EASY CHECK] WalletInvoice lookup failed:", err.message);
+  }
+
+  const orshinSuugchId = walletDoc?.orshinSuugchId || null;
+  const userId = walletDoc?.userId || null;
+
+  /* ── 2. Find EasyRegisterUser ── */
+  let easyUser = null;
+  try {
+    easyUser = await EasyRegisterUser(tukhainBaaziinKholbolt).findOne({
+      $or: [
+        { orshinSuugchiinId: orshinSuugchId },
+        { phoneNum: userId }
+      ].filter(f => f[Object.keys(f)[0]]),
+      ustgasan: { $ne: true },
+    }).sort({ createdAt: -1 }).lean();
+  } catch (err) {
+    console.warn("⚠️ [EASY CHECK] EasyRegisterUser lookup failed:", err.message);
+  }
+
+  res.json({
+    success: true,
+    walletPaymentId,
+    metadataFound: !!walletDoc,
+    mapping: {
+      userId,
+      orshinSuugchId
+    },
+    easyRegisterProfile: easyUser ? {
+      found: true,
+      _id: easyUser._id,
+      loginName: easyUser.loginName,
+      regNo: easyUser.regNo,
+      phoneNum: easyUser.phoneNum,
+      orshinSuugchiinId: easyUser.orshinSuugchiinId,
+      givenName: easyUser.givenName
+    } : {
+      found: false,
+      message: "No matching profile found for these identifiers."
+    },
+    dryRunResult: easyUser && easyUser.loginName ? {
+      willApprove: true,
+      targetIdentifier: easyUser.loginName,
+      reason: "Matched via " + (easyUser.orshinSuugchiinId === orshinSuugchId ? "Resident ID" : "Phone Number")
+    } : {
+      willApprove: false,
+      reason: "No profile or loginName found."
+    }
+  });
+});
+
+// ──────────────────────────────────────────────────────
 //  POST /walletQpay/resync/:baiguullagiinId/:walletPaymentId
 //  Admin-only: force re-call Wallet paidByQpay for a payment
 //  that was locally marked paid but Wallet Service still shows NEW.
@@ -1285,7 +1361,7 @@ async function handleWalletEbarimt(
       return;
     }
 
-    // Save locally to EbarimtShine
+    // 1. Save locally to EbarimtShine
     const ebarimt = new (EbarimtShine(tukhainBaaziinKholbolt))();
     ebarimt.id = vat.vatDdtd;
     ebarimt.receiptId = vat.vatDdtd;
@@ -1300,7 +1376,7 @@ async function handleWalletEbarimt(
     ebarimt.date = new Date().toISOString();
     ebarimt.dateOgnoo = new Date();
     ebarimt.createdAt = new Date();
-    
+
     // Dynamic B2C/B2B handling
     if (vat.vatCustomerTin) {
       ebarimt.type = "B2B_RECEIPT";
@@ -1312,7 +1388,7 @@ async function handleWalletEbarimt(
     await ebarimt.save();
     console.log(`✅ [WALLET EBARIMT] Saved local ebarimt: ${vat.vatDdtd}`);
 
-    // Update BankniiGuilgee record to reflect e-barimt status
+    // 2. Update BankniiGuilgee record to reflect e-barimt status
     try {
       const BankniiGuilgee = require("../models/bankniiGuilgee");
       await BankniiGuilgee(tukhainBaaziinKholbolt).updateMany(
@@ -1326,20 +1402,38 @@ async function handleWalletEbarimt(
       );
     }
 
-    // Auto-approve to Easy Register locally
+    // 3. Auto-approve to Easy Register
+    // Find the WalletInvoice metadata first to get the orshinSuugchId
+    let orshinSuugchId = null;
+    try {
+      const WalletInvoice = require("../models/walletInvoice");
+      const walletDoc = await WalletInvoice(db.erunkhiiKholbolt)
+        .findOne({ walletPaymentId })
+        .lean();
+      orshinSuugchId = walletDoc?.orshinSuugchId || null;
+    } catch (e) {}
+
+    // Search by orshinSuugchiinId OR phoneNum for maximum reliability
     const easyUser = await EasyRegisterUser(tukhainBaaziinKholbolt).findOne({
-      phoneNum: userId,
+      $or: [
+        { orshinSuugchiinId: orshinSuugchId },
+        { phoneNum: userId }
+      ].filter(f => f[Object.keys(f)[0]]), // Only include if NOT null/empty
       ustgasan: { $ne: true },
-    });
+    }).sort({ createdAt: -1 });
 
     if (easyUser && easyUser.loginName) {
-      console.log(`📦 [WALLET EBARIMT] Auto-approving for easyUser: ${easyUser.loginName}`);
+      console.log(
+        `📦 [WALLET EBARIMT] Auto-approving for easyUser: ${easyUser.loginName} (regNo: ${easyUser.regNo})`
+      );
       await autoApproveQr(
         easyUser.loginName,
         vat.vatQrData,
         baiguullagiinId,
         tukhainBaaziinKholbolt
       );
+    } else {
+      console.log(`ℹ️ [WALLET EBARIMT] Easy Register Profile not found for this user. Skipping auto-approve.`);
     }
   } catch (err) {
     console.error("❌ [WALLET EBARIMT] Error handling ebarimt:", err.message);

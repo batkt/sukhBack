@@ -96,6 +96,16 @@ router.get(
 );
 
 /**
+ * @route GET /walletQpay/easy-check/:baiguullagiinId/:walletPaymentId
+ * @desc  Debug: Dry run check to see which Easy Register user matches a payment
+ * @access Public (admin use)
+ */
+router.get(
+  "/walletQpay/easy-check/:baiguullagiinId/:walletPaymentId",
+  walletQpayController.debugEasyCheck
+);
+
+/**
  * @route POST /walletQpay/resync/:baiguullagiinId/:walletPaymentId
  * @desc  Admin: force re-sync a stuck payment to the Wallet Service.
  *        Use when local tulsunEsekh=true but Wallet API still shows NEW.
