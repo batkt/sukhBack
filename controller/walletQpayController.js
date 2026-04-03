@@ -633,6 +633,147 @@ exports.getWalletQpayList = asyncHandler(async (req, res, next) => {
 });
 
 // ──────────────────────────────────────────────────────
+//  POST /walletQpay/resync/:baiguullagiinId/:walletPaymentId
+//  Admin-only: force re-call Wallet paidByQpay for a payment
+//  that was locally marked paid but Wallet Service still shows NEW.
+//  Also re-triggers ebarimt sync if VAT was missing.
+// ──────────────────────────────────────────────────────
+exports.resyncWalletPayment = asyncHandler(async (req, res, next) => {
+  const { db } = require("zevbackv2");
+  const { baiguullagiinId, walletPaymentId } = req.params;
+
+  console.log(`🔄 [WALLET QPAY RESYNC] baiguullagiinId=${baiguullagiinId}, walletPaymentId=${walletPaymentId}`);
+
+  const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+  if (!tukhainBaaziinKholbolt) {
+    return res.status(404).json({ success: false, message: "Organization not found" });
+  }
+
+  /* ── 1. Find the local QPay object ── */
+  let qpayObject = await QuickQpayObject(tukhainBaaziinKholbolt).findOne({
+    walletPaymentId,
+  });
+
+  if (!qpayObject) {
+    qpayObject = await QuickQpayObject(tukhainBaaziinKholbolt).findOne({
+      "qpay.callback_url": { $regex: walletPaymentId },
+    });
+  }
+
+  if (!qpayObject) {
+    return res.status(404).json({ success: false, message: "QPay object not found for this walletPaymentId" });
+  }
+
+  /* ── 2. Get QPay transaction details ── */
+  let qpayPaymentId = qpayObject.payment_id || "";
+  let trxNo = "";
+  let trxDate = new Date().toISOString();
+  let trxAmount = parseFloat(qpayObject.qpay?.amount || 0);
+
+  if (qpayObject.invoice_id) {
+    try {
+      const checkResult = await qpayShalgay(
+        { invoice_id: qpayObject.invoice_id },
+        tukhainBaaziinKholbolt
+      );
+      if (checkResult?.payments?.[0]) {
+        const payment = checkResult.payments[0];
+        qpayPaymentId = payment.payment_id || qpayPaymentId;
+        if (payment.transactions?.[0]) {
+          trxNo = payment.transactions[0].id || "";
+          trxDate = payment.transactions[0].settlement_date || trxDate;
+          trxAmount = payment.transactions[0].amount || trxAmount;
+        }
+      }
+    } catch (err) {
+      console.warn("⚠️ [WALLET QPAY RESYNC] QPay check failed:", err.message);
+    }
+  }
+
+  /* ── 3. Store qpayPaymentId if we now have it ── */
+  if (qpayPaymentId && qpayPaymentId !== qpayObject.payment_id) {
+    qpayObject.payment_id = qpayPaymentId;
+    qpayObject.tulsunEsekh = true;
+    await qpayObject.save();
+  }
+
+  /* ── 4. Find userId from WalletInvoice ── */
+  const walletInvoiceId = qpayObject.walletInvoiceId || "";
+  let userId = null;
+  try {
+    const walletInvoiceDoc = await WalletInvoice(db.erunkhiiKholbolt)
+      .findOne({ $or: [{ walletInvoiceId }, { walletPaymentId }] })
+      .lean();
+    userId = walletInvoiceDoc?.userId || null;
+  } catch (err) {
+    console.warn("⚠️ [WALLET QPAY RESYNC] Error finding WalletInvoice:", err.message);
+  }
+
+  if (!userId) {
+    return res.status(400).json({
+      success: false,
+      message: "Could not find userId — cannot call Wallet Service without phone number",
+      qpayPaymentId,
+      trxNo,
+    });
+  }
+
+  /* ── 5. Re-call updateQPayPayment with correct receiver fields ── */
+  const bankAccount = qpayObject.qpay?.bank_accounts?.[0] || {};
+  const paidByQpayData = {
+    qpayPaymentId,
+    trxDate,
+    trxNo,
+    trxDescription: qpayObject.qpay?.description || `WalletQPay-${walletPaymentId}`,
+    amount: trxAmount,
+    receiverBankCode:    bankAccount.account_bank_code || "",
+    receiverAccountNo:   bankAccount.account_number    || "",
+    receiverAccountName: bankAccount.account_name      || "",
+  };
+
+  console.log(`📤 [WALLET QPAY RESYNC] Calling Wallet paidByQpay:`, JSON.stringify(paidByQpayData));
+
+  let walletSyncResult = null;
+  let walletSyncError = null;
+  try {
+    walletSyncResult = await walletApiService.updateQPayPayment(userId, walletPaymentId, paidByQpayData);
+    console.log(`✅ [WALLET QPAY RESYNC] Wallet paidByQpay success`);
+  } catch (err) {
+    walletSyncError = err.message;
+    console.error(`❌ [WALLET QPAY RESYNC] Wallet paidByQpay failed:`, err.message);
+  }
+
+  /* ── 6. Re-trigger ebarimt sync ── */
+  let ebarimtTriggered = false;
+  try {
+    await handleWalletEbarimt(userId, walletPaymentId, baiguullagiinId, tukhainBaaziinKholbolt);
+    ebarimtTriggered = true;
+  } catch (err) {
+    console.error("❌ [WALLET QPAY RESYNC] Ebarimt re-sync failed:", err.message);
+  }
+
+  res.json({
+    success: !walletSyncError,
+    walletPaymentId,
+    qpayPaymentId,
+    trxNo,
+    trxDate,
+    trxAmount,
+    receiverBankCode:    bankAccount.account_bank_code || "",
+    receiverAccountNo:   bankAccount.account_number    || "",
+    receiverAccountName: bankAccount.account_name      || "",
+    walletSyncResult,
+    walletSyncError,
+    ebarimtTriggered,
+    message: walletSyncError
+      ? `Wallet sync failed: ${walletSyncError}`
+      : "Re-sync complete — Wallet Service notified successfully",
+  });
+});
+
+// ──────────────────────────────────────────────────────
 //  Helpers for Unified E-barimt / Easy Register
 // ──────────────────────────────────────────────────────
 

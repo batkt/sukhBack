@@ -65,4 +65,15 @@ router.get(
   walletQpayController.getWalletQpayList
 );
 
+/**
+ * @route POST /walletQpay/resync/:baiguullagiinId/:walletPaymentId
+ * @desc  Admin: force re-sync a stuck payment to the Wallet Service.
+ *        Use when local tulsunEsekh=true but Wallet API still shows NEW.
+ * @access Public (internal admin use — protect with firewall/IP if needed)
+ */
+router.post(
+  "/walletQpay/resync/:baiguullagiinId/:walletPaymentId",
+  walletQpayController.resyncWalletPayment
+);
+
 module.exports = router;
