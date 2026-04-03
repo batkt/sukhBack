@@ -86,6 +86,16 @@ router.get(
 );
 
 /**
+ * @route GET /walletQpay/bill-check/:baiguullagiinId/:billId
+ * @desc  Debug: Find Wallet payment status by Bill ID (e.g. 438895172)
+ * @access Public (admin use)
+ */
+router.get(
+  "/walletQpay/bill-check/:baiguullagiinId/:billId",
+  walletQpayController.debugBillCheck
+);
+
+/**
  * @route POST /walletQpay/resync/:baiguullagiinId/:walletPaymentId
  * @desc  Admin: force re-sync a stuck payment to the Wallet Service.
  *        Use when local tulsunEsekh=true but Wallet API still shows NEW.

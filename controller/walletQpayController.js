@@ -732,6 +732,72 @@ exports.debugWalletCheck = asyncHandler(async (req, res, next) => {
 });
 
 // ──────────────────────────────────────────────────────
+//  GET /walletQpay/bill-check/:baiguullagiinId/:billId
+//  Debug: Find Wallet payment status by a specific Bill ID
+// ──────────────────────────────────────────────────────
+exports.debugBillCheck = asyncHandler(async (req, res, next) => {
+  const { db } = require("zevbackv2");
+  const { baiguullagiinId, billId } = req.params;
+
+  console.log(`🔍 [BILL CHECK] baiguullagiinId=${baiguullagiinId}, billId=${billId}`);
+
+  const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+  if (!tukhainBaaziinKholbolt) {
+    return res.status(404).json({ success: false, message: "Organization not found" });
+  }
+
+  /* ── 1. Find WalletInvoice by Bill ID ── */
+  let walletInvoices = [];
+  try {
+    walletInvoices = await WalletInvoice(db.erunkhiiKholbolt)
+      .find({ billIds: billId })
+      .sort({ createdAt: -1 })
+      .lean();
+  } catch (err) {
+    console.warn("⚠️ [BILL CHECK] Metadata lookup failed:", err.message);
+  }
+
+  if (walletInvoices.length === 0) {
+    return res.status(404).json({
+      success: false,
+      billId,
+      message: "No Wallet payments found containing this Bill ID in local metadata.",
+    });
+  }
+
+  /* ── 2. Get status for the most recent attempt ── */
+  const doc = walletInvoices[0];
+  const walletPaymentId = doc.walletPaymentId;
+  const userId = doc.userId;
+
+  try {
+    const payment = await walletApiService.getPayment(userId, walletPaymentId);
+    res.json({
+      success: true,
+      found_in_attempts: walletInvoices.length,
+      walletPaymentId,
+      userId,
+      billId,
+      data: payment,
+      all_attempts: walletInvoices.map(i => ({
+        walletPaymentId: i.walletPaymentId,
+        createdAt: i.createdAt,
+        billingName: i.billingName
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: `Found record but Wallet API error: ${err.message}`,
+      walletPaymentId,
+      userId,
+    });
+  }
+});
+
+// ──────────────────────────────────────────────────────
 //  POST /walletQpay/resync/:baiguullagiinId/:walletPaymentId
 //  Admin-only: force re-call Wallet paidByQpay for a payment
 //  that was locally marked paid but Wallet Service still shows NEW.
