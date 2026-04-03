@@ -1,5 +1,6 @@
 const Ajiltan = require("../models/ajiltan");
-const ZasakhTuukh = require("../models/zasakhTuukh");
+const ZassanBarimt = require("../models/zassanBarimt");
+const ZasakhTuukh = require("../models/zasakhTuukh"); // Keep for dupe check / transition
 const UstgakhTuukh = require("../models/ustgakhTuukh");
 
 /**
@@ -124,10 +125,13 @@ function getChanges(oldDoc, newDoc, excludeFields = ["updatedAt", "__v", "_id"])
 
     // Deep comparison for objects/arrays
     if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+      // Structure for zassanBarimt.uurchlult
       changes.push({
-        field: key,
-        oldValue: oldValue,
-        newValue: newValue,
+        talbar: key,
+        talbarNer: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim(),
+        umnukhUtga: oldValue !== null && oldValue !== undefined ? String(oldValue) : "",
+        shineUtga: newValue !== null && newValue !== undefined ? String(newValue) : "",
+        utganiiTurul: typeof newValue,
       });
     }
   }
@@ -153,21 +157,19 @@ async function logEdit(req, db, modelName, documentId, oldDoc, newDoc, additiona
     }
 
     // --- DE-DUPLICATION CHECK ---
-    // Prevent logging the same change twice within a very short timeframe (2 seconds).
-    // This happens if multiple hooks (save, update) trigger for the same operation.
+    // Transition period: check both if possible, but mainly look for recent logs
     try {
       const twoSecondsAgo = new Date(Date.now() - 2000);
-      const duplicate = await ZasakhTuukh(db.erunkhiiKholbolt).findOne({
-        modelName: modelName,
-        documentId: documentId?.toString(),
+      const duplicate = await ZassanBarimt(db.erunkhiiKholbolt).findOne({
+        classType: modelName,
+        classId: documentId?.toString(),
         ajiltniiId: ajiltan.id,
-        ognoo: { $gte: twoSecondsAgo },
-        // Simple string comparison of changes to detect exact matches
-        changes: { $size: changes.length, $all: changes }
+        createdAt: { $gte: twoSecondsAgo },
+        // Compare changes array size
+        uurchlult: { $size: changes.length }
       }).lean();
 
       if (duplicate) {
-        // console.log(`[AUDIT] Skipping duplicate log for ${modelName}:${documentId}`);
         return;
       }
     } catch (dupErr) {
@@ -199,25 +201,30 @@ async function logEdit(req, db, modelName, documentId, oldDoc, newDoc, additiona
       }
     }
 
-    const zasakhTuukh = new ZasakhTuukh(db.erunkhiiKholbolt)({
-      modelName: modelName,
-      documentId: documentId?.toString(),
-      collectionName: modelName,
+    const classDugaar = newDoc?.gereeniiDugaar || 
+                      newDoc?.nekhemjlekhiinDugaar || 
+                      newDoc?.dugaar || 
+                      newDoc?.register || 
+                      "";
+    
+    const classOgnoo = newDoc?.ognoo || 
+                     newDoc?.createdAt || 
+                     new Date();
+
+    const zassanBarimt = new ZassanBarimt(db.erunkhiiKholbolt)({
+      baiguullagiinId: ajiltan.baiguullagiinId,
+      barilgiinId: additionalContext.barilgiinId || null,
+      classType: modelName,
+      className: modelName.charAt(0).toUpperCase() + modelName.slice(1).replace(/([A-Z])/g, ' $1').trim(),
+      classId: documentId?.toString(),
+      classDugaar: classDugaar?.toString() || "",
+      classOgnoo: classOgnoo,
       ajiltniiId: ajiltan.id,
       ajiltniiNer: ajiltan.ner,
-      ajiltniiNevtrekhNer: ajiltan.nevtrekhNer,
-      changes: changes,
-      documentCreatedAt: documentCreatedAt,
-      baiguullagiinId: ajiltan.baiguullagiinId,
-      baiguullagiinRegister: baiguullagiinRegister,
-      barilgiinId: additionalContext.barilgiinId || null,
-      ip: getIpFromRequest(req),
-      useragent: getUserAgentFromRequest(req),
-      method: req.method || "PUT",
-      ognoo: new Date(),
+      uurchlult: changes,
     });
 
-    await zasakhTuukh.save();
+    await zassanBarimt.save();
   } catch (err) {
     // Don't throw errors - audit logging should not break the main operation
     console.error("❌ [AUDIT] Error logging edit:", err.message);
