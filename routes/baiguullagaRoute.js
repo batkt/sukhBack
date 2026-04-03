@@ -733,4 +733,52 @@ router.post("/barilgaBurtgekh", tokenShalgakh, async (req, res, next) => {
   }
 });
 
+/**
+ * @route DELETE /baiguullaga/:baiguullagiinId/barilga/:barilgiinId
+ * @desc  Delete a specific building from an organization
+ * @access Private (tokenShalgakh)
+ */
+router.delete(
+  "/baiguullaga/:baiguullagiinId/barilga/:barilgiinId",
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      const { db } = require("zevbackv2");
+      const { baiguullagiinId, barilgiinId } = req.params;
+
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        baiguullagiinId,
+      );
+      if (!baiguullaga) {
+        return res.status(404).json({
+          success: false,
+          message: "Байгууллага олдсонгүй",
+        });
+      }
+
+      const barilgaIndex = baiguullaga.barilguud.findIndex(
+        (b) => String(b._id) === String(barilgiinId),
+      );
+      if (barilgaIndex === -1) {
+        return res.status(404).json({
+          success: false,
+          message: "Барилга олдсонгүй",
+        });
+      }
+
+      const deletedBarilgaName = baiguullaga.barilguud[barilgaIndex].ner;
+      baiguullaga.barilguud.splice(barilgaIndex, 1);
+      await baiguullaga.save();
+
+      res.json({
+        success: true,
+        message: `"${deletedBarilgaName}" барилга амжилттай устгагдлаа`,
+        deletedId: barilgiinId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
 module.exports = router;
