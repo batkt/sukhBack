@@ -633,6 +633,52 @@ exports.getWalletQpayList = asyncHandler(async (req, res, next) => {
 });
 
 // ──────────────────────────────────────────────────────
+//  GET /walletQpay/qpay-check/:baiguullagiinId/:invoiceId
+//  Debug: call QPay check directly and return raw payment data
+//  Use to find the qpayPaymentId for a stuck payment
+// ──────────────────────────────────────────────────────
+exports.debugQpayCheck = asyncHandler(async (req, res, next) => {
+  const { db } = require("zevbackv2");
+  const { baiguullagiinId, invoiceId } = req.params;
+
+  const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+  if (!tukhainBaaziinKholbolt) {
+    return res.status(404).json({ success: false, message: "Organization not found" });
+  }
+
+  try {
+    const result = await qpayShalgay(
+      { invoice_id: invoiceId },
+      tukhainBaaziinKholbolt
+    );
+    // Pull out the most useful identifiers for quick reading
+    const payments = result?.payments || [];
+    const summary = payments.map((p) => ({
+      payment_id:     p.payment_id,
+      payment_status: p.payment_status || p.status,
+      amount:         p.payment_amount,
+      transactions:   (p.transactions || []).map((t) => ({
+        id:              t.id,
+        amount:          t.amount,
+        settlement_date: t.settlement_date,
+      })),
+    }));
+
+    res.json({
+      success: true,
+      invoiceId,
+      paymentCount: payments.length,
+      summary,
+      raw: result,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ──────────────────────────────────────────────────────
 //  POST /walletQpay/resync/:baiguullagiinId/:walletPaymentId
 //  Admin-only: force re-call Wallet paidByQpay for a payment
 //  that was locally marked paid but Wallet Service still shows NEW.
@@ -667,11 +713,13 @@ exports.resyncWalletPayment = asyncHandler(async (req, res, next) => {
   }
 
   /* ── 2. Get QPay transaction details ── */
-  let qpayPaymentId = qpayObject.payment_id || "";
-  let trxNo = "";
-  let trxDate = new Date().toISOString();
-  let trxAmount = parseFloat(qpayObject.qpay?.amount || 0);
+  // Priority: req.body > stored payment_id > live QPay check > legacy_id fallback
+  let qpayPaymentId = req.body?.qpayPaymentId || qpayObject.payment_id || "";
+  let trxNo = req.body?.trxNo || "";
+  let trxDate = req.body?.trxDate || new Date().toISOString();
+  let trxAmount = req.body?.amount || parseFloat(qpayObject.qpay?.amount || 0);
 
+  // Try live QPay check to get fresh transaction details
   if (qpayObject.invoice_id) {
     try {
       const checkResult = await qpayShalgay(
@@ -680,9 +728,9 @@ exports.resyncWalletPayment = asyncHandler(async (req, res, next) => {
       );
       if (checkResult?.payments?.[0]) {
         const payment = checkResult.payments[0];
-        qpayPaymentId = payment.payment_id || qpayPaymentId;
+        qpayPaymentId = qpayPaymentId || payment.payment_id || "";
         if (payment.transactions?.[0]) {
-          trxNo = payment.transactions[0].id || "";
+          trxNo = trxNo || payment.transactions[0].id || "";
           trxDate = payment.transactions[0].settlement_date || trxDate;
           trxAmount = payment.transactions[0].amount || trxAmount;
         }
@@ -690,6 +738,20 @@ exports.resyncWalletPayment = asyncHandler(async (req, res, next) => {
     } catch (err) {
       console.warn("⚠️ [WALLET QPAY RESYNC] QPay check failed:", err.message);
     }
+  }
+
+  // Last-resort fallback: use legacy_id stored on the QPay object
+  // (QPay saves this as the payment reference even if payment_id is not set)
+  if (!qpayPaymentId && qpayObject.legacy_id) {
+    qpayPaymentId = String(qpayObject.legacy_id);
+    console.log(`ℹ️ [WALLET QPAY RESYNC] Using legacy_id as qpayPaymentId: ${qpayPaymentId}`);
+  }
+
+  if (!qpayPaymentId) {
+    return res.status(400).json({
+      success: false,
+      message: "qpayPaymentId could not be determined. Please pass it in the request body: { \"qpayPaymentId\": \"<value from QPay dashboard>\" }",
+    });
   }
 
   /* ── 3. Store qpayPaymentId if we now have it ── */
