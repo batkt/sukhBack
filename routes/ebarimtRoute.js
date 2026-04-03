@@ -814,13 +814,19 @@ router.post("/easyRegister/user/search", tokenShalgakh, async (req, res, next) =
         profileBody.customerNo = searchPhoneOrCode;
       }
       
-      const profile = await callApi("POST", 'api/easy-register/rest/v1/getProfile', profileBody);
-      if (profile && profile.loginName) {
-        try {
-          const fullInfo = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(profile.loginName)}`, null);
-          finalData = { ...profile, ...fullInfo };
-        } catch (e) { finalData = profile; }
-      } else { finalData = profile; }
+      try {
+        const profile = await callApi("POST", 'api/easy-register/rest/v1/getProfile', profileBody);
+        if (profile && profile.loginName) {
+          try {
+            const fullInfo = await callApi("GET", `api/easy-register/api/info/consumer/${encodeURIComponent(profile.loginName)}`, null);
+            finalData = { ...profile, ...fullInfo };
+          } catch (e) { finalData = profile; }
+        } else { finalData = profile; }
+      } catch (e) {
+        console.log(`[EASY REGISTER] Profile search failed for ${searchPhoneOrCode}: ${e.message}`);
+        // If not found by code/phone, try to return 404 instead of 500
+        return res.status(404).json({ success: false, error: "Хэрэглэгч олдсонгүй" });
+      }
     } else {
       return res.status(400).json({ error: "identity, phoneNum, customerNo эсвэл passportNo+email-н нэгийг нь заавал оруулна" });
     }
