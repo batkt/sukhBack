@@ -832,13 +832,14 @@ exports.resyncWalletPayment = asyncHandler(async (req, res, next) => {
   }
 
   /* ── 2. Get QPay transaction details ── */
-  // Priority: req.body > stored payment_id > live QPay check > legacy_id fallback
-  let qpayPaymentId = req.body?.qpayPaymentId || qpayObject.payment_id || "";
-  let trxNo = req.body?.trxNo || "";
-  let trxDate = req.body?.trxDate || new Date().toISOString();
-  let trxAmount = req.body?.amount || parseFloat(qpayObject.qpay?.amount || 0);
+  // Strictly use invoice_id for qpayPaymentId as per user requirement
+  let qpayPaymentId = qpayObject.invoice_id || "";
+  // Strictly use legacy_id for trxNo as per user requirement
+  let trxNo = qpayObject.legacy_id || "";
+  let trxDate = new Date().toISOString();
+  let trxAmount = parseFloat(qpayObject.qpay?.amount || 0);
 
-  // Try live QPay check to get fresh transaction details
+  // Try live QPay check to sync more details (trxNo, trxDate) if possible
   if (qpayObject.invoice_id) {
     try {
       const checkResult = await qpayShalgay(
@@ -847,10 +848,11 @@ exports.resyncWalletPayment = asyncHandler(async (req, res, next) => {
       );
       if (checkResult?.payments?.[0]) {
         const payment = checkResult.payments[0];
-        qpayPaymentId = qpayPaymentId || payment.payment_id || "";
+        // qpayPaymentId is strictly invoice_id, no dynamic update from payment_id
+        // qpayPaymentId remains qpayObject.invoice_id or from body
         if (payment.transactions?.[0]) {
-          trxNo = trxNo || payment.transactions[0].id || "";
-          trxDate = payment.transactions[0].settlement_date || trxDate;
+          // trxNo is strictly legacy_id, no dynamic update from payment check id
+          trxDate = payment.transactions[0].settlement_date || payment.transactions[0].date || trxDate;
           trxAmount = payment.transactions[0].amount || trxAmount;
         }
       }
@@ -859,17 +861,8 @@ exports.resyncWalletPayment = asyncHandler(async (req, res, next) => {
     }
   }
 
-  // Fallback 1: invoice_id — this is what the Wallet Service expects as qpayPaymentId
-  if (!qpayPaymentId && qpayObject.invoice_id) {
-    qpayPaymentId = qpayObject.invoice_id;
-    console.log(`ℹ️ [WALLET QPAY RESYNC] Using invoice_id as qpayPaymentId: ${qpayPaymentId}`);
-  }
+  // No dynamic fallback for trxNo, strictly uses legacy_id from above
 
-  // Fallback 2: legacy_id
-  if (!qpayPaymentId && qpayObject.legacy_id) {
-    qpayPaymentId = String(qpayObject.legacy_id);
-    console.log(`ℹ️ [WALLET QPAY RESYNC] Using legacy_id as qpayPaymentId: ${qpayPaymentId}`);
-  }
 
   if (!qpayPaymentId) {
     return res.status(400).json({
@@ -982,10 +975,9 @@ async function settleWalletPayment(
     qpayObject.payment_id = qpayPaymentIdFromRequest;
   }
 
-  /* ── 2. Get QPay details if needed ── */
-  // qpayPaymentId = QPay invoice_id is what the Wallet Service expects
-  let qpayPaymentId = qpayPaymentIdFromRequest || qpayObject.payment_id || qpayObject.invoice_id || "";
-  let trxNo = "";
+  // Strictly use invoice_id and legacy_id as per user requirement
+  let qpayPaymentId = qpayObject.invoice_id || "";
+  let trxNo = qpayObject.legacy_id || "";
   let trxDate = new Date().toISOString();
   let trxAmount = parseFloat(qpayObject.qpay?.amount || 0);
 
@@ -997,10 +989,10 @@ async function settleWalletPayment(
       );
       if (checkResult?.payments?.[0]) {
         const payment = checkResult.payments[0];
-        qpayPaymentId = qpayPaymentId || payment.payment_id || "";
+        // qpayPaymentId is strictly invoice_id
         if (payment.transactions?.[0]) {
-          trxNo = payment.transactions[0].id || "";
-          trxDate = payment.transactions[0].settlement_date || trxDate;
+          // trxNo is strictly legacy_id
+          trxDate = payment.transactions[0].settlement_date || payment.transactions[0].date || trxDate;
           trxAmount = payment.transactions[0].amount || trxAmount;
         }
       }
@@ -1011,6 +1003,9 @@ async function settleWalletPayment(
       );
     }
   }
+
+  // No dynamic fallback for trxNo, strictly uses legacy_id from above
+
 
   qpayObject.payment_id = qpayPaymentId;
   await qpayObject.save();
