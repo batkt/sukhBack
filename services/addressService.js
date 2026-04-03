@@ -642,7 +642,8 @@ async function getOwnOrgBair(khorooId, khorooName = null, districtName = null) {
                 const khorooNerNorm = khorooNer ? normalizeKhoroo(khorooNer) : null;
                 
                 const khorooMatches = 
-                  !khorooCode && !khorooNer ? true : // No khoroo filter, match all
+                  (!khorooCode && !khorooNer) ? 
+                     (khorooId ? false : true) : // If khorooId was given but we couldn't resolve it, don't match all
                   (khorooCodeNorm && (barilgaKhorooKodNorm === khorooCodeNorm || barilgaKhorooNerNorm === khorooCodeNorm)) ||
                   (khorooNerNorm && (barilgaKhorooNerNorm === khorooNerNorm || barilgaKhorooKodNorm === khorooNerNorm));
                 
