@@ -616,23 +616,27 @@ exports.getWalletQpayList = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    const rawPayments = await WalletInvoice(db.erunkhiiKholbolt)
+    const rawInvoices = await WalletInvoice(db.erunkhiiKholbolt)
       .find({ userId: userPhone })
       .sort({ createdAt: -1 })
       .limit(50)
       .lean();
       
     // Parallelize paid-status lookups for performance
-    const payments = await Promise.all(rawPayments.map(async (p) => {
+    const payments = await Promise.all(rawInvoices.map(async (p) => {
+       // Search local QPay records by all possible identifiers
        const qpayObject = await QuickQpayObject(db.kholboltuud.find(k => String(k.baiguullagiinId) === String(p.baiguullagiinId))).findOne({
          $or: [
-           { walletPaymentId: p.walletPaymentId },
+           { walletPaymentId: p.walletInvoiceId },
            { zakhialgiinDugaar: p.zakhialgiinDugaar }
          ]
        }).select('tulsunEsekh updatedAt').lean();
        
        return {
          ...p,
+         // Ensure paymentId is present for the Flutter model parser
+         paymentId: p.walletInvoiceId,
+         invoiceNo: p.zakhialgiinDugaar || p.walletInvoiceId,
          tulsunEsekh: qpayObject?.tulsunEsekh || false,
          updatedAt: qpayObject?.updatedAt || p.updatedAt
        };
@@ -652,6 +656,11 @@ exports.debugWalletCheck = asyncHandler(async (req, res, next) => {
   const { db } = require("zevbackv2");
   const { baiguullagiinId, walletPaymentId: searchId } = req.params;
 
+  // Prevent browser/CDN/Nginx caching explicitly
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+
   console.log(`🔍 [WALLET CHECK] baiguullagiinId=${baiguullagiinId}, searchId=${searchId}`);
 
   const tukhainBaaziinKholbolt = db.kholboltuud.find(
@@ -661,24 +670,24 @@ exports.debugWalletCheck = asyncHandler(async (req, res, next) => {
     return res.status(404).json({ success: false, message: "Organization not found" });
   }
 
-  /* ── 1. Find the local QPay record and metadata ── */
+  /* ── 1. Find the local QPay record and metadata (Bypass cache with findOne) ── */
   const [qpayObject, walletInvoiceDoc] = await Promise.all([
     QuickQpayObject(tukhainBaaziinKholbolt).findOne({
       $or: [
-        { walletPaymentId: searchId },
-        { zakhialgiinDugaar: searchId }
+        { walletPaymentId: searchId }, // Check by UUID
+        { zakhialgiinDugaar: searchId } // Check by Order No (WQ-1)
       ]
     }).lean(),
     WalletInvoice(db.erunkhiiKholbolt).findOne({
       $or: [
-        { walletPaymentId: searchId },
+        { walletInvoiceId: searchId }, // Using correct schema field
         { zakhialgiinDugaar: searchId }
       ]
     }).lean()
   ]);
 
-  // Use the canonical walletPaymentId and userId from our records
-  const walletPaymentId = qpayObject?.walletPaymentId || walletInvoiceDoc?.walletPaymentId || (searchId.length > 30 ? searchId : null);
+  // Resolve the canonical walletPaymentId
+  const walletPaymentId = qpayObject?.walletPaymentId || walletInvoiceDoc?.walletInvoiceId || (searchId.length > 30 ? searchId : null);
   const userId = walletInvoiceDoc?.userId || qpayObject?.userId;
 
   if (!walletPaymentId) {
@@ -706,7 +715,7 @@ exports.debugWalletCheck = asyncHandler(async (req, res, next) => {
       walletPaymentId,
       zakhialgiinDugaar: qpayObject?.zakhialgiinDugaar || walletInvoiceDoc?.zakhialgiinDugaar,
       userId: userId || "unknown",
-      tulsunEsekh: qpayObject?.tulsunEsekh || walletInvoiceDoc?.tulsunEsekh || false,
+      tulsunEsekh: qpayObject?.tulsunEsekh || false,
       data: payment,
     });
   } catch (err) {
