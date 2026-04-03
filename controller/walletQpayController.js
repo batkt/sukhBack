@@ -833,18 +833,24 @@ exports.debugEasyCheck = asyncHandler(async (req, res, next) => {
   const orshinSuugchId = walletDoc?.orshinSuugchId || null;
   const userId = walletDoc?.userId || null;
 
-  /* ── 2. Find EasyRegisterUser ── */
+  /* ── 2. Find EasyRegisterUser (Priority: Resident ID > Phone) ── */
   let easyUser = null;
-  try {
+  let matchReason = "";
+
+  if (orshinSuugchId) {
     easyUser = await EasyRegisterUser(tukhainBaaziinKholbolt).findOne({
-      $or: [
-        { orshinSuugchiinId: orshinSuugchId },
-        { phoneNum: userId }
-      ].filter(f => f[Object.keys(f)[0]]),
+      orshinSuugchiinId: orshinSuugchId,
       ustgasan: { $ne: true },
     }).sort({ createdAt: -1 }).lean();
-  } catch (err) {
-    console.warn("⚠️ [EASY CHECK] EasyRegisterUser lookup failed:", err.message);
+    if (easyUser) matchReason = "Resident ID (Priority)";
+  }
+
+  if (!easyUser && userId) {
+    easyUser = await EasyRegisterUser(tukhainBaaziinKholbolt).findOne({
+      phoneNum: userId,
+      ustgasan: { $ne: true },
+    }).sort({ createdAt: -1 }).lean();
+    if (easyUser) matchReason = "Phone Number (Fallback)";
   }
 
   res.json({
@@ -870,7 +876,7 @@ exports.debugEasyCheck = asyncHandler(async (req, res, next) => {
     dryRunResult: easyUser && easyUser.loginName ? {
       willApprove: true,
       targetIdentifier: easyUser.loginName,
-      reason: "Matched via " + (easyUser.orshinSuugchiinId === orshinSuugchId ? "Resident ID" : "Phone Number")
+      reason: "Matched via " + matchReason
     } : {
       willApprove: false,
       reason: "No profile or loginName found."
@@ -1413,14 +1419,22 @@ async function handleWalletEbarimt(
       orshinSuugchId = walletDoc?.orshinSuugchId || null;
     } catch (e) {}
 
-    // Search by orshinSuugchiinId OR phoneNum for maximum reliability
-    const easyUser = await EasyRegisterUser(tukhainBaaziinKholbolt).findOne({
-      $or: [
-        { orshinSuugchiinId: orshinSuugchId },
-        { phoneNum: userId }
-      ].filter(f => f[Object.keys(f)[0]]), // Only include if NOT null/empty
-      ustgasan: { $ne: true },
-    }).sort({ createdAt: -1 });
+    // Path 1: Search by orshinSuugchiinId (Priority)
+    let easyUser = null;
+    if (orshinSuugchId) {
+      easyUser = await EasyRegisterUser(tukhainBaaziinKholbolt).findOne({
+        orshinSuugchiinId: orshinSuugchId,
+        ustgasan: { $ne: true },
+      }).sort({ createdAt: -1 });
+    }
+
+    // Path 2: Fallback to phoneNum if no resident profile found
+    if (!easyUser && userId) {
+      easyUser = await EasyRegisterUser(tukhainBaaziinKholbolt).findOne({
+        phoneNum: userId,
+        ustgasan: { $ne: true },
+      }).sort({ createdAt: -1 });
+    }
 
     if (easyUser && easyUser.loginName) {
       console.log(
