@@ -76,6 +76,16 @@ router.get(
 );
 
 /**
+ * @route GET /walletQpay/wallet-check/:baiguullagiinId/:walletPaymentId
+ * @desc  Debug: Raw check of Wallet API payment detailed info
+ * @access Public (admin use)
+ */
+router.get(
+  "/walletQpay/wallet-check/:baiguullagiinId/:walletPaymentId",
+  walletQpayController.debugWalletCheck
+);
+
+/**
  * @route POST /walletQpay/resync/:baiguullagiinId/:walletPaymentId
  * @desc  Admin: force re-sync a stuck payment to the Wallet Service.
  *        Use when local tulsunEsekh=true but Wallet API still shows NEW.

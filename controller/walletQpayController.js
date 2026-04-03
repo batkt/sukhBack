@@ -679,6 +679,59 @@ exports.debugQpayCheck = asyncHandler(async (req, res, next) => {
 });
 
 // ──────────────────────────────────────────────────────
+//  GET /walletQpay/wallet-check/:baiguullagiinId/:walletPaymentId
+//  Debug: Fetch full payment details from Wallet API by ID
+// ──────────────────────────────────────────────────────
+exports.debugWalletCheck = asyncHandler(async (req, res, next) => {
+  const { db } = require("zevbackv2");
+  const { baiguullagiinId, walletPaymentId } = req.params;
+
+  console.log(`🔍 [WALLET CHECK] baiguullagiinId=${baiguullagiinId}, walletPaymentId=${walletPaymentId}`);
+
+  const tukhainBaaziinKholbolt = db.kholboltuud.find(
+    (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+  );
+  if (!tukhainBaaziinKholbolt) {
+    return res.status(404).json({ success: false, message: "Organization not found" });
+  }
+
+  /* ── 1. Find userId from WalletInvoice metadata ── */
+  let userId = null;
+  try {
+    const walletInvoiceDoc = await WalletInvoice(db.erunkhiiKholbolt)
+      .findOne({ walletPaymentId })
+      .lean();
+    userId = walletInvoiceDoc?.userId || null;
+  } catch (err) {
+    console.warn("⚠️ [WALLET CHECK] Metadata lookup failed:", err.message);
+  }
+
+  if (!userId) {
+    return res.status(404).json({
+      success: false,
+      message: "Could not find userId for this payment in local metadata. Check your walletPaymentId.",
+    });
+  }
+
+  /* ── 2. Call Wallet API ── */
+  try {
+    const payment = await walletApiService.getPayment(userId, walletPaymentId);
+    res.json({
+      success: true,
+      walletPaymentId,
+      userId,
+      data: payment,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: `Wallet API error: ${err.message}`,
+      userId,
+    });
+  }
+});
+
+// ──────────────────────────────────────────────────────
 //  POST /walletQpay/resync/:baiguullagiinId/:walletPaymentId
 //  Admin-only: force re-call Wallet paidByQpay for a payment
 //  that was locally marked paid but Wallet Service still shows NEW.
