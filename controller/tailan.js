@@ -2816,3 +2816,142 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
   }
 });
 
+// Оршин суугчдын сар бүрийн төлбөрийн нэгтгэл (Matrix Report)
+// Сарын төлбөрийг багана хэлбэрээр (month1, month2...) харуулна
+exports.tailanOrshinSuugchSariinMatrix = asyncHandler(async (req, res, next) => {
+  try {
+    const { db } = require("zevbackv2");
+    const source = req.method === "GET" ? req.query : req.body;
+    const {
+      baiguullagiinId,
+      barilgiinId,
+      ekhlekhOgnoo,
+      duusakhOgnoo,
+      khuudasniiDugaar = 1,
+      khuudasniiKhemjee = 50,
+      search,
+    } = source || {};
+
+    if (!baiguullagiinId || !ekhlekhOgnoo || !duusakhOgnoo) {
+      return res.status(400).json({
+        success: false,
+        message: "baiguullagiinId, ekhlekhOgnoo, duusakhOgnoo заавал бөглөнө",
+      });
+    }
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+    );
+    if (!kholbolt) {
+      return res.status(404).json({ success: false, message: "Connection not found" });
+    }
+
+    const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+
+    const startDate = new Date(ekhlekhOgnoo);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(duusakhOgnoo);
+    endDate.setHours(23, 59, 59, 999);
+
+    const match = {
+      baiguullagiinId: String(baiguullagiinId),
+      ognoo: { $gte: startDate, $lte: endDate },
+    };
+    if (barilgiinId) match.barilgiinId = String(barilgiinId);
+
+    // Fetch invoices
+    const invoices = await NekhemjlekhiinTuukh(kholbolt).find(match).lean();
+
+    // Pivot data
+    const residentMap = new Map();
+    const periods = new Set();
+
+    for (const inv of invoices) {
+      const gid = inv.gereeniiId || inv.gereeniiDugaar || "unknown";
+      const invDate = inv.ognoo ? new Date(inv.ognoo) : null;
+      const monthKey = invDate ? `${invDate.getFullYear()}-${String(invDate.getMonth() + 1).padStart(2, "0")}` : "unknown";
+      periods.add(monthKey);
+
+      if (!residentMap.has(gid)) {
+        residentMap.set(gid, {
+          gereeniiId: inv.gereeniiId || "",
+          gereeniiDugaar: inv.gereeniiDugaar || "",
+          ovog: inv.ovog || "",
+          ner: inv.ner || "",
+          toot: inv.toot || inv.medeelel?.toot || "",
+          davkhar: inv.davkhar || "",
+          bairNer: inv.bairNer || "",
+          orts: inv.orts || "",
+          utas: Array.isArray(inv.utas) ? inv.utas : inv.utas ? [inv.utas] : [],
+          months: {},
+          niitTulukh: 0,
+          niitTulsun: 0,
+          startingBalance: 0,
+          earliestOgnoo: null,
+        });
+      }
+
+      const resData = residentMap.get(gid);
+      
+      // Track starting balance (ekhnii uldegdel from the earliest invoice in range)
+      if (invDate && (!resData.earliestOgnoo || invDate < resData.earliestOgnoo)) {
+        resData.earliestOgnoo = invDate;
+        resData.startingBalance = Number(inv.ekhniiUldegdel) || 0;
+      }
+
+      if (!resData.months[monthKey]) {
+        resData.months[monthKey] = {
+          billed: 0,
+          paid: 0,
+          status: "Төлөөгүй",
+        };
+      }
+
+      const billed = Number(inv.niitTulburOriginal != null ? inv.niitTulburOriginal : inv.niitTulbur) || 0;
+      const paid = (inv.paymentHistory || []).reduce((s, p) => s + (Number(p.dun) || 0), 0);
+
+      resData.months[monthKey].billed += billed;
+      resData.months[monthKey].paid += paid;
+      resData.months[monthKey].status = inv.tuluv || "Төлөөгүй";
+
+      resData.niitTulukh += billed;
+      resData.niitTulsun += paid;
+    }
+
+    let list = Array.from(residentMap.values());
+    const sortedPeriods = Array.from(periods).sort();
+
+    // Searching
+    if (search && String(search).trim()) {
+      const re = new RegExp(escapeRegex(String(search).trim()), "i");
+      list = list.filter(r => 
+        re.test(r.ner) || re.test(r.ovog) || re.test(r.toot) || re.test(r.gereeniiDugaar)
+      );
+    }
+
+    // Sorting by toot
+    list.sort((a, b) => {
+      const aTootNum = parseInt(a.toot);
+      const bTootNum = parseInt(b.toot);
+      if (!isNaN(aTootNum) && !isNaN(bTootNum)) return aTootNum - bTootNum;
+      return String(a.toot).localeCompare(String(b.toot));
+    });
+
+    // Pagination
+    const totalCount = list.length;
+    const page = Number(khuudasniiDugaar);
+    const size = Number(khuudasniiKhemjee);
+    const paginated = list.slice((page - 1) * size, page * size);
+
+    res.json({
+      success: true,
+      periods: sortedPeriods,
+      totalCount,
+      khuudasniiDugaar: page,
+      list: paginated,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+

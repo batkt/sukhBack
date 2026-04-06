@@ -12,6 +12,7 @@ const {
   tailanExport,
   tailanZogsool,
   tailanNegtgelTailan,
+  tailanOrshinSuugchSariinMatrix,
 } = require("../controller/tailan");
 
 // Өр, авлагын тайлан (оршин суугчдийн) - Байр, орц, давхар, тоогоор хайж хэн төлбөрөө төлсөн, хэн төлөөгүйг хянах
@@ -43,5 +44,8 @@ router.all("/tailan/zogsool", tokenShalgakh, tailanZogsool);
 
 // Нэгтгэл тайлан - Гэрээгээр бүлэглэсэн нэхэмжлэлийн авлагын нэгтгэл
 router.all("/tailan/negtgel", tokenShalgakh, tailanNegtgelTailan);
+
+// Урвуу хүснэгтэн тайлан - Сарын төлбөрийг сар сараар харуулах
+router.all("/tailan/resident-monthly-matrix", tokenShalgakh, tailanOrshinSuugchSariinMatrix);
 
 module.exports = router;
