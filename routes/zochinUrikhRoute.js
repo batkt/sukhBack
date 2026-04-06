@@ -258,11 +258,20 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
       query.barilgiinId = String(barilgiinId);
     }
 
-    const masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne(query);
+    let masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne(query);
+
+    // Fallback: If not found with building/org filters, try finding ANY guest settings for this resident
+    if (!masterSetting) {
+      console.log("🔍 [QUOTA] Master setting not found with filters, trying resident-only search...");
+      masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne({
+        ezemshigchiinId: String(residentId),
+        zochinTurul: "Оршин суугч"
+      });
+    }
 
     console.log("🔍 [QUOTA] masterSetting found:", masterSetting ? { id: masterSetting._id, quota: masterSetting.zochinErkhiinToo } : "NULL");
 
-    if (!masterSetting) return res.send({ total: 0, used: 0, remaining: 0 });
+    if (!masterSetting) return res.send({ total: 0, used: 0, remaining: 0, success: false });
 
 
     let startOfPeriod;
