@@ -399,8 +399,9 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
       startOfPeriod = moment().startOf("month").toDate();
     }
 
-    const EzenUrisanMashin = require("../models/ezenUrisanMashin");
-    
+    const EzenUrisanMashinModel = require("sukhParking-v1").EzenUrisanMashin;
+    // tukhainBaaziinKholbolt is already defined above at line 276
+
     // EXTREMELY ROBUST usedCount lookup
     const usedMatchQuery = {
       $or: [
@@ -416,7 +417,7 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
        usedMatchQuery.baiguullagiinId = String(baiguullagiinId);
     }
 
-    const usedCount = await EzenUrisanMashin(req.body.tukhainBaaziinKholbolt).countDocuments(usedMatchQuery);
+    const usedCount = await EzenUrisanMashinModel(tukhainBaaziinKholbolt).countDocuments(usedMatchQuery);
 
     res.send({
       total: effectiveTotal,
