@@ -376,7 +376,7 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
       startOfPeriod = moment().startOf("week").toDate(); 
     }
     else if (effectiveType === "saraar") {
-      let candidate = moment().date(effectiveValue).startOf('day');
+      let candidate = moment().date(effectiveValue || 1).startOf('day');
       if (moment().isBefore(candidate)) {
         candidate.subtract(1, 'month');
       }
@@ -394,10 +394,15 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
       startOfPeriod = moment().startOf("month").toDate();
     }
 
+    const EzenUrisanMashin = require("../models/ezenUrisanMashin");
+    
+    // EXTREMELY ROBUST usedCount lookup
     const usedMatchQuery = {
       $or: [
         { ezenId: residentId },
-        { ezemshigchiinId: residentId }
+        { ezemshigchiinId: residentId },
+        { ezenId: String(residentId) },
+        { ezemshigchiinId: String(residentId) }
       ],
       createdAt: { $gte: startOfPeriod }
     };
