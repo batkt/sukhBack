@@ -2856,11 +2856,12 @@ exports.tailanOrshinSuugchSariinMatrix = asyncHandler(async (req, res, next) => 
     const match = {
       baiguullagiinId: String(baiguullagiinId),
       ognoo: { $gte: startDate, $lte: endDate },
+      tuluv: { $ne: "Цуцлагдсан" }, // Filter out cancelled invoices
     };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
 
-    // Fetch invoices
-    const invoices = await NekhemjlekhiinTuukh(kholbolt).find(match).lean();
+    // Fetch invoices (sorted by createdAt ascending so latest ones overwrite earlier ones in same month)
+    const invoices = await NekhemjlekhiinTuukh(kholbolt).find(match).sort({ createdAt: 1 }).lean();
 
     // Pivot data
     const residentMap = new Map();
@@ -2899,20 +2900,21 @@ exports.tailanOrshinSuugchSariinMatrix = asyncHandler(async (req, res, next) => 
         resData.startingBalance = Number(inv.ekhniiUldegdel) || 0;
       }
 
-      if (!resData.months[monthKey]) {
-        resData.months[monthKey] = {
-          billed: 0,
-          paid: 0,
-          status: "Төлөөгүй",
-        };
+      // If we have an existing entry for this month, subtract its old values first (deduplication)
+      if (resData.months[monthKey]) {
+        resData.niitTulukh -= resData.months[monthKey].billed;
+        resData.niitTulsun -= resData.months[monthKey].paid;
       }
 
       const billed = Number(inv.niitTulburOriginal != null ? inv.niitTulburOriginal : inv.niitTulbur) || 0;
       const paid = (inv.paymentHistory || []).reduce((s, p) => s + (Number(p.dun) || 0), 0);
 
-      resData.months[monthKey].billed += billed;
-      resData.months[monthKey].paid += paid;
-      resData.months[monthKey].status = inv.tuluv || "Төлөөгүй";
+      // Set current month to the latest invoice values (overwriting previous ones)
+      resData.months[monthKey] = {
+        billed: billed,
+        paid: paid,
+        status: inv.tuluv || "Төлөөгүй",
+      };
 
       resData.niitTulukh += billed;
       resData.niitTulsun += paid;
