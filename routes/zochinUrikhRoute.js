@@ -321,21 +321,31 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
     const { db } = require("zevbackv2");
     let buildingSettings = null;
     
-    // Auto-discover IDs if they failed to match
+    // 1. Resolve IDs from profile if they failed initially
     if (!baiguullagiinId || !barilgiinId) {
       const OrshinSuugch = require("../models/orshinSuugch");
       const rObj = await OrshinSuugch(db.erunkhiiKholbolt).findById(residentId);
       if (rObj && rObj.toots && rObj.toots.length > 0) {
-        baiguullagiinId = rObj.toots[0].baiguullagiinId;
-        barilgiinId = rObj.toots[0].barilgiinId;
+        baiguullagiinId = baiguullagiinId || rObj.toots[0].baiguullagiinId;
+        barilgiinId = barilgiinId || rObj.toots[0].barilgiinId;
       }
     }
 
-    if (baiguullagiinId && barilgiinId) {
+    if (baiguullagiinId) {
        const baiguullagaRecord = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
-       // Use subdocument id() method for extreme reliability
-       const targetBarilga = baiguullagaRecord?.barilguud?.id(barilgiinId) || 
-                            baiguullagaRecord?.barilguud?.find(b => String(b._id) === String(barilgiinId));
+       
+       // Brute-force building lookup
+       let targetBarilga = null;
+       if (barilgiinId) {
+           targetBarilga = baiguullagaRecord?.barilguud?.id(barilgiinId) || 
+                          baiguullagaRecord?.barilguud?.find(b => String(b._id) === String(barilgiinId));
+       }
+       
+       // Deep fallback: If building ID is still missing or not found, try the first building of the org
+       if (!targetBarilga && baiguullagaRecord?.barilguud?.length > 0) {
+           targetBarilga = baiguullagaRecord.barilguud[0];
+       }
+
        buildingSettings = targetBarilga?.zochinTokhirgoo || targetBarilga?.tokhirgoo?.zochinTokhirgoo;
     }
 
