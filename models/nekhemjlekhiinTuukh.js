@@ -66,7 +66,6 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     orts: String, // Web only field
     tsahilgaanNekhemjlekh: Number, // Electricity invoice amount (calculated from zaalt readings)
     tailbar: String,
-    ekhniiUldegdelOriginal: Number, // Persistent original initial balance for logic
   },
   {
     timestamps: true,
@@ -75,21 +74,6 @@ const nekhemjlekhiinTuukhSchema = new Schema(
 
 nekhemjlekhiinTuukhSchema.virtual("canPay").get(function () {
   return this.tuluv !== "Төлсөн";
-});
-
-nekhemjlekhiinTuukhSchema.virtual("ekhniiUldegdelDund").get(function () {
-  if (typeof this.ekhniiUldegdel !== "number") return this.ekhniiUldegdel;
-  const totalPaid =
-    Math.round(
-      (this.paymentHistory || []).reduce((sum, p) => sum + (p.dun || 0), 0) *
-        100,
-    ) / 100;
-  return Math.max(0, Math.round((this.ekhniiUldegdel - totalPaid) * 100) / 100);
-});
-
-// Virtual for net initial balance (for backward compatibility if needed)
-nekhemjlekhiinTuukhSchema.virtual("ekhniiUldegdelDund").get(function () {
-  return this.ekhniiUldegdel; // Now the main field is the net one
 });
 
 // Add audit hooks for tracking changes
@@ -151,7 +135,8 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
 
       if (remaining <= 0.01) {
         invoice.niitTulbur = 0;
-        invoice.uldegdel = remaining;
+        invoice.uldegdel = 0;
+        invoice.tuluv = "Төлсөн";
       } else {
         invoice.niitTulbur = remaining;
         if (invoice.tuluv === "Хугацаа хэтэрсэн") {
@@ -160,51 +145,6 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
           invoice.tuluv = "Төлөөгүй";
         }
       }
-
-      // --- START: DISPLAY-ONLY INITIAL BALANCE & ZARDAL SUBTRACTION ---
-      // This part ensures that for "display purposes", the payments are shown as 
-      // reducing the ekhniiUldegdel and other line items in order.
-      
-      // Ensure we have the original baseline preserved
-      if (typeof invoice.ekhniiUldegdelOriginal !== "number") {
-        invoice.ekhniiUldegdelOriginal = typeof invoice.ekhniiUldegdel === "number" ? invoice.ekhniiUldegdel : 0;
-      }
-
-      // OVERWRITE the main field for display (as requested)
-      invoice.ekhniiUldegdel = Math.max(0, Math.round((invoice.ekhniiUldegdelOriginal - totalPaid) * 100) / 100);
-
-      if (invoice.medeelel && Array.isArray(invoice.medeelel.zardluud)) {
-        let remainingPaidToDistribute = totalPaid;
-        
-        // Prioritize Initial Balance item if it exists
-        const zardluud = invoice.medeelel.zardluud;
-        
-        // Sorting locally for logic: Initial Balance first, then others
-        const sortedIndices = [];
-        const initIdx = zardluud.findIndex(z => z.isEkhniiUldegdel === true || z.ner === "Эхний үлдэгдэл");
-        if (initIdx > -1) sortedIndices.push(initIdx);
-        zardluud.forEach((_, idx) => {
-          if (idx !== initIdx) sortedIndices.push(idx);
-        });
-
-        for (const idx of sortedIndices) {
-          const z = zardluud[idx];
-          // We need an "Original" baseline to calculate the current display amount
-          if (typeof z.dunOriginal !== "number") {
-            z.dunOriginal = z.dun || z.tariff || 0;
-          }
-          
-          const deducted = Math.min(z.dunOriginal, remainingPaidToDistribute);
-          z.dun = Math.round((z.dunOriginal - deducted) * 100) / 100;
-          z.tariff = z.dun;
-          z.tulsunDun = Math.round(deducted * 100) / 100;
-          z.tulsenEsekh = z.dun <= 0.01;
-          
-          remainingPaidToDistribute = Math.round((remainingPaidToDistribute - deducted) * 100) / 100;
-        }
-        invoice.markModified("medeelel.zardluud");
-      }
-      // --- END: DISPLAY-ONLY SUBTRACTION ---
     }
 
 
