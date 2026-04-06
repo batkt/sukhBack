@@ -191,6 +191,7 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
     const Mashin = require("../models/mashin");
     const residentId = req.body.nevtersenAjiltniiToken?.id;
     const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+    const Baiguullaga = require("../models/baiguullaga");
 
     if (!residentId) return res.status(401).send("Нэвтрэх шаардлагатай");
 
@@ -199,7 +200,30 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
       zochinTurul: "Оршин суугч"
     });
 
-    res.send(settings || {});
+    if (settings) {
+      return res.send(settings);
+    }
+
+    // Fallback to building settings if resident specific record doesn't exist
+    const barilgiinId = req.query.barilgiinId || req.body.barilgiinId;
+    const baiguullagiinId = req.query.baiguullagiinId || req.body.baiguullagiinId;
+
+    if (baiguullagiinId && barilgiinId) {
+       const baiguullagaRecord = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+       const targetBarilga = baiguullagaRecord?.barilguud?.find(
+         (b) => b._id.toString() === String(barilgiinId)
+       );
+       const buildingGuestSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
+       
+       if (buildingGuestSettings) {
+         return res.send({
+           ...buildingGuestSettings,
+           isFallback: true
+         });
+       }
+    }
+
+    res.send({});
   } catch (error) {
     next(error);
   }
