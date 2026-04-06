@@ -320,11 +320,22 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
     const Baiguullaga = require("../models/baiguullaga");
     const { db } = require("zevbackv2");
     let buildingSettings = null;
+    
+    // Auto-discover IDs if they failed to match
+    if (!baiguullagiinId || !barilgiinId) {
+      const OrshinSuugch = require("../models/orshinSuugch");
+      const rObj = await OrshinSuugch(db.erunkhiiKholbolt).findById(residentId);
+      if (rObj && rObj.toots && rObj.toots.length > 0) {
+        baiguullagiinId = rObj.toots[0].baiguullagiinId;
+        barilgiinId = rObj.toots[0].barilgiinId;
+      }
+    }
+
     if (baiguullagiinId && barilgiinId) {
        const baiguullagaRecord = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
-       const targetBarilga = baiguullagaRecord?.barilguud?.find(
-         (b) => String(b._id) === String(barilgiinId)
-       );
+       // Use subdocument id() method for extreme reliability
+       const targetBarilga = baiguullagaRecord?.barilguud?.id(barilgiinId) || 
+                            baiguullagaRecord?.barilguud?.find(b => String(b._id) === String(barilgiinId));
        buildingSettings = targetBarilga?.zochinTokhirgoo || targetBarilga?.tokhirgoo?.zochinTokhirgoo;
     }
 
