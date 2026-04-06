@@ -196,31 +196,38 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
     if (!residentId) return res.status(401).send("Нэвтрэх шаардлагатай");
 
     const settings = await Mashin(tukhainBaaziinKholbolt).findOne({
-      ezemshigchiinId: residentId,
+      $or: [
+        { ezemshigchiinId: residentId },
+        { orshinSuugchiinId: residentId }
+      ],
       zochinTurul: "Оршин суугч"
     });
-
-    if (settings) {
-      return res.send(settings);
-    }
 
     // Fallback to building settings if resident specific record doesn't exist
     const barilgiinId = req.query.barilgiinId || req.body.barilgiinId;
     const baiguullagiinId = req.query.baiguullagiinId || req.body.baiguullagiinId;
 
+    let buildingSettings = null;
     if (baiguullagiinId && barilgiinId) {
        const baiguullagaRecord = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
        const targetBarilga = baiguullagaRecord?.barilguud?.find(
          (b) => b._id.toString() === String(barilgiinId)
        );
-       const buildingGuestSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
-       
-       if (buildingGuestSettings) {
-         return res.send({
-           ...buildingGuestSettings,
-           isFallback: true
-         });
-       }
+       buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
+    }
+
+    // Merge: Resident settings take priority for custom needs, but Building settings can provide defaults
+    if (settings || buildingSettings) {
+      const mergedRes = (settings ? settings.toObject() : { ...buildingSettings, isFallback: true });
+
+      // If both exist, we can take the BEST of both (e.g. max quota)
+      if (settings && buildingSettings) {
+        mergedRes.zochinErkhiinToo = Math.max(settings.zochinErkhiinToo || 0, buildingSettings.zochinErkhiinToo || 0);
+        mergedRes.zochinTusBurUneguiMinut = Math.max(settings.zochinTusBurUneguiMinut || 0, buildingSettings.zochinTusBurUneguiMinut || 0);
+        mergedRes.zochinUrikhEsekh = settings.zochinUrikhEsekh || buildingSettings.zochinUrikhEsekh;
+      }
+
+      return res.send(mergedRes);
     }
 
     res.send({});
@@ -268,44 +275,66 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
 
     let masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne(query);
 
-    // Fallback: If not found with building/org filters, try finding ANY guest settings for this resident
+    // Initial Fallback: Resident search only
     if (!masterSetting) {
       console.log("🔍 [QUOTA] Master setting not found with filters, trying resident-only search...");
       masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne({
         $or: [
-          { ezemshigchiinId: String(residentId) },
-          { orshinSuugchiinId: String(residentId) }
+          { ezemshigchiinId: residentId },
+          { orshinSuugchiinId: residentId }
         ],
         zochinTurul: "Оршин суугч"
       });
     }
 
-    console.log("🔍 [QUOTA] masterSetting found:", masterSetting ? { id: masterSetting._id, quota: masterSetting.zochinErkhiinToo } : "NULL");
+    // Secondary Fallback: Building settings (using Baiguullaga model)
+    const Baiguullaga = require("../models/baiguullaga");
+    const { db } = require("zevbackv2");
+    let buildingSettings = null;
+    if (baiguullagiinId && barilgiinId) {
+       const baiguullagaRecord = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+       const targetBarilga = baiguullagaRecord?.barilguud?.find(
+         (b) => b._id.toString() === String(barilgiinId)
+       );
+       buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
+    }
 
-    if (!masterSetting) return res.send({ total: 0, used: 0, remaining: 0, success: false });
+    if (!masterSetting && !buildingSettings) {
+      return res.send({ total: 0, used: 0, remaining: 0, success: false });
+    }
+
+    // Merge logic: Final Effective Config
+    const effectiveTotal = Math.max(
+      masterSetting?.zochinErkhiinToo || 0,
+      buildingSettings?.zochinErkhiinToo || 0
+    );
+    const effectiveType = masterSetting?.davtamjiinTurul || buildingSettings?.davtamjiinTurul || "saraar";
+    const effectiveValue = masterSetting?.davtamjUtga || buildingSettings?.davtamjUtga || 1;
+    const effectiveMinutes = Math.max(
+      masterSetting?.zochinTusBurUneguiMinut || 0,
+      buildingSettings?.zochinTusBurUneguiMinut || 0
+    );
+    const hasRight = (masterSetting?.zochinUrikhEsekh || buildingSettings?.zochinUrikhEsekh) === true;
 
 
     let startOfPeriod;
 
-    if (masterSetting.davtamjiinTurul === "udruur") {
+    if (effectiveType === "udruur") {
       startOfPeriod = moment().startOf("day").toDate();
     } 
-    else if (masterSetting.davtamjiinTurul === "7khonogoor") {
+    else if (effectiveType === "7khonogoor") {
       startOfPeriod = moment().startOf("week").toDate(); 
     }
-    else if (masterSetting.davtamjiinTurul === "saraar") {
-      const targetDay = masterSetting.davtamjUtga || 1;
-      let candidate = moment().date(targetDay).startOf('day');
+    else if (effectiveType === "saraar") {
+      let candidate = moment().date(effectiveValue).startOf('day');
       if (moment().isBefore(candidate)) {
         candidate.subtract(1, 'month');
       }
       startOfPeriod = candidate.toDate();
     }
-    else if (masterSetting.davtamjiinTurul === "jileer") {
-      const targetMonth = (masterSetting.davtamjUtga || 1) - 1; 
-      
+    else if (effectiveType === "jileer") {
+      const targetMonth = (effectiveValue || 1) - 1; 
       let candidate = moment().month(targetMonth).date(1).startOf('day');
-      
       if (moment().isBefore(candidate)) {
         candidate.subtract(1, 'year');
       }
@@ -330,13 +359,13 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
     const usedCount = await EzenUrisanMashin(req.body.tukhainBaaziinKholbolt).countDocuments(usedMatchQuery);
 
     res.send({
-      total: masterSetting.zochinErkhiinToo || 0,
+      total: effectiveTotal,
       used: usedCount,
-      remaining: Math.max(0, (masterSetting.zochinErkhiinToo || 0) - usedCount),
-      period: masterSetting.davtamjiinTurul,
-      freeMinutesPerGuest: masterSetting.zochinTusBurUneguiMinut || 0,
-      hasRight: masterSetting.zochinUrikhEsekh || false,
-      zochinUrikhEsekh: masterSetting.zochinUrikhEsekh || false,
+      remaining: Math.max(0, effectiveTotal - usedCount),
+      period: effectiveType,
+      freeMinutesPerGuest: effectiveMinutes,
+      hasRight: hasRight,
+      zochinUrikhEsekh: hasRight,
       success: true
     });
   } catch (error) {
