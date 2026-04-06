@@ -217,13 +217,22 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
     // Auto-discover IDs from ANY source if missing
     if (!baiguullagiinId || !barilgiinId) {
       const OrshinSuugch = require("../models/orshinSuugch");
-      // Search general resident profile
-      const resObj = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
-         $or: [{ _id: residentId }, { id: String(residentId) }]
-      });
+      // Use findById as it's most reliable for ObjectId tokens
+      const resObj = await OrshinSuugch(db.erunkhiiKholbolt).findById(residentId) || 
+                     await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+                        $or: [{ _id: residentId }, { id: String(residentId) }]
+                     });
+      
       if (resObj) {
-        baiguullagiinId = resObj.baiguullagiinId;
-        barilgiinId = resObj.barilgiinId;
+        // IDs are stored inside the 'toots' array in this system
+        if (resObj.toots && resObj.toots.length > 0) {
+           const primaryToot = resObj.toots[0]; // Use first address as default
+           baiguullagiinId = primaryToot.baiguullagiinId;
+           barilgiinId = primaryToot.barilgiinId;
+        } else {
+           baiguullagiinId = resObj.baiguullagiinId;
+           barilgiinId = resObj.barilgiinId;
+        }
       }
     }
 
