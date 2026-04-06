@@ -245,8 +245,16 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
 
     console.log(`🔍 [QUOTA] Looking for resident settings. User: ${residentId}, Org: ${baiguullagiinId}, Bldg: ${barilgiinId}`);
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+
     const query = {
-      ezemshigchiinId: residentId,
+      $or: [
+        { ezemshigchiinId: String(residentId) },
+        { orshinSuugchiinId: String(residentId) }
+      ],
       zochinTurul: "Оршин суугч"
     };
 
@@ -264,7 +272,10 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
     if (!masterSetting) {
       console.log("🔍 [QUOTA] Master setting not found with filters, trying resident-only search...");
       masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne({
-        ezemshigchiinId: String(residentId),
+        $or: [
+          { ezemshigchiinId: String(residentId) },
+          { orshinSuugchiinId: String(residentId) }
+        ],
         zochinTurul: "Оршин суугч"
       });
     }
@@ -304,10 +315,19 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
       startOfPeriod = moment().startOf("month").toDate();
     }
 
-    const usedCount = await EzenUrisanMashin(req.body.tukhainBaaziinKholbolt).countDocuments({
-      ezenId: residentId,
+    const usedMatchQuery = {
+      $or: [
+        { ezenId: residentId },
+        { ezemshigchiinId: residentId }
+      ],
       createdAt: { $gte: startOfPeriod }
-    });
+    };
+
+    if (baiguullagiinId) {
+       usedMatchQuery.baiguullagiinId = String(baiguullagiinId);
+    }
+
+    const usedCount = await EzenUrisanMashin(req.body.tukhainBaaziinKholbolt).countDocuments(usedMatchQuery);
 
     res.send({
       total: masterSetting.zochinErkhiinToo || 0,
