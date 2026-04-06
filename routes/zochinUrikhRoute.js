@@ -191,15 +191,27 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
     // const EzenUrisanMashin = require("../models/ezenUrisanMashin"); // Using sdk version instead
     const residentId = req.body.nevtersenAjiltniiToken?.id;
     const tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
+    const baiguullagiinId = req.query.baiguullagiinId || req.body.baiguullagiinId;
+    const barilgiinId = req.query.barilgiinId || req.body.barilgiinId;
 
     if (!residentId) return res.status(401).send("Нэвтрэх шаардлагатай");
 
-    console.log("🔍 [QUOTA] Looking for resident car with ID:", residentId);
+    console.log(`🔍 [QUOTA] Looking for resident settings. User: ${residentId}, Org: ${baiguullagiinId}, Bldg: ${barilgiinId}`);
 
-    const masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne({
+    const query = {
       ezemshigchiinId: residentId,
       zochinTurul: "Оршин суугч"
-    });
+    };
+
+    // Filter by organization and building if provided
+    if (baiguullagiinId) {
+      query.baiguullagiinId = String(baiguullagiinId);
+    }
+    if (barilgiinId) {
+      query.barilgiinId = String(barilgiinId);
+    }
+
+    const masterSetting = await Mashin(tukhainBaaziinKholbolt).findOne(query);
 
     console.log("🔍 [QUOTA] masterSetting found:", masterSetting ? { id: masterSetting._id, quota: masterSetting.zochinErkhiinToo } : "NULL");
 
@@ -246,7 +258,10 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
       used: usedCount,
       remaining: Math.max(0, (masterSetting.zochinErkhiinToo || 0) - usedCount),
       period: masterSetting.davtamjiinTurul,
-      freeMinutesPerGuest: masterSetting.zochinTusBurUneguiMinut || 0
+      freeMinutesPerGuest: masterSetting.zochinTusBurUneguiMinut || 0,
+      hasRight: masterSetting.zochinUrikhEsekh || false,
+      zochinUrikhEsekh: masterSetting.zochinUrikhEsekh || false,
+      success: true
     });
   } catch (error) {
     next(error);
@@ -298,10 +313,16 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
     let existingPrimary = null;
     if (inviterId) {
         const Mashin = require("../models/mashin");
-        existingPrimary = await Mashin(tukhainBaaziinKholbolt).findOne({
+        
+        const settingsQuery = {
             ezemshigchiinId: inviterId,
             zochinTurul: "Оршин суугч"
-        });
+        };
+        if (baiguullagiinId) {
+            settingsQuery.baiguullagiinId = String(baiguullagiinId);
+        }
+
+        existingPrimary = await Mashin(tukhainBaaziinKholbolt).findOne(settingsQuery);
     }
 
     // Determine if this is the Resident's own car or a Guest invitation
@@ -356,7 +377,10 @@ router.post("/zochinHadgalya", tokenShalgakh, async (req, res, next) => {
             });
 
             if (usedCount >= (inviterSettings.zochinErkhiinToo || 0)) {
-                return res.status(403).json({ success: false, message: "Таны зочин урих лимит дууссан байна" });
+                // If every guest has free minutes (e.g. 30min free), allow invitation even if quota is exhausted
+                if (!(inviterSettings.zochinTusBurUneguiMinut > 0)) {
+                    return res.status(403).json({ success: false, message: "Таны зочин урих лимит дууссан байна" });
+                }
             }
 
             // AFFECT MINUTE: Inherit free minutes from inviter to guest car
