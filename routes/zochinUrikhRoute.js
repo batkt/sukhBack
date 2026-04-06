@@ -200,22 +200,27 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
     res.setHeader('Expires', '0');
     res.setHeader('Surrogate-Control', 'no-store');
 
-    const settings = await Mashin(tukhainBaaziinKholbolt).findOne({
+    let settings = await Mashin(tukhainBaaziinKholbolt).findOne({
       $or: [
         { ezemshigchiinId: residentId },
-        { orshinSuugchiinId: residentId }
+        { orshinSuugchiinId: residentId },
+        { ezemshigchiinId: String(residentId) },
+        { orshinSuugchiinId: String(residentId) }
       ],
       zochinTurul: "Оршин суугч"
     });
 
-    // Fallback to building settings if resident specific record doesn't exist
+    // Fallback to building settings if resident specific record doesn't exist or is empty
     let barilgiinId = req.query.barilgiinId || req.body.barilgiinId;
     let baiguullagiinId = req.query.baiguullagiinId || req.body.baiguullagiinId;
 
-    // Auto-discover IDs if missing
+    // Auto-discover IDs from ANY source if missing
     if (!baiguullagiinId || !barilgiinId) {
       const OrshinSuugch = require("../models/orshinSuugch");
-      const resObj = await OrshinSuugch(db.erunkhiiKholbolt).findById(residentId);
+      // Search general resident profile
+      const resObj = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+         $or: [{ _id: residentId }, { id: String(residentId) }]
+      });
       if (resObj) {
         baiguullagiinId = resObj.baiguullagiinId;
         barilgiinId = resObj.barilgiinId;
@@ -226,9 +231,9 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
     if (baiguullagiinId && barilgiinId) {
        const baiguullagaRecord = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
        const targetBarilga = baiguullagaRecord?.barilguud?.find(
-         (b) => b._id.toString() === String(barilgiinId)
+         (b) => String(b._id) === String(barilgiinId)
        );
-       buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
+       buildingSettings = targetBarilga?.zochinTokhirgoo || targetBarilga?.tokhirgoo?.zochinTokhirgoo;
     }
 
     // Merge: Resident settings take priority for custom needs, but Building settings can provide defaults
@@ -309,9 +314,9 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
     if (baiguullagiinId && barilgiinId) {
        const baiguullagaRecord = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
        const targetBarilga = baiguullagaRecord?.barilguud?.find(
-         (b) => b._id.toString() === String(barilgiinId)
+         (b) => String(b._id) === String(barilgiinId)
        );
-       buildingSettings = targetBarilga?.tokhirgoo?.zochinTokhirgoo;
+       buildingSettings = targetBarilga?.zochinTokhirgoo || targetBarilga?.tokhirgoo?.zochinTokhirgoo;
     }
 
     if (!masterSetting && !buildingSettings) {
