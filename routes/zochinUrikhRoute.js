@@ -324,7 +324,12 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
     // 1. Resolve IDs from profile if they failed initially
     if (!baiguullagiinId || !barilgiinId) {
       const OrshinSuugch = require("../models/orshinSuugch");
-      const rObj = await OrshinSuugch(db.erunkhiiKholbolt).findById(residentId);
+      // CRITICAL: Look in the Tenant DB (tukhainBaaziinKholbolt), not the Master DB
+      const rObj = await OrshinSuugch(req.body.tukhainBaaziinKholbolt).findById(residentId) ||
+                   await OrshinSuugch(req.body.tukhainBaaziinKholbolt).findOne({
+                      $or: [{ _id: residentId }, { id: String(residentId) }]
+                   });
+
       if (rObj && rObj.toots && rObj.toots.length > 0) {
         baiguullagiinId = baiguullagiinId || rObj.toots[0].baiguullagiinId;
         barilgiinId = barilgiinId || rObj.toots[0].barilgiinId;
