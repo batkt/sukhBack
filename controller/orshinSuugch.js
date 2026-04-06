@@ -1901,6 +1901,9 @@ exports.orshinSuugchNevtrey = asyncHandler(async (req, res, next) => {
       userData.walletUserId = walletUserId;
     }
 
+    // Single Device Login: Set unique sessionId
+    userData.currentSessionId = String(Date.now() + Math.random().toString(36).substring(2, 7));
+
     // 1. Preserve existing primary organization - STRIKTLY IMMUTABLE
     if (orshinSuugch && orshinSuugch.baiguullagiinId) {
       // If user exists and has an org, that is their PERMANENT primary home in erunkhiiBaaz

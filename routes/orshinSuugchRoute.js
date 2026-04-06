@@ -77,6 +77,30 @@ const upload = multer({
   },
 });
 
+// Session validation for multiple device login prevention
+const orshinSuugchSessionShalgaya = async (req, res, next) => {
+  const token = req.body.nevtersenAjiltniiToken;
+  if (token && token.erkh === "OrshinSuugch" && token.sessionId) {
+    try {
+      const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
+      const user = await OrshinSuugchModel.findById(token.id).select("currentSessionId");
+      if (user && user.currentSessionId && user.currentSessionId !== token.sessionId) {
+        return res.status(401).json({
+          success: false,
+          message: "Та өөр төхөөрөмж дээр нэвтэрсэн байна",
+          code: "SESSION_EXPIRED"
+        });
+      }
+    } catch (err) {
+      console.error("Session check error:", err);
+    }
+  }
+  next();
+};
+
+// Apply session check to all orshinSuugch routes
+router.use(orshinSuugchSessionShalgaya);
+
 // Custom DELETE handler for orshinSuugch - marks gerees as "Цуцалсан" before deleting
 router.delete("/orshinSuugch/:id", tokenShalgakh, orshinSuugchUstgakh);
 

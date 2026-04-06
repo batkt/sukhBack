@@ -15,6 +15,29 @@ const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
 
 crud(router, "ezenUrisanMashin", EzenUrisanMashin, UstsanBarimt);
 
+// Session validation for multiple device login prevention
+const orshinSuugchSessionShalgaya = async (req, res, next) => {
+  const token = req.body.nevtersenAjiltniiToken;
+  if (token && token.erkh === "OrshinSuugch" && token.sessionId) {
+    try {
+      const OrshinSuugchModel = require("../models/orshinSuugch")(require("zevbackv2").db.erunkhiiKholbolt);
+      const user = await OrshinSuugchModel.findById(token.id).select("currentSessionId");
+      if (user && user.currentSessionId && user.currentSessionId !== token.sessionId) {
+        return res.status(401).json({
+          success: false,
+          message: "Та өөр төхөөрөмж дээр нэвтэрсэн байна",
+          code: "SESSION_EXPIRED"
+        });
+      }
+    } catch (err) {
+      console.error("Session check error (zochinUrikh):", err);
+    }
+  }
+  next();
+};
+
+router.use(orshinSuugchSessionShalgaya);
+
 // Харилцагчийн мэдээллийг шинээр хадгалах буюу засварлах функц
 async function orshinSuugchKhadgalya(
   orshinSuugchMedeelel,

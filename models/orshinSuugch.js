@@ -41,6 +41,7 @@ const orshinSuugchSchema = new Schema(
     ],
     ovog: String,
     utas: String,
+    currentSessionId: String,
     mail: String,
     tuluv: String,
     davkhar: String, // Keep for backward compatibility
@@ -106,6 +107,7 @@ orshinSuugchSchema.methods.tokenUusgeye = function (
       baiguullagiinId: this.baiguullagiinId,
       salbaruud: salbaruud,
       duusakhOgnoo: duusakhOgnoo,
+      sessionId: this.currentSessionId || null,
     },
     process.env.APP_SECRET,
     {
