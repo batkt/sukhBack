@@ -410,7 +410,7 @@ router.get("/zochinQuotaStatus", tokenShalgakh, async (req, res, next) => {
 
     res.send({
       total: effectiveTotal,
-      used: usedCount,
+      used: Math.min(usedCount, effectiveTotal),
       remaining: Math.max(0, effectiveTotal - usedCount),
       period: effectiveType,
       freeMinutesPerGuest: effectiveMinutes,
