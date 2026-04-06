@@ -195,6 +195,11 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
 
     if (!residentId) return res.status(401).send("Нэвтрэх шаардлагатай");
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+
     const settings = await Mashin(tukhainBaaziinKholbolt).findOne({
       $or: [
         { ezemshigchiinId: residentId },
@@ -204,8 +209,18 @@ router.get("/zochinSettings", tokenShalgakh, async (req, res, next) => {
     });
 
     // Fallback to building settings if resident specific record doesn't exist
-    const barilgiinId = req.query.barilgiinId || req.body.barilgiinId;
-    const baiguullagiinId = req.query.baiguullagiinId || req.body.baiguullagiinId;
+    let barilgiinId = req.query.barilgiinId || req.body.barilgiinId;
+    let baiguullagiinId = req.query.baiguullagiinId || req.body.baiguullagiinId;
+
+    // Auto-discover IDs if missing
+    if (!baiguullagiinId || !barilgiinId) {
+      const OrshinSuugch = require("../models/orshinSuugch");
+      const resObj = await OrshinSuugch(db.erunkhiiKholbolt).findById(residentId);
+      if (resObj) {
+        baiguullagiinId = resObj.baiguullagiinId;
+        barilgiinId = resObj.barilgiinId;
+      }
+    }
 
     let buildingSettings = null;
     if (baiguullagiinId && barilgiinId) {
