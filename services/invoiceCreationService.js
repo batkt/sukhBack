@@ -65,6 +65,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
     }
 
     let shouldUseEkhniiUldegdel = false;
+    let existingEkhniiUldegdelInvoices = null;
 
     if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
       try {
@@ -82,7 +83,7 @@ const gereeNeesNekhemjlekhUusgekh = async (
           0,
         );
 
-        const existingEkhniiUldegdelInvoices = await nekhemjlekhiinTuukh(
+        existingEkhniiUldegdelInvoices = await nekhemjlekhiinTuukh(
           tukhainBaaziinKholbolt,
         ).countDocuments({
           gereeniiId: tempData._id.toString(),
@@ -100,6 +101,31 @@ const gereeNeesNekhemjlekhUusgekh = async (
       } catch (error) {
         // Error checking ekhniiUldegdel - silently continue
       }
+    }
+
+    // If contract has initial balance, include it on the FIRST invoice automatically
+    // (unless caller explicitly disabled it) so first month totals are correct.
+    // This also prevents the "Эхний үлдэгдэл row exists but niitTulburOriginal stays small" drift
+    // when invoices are backfilled/created in a different month.
+    try {
+      if (existingEkhniiUldegdelInvoices == null) {
+        existingEkhniiUldegdelInvoices = await nekhemjlekhiinTuukh(
+          tukhainBaaziinKholbolt,
+        ).countDocuments({
+          gereeniiId: tempData._id.toString(),
+          ekhniiUldegdel: { $exists: true, $gt: 0 },
+        });
+      }
+      if (
+        includeEkhniiUldegdel !== true &&
+        tempData.ekhniiUldegdel &&
+        tempData.ekhniiUldegdel > 0 &&
+        existingEkhniiUldegdelInvoices === 0
+      ) {
+        includeEkhniiUldegdel = true;
+      }
+    } catch (_ekhniiCheckErr) {
+      // silently continue
     }
 
     // One invoice per contract per billing cycle: look up first, reuse or update if found, create only when none exists.
