@@ -297,7 +297,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                   nekhemjlekh: "Авлагаар автоматаар үүсгэсэн нэхэмжлэх",
                   zagvariinNer: freshGereeForAvlaga.baiguullagiinNer || "",
                   content: "Авлага тусгах суурь нэхэмжлэх",
-                  nekhemjlekhiinOgnoo: new Date(),
+                  nekhemjlekhiinOgnoo: new Date(invoiceDate),
                   nekhemjlekhiinDugaar: `AVL-${Date.now()}-${Math.floor(
                     Math.random() * 1000,
                   )}`,
