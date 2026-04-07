@@ -158,6 +158,91 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             newAvlagaId,
           );
 
+          // Ensure the avlaga month has an invoice container.
+          // If no invoice exists for that month, auto-create one so avlaga is reflected immediately.
+          try {
+            const avlagaDate = guilgee.ognoo
+              ? new Date(guilgee.ognoo)
+              : guilgee.guilgeeKhiisenOgnoo
+                ? new Date(guilgee.guilgeeKhiisenOgnoo)
+                : new Date();
+
+            if (!Number.isNaN(avlagaDate.getTime())) {
+              const monthStart = new Date(
+                avlagaDate.getFullYear(),
+                avlagaDate.getMonth(),
+                1,
+                0,
+                0,
+                0,
+                0,
+              );
+              const monthEnd = new Date(
+                avlagaDate.getFullYear(),
+                avlagaDate.getMonth() + 1,
+                0,
+                23,
+                59,
+                59,
+                999,
+              );
+
+              const NekhemjlekhiinTuukhModel = require("../models/nekhemjlekhiinTuukh");
+              const NekhemjlekhModel = NekhemjlekhiinTuukhModel(
+                tukhainBaaziinKholbolt,
+              );
+
+              const existingMonthlyInvoice = await NekhemjlekhModel.findOne({
+                gereeniiId: guilgee.gereeniiId,
+                tuluv: { $ne: "Хүчингүй" },
+                $or: [
+                  { ognoo: { $gte: monthStart, $lte: monthEnd } },
+                  {
+                    $and: [
+                      { $or: [{ ognoo: null }, { ognoo: { $exists: false } }] },
+                      { createdAt: { $gte: monthStart, $lte: monthEnd } },
+                    ],
+                  },
+                ],
+              })
+                .select("_id")
+                .lean();
+
+              if (!existingMonthlyInvoice) {
+                const { manualSendInvoice } = require("../services/invoiceSendService");
+                const ensured = await manualSendInvoice(
+                  guilgee.gereeniiId,
+                  baiguullagiinId,
+                  false,
+                  avlagaDate.getMonth() + 1,
+                  avlagaDate.getFullYear(),
+                  req.app,
+                );
+
+                if (ensured?.success) {
+                  console.log(
+                    "✅ [GEREE AVLAGA] Auto-created missing month invoice",
+                    {
+                      gereeniiId: guilgee.gereeniiId,
+                      month: avlagaDate.getMonth() + 1,
+                      year: avlagaDate.getFullYear(),
+                    },
+                  );
+                } else {
+                  console.error(
+                    "❌ [GEREE AVLAGA] Failed to auto-create month invoice",
+                    ensured?.error || "unknown error",
+                  );
+                }
+              }
+            }
+          } catch (ensureInvoiceError) {
+            console.error(
+              "❌ [GEREE AVLAGA] Error ensuring month invoice:",
+              ensureInvoiceError.message,
+            );
+          }
+
           // If this is an initial balance (ekhniiUldegdelEsekh), also update any
           // existing unpaid invoices for this contract immediately
           if (guilgee.ekhniiUldegdelEsekh === true && dun > 0) {
