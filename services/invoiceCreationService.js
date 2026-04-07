@@ -38,9 +38,19 @@ const gereeNeesNekhemjlekhUusgekh = async (
   uusgegsenEsekh = "garan",
   includeEkhniiUldegdel = false,
   ekhniiUldegdelId = null,
+  billingReferenceDate = null,
 ) => {
   try {
-    const currentDate = new Date();
+    const usingHistoricalBilling =
+      billingReferenceDate instanceof Date &&
+      !Number.isNaN(billingReferenceDate.getTime());
+    const currentDate = usingHistoricalBilling
+      ? new Date(
+          billingReferenceDate.getFullYear(),
+          billingReferenceDate.getMonth(),
+          billingReferenceDate.getDate(),
+        )
+      : new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth(); // 0-11 (0 = January)
 
@@ -473,7 +483,11 @@ const gereeNeesNekhemjlekhUusgekh = async (
       typeof tempData.tuluv === "string" && tempData.tuluv
         ? tempData.tuluv
         : "Төлөөгүй";
-    tuukh.ognoo = tempData.ognoo || new Date();
+    tuukh.ognoo =
+      tempData.ognoo ||
+      (usingHistoricalBilling
+        ? new Date(currentYear, currentMonth, 1, 12, 0, 0, 0)
+        : new Date());
     tuukh.mailKhayagTo = tempData.mail;
     tuukh.maililgeesenAjiltniiId =
       tempData.maililgeesenAjiltniiId || tempData.burtgesenAjiltan;
@@ -1296,7 +1310,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     tuukh.nekhemjlekhiinIbanDugaar =
       tempData.nekhemjlekhiinIbanDugaar || dansInfo.ibanDugaar || "";
-    tuukh.nekhemjlekhiinOgnoo = new Date();
+    tuukh.nekhemjlekhiinOgnoo = usingHistoricalBilling
+      ? new Date(currentYear, currentMonth, 1, 12, 0, 0, 0)
+      : new Date();
     tuukh.niitTulbur = correctedFinalNiitTulbur;
     // niitTulburOriginal = total BEFORE credit deduction.
     // This is the true original charge amount.
@@ -1323,10 +1339,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
       suuliinDugaar && !isNaN(suuliinDugaar) ? suuliinDugaar + 1 : 1;
 
     const generateUniqueNekhemjlekhiinDugaar = async () => {
-      const currentDate = new Date();
-      const year = currentDate.getFullYear();
-      const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-      const day = String(currentDate.getDate()).padStart(2, "0");
+      const stampDate = usingHistoricalBilling
+        ? new Date(currentYear, currentMonth, 1, 12, 0, 0, 0)
+        : new Date();
+      const year = stampDate.getFullYear();
+      const month = String(stampDate.getMonth() + 1).padStart(2, "0");
+      const day = String(stampDate.getDate()).padStart(2, "0");
       const datePrefix = `${year}${month}${day}`;
 
       const todayInvoices = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
@@ -1406,7 +1424,13 @@ const gereeNeesNekhemjlekhUusgekh = async (
       // 1) Stamp the invoice date
       await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
         tempData._id,
-        { $set: { nekhemjlekhiinOgnoo: new Date() } },
+        {
+          $set: {
+            nekhemjlekhiinOgnoo: usingHistoricalBilling
+              ? new Date(currentYear, currentMonth, 1, 12, 0, 0, 0)
+              : new Date(),
+          },
+        },
         { runValidators: false },
       );
     } catch (gereeUpdateError) {

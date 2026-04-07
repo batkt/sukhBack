@@ -472,12 +472,21 @@ const manualSendInvoice = async (
     }
 
     // includeEkhniiUldegdel = false: manual send must not add ekhniiUldegdel (Excel/TransactionModal only)
+    const billingRef =
+      targetMonth !== null &&
+      targetYear !== null &&
+      !Number.isNaN(Number(targetMonth)) &&
+      !Number.isNaN(Number(targetYear))
+        ? new Date(Number(targetYear), Number(targetMonth) - 1, 1)
+        : null;
     const result = await gereeNeesNekhemjlekhUusgekh(
       geree,
       baiguullaga,
       tukhainBaaziinKholbolt,
       "manual",
       false, // includeEkhniiUldegdel = false on manual send
+      null,
+      billingRef,
     );
 
     return result;
