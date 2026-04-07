@@ -13,7 +13,7 @@
     "seedInvoices": "node scripts/seed-and-invoice.js",
     "payments": "node scripts/qpay-payment-test.js",
     "createOverdueInvoices": "node scripts/create-overdue-invoices.js",
-    "createOrgInvoicesFebMar": "node scripts/createOrgInvoicesForMonths.js",
+    "invoice:dotoodOrg": "node scripts/dotoodOrgInvoiceMonths.js",
     "update": "git pull && pm2 reload amarSukhBack",
     "addpack": "npm install --registry http://103.143.40.90:4873 zevbackv2"
   },

@@ -1,34 +1,34 @@
 /**
- * Run nekhemjlekh (invoice) creation for selected calendar months, one organization.
- * Uses the same logic as manual mass send: active gerees only, optional --override
- * to remove existing invoices in each month window first.
+ * Standalone CLI — NOT part of API routes or controllers.
+ * One fixed organization only (hardcoded below). Runs mass nekhemjlekh for chosen months.
  *
- * From repo root:
- *   node scripts/createOrgInvoicesForMonths.js
- *   node scripts/createOrgInvoicesForMonths.js --year=2026 --months=2,3
- *   node scripts/createOrgInvoicesForMonths.js --override
- *   node scripts/createOrgInvoicesForMonths.js --baiguullagiinId=OTHER_ID
+ *   node scripts/dotoodOrgInvoiceMonths.js
+ *   node scripts/dotoodOrgInvoiceMonths.js --year=2026 --months=2,3
+ *   node scripts/dotoodOrgInvoiceMonths.js --override
  *
- * Requires tokhirgoo/tokhirgoo.env and MongoDB (same as the main app).
+ * Uses invoiceSendService.manualSendMassInvoices internally; org-specific wiring lives only here.
  */
 
 const path = require("path");
 const express = require("express");
 const dotenv = require("dotenv");
 
+const BAIGUULLAGIIN_ID = "697723dc3e77b46e52ccf577";
+
 const projectRoot = path.resolve(__dirname, "..");
 process.chdir(projectRoot);
 dotenv.config({ path: "./tokhirgoo/tokhirgoo.env" });
 process.env.TZ = process.env.TZ || "Asia/Ulaanbaatar";
+process.setMaxListeners(0);
 
 const { db } = require("zevbackv2");
+const { getKholboltByBaiguullagiinId } = require("../utils/dbConnection");
+const Geree = require("../models/geree");
+const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const { manualSendMassInvoices } = require("../services/invoiceSendService");
-
-const DEFAULT_BAIGUULLAGIIN_ID = "697723dc3e77b46e52ccf577";
 
 function parseArgs(argv) {
   const out = {
-    baiguullagiinId: DEFAULT_BAIGUULLAGIIN_ID,
     year: new Date().getFullYear(),
     months: [2, 3],
     override: false,
@@ -38,8 +38,6 @@ function parseArgs(argv) {
 
   for (const arg of argv) {
     if (arg === "--override") out.override = true;
-    else if (arg.startsWith("--baiguullagiinId="))
-      out.baiguullagiinId = arg.slice("--baiguullagiinId=".length).trim();
     else if (arg.startsWith("--year="))
       out.year = parseInt(arg.slice("--year=".length), 10);
     else if (arg.startsWith("--months=")) {
@@ -54,12 +52,8 @@ function parseArgs(argv) {
       out.waitMs = parseInt(arg.slice("--waitMs=".length), 10) || 4000;
   }
 
-  if (!out.months.length) {
-    out.months = [2, 3];
-  }
-  if (Number.isNaN(out.year)) {
-    out.year = new Date().getFullYear();
-  }
+  if (!out.months.length) out.months = [2, 3];
+  if (Number.isNaN(out.year)) out.year = new Date().getFullYear();
   return out;
 }
 
@@ -82,8 +76,8 @@ const MONTH_NAMES = [
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
 
-  console.log("createOrgInvoicesForMonths");
-  console.log("  baiguullagiinId:", opts.baiguullagiinId);
+  console.log("dotoodOrgInvoiceMonths (standalone tool)");
+  console.log("  baiguullagiinId (fixed):", BAIGUULLAGIIN_ID);
   console.log("  year:", opts.year);
   console.log(
     "  months:",
@@ -108,13 +102,72 @@ async function main() {
     process.exit(1);
   }
 
+  const kholMatches = db.kholboltuud.filter(
+    (k) => String(k.baiguullagiinId) === String(BAIGUULLAGIIN_ID),
+  );
+  if (kholMatches.length > 1) {
+    console.warn(
+      "\n⚠️  Multiple db.kholboltuud rows for this org — first match is used:",
+      kholMatches.length,
+    );
+    kholMatches.forEach((m, i) => {
+      console.warn(
+        `   [${i}] databaseName: ${m.kholbolt?.db?.databaseName ?? "?"}`,
+      );
+    });
+    console.warn("");
+  }
+
+  const kholboltEntry = getKholboltByBaiguullagiinId(BAIGUULLAGIIN_ID);
+  if (!kholboltEntry) {
+    console.error("No kholbolt for baiguullagiinId:", BAIGUULLAGIIN_ID);
+    process.exit(1);
+  }
+
+  const mongooseConn = kholboltEntry.kholbolt;
+  const tenantDbName =
+    mongooseConn?.db?.databaseName ?? "(unknown)";
+  let hosts = "(unknown)";
+  try {
+    const h = mongooseConn?.client?.options?.hosts;
+    if (Array.isArray(h) && h.length) {
+      hosts = h.map((x) => `${x.host}:${x.port}`).join(", ");
+    }
+  } catch (_e) {}
+
+  console.log("\n========== TENANT TARGET (invoices written here) ==========");
+  console.log("  MongoDB databaseName:", tenantDbName);
+  console.log("  hosts:", hosts);
+  try {
+    const gid = String(BAIGUULLAGIIN_ID);
+    const gereeTotal = await Geree(kholboltEntry).countDocuments({
+      baiguullagiinId: gid,
+    });
+    const gereeActive = await Geree(kholboltEntry).countDocuments({
+      baiguullagiinId: gid,
+      tuluv: "Идэвхтэй",
+    });
+    const invCount = await nekhemjlekhiinTuukh(kholboltEntry).countDocuments({
+      baiguullagiinId: gid,
+    });
+    console.log("  geree (total):", gereeTotal);
+    console.log('  geree (Идэвхтэй):', gereeActive);
+    console.log("  nekhemjlekhiinTuukh:", invCount);
+  } catch (countErr) {
+    console.warn("  (counts failed:", countErr.message, ")");
+  }
+  console.log(
+    "  Compare databaseName to the DB you use in mongosh (e.g. use dotoodSukh).",
+  );
+  console.log("============================================================\n");
+
   const summary = [];
 
   for (const month of opts.months) {
     const label = `${MONTH_NAMES[month]} ${opts.year}`;
     console.log(`\n---------- ${label} (month=${month}) ----------`);
     const result = await manualSendMassInvoices(
-      opts.baiguullagiinId,
+      BAIGUULLAGIIN_ID,
       opts.barilgiinId,
       opts.override,
       month,
@@ -130,7 +183,7 @@ async function main() {
     }
 
     console.log(
-      `Total gerees: ${result.total}, reported success count: ${result.created}, errors: ${result.errors}`,
+      `Total gerees: ${result.total}, success rows: ${result.created}, errors: ${result.errors}`,
     );
     if (result.errorsList && result.errorsList.length) {
       console.log("Errors (first 20):");
