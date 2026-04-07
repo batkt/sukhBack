@@ -13,6 +13,7 @@ function parseOgnooKeepClock(value) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
 
   if (typeof value === "string") {
+    const hasExplicitTime = /[T\s]\d{2}:\d{2}/.test(value);
     const m = value.match(
       /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/,
     );
@@ -20,7 +21,9 @@ function parseOgnooKeepClock(value) {
       const year = Number(m[1]);
       const month = Number(m[2]) - 1;
       const day = Number(m[3]);
-      const hour = Number(m[4] || 0);
+      // Date-only inputs are treated as noon local time to avoid
+      // "previous day" UTC display in Mongo shell.
+      const hour = hasExplicitTime ? Number(m[4] || 0) : 12;
       const minute = Number(m[5] || 0);
       const second = Number(m[6] || 0);
       return new Date(year, month, day, hour, minute, second, 0);
