@@ -538,33 +538,8 @@ async function markInvoicesAsPaid(options) {
           GereeniiTulsunAvlagaModel,
         });
 
-        if (updatedGeree && updatedGeree.globalUldegdel > 0) {
-          // If there's still outstanding balance, re-open latest invoice so QPay can collect it
-          try {
-            const latestInvoice = await NekhemjlekhiinTuukh.findOne({
-              baiguullagiinId: String(baiguullagiinId),
-              gereeniiId: String(gereeId),
-            }).sort({ ognoo: -1, createdAt: -1 });
-
-            if (latestInvoice) {
-              await NekhemjlekhiinTuukh.findByIdAndUpdate(
-                latestInvoice._id,
-                {
-                  $set: {
-                    uldegdel: updatedGeree.globalUldegdel,
-                    niitTulbur: updatedGeree.globalUldegdel,
-                    tuluv: "Төлөөгүй",
-                  },
-                },
-              );
-            }
-          } catch (reopenErr) {
-            console.error(
-              `❌ [INVOICE PAYMENT] Error re-opening invoice for geree ${gereeId}:`,
-              reopenErr.message,
-            );
-          }
-        }
+        // NOTE: Do not overwrite the latest invoice's uldegdel with contract-wide globalUldegdel.
+        // That behavior makes the newest month show accumulated debt from previous months.
       } catch (recalcError) {
         console.error(
           `❌ [INVOICE PAYMENT] Error recalculating globalUldegdel for geree ${gereeId}:`,

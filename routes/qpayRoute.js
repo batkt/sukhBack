@@ -1842,34 +1842,8 @@ router.get(
           GereeniiTulsunAvlagaModel: GereeniiTulsunAvlagaRecalcSingle(kholbolt),
         });
 
-        // If still outstanding balance, re-open latest invoice so QPay can collect it
-        if (updatedGeree && updatedGeree.globalUldegdel > 0) {
-          try {
-            const latestInv = await nekhemjlekhiinTuukh(kholbolt)
-              .findOne({
-                baiguullagiinId: String(baiguullagiinId),
-                gereeniiId: String(nekhemjlekh.gereeniiId),
-              })
-              .sort({ ognoo: -1, createdAt: -1 });
-            if (latestInv) {
-              await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
-                latestInv._id,
-                {
-                  $set: {
-                    uldegdel: updatedGeree.globalUldegdel,
-                    niitTulbur: updatedGeree.globalUldegdel,
-                    tuluv: "Төлөөгүй",
-                  },
-                },
-              );
-            }
-          } catch (reopenErr) {
-            console.error(
-              "❌ [QPAY CALLBACK] Error re-opening invoice:",
-              reopenErr.message,
-            );
-          }
-        }
+        // NOTE: Do not overwrite the latest invoice's uldegdel with contract-wide globalUldegdel.
+        // That would make the newest month show accumulated debt from previous months.
       } catch (recalcErr) {
         console.error(
           "❌ [QPAY CALLBACK] Error recalculating globalUldegdel:",
@@ -2376,34 +2350,8 @@ router.get(
               GereeniiTulsunAvlagaModel: GereeniiTulsunAvlagaRecalcMulti(kholbolt),
             });
 
-            // If still outstanding balance, re-open latest invoice so QPay can collect it
-            if (updatedGereeMulti && updatedGereeMulti.globalUldegdel > 0) {
-              try {
-                const latestInv = await nekhemjlekhiinTuukh(kholbolt)
-                  .findOne({
-                    baiguullagiinId: String(baiguullagiinId),
-                    gereeniiId: String(nekhemjlekh.gereeniiId),
-                  })
-                  .sort({ ognoo: -1, createdAt: -1 });
-                if (latestInv) {
-                  await nekhemjlekhiinTuukh(kholbolt).findByIdAndUpdate(
-                    latestInv._id,
-                    {
-                      $set: {
-                        uldegdel: updatedGereeMulti.globalUldegdel,
-                        niitTulbur: updatedGereeMulti.globalUldegdel,
-                        tuluv: "Төлөөгүй",
-                      },
-                    },
-                  );
-                }
-              } catch (reopenErr) {
-                console.error(
-                  "❌ [QPAY MULTI CALLBACK] Error re-opening invoice:",
-                  reopenErr.message,
-                );
-              }
-            }
+            // NOTE: Do not overwrite the latest invoice's uldegdel with contract-wide globalUldegdel.
+            // That would make the newest month show accumulated debt from previous months.
           } catch (recalcErr) {
             console.error(
               "❌ [QPAY MULTI CALLBACK] Error recalculating globalUldegdel:",

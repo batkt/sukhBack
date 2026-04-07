@@ -477,7 +477,6 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
           .sort({ ognoo: -1, createdAt: -1 });
 
         const invoiceChanges = [];
-        let remainingDebt = Math.round(newGlobalUldegdel * 100) / 100;
 
         for (const inv of allInvoices) {
           // Rebuild originalTotal if missing
@@ -492,34 +491,28 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
           }
           originalTotal = Math.round((originalTotal || 0) * 100) / 100;
 
-          // If this is the newest invoice, let it absorb any un-invoiced manual Avlaga
-          // so that they coexist as one unified remaining balance
-          if (inv === allInvoices[0]) {
-            originalTotal = Math.max(originalTotal, Math.round(remainingDebt * 100) / 100);
-          }
+          // Invoice-scoped remaining: do NOT distribute contract-wide globalUldegdel into invoices.
+          // This prevents the newest month (e.g. April) from becoming Feb+Mar+Apr combined.
+          const currentTotalPaid = Math.round(
+            (inv.paymentHistory || []).reduce((s, p) => {
+              if (p?.turul === "system_sync") return s;
+              return s + (Number(p?.dun) || 0);
+            }, 0) * 100,
+          ) / 100;
 
-          // How much of the global debt belongs to this invoice?
-          const targetUldegdel = Math.round(Math.min(originalTotal, Math.max(0, remainingDebt)) * 100) / 100;
-          remainingDebt = Math.round(Math.max(0, remainingDebt - targetUldegdel) * 100) / 100;
+          const targetUldegdel = Math.round(
+            Math.max(0, originalTotal - currentTotalPaid) * 100,
+          ) / 100;
 
           const targetTuluv = targetUldegdel <= 0.01 ? "Төлсөн" : "Төлөөгүй";
-          
-          // To make the pre-save hook arrive exactly at `targetUldegdel`, totalPaid must be:
-          const targetTotalPaid = Math.round((originalTotal - targetUldegdel) * 100) / 100;
 
           const oldUldegdel   = typeof inv.uldegdel === "number" ? inv.uldegdel : null;
           const oldNiitTulbur = typeof inv.niitTulbur === "number" ? inv.niitTulbur : null;
-          const currentTotalPaid = Math.round(
-            (inv.paymentHistory || []).reduce((s, p) => s + (Number(p.dun) || 0), 0) * 100
-          ) / 100;
-
-          const paymentDiff = Math.round((targetTotalPaid - currentTotalPaid) * 100) / 100;
 
           const needsFix =
             Math.abs((oldUldegdel ?? 0) - targetUldegdel) > 0.01 ||
             Math.abs((oldNiitTulbur ?? 0) - targetUldegdel) > 0.01 ||
             inv.tuluv !== targetTuluv ||
-            Math.abs(paymentDiff) > 0.01 ||
             (inv.niitTulburOriginal !== originalTotal && originalTotal > 0);
 
           if (needsFix) {
@@ -530,49 +523,16 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
               oldUldegdel, oldNiitTulbur, oldTuluv: inv.tuluv,
               newUldegdel: targetUldegdel, newNiitTulbur: targetUldegdel, newTuluv: targetTuluv,
               niitTulburOriginal: originalTotal,
-              appendedPhantomPayment: paymentDiff !== 0 ? paymentDiff : 0,
+              appendedPhantomPayment: 0,
             });
 
             if (!dryRun) {
               inv.niitTulburOriginal = originalTotal;
-              
-              if (Math.abs(paymentDiff) > 0.01) {
-                // Determine if there already is a system sync payment
-                const existingSyncIdx = (inv.paymentHistory || []).findIndex(p => p.turul === 'system_sync');
-                
-                if (existingSyncIdx > -1) {
-                  // Adjust existing sync payment
-                  inv.paymentHistory[existingSyncIdx].dun = Math.round((inv.paymentHistory[existingSyncIdx].dun + paymentDiff) * 100) / 100;
-                  // Remove if it drops below 0
-                  if (inv.paymentHistory[existingSyncIdx].dun <= 0.01) {
-                    inv.paymentHistory.splice(existingSyncIdx, 1);
-                  }
-                } else if (paymentDiff > 0) {
-                  // Inject positive balance usage / missing payment
-                  if (!inv.paymentHistory) inv.paymentHistory = [];
-                  inv.paymentHistory.push({
-                    ognoo: inv.tulsunOgnoo || new Date(),
-                    dun: paymentDiff,
-                    turul: "system_sync",
-                    guilgeeniiId: `sync_${Date.now()}`,
-                    tailbar: "Системээс тэгшитгэв (Эерэг үлдэгдэл / Төлбөр)"
-                  });
-                } else if (paymentDiff < 0) {
-                  // In extremely rare cases where paymentHistory is somehow larger, we'd adjust it.
-                  // Easiest is to add a negative correction
-                  if (!inv.paymentHistory) inv.paymentHistory = [];
-                  inv.paymentHistory.push({
-                    ognoo: new Date(),
-                    dun: paymentDiff,
-                    turul: "system_sync",
-                    guilgeeniiId: `sync_neg_${Date.now()}`,
-                    tailbar: "Системээс илүү гарсан төлөлтийг тэгшитгэж хасав"
-                  });
-                }
-              }
-
-              // Let the pre-save hook naturally hit targetUldegdel because we mathematically forced paymentHistory to equal targetTotalPaid
-              inv.markModified("paymentHistory");
+              inv.uldegdel = targetUldegdel;
+              inv.niitTulbur = targetUldegdel;
+              inv.tuluv = targetTuluv;
+              // Avoid model hook recalculation during this admin-sync action.
+              inv._skipTuluvRecalc = true;
               await inv.save();
             }
           }

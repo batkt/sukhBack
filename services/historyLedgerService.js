@@ -3,7 +3,8 @@
  * backend running balance (uldegdel) for the History modal.
  *
  * GET /geree/:gereeniiId/history-ledger?baiguullagiinId=...&barilgiinId=...
- * Returns { jagsaalt: LedgerRow[] } with uldegdel computed chronologically.
+ * Returns { jagsaalt: LedgerRow[] } with uldegdel = contract-wide running balance after each row.
+ * Rows from invoices also include invoiceUldegdel, nekhemjlekhiinDugaar, nekhemjlekhiinTuluv (per nekhemjlekhiin doc).
  */
 
 const { db } = require("zevbackv2");
@@ -84,7 +85,7 @@ async function getHistoryLedger(options) {
       .lean(),
   ]);
 
-  /** @type {Array<{ ognoo: Date, createdAt: Date, tulukhDun: number, tulsunDun: number, ner: string, isSystem: boolean, _id: string, ajiltan?: string, khelber?: string, tailbar?: string, burtgesenOgnoo?: string, parentInvoiceId?: string, sourceCollection: string }>} */
+  /** @type {Array<{ ognoo: Date, createdAt: Date, tulukhDun: number, tulsunDun: number, ner: string, isSystem: boolean, _id: string, ajiltan?: string, khelber?: string, tailbar?: string, burtgesenOgnoo?: string, parentInvoiceId?: string, sourceCollection: string, nekhemjlekhiinDugaar?: string, invoiceUldegdel?: number|null, nekhemjlekhiinTuluv?: string }>} */
   const rawRows = [];
 
   // 0) Geree ekhniiUldegdel (initial balance) — so ledger shows when contract has initial balance
@@ -124,6 +125,14 @@ async function getHistoryLedger(options) {
     const burtgesenOgnoo = inv.createdAt
       ? new Date(inv.createdAt).toISOString()
       : undefined;
+    const invoiceUldegdel =
+      typeof inv.uldegdel === "number" && !isNaN(inv.uldegdel)
+        ? Math.round(inv.uldegdel * 100) / 100
+        : null;
+    const nekhemjlekhiinDugaar =
+      inv.nekhemjlekhiinDugaar != null ? String(inv.nekhemjlekhiinDugaar) : "";
+    const nekhemjlekhiinTuluv =
+      inv.tuluv != null && inv.tuluv !== "" ? String(inv.tuluv) : undefined;
     const zardluud = inv.medeelel?.zardluud || [];
     for (let i = 0; i < zardluud.length; i++) {
       const z = zardluud[i];
@@ -149,6 +158,9 @@ async function getHistoryLedger(options) {
         burtgesenOgnoo,
         parentInvoiceId: invId,
         sourceCollection: "nekhemjlekhiinTuukh",
+        ...(nekhemjlekhiinDugaar && { nekhemjlekhiinDugaar }),
+        ...(invoiceUldegdel != null && { invoiceUldegdel }),
+        ...(nekhemjlekhiinTuluv && { nekhemjlekhiinTuluv }),
       });
     }
     // Invoice payment lines (guilgeenuud)
@@ -176,6 +188,9 @@ async function getHistoryLedger(options) {
         burtgesenOgnoo,
         parentInvoiceId: invId,
         sourceCollection: "nekhemjlekhiinTuukh",
+        ...(nekhemjlekhiinDugaar && { nekhemjlekhiinDugaar }),
+        ...(invoiceUldegdel != null && { invoiceUldegdel }),
+        ...(nekhemjlekhiinTuluv && { nekhemjlekhiinTuluv }),
       });
     }
   }
@@ -316,7 +331,8 @@ async function getHistoryLedger(options) {
     return String(a._id).localeCompare(String(b._id));
   });
 
-  // Running balance: uldegdel = cumulative charges - cumulative payments after this row
+  // Running balance: uldegdel = cumulative charges - cumulative payments on the CONTRACT after this row
+  // (not per-invoice / per-month). Use invoiceUldegdel on rows from nekhemjlekhiinTuukh for that invoice's own balance.
   // Round to 2dp at each step to eliminate float precision artifacts (e.g. -5999.199999999996)
   let runningBalance = 0;
   let jagsaalt = rawRows.map((row) => {
@@ -338,6 +354,15 @@ async function getHistoryLedger(options) {
         row.khelber !== "" && { khelber: row.khelber }),
       ...(row.burtgesenOgnoo && { burtgesenOgnoo: row.burtgesenOgnoo }),
       ...(row.parentInvoiceId && { parentInvoiceId: row.parentInvoiceId }),
+      ...(row.nekhemjlekhiinDugaar && {
+        nekhemjlekhiinDugaar: row.nekhemjlekhiinDugaar,
+      }),
+      ...(row.invoiceUldegdel != null && {
+        invoiceUldegdel: row.invoiceUldegdel,
+      }),
+      ...(row.nekhemjlekhiinTuluv && {
+        nekhemjlekhiinTuluv: row.nekhemjlekhiinTuluv,
+      }),
       sourceCollection: row.sourceCollection,
     };
   });
