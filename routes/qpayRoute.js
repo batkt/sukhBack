@@ -919,6 +919,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         }
 
         const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+        const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
         const invoiceIds = req.body.nekhemjlekhiinTuukh;
 
         // Fetch all invoices
@@ -937,9 +938,35 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
 
         // Calculate total amount if not provided
         if (!req.body.dun) {
-          const totalAmount = invoices.reduce((sum, inv) => {
-            return sum + (inv.niitTulbur || 0);
-          }, 0);
+          const invoiceAmounts = await Promise.all(
+            invoices.map(async (inv) => {
+              const invDate = inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
+              const d = invDate ? new Date(invDate) : new Date();
+              const monthStart = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+              const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+              const avlagaRows = await GereeniiTulukhAvlaga(
+                req.body.tukhainBaaziinKholbolt,
+              )
+                .find({
+                  baiguullagiinId: String(req.body.baiguullagiinId),
+                  gereeniiId: String(inv.gereeniiId),
+                  ognoo: { $gte: monthStart, $lte: monthEnd },
+                  uldegdel: { $gt: 0 },
+                })
+                .select("uldegdel undsenDun tulukhDun")
+                .lean();
+              const avlagaSum = Math.round(
+                avlagaRows.reduce(
+                  (s, r) =>
+                    s +
+                    (Number(r.uldegdel) || Number(r.undsenDun) || Number(r.tulukhDun) || 0),
+                  0,
+                ) * 100,
+              ) / 100;
+              return Math.round(((Number(inv.niitTulbur) || 0) + avlagaSum) * 100) / 100;
+            }),
+          );
+          const totalAmount = invoiceAmounts.reduce((sum, amt) => sum + amt, 0);
           req.body.dun = totalAmount.toString();
         }
 
@@ -975,14 +1002,43 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         if (!req.body.dun && req.body.tukhainBaaziinKholbolt) {
           try {
             const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+            const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
             const nekhemjlekh = await nekhemjlekhiinTuukh(
               req.body.tukhainBaaziinKholbolt,
             )
               .findById(req.body.nekhemjlekhiinId)
               .lean();
             if (nekhemjlekh) {
-              if (nekhemjlekh.niitTulbur) {
-                req.body.dun = nekhemjlekh.niitTulbur.toString();
+              const invDate =
+                nekhemjlekh.ognoo ||
+                nekhemjlekh.nekhemjlekhiinOgnoo ||
+                nekhemjlekh.createdAt;
+              const d = invDate ? new Date(invDate) : new Date();
+              const monthStart = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+              const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+              const avlagaRows = await GereeniiTulukhAvlaga(
+                req.body.tukhainBaaziinKholbolt,
+              )
+                .find({
+                  baiguullagiinId: String(req.body.baiguullagiinId),
+                  gereeniiId: String(nekhemjlekh.gereeniiId),
+                  ognoo: { $gte: monthStart, $lte: monthEnd },
+                  uldegdel: { $gt: 0 },
+                })
+                .select("uldegdel undsenDun tulukhDun")
+                .lean();
+              const avlagaSum = Math.round(
+                avlagaRows.reduce(
+                  (s, r) =>
+                    s +
+                    (Number(r.uldegdel) || Number(r.undsenDun) || Number(r.tulukhDun) || 0),
+                  0,
+                ) * 100,
+              ) / 100;
+              const payableAmount =
+                Math.round(((Number(nekhemjlekh.niitTulbur) || 0) + avlagaSum) * 100) / 100;
+              if (payableAmount > 0) {
+                req.body.dun = payableAmount.toString();
               }
               if (!req.body.barilgiinId && nekhemjlekh.barilgiinId) {
                 req.body.barilgiinId = nekhemjlekh.barilgiinId;
