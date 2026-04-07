@@ -1107,7 +1107,52 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
       baiguullagiinId: baiguullaga._id.toString(),
       barilgiinId: barilgiinId,
       tuluv: "Идэвхтэй",
-    }).select("gereeniiDugaar toot orshinSuugchId suuliinZaalt").lean();
+    })
+      .select("gereeniiDugaar toot orshinSuugchId suuliinZaalt _id")
+      .lean();
+
+    const ZaaltUnshlalt = require("../models/zaaltUnshlalt");
+    const gereeIdStrings = gereenuud.map((g) => String(g._id));
+    const latestTotalByGereeId = new Map();
+    if (gereeIdStrings.length > 0) {
+      const latestRows = await ZaaltUnshlalt(tukhainBaaziinKholbolt).aggregate([
+        {
+          $match: {
+            baiguullagiinId: baiguullaga._id.toString(),
+            barilgiinId: String(barilgiinId),
+            gereeniiId: { $in: gereeIdStrings },
+          },
+        },
+        { $sort: { unshlaltiinOgnoo: -1, importOgnoo: -1, createdAt: -1 } },
+        {
+          $group: {
+            _id: "$gereeniiId",
+            suuliinZaalt: { $first: "$suuliinZaalt" },
+          },
+        },
+      ]);
+      latestRows.forEach((r) => {
+        if (r.suuliinZaalt != null && !Number.isNaN(Number(r.suuliinZaalt))) {
+          latestTotalByGereeId.set(String(r._id), Number(r.suuliinZaalt));
+        }
+      });
+    }
+
+    /** Өмнө = last billing "Нийт (одоо)", not ₮/кВт tariff stored on geree by mistake */
+    function templateUmnuValue(geree, orshinSuugch) {
+      const fromHistory = latestTotalByGereeId.get(String(geree._id));
+      if (fromHistory != null) return fromHistory;
+      const s = Number(geree.suuliinZaalt);
+      const tariff = Number(orshinSuugch?.tsahilgaaniiZaalt);
+      if (
+        Number.isFinite(s) &&
+        Number.isFinite(tariff) &&
+        Math.abs(s - tariff) < 1e-6
+      ) {
+        return "";
+      }
+      return Number.isFinite(s) ? s : "";
+    }
 
     // Fetch orshinSuugch data to get name, phone, and electricity tariff (кВт)
     const orshinSuugchIds = [...new Set(gereenuud.map(g => g.orshinSuugchId).filter(id => id))];
@@ -1161,13 +1206,13 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
         toot: geree.toot || "",
         ner: orshinSuugch?.ner || "",
         utas: orshinSuugch?.utas || "",
-        umnu: geree.suuliinZaalt || 0,
+        umnu: templateUmnuValue(geree, orshinSuugch),
         odor: "",
         shone: "",
         niitOdoo: "",
         zoruu: "",
         defaultDun: "",
-        kwt: orshinSuugch?.tsahilgaaniiZaalt || "",
+        kwt: orshinSuugch?.tsahilgaaniiZaalt ?? "",
       });
     });
 
