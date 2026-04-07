@@ -81,7 +81,9 @@ async function getHistoryLedger(options) {
       .lean()
       .sort({ ognoo: 1, createdAt: 1 }),
     GereeModel.findById(gereeniiId)
-      .select("ekhniiUldegdel gereeniiOgnoo createdAt zardluud globalUldegdel positiveBalance burtgesenAjiltan")
+      .select(
+        "ekhniiUldegdel gereeniiOgnoo createdAt zardluud globalUldegdel positiveBalance burtgesenAjiltan",
+      )
       .lean(),
   ]);
 
@@ -308,11 +310,18 @@ async function getHistoryLedger(options) {
 
   // Helper: strip time from Date so all entries on the same calendar day compare equal
   const dayOnly = (d) => {
-    const y = d.getFullYear(), m = d.getMonth(), dd = d.getDate();
+    const y = d.getFullYear(),
+      m = d.getMonth(),
+      dd = d.getDate();
     return new Date(y, m, dd).getTime();
   };
   // Source-collection priority (geree first, then invoices, then avlaga, then payments)
-  const SRC_ORDER = { geree: 0, nekhemjlekhiinTuukh: 1, gereeniiTulukhAvlaga: 2, gereeniiTulsunAvlaga: 3 };
+  const SRC_ORDER = {
+    geree: 0,
+    nekhemjlekhiinTuukh: 1,
+    gereeniiTulukhAvlaga: 2,
+    gereeniiTulsunAvlaga: 3,
+  };
 
   // Sort by date-only (oldest first), then createdAt, then source priority, then charges before payments
   rawRows.sort((a, b) => {
