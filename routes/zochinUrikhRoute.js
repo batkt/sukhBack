@@ -11,7 +11,7 @@ const {
 const OrshinSuugch = require("../models/orshinSuugch");
 const Geree = require("../models/geree");
 const router = express.Router();
-const { tokenShalgakh, crud, UstsanBarimt } = require("zevbackv2");
+const { tokenShalgakh, crud, UstsanBarimt, db } = require("zevbackv2");
 
 crud(router, "ezenUrisanMashin", EzenUrisanMashin, UstsanBarimt);
 
@@ -48,8 +48,7 @@ async function orshinSuugchKhadgalya(
 ) {
   const phoneString = Array.isArray(utas) ? utas[0] : String(utas || "").trim();
   if (!orshinSuugchMedeelel) return null;
-  
-  const { db } = require("zevbackv2");
+
   const orshinSuugchId = orshinSuugchMedeelel._id;
   if (orshinSuugchId) {
     const existingOrshinSuugch = await OrshinSuugch(
