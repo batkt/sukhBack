@@ -253,15 +253,8 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 const nextDugaar =
                   suuliinDugaar && !isNaN(suuliinDugaar) ? suuliinDugaar + 1 : 1;
 
-                const invoiceDate = new Date(
-                  avlagaDate.getFullYear(),
-                  avlagaDate.getMonth(),
-                  1,
-                  12,
-                  0,
-                  0,
-                  0,
-                );
+                // Keep the exact picked avlaga datetime for the created avlaga-only invoice.
+                const invoiceDate = new Date(avlagaDate);
 
                 const autoInvoice = new NekhemjlekhModel({
                   baiguullagiinNer:
