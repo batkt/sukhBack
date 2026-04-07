@@ -943,7 +943,8 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       "Давхар",
       "Тоот",
       "Эхний үлдэгдэл",
-      "Цахилгаан кВт",
+      "Эхний заалт (кВт·ц)",
+      "Цахилгаан кВт (тариф ₮/кВт)",
       "Тайлбар",
     ];
 
@@ -953,7 +954,7 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
     worksheet.columns = headers.map((h, i) => ({
       header: h,
       key: h,
-      width: [15, 15, 12, 25, 10, 10, 10, 15, 15, 30][i] || 15,
+      width: [15, 15, 12, 25, 10, 10, 10, 15, 22, 22, 30][i] || 15,
     }));
 
     // Data validation for Orts (Column E) and Davkhar (Column F)
@@ -1078,13 +1079,51 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           }
         }
 
-        // Get initial electricity reading from Excel (optional, defaults to 0)
-        const tsahilgaaniiZaalt =
+        // Tariff (₮/кВт) — оршин суугчид; тоолуурын нийт заалт тусдаа баганаас
+        const tariffKeys = [
+          "Цахилгаан кВт (тариф ₮/кВт)",
+          "Цахилгаан кВт",
+        ];
+        let tsahilgaaniiZaalt = 0;
+        for (const k of tariffKeys) {
+          if (
+            row[k] !== undefined &&
+            row[k] !== null &&
+            String(row[k]).trim() !== ""
+          ) {
+            tsahilgaaniiZaalt = parseFloat(row[k]) || 0;
+            break;
+          }
+        }
+
+        const meterKeys = ["Эхний заалт (кВт·ц)", "Эхний заалт"];
+        let echneeZaaltKvt = null;
+        for (const k of meterKeys) {
+          if (
+            row[k] !== undefined &&
+            row[k] !== null &&
+            String(row[k]).trim() !== ""
+          ) {
+            echneeZaaltKvt = parseFloat(row[k]);
+            if (!Number.isNaN(echneeZaaltKvt)) break;
+            echneeZaaltKvt = null;
+          }
+        }
+        // Хуучин загвар: зөвхөн "Цахилгаан кВт" байвал ихэнх нь тариф; тоолуурын утга ихэвчлэн 1000+
+        const legacySingleCol =
+          echneeZaaltKvt == null &&
           row["Цахилгаан кВт"] !== undefined &&
           row["Цахилгаан кВт"] !== null &&
-          row["Цахилгаан кВт"] !== ""
-            ? parseFloat(row["Цахилгаан кВт"]) || 0
-            : 0; // Default to 0 кВт if not provided
+          String(row["Цахилгаан кВт"]).trim() !== "" &&
+          !row["Цахилгаан кВт (тариф ₮/кВт)"]
+            ? parseFloat(row["Цахилгаан кВт"])
+            : NaN;
+        const initialMeterReading =
+          echneeZaaltKvt != null && !Number.isNaN(echneeZaaltKvt)
+            ? echneeZaaltKvt
+            : Number.isFinite(legacySingleCol) && legacySingleCol >= 1000
+              ? legacySingleCol
+              : 0;
 
         const userData = {
           ovog: ovog,
@@ -1097,7 +1136,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           ekhniiUldegdel: row["Эхний үлдэгдэл"]
             ? parseFloat(row["Эхний үлдэгдэл"]) || 0
             : 0,
-          tsahilgaaniiZaalt: tsahilgaaniiZaalt, // Initial electricity reading
+          tsahilgaaniiZaalt, // Тариф ₮/кВт (оршин суугч)
+          initialMeterReading, // Тоолуурын эхний нийт заалт (кВт·ц) — гэрээнд
           tailbar: row["Тайлбар"]?.toString().trim() || "",
         };
 
@@ -1112,7 +1152,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           userData.davkhar &&
           userData.davkhar.length > 0 &&
           (userData.ekhniiUldegdel !== undefined ||
-            userData.tsahilgaaniiZaalt !== undefined);
+            userData.tsahilgaaniiZaalt !== undefined ||
+            userData.initialMeterReading !== undefined);
 
         if (isUpdateOnlyRow) {
           // Find existing user by toot and davkhar
@@ -1466,7 +1507,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           toot: userData.toot || "", // Keep for backward compatibility
           orts: userData.orts || "",
           ekhniiUldegdel: userData.ekhniiUldegdel || 0,
-          tsahilgaaniiZaalt: userData.tsahilgaaniiZaalt || 0, // Save electricity reading from Excel
+          tsahilgaaniiZaalt: userData.tsahilgaaniiZaalt || 0, // Тариф ₮/кВт from Excel
           tailbar: userData.tailbar || "", // Save tailbar to orshinSuugch
           toots: [], // Initialize toots array
           // Link to Wallet API (unifies Excel-imported users with website/mobile users)
@@ -1716,9 +1757,9 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 actOgnoo: new Date(),
                 baritsaaniiUldegdel: 0,
                 ekhniiUldegdel: userData.ekhniiUldegdel || 0,
-                // Save initial electricity reading (will be used in invoice calculations)
-                umnukhZaalt: userData.tsahilgaaniiZaalt || 0, // Previous reading (initial reading from Excel)
-                suuliinZaalt: userData.tsahilgaaniiZaalt || 0, // Current reading (same as initial at import)
+                // Тоолуурын эхний нийт заалт — тарифаас тусдаа (Эхний заалт багана)
+                umnukhZaalt: userData.initialMeterReading || 0,
+                suuliinZaalt: userData.initialMeterReading || 0,
                 zaaltTog: 0, // Day reading (will be updated later)
                 zaaltUs: 0, // Night reading (will be updated later)
                 zardluud: zardluudArray,
@@ -1839,9 +1880,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             actOgnoo: new Date(),
             baritsaaniiUldegdel: 0,
             ekhniiUldegdel: userData.ekhniiUldegdel || 0,
-            // Save initial electricity reading (will be used in invoice calculations)
-            umnukhZaalt: tsahilgaaniiZaalt, // Previous reading (initial reading at import)
-            suuliinZaalt: tsahilgaaniiZaalt, // Current reading (same as initial at import)
+            umnukhZaalt: userData.initialMeterReading || 0,
+            suuliinZaalt: userData.initialMeterReading || 0,
             zaaltTog: 0, // Day reading (will be updated later)
             zaaltUs: 0, // Night reading (will be updated later)
             zardluud: zardluudArray,

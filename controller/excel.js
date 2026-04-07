@@ -1062,10 +1062,10 @@ exports.gereeniiExcelTatya = asyncHandler(async (req, res, next) => {
 
 /**
  * Download Excel template for electricity readings
- * Columns: Гэрээний дугаар, Өмнө, Өдөр, Шөнө, Нийт (одоо), Зөрүү
- * Formulas:
- * - Нийт (одоо) = Өдөр + Шөнө
- * - Зөрүү = Нийт (одоо) - Өмнө
+ * Columns: … Өмнө, Өдөр, Шөнө, Нийт (одоо), Зөрүү, Суурь хураамж, Цахилгаан кВт
+ * Өмнө = сүүлийн импортын "Нийт (одоо)" (zaaltUnshlalt); байхгүй бол гэрээний suuliinZaalt
+ * (хэрэв энэ нь оршин суугчийн тарифтай ижил биш — олон тохиолдолд тарифыг тоолуур гэж буруу хадгалсан)
+ * Formulas: Нийт (одоо) = Өдөр + Шөнө; Зөрүү = Нийт (одоо) - Өмнө
  */
 exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
   try {
@@ -1149,9 +1149,9 @@ exports.zaaltExcelTemplateAvya = asyncHandler(async (req, res, next) => {
         Number.isFinite(tariff) &&
         Math.abs(s - tariff) < 1e-6
       ) {
-        return "";
+        return 0;
       }
-      return Number.isFinite(s) ? s : "";
+      return Number.isFinite(s) ? s : 0;
     }
 
     // Fetch orshinSuugch data to get name, phone, and electricity tariff (кВт)
