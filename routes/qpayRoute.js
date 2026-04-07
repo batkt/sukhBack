@@ -2018,7 +2018,18 @@ router.get(
 
           var butsaakhMethod = async function (d, khariuObject) {
             try {
+              console.log("ℹ️ [QPAY CALLBACK] ebarimtDuudya response:", {
+                status: d?.status || null,
+                success: d?.success,
+                message: d?.message || d?.error || null,
+                receiptId: d?.id || null,
+                invoiceId: khariuObject?.nekhemjlekhiinId || null,
+              });
               if (d?.status != "SUCCESS" && !d.success) {
+                console.error(
+                  "❌ [QPAY CALLBACK] Ebarimt provider returned non-success",
+                  { status: d?.status, success: d?.success, message: d?.message || null },
+                );
                 return;
               }
 
@@ -2037,6 +2048,11 @@ router.get(
               shineBarimt
                 .save()
                 .then(async () => {
+                  console.log("✅ [QPAY CALLBACK] EbarimtShine saved", {
+                    _id: shineBarimt._id?.toString(),
+                    receiptId: shineBarimt.receiptId || null,
+                    invoiceId: shineBarimt.nekhemjlekhiinId || null,
+                  });
                   // Update BankniiGuilgee record to reflect e-barimt status
                   try {
                     const BankniiGuilgee = require("../models/bankniiGuilgee");
@@ -2045,6 +2061,14 @@ router.get(
                       await BankniiGuilgee(kholbolt).updateMany(
                         { record: recordId, baiguullagiinId: khariuObject.baiguullagiinId },
                         { $set: { ebarimtAvsanEsekh: true } }
+                      );
+                      console.log(
+                        "✅ [QPAY CALLBACK] BankniiGuilgee ebarimtAvsanEsekh updated",
+                        { recordId },
+                      );
+                    } else {
+                      console.log(
+                        "ℹ️ [QPAY CALLBACK] No qpay recordId found for BankniiGuilgee update",
                       );
                     }
                   } catch (bankUpdateErr) {
@@ -2567,7 +2591,22 @@ router.get(
                     // ebarimtDuudya calls onFinish(body, ugugdul) where ugugdul is the ebarimt object
                     var butsaakhMethod = async function (d, ebarimtObject) {
                       try {
+                        console.log("ℹ️ [QPAY MULTI CALLBACK] ebarimtDuudya response:", {
+                          status: d?.status || null,
+                          success: d?.success,
+                          message: d?.message || d?.error || null,
+                          receiptId: d?.id || null,
+                          invoiceId: ebarimtObject?.nekhemjlekhiinId || null,
+                        });
                         if (d?.status != "SUCCESS" && !d.success) {
+                          console.error(
+                            "❌ [QPAY MULTI CALLBACK] Ebarimt provider returned non-success",
+                            {
+                              status: d?.status,
+                              success: d?.success,
+                              message: d?.message || null,
+                            },
+                          );
                           return;
                         }
 
@@ -2589,6 +2628,11 @@ router.get(
                         shineBarimt
                           .save()
                           .then(async () => {
+                            console.log("✅ [QPAY MULTI CALLBACK] EbarimtShine saved", {
+                              _id: shineBarimt._id?.toString(),
+                              receiptId: shineBarimt.receiptId || null,
+                              invoiceId: shineBarimt.nekhemjlekhiinId || null,
+                            });
                             // Update BankniiGuilgee record to reflect e-barimt status
                             try {
                               const BankniiGuilgee = require("../models/bankniiGuilgee");
@@ -2597,6 +2641,15 @@ router.get(
                                 await BankniiGuilgee(kholbolt).updateMany(
                                   { record: recordId, baiguullagiinId: ebarimtObject.baiguullagiinId },
                                   { $set: { ebarimtAvsanEsekh: true } }
+                                );
+                                console.log(
+                                  "✅ [QPAY MULTI CALLBACK] BankniiGuilgee ebarimtAvsanEsekh updated",
+                                  { recordId },
+                                );
+                              } else {
+                                console.log(
+                                  "ℹ️ [QPAY MULTI CALLBACK] No qpay recordId found for BankniiGuilgee update",
+                                  { invoiceId: ebarimtObject?.nekhemjlekhiinId || null },
                                 );
                               }
                             } catch (bankUpdateErr) {
