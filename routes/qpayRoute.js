@@ -2103,7 +2103,13 @@ router.get(
           ebarimt.qpayPaymentId = nekhemjlekh.qpayPaymentId;
           ebarimt.qpayInvoiceId = nekhemjlekh.qpayInvoiceId;
 
+          console.log("ℹ️ [QPAY CALLBACK] Calling ebarimtDuudya()", {
+            nekhemjlekhiinId: nekhemjlekh._id?.toString(),
+            qpayPaymentId: ebarimt.qpayPaymentId || null,
+            qpayInvoiceId: ebarimt.qpayInvoiceId || null,
+          });
           ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
+          console.log("ℹ️ [QPAY CALLBACK] ebarimtDuudya() call finished (non-blocking)");
         } else {
           console.log(
             "ℹ️ [QPAY CALLBACK] Ebarimt skipped because feature flags are disabled",
@@ -2686,7 +2692,15 @@ router.get(
 
                     // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
                     // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
+                    console.log("ℹ️ [QPAY MULTI CALLBACK] Calling ebarimtDuudya()", {
+                      invoiceId: updatedInvoice._id?.toString(),
+                      qpayPaymentId: ebarimt.qpayPaymentId || null,
+                      qpayInvoiceId: ebarimt.qpayInvoiceId || null,
+                    });
                     ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
+                    console.log(
+                      "ℹ️ [QPAY MULTI CALLBACK] ebarimtDuudya() call finished (non-blocking)",
+                    );
                   }
                 } catch (lookupError) {
                   console.error(
