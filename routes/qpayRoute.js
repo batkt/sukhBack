@@ -2002,8 +2002,16 @@ router.get(
 
           const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
 
+          // E-barimt must use the ACTUAL paid amount, not post-payment invoice remaining.
+          const ebarimtInvoice = {
+            ...(typeof nekhemjlekh.toObject === "function"
+              ? nekhemjlekh.toObject()
+              : nekhemjlekh),
+            niitTulbur: paidAmount,
+          };
+
           const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
-            nekhemjlekh,
+            ebarimtInvoice,
             nekhemjlekh.register || "",
             "",
             tuxainSalbar.merchantTin,
@@ -2014,6 +2022,7 @@ router.get(
           console.log("✅ [QPAY CALLBACK] Ebarimt object created", {
             nekhemjlekhiinId: nekhemjlekh._id?.toString(),
             qpayPaymentId: nekhemjlekh.qpayPaymentId || null,
+            amountForEbarimt: paidAmount,
           });
 
           var butsaakhMethod = async function (d, khariuObject) {
@@ -2576,8 +2585,20 @@ router.get(
 
                     const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
 
+                    const paidAmountForEbarimt = Number(
+                      updatedInvoice?.paymentHistory?.[
+                        (updatedInvoice?.paymentHistory?.length || 1) - 1
+                      ]?.dun,
+                    ) || 0;
+                    const ebarimtInvoice = {
+                      ...(typeof updatedInvoice.toObject === "function"
+                        ? updatedInvoice.toObject()
+                        : updatedInvoice),
+                      niitTulbur: paidAmountForEbarimt,
+                    };
+
                     const ebarimt = await nekhemjlekheesEbarimtShineUusgye(
-                      updatedInvoice,
+                      ebarimtInvoice,
                       updatedInvoice.register || "",
                       "",
                       tuxainSalbar.merchantTin,
@@ -2590,6 +2611,7 @@ router.get(
                       {
                         invoiceId: updatedInvoice._id?.toString(),
                         qpayPaymentId: paymentTransactionId || null,
+                        amountForEbarimt: paidAmountForEbarimt,
                       },
                     );
 
