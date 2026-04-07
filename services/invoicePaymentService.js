@@ -115,10 +115,50 @@ async function markInvoicesAsPaid(options) {
     query.gereeniiId = { $in: gereeniiIds };
   }
 
-  // Find all unpaid invoices matching the query, sorted by date (latest first)
-  const invoices = await NekhemjlekhiinTuukh.find(query)
+  // Find all unpaid invoices matching the query
+  let invoices = await NekhemjlekhiinTuukh.find(query)
     .sort({ ognoo: -1, createdAt: -1 }) // Latest month first
     .lean();
+
+  // If user selected a payment date, apply payment to that invoice cycle month first,
+  // then move forward to next months (chronological).
+  try {
+    const paymentDate = ognoo ? new Date(ognoo) : null;
+    if (paymentDate && !Number.isNaN(paymentDate.getTime()) && invoices.length > 1) {
+      const mk = (d) => {
+        const x = d instanceof Date ? d : new Date(d);
+        if (Number.isNaN(x.getTime())) return null;
+        return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`;
+      };
+      const invDate = (inv) => inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
+
+      const payMonth = mk(paymentDate);
+      const asc = [...invoices].sort((a, b) => {
+        const da = invDate(a) ? new Date(invDate(a)).getTime() : 0;
+        const db = invDate(b) ? new Date(invDate(b)).getTime() : 0;
+        if (da !== db) return da - db;
+        const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (ca !== cb) return ca - cb;
+        return String(a._id).localeCompare(String(b._id));
+      });
+
+      const inMonth = [];
+      const after = [];
+      const before = [];
+      for (const inv of asc) {
+        const m = mk(invDate(inv));
+        if (m === payMonth) inMonth.push(inv);
+        else if (m && payMonth && m > payMonth) after.push(inv);
+        else before.push(inv);
+      }
+
+      // Apply to selected month first, then later months, then older months.
+      invoices = [...inMonth, ...after, ...before];
+    }
+  } catch (_orderErr) {
+    // keep default ordering
+  }
 
 
   if (invoices.length === 0) {
@@ -258,7 +298,7 @@ async function markInvoicesAsPaid(options) {
   const tulsunAvlagaDocs = []; // Track created gereeniiTulsunAvlaga records
   const gereesNeedingRecalc = new Set(); // geree IDs whose globalUldegdel we will recalculate
 
-  // Process invoices from latest to oldest
+  // Process invoices in computed order
   for (const invoice of invoices) {
     if (remainingPayment <= 0) {
       break; // Payment fully applied
