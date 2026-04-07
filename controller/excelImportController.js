@@ -81,7 +81,11 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
 
       // If the frontend supplies exact pre-calculated and pre-filtered table data,
       // bypass the legacy DB query and immediately process it directly into Excel.
-      if (req.body.data && Array.isArray(req.body.data) && req.body.data.length > 0) {
+      if (
+        req.body.data &&
+        Array.isArray(req.body.data) &&
+        req.body.data.length > 0
+      ) {
         return exports.downloadExcelList(req, res, next);
       }
 
@@ -99,7 +103,7 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
 
       // Fetch nekhemjlekhiinTuukh data
       const nekhemjlekhiinTuukhList = await NekhemjlekhiinTuukh(
-        tukhainBaaziinKholbolt
+        tukhainBaaziinKholbolt,
       )
         .find(query)
         .lean();
@@ -112,18 +116,24 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
       }
 
       // Get unique gereeniiId values to fetch geree documents
-      const gereeniiIds = [...new Set(nekhemjlekhiinTuukhList.map(item => item.gereeniiId).filter(Boolean))];
+      const gereeniiIds = [
+        ...new Set(
+          nekhemjlekhiinTuukhList
+            .map((item) => item.gereeniiId)
+            .filter(Boolean),
+        ),
+      ];
       const GereeModel = Geree(tukhainBaaziinKholbolt);
       const gereeMap = {};
-      
+
       if (gereeniiIds.length > 0) {
         const gereeList = await GereeModel.find({
-          _id: { $in: gereeniiIds }
+          _id: { $in: gereeniiIds },
         })
           .select("_id toot davkhar orts utas")
           .lean();
-        
-        gereeList.forEach(geree => {
+
+        gereeList.forEach((geree) => {
           gereeMap[geree._id.toString()] = geree;
         });
       }
@@ -139,13 +149,13 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
       nekhemjlekhiinTuukhList.sort((a, b) => {
         const gereeA = a.gereeniiId ? gereeMap[a.gereeniiId.toString()] : null;
         const gereeB = b.gereeniiId ? gereeMap[b.gereeniiId.toString()] : null;
-        
-        const tootA = gereeA ? (gereeA.toot || "") : "";
-        const tootB = gereeB ? (gereeB.toot || "") : "";
-        
+
+        const tootA = gereeA ? gereeA.toot || "" : "";
+        const tootB = gereeB ? gereeB.toot || "" : "";
+
         const numA = parseToot(tootA);
         const numB = parseToot(tootB);
-        
+
         // Compare as numbers if both are numbers, otherwise as strings
         if (typeof numA === "number" && typeof numB === "number") {
           return numA - numB; // Ascending: 1, 2, 3... 21
@@ -161,7 +171,7 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
       // Get latest uldegdel from ledger for each contract
       const { getHistoryLedger } = require("../services/historyLedgerService");
       const uldegdelMap = {};
-      
+
       // Fetch ledger for each unique contract to get latest uldegdel
       // Use Promise.all for parallel requests (but limit concurrency to avoid overwhelming the database)
       const ledgerPromises = gereeniiIds.map(async (gereeniiId) => {
@@ -170,21 +180,30 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
             gereeniiId: gereeniiId.toString(),
             baiguullagiinId: baiguullagiinId,
           });
-          
+
           // Get the last entry's uldegdel
-          if (ledgerResult && ledgerResult.jagsaalt && ledgerResult.jagsaalt.length > 0) {
-            const lastEntry = ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1];
-            const uldegdel = typeof lastEntry.uldegdel === "number" ? lastEntry.uldegdel : 0;
+          if (
+            ledgerResult &&
+            ledgerResult.jagsaalt &&
+            ledgerResult.jagsaalt.length > 0
+          ) {
+            const lastEntry =
+              ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1];
+            const uldegdel =
+              typeof lastEntry.uldegdel === "number" ? lastEntry.uldegdel : 0;
             return { gereeniiId: gereeniiId.toString(), uldegdel };
           } else {
             return { gereeniiId: gereeniiId.toString(), uldegdel: 0 };
           }
         } catch (error) {
-          console.error(`Error getting ledger for gereeniiId ${gereeniiId}:`, error.message);
+          console.error(
+            `Error getting ledger for gereeniiId ${gereeniiId}:`,
+            error.message,
+          );
           return { gereeniiId: gereeniiId.toString(), uldegdel: 0 };
         }
       });
-      
+
       // Wait for all ledger requests to complete
       const ledgerResults = await Promise.all(ledgerPromises);
       ledgerResults.forEach(({ gereeniiId, uldegdel }) => {
@@ -201,23 +220,30 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
 
       // Format data with required columns: №, Нэр, Тоот, Утас, Гэрээний дугаар, Үлдэгдэл, Гүйцэтгэл, Орц, Давхар, Тоот
       const formattedData = nekhemjlekhiinTuukhList.map((item, index) => {
-        const geree = item.gereeniiId ? gereeMap[item.gereeniiId.toString()] : null;
-        
+        const geree = item.gereeniiId
+          ? gereeMap[item.gereeniiId.toString()]
+          : null;
+
         // Get phone - prefer from invoice, fallback to geree
         let utas = "";
         if (item.utas && Array.isArray(item.utas) && item.utas.length > 0) {
           utas = item.utas[0];
         } else if (item.utas && typeof item.utas === "string") {
           utas = item.utas;
-        } else if (geree && geree.utas && Array.isArray(geree.utas) && geree.utas.length > 0) {
+        } else if (
+          geree &&
+          geree.utas &&
+          Array.isArray(geree.utas) &&
+          geree.utas.length > 0
+        ) {
           utas = geree.utas[0];
         } else if (geree && geree.utas && typeof geree.utas === "string") {
           utas = geree.utas;
         }
 
         // Get latest uldegdel from ledger (not from invoice)
-        const latestUldegdel = item.gereeniiId 
-          ? (uldegdelMap[item.gereeniiId.toString()] || 0)
+        const latestUldegdel = item.gereeniiId
+          ? uldegdelMap[item.gereeniiId.toString()] || 0
           : 0;
 
         return {
@@ -228,9 +254,11 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
           gereeniiDugaar: item.gereeniiDugaar || "", // Гэрээний дугаар (contract number)
           uldegdel: formatNumber(latestUldegdel), // Үлдэгдэл (balance) - from latest ledger entry, formatted to 2 decimals
           guitsetgel: item.tuluv || "", // Гүйцэтгэл (status/performance)
-          orts: geree ? (geree.orts || "") : (item.davkhar ? "" : ""), // Орц (entrance) - from geree
-          davkhar: geree ? (geree.davkhar || item.davkhar || "") : (item.davkhar || ""), // Давхар (floor)
-          tootGeree: geree ? (geree.toot || "") : "", // Тоот (apartment number) - from geree
+          orts: geree ? geree.orts || "" : item.davkhar ? "" : "", // Орц (entrance) - from geree
+          davkhar: geree
+            ? geree.davkhar || item.davkhar || ""
+            : item.davkhar || "", // Давхар (floor)
+          tootGeree: geree ? geree.toot || "" : "", // Тоот (apartment number) - from geree
         };
       });
 
@@ -258,7 +286,7 @@ exports.downloadNekhemjlekhiinTuukhExcel = asyncHandler(
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 
 // Ebarimt Excel Download
@@ -340,7 +368,7 @@ exports.downloadBankniiGuilgeeExcel = asyncHandler(async (req, res, next) => {
     // Fetch bankniiGuilgee data
     const bankniiGuilgeeList = await BankniiGuilgee(
       tukhainBaaziinKholbolt,
-      historical
+      historical,
     )
       .find(query)
       .lean()
@@ -503,7 +531,7 @@ exports.downloadGuilgeeniiTuukhExcel = asyncHandler(async (req, res, next) => {
         let nekhemjlekhiinTuukh = null;
         if (geree._id) {
           nekhemjlekhiinTuukh = await NekhemjlekhiinTuukh(
-            tukhainBaaziinKholbolt
+            tukhainBaaziinKholbolt,
           )
             .findOne({ gereeniiId: geree._id.toString() })
             .lean()
@@ -616,7 +644,7 @@ exports.downloadOrshinSuugchExcel = asyncHandler(async (req, res, next) => {
       // Consistent with orshinSuugch list route: look in top level OR toots array
       query.$or = [
         { barilgiinId: String(barilgiinId) },
-        { "toots.barilgiinId": String(barilgiinId) }
+        { "toots.barilgiinId": String(barilgiinId) },
       ];
     }
 
@@ -650,7 +678,10 @@ exports.downloadOrshinSuugchExcel = asyncHandler(async (req, res, next) => {
       toot: item.toot || "",
       bairniiNer: item.bairniiNer || "",
       duureg: item.duureg || "",
-      horoo: typeof item.horoo === 'object' ? item.horoo?.ner || "" : item.horoo || "",
+      horoo:
+        typeof item.horoo === "object"
+          ? item.horoo?.ner || ""
+          : item.horoo || "",
       soh: item.soh || "",
     }));
 
@@ -705,7 +736,7 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
     } else {
       // Require headers to be specified - don't extract all keys automatically
       throw new aldaa(
-        "'headers' заавал зааж өгөх шаардлагатай! (headers: [{key: 'field', label: 'Label'}] эсвэл ['field1', 'field2'])"
+        "'headers' заавал зааж өгөх шаардлагатай! (headers: [{key: 'field', label: 'Label'}] эсвэл ['field1', 'field2'])",
       );
     }
 
@@ -751,7 +782,7 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
         item &&
         item.barilgiinId !== undefined &&
         item.barilgiinId !== null &&
-        item.barilgiinId !== ""
+        item.barilgiinId !== "",
     );
 
     if (hasBarilgiinId) {
@@ -789,7 +820,7 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
         // Replace invalid characters for Excel sheet names
         sheetNameForBarilga = sheetNameForBarilga.replace(
           /[\\\/\?\*\[\]:]/g,
-          "_"
+          "_",
         );
 
         // If we have a base sheetName, use it with barilgiinId
@@ -824,11 +855,11 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${fileName || `export_${Date.now()}`}.xlsx"`
+      `attachment; filename="${fileName || `export_${Date.now()}`}.xlsx"`,
     );
 
     res.send(excelBuffer);
@@ -849,14 +880,17 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
 
     // Fetch building structure if IDs are provided
     if (baiguullagiinId && barilgiinId) {
-      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        baiguullagiinId,
+      );
       if (baiguullaga) {
         const targetBarilga = baiguullaga.barilguud?.find(
-          (b) => String(b._id) === String(barilgiinId)
+          (b) => String(b._id) === String(barilgiinId),
         );
 
         if (targetBarilga) {
-          const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+          const davkhariinToonuud =
+            targetBarilga.tokhirgoo?.davkhariinToonuud || {};
           const ortsSet = new Set();
           const davkharSet = new Set();
 
@@ -874,7 +908,9 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
 
           // Fallback to directly stored floors if set is empty
           if (davkharSet.size === 0 && targetBarilga.tokhirgoo?.davkhar) {
-            targetBarilga.tokhirgoo.davkhar.forEach((f) => davkharSet.add(String(f).trim()));
+            targetBarilga.tokhirgoo.davkhar.forEach((f) =>
+              davkharSet.add(String(f).trim()),
+            );
           }
 
           if (ortsSet.size > 0) {
@@ -912,7 +948,7 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
     ];
 
     let workbook = new excel.Workbook();
-    let worksheet = workbook.addWorksheet("Хэрэглэгч бүртгэх");
+    let worksheet = workbook.addWorksheet("Оршин суугч бүртгэх");
 
     worksheet.columns = headers.map((h, i) => ({
       header: h,
@@ -922,7 +958,8 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
 
     // Data validation for Orts (Column E) and Davkhar (Column F)
     const ortsFormula = `"${ortsList.join(",")}"`;
-    const davkharFormula = davkharList.length > 0 ? `"${davkharList.join(",")}"` : null;
+    const davkharFormula =
+      davkharList.length > 0 ? `"${davkharList.join(",")}"` : null;
 
     // Apply to rows 2 to 2000
     if (ortsFormula && ortsFormula.length < 255) {
@@ -949,11 +986,11 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
 
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="orshinSuugch_import_template_${Date.now()}.xlsx"`
+      `attachment; filename="orshinSuugch_import_template_${Date.now()}.xlsx"`,
     );
 
     await workbook.xlsx.write(res);
@@ -986,7 +1023,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
     }
 
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      baiguullagiinId
+      baiguullagiinId,
     );
 
     if (!baiguullaga) {
@@ -1000,7 +1037,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         : null);
 
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString(),
     );
 
     if (!tukhainBaaziinKholbolt) {
@@ -1042,9 +1079,12 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         }
 
         // Get initial electricity reading from Excel (optional, defaults to 0)
-        const tsahilgaaniiZaalt = row["Цахилгаан кВт"] !== undefined && row["Цахилгаан кВт"] !== null && row["Цахилгаан кВт"] !== ""
-          ? parseFloat(row["Цахилгаан кВт"]) || 0
-          : 0; // Default to 0 кВт if not provided
+        const tsahilgaaniiZaalt =
+          row["Цахилгаан кВт"] !== undefined &&
+          row["Цахилгаан кВт"] !== null &&
+          row["Цахилгаан кВт"] !== ""
+            ? parseFloat(row["Цахилгаан кВт"]) || 0
+            : 0; // Default to 0 кВт if not provided
 
         const userData = {
           ovog: ovog,
@@ -1054,7 +1094,9 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           davkhar: row["Давхар"]?.toString().trim() || "",
           toot: row["Тоот"]?.toString().trim() || "",
           orts: row["Орц"]?.toString().trim() || "",
-          ekhniiUldegdel: row["Эхний үлдэгдэл"] ? parseFloat(row["Эхний үлдэгдэл"]) || 0 : 0,
+          ekhniiUldegdel: row["Эхний үлдэгдэл"]
+            ? parseFloat(row["Эхний үлдэгдэл"]) || 0
+            : 0,
           tsahilgaaniiZaalt: tsahilgaaniiZaalt, // Initial electricity reading
           tailbar: row["Тайлбар"]?.toString().trim() || "",
         };
@@ -1065,16 +1107,21 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           (!userData.utas || userData.utas.length === 0) &&
           (!userData.mail || userData.mail.length === 0) &&
           (!userData.ovog || userData.ovog.length === 0) &&
-          userData.toot && userData.toot.length > 0 &&
-          userData.davkhar && userData.davkhar.length > 0 &&
-          (userData.ekhniiUldegdel !== undefined || userData.tsahilgaaniiZaalt !== undefined);
+          userData.toot &&
+          userData.toot.length > 0 &&
+          userData.davkhar &&
+          userData.davkhar.length > 0 &&
+          (userData.ekhniiUldegdel !== undefined ||
+            userData.tsahilgaaniiZaalt !== undefined);
 
         if (isUpdateOnlyRow) {
           // Find existing user by toot and davkhar
-          const existingOrshinSuugch = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
+          const existingOrshinSuugch = await OrshinSuugch(
+            db.erunkhiiKholbolt,
+          ).findOne({
             toot: userData.toot.trim(),
             davkhar: userData.davkhar.trim(),
-            baiguullagiinId: baiguullaga._id
+            baiguullagiinId: baiguullaga._id,
           });
 
           if (existingOrshinSuugch) {
@@ -1083,7 +1130,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
               existingOrshinSuugch.ekhniiUldegdel = userData.ekhniiUldegdel;
             }
             if (userData.tsahilgaaniiZaalt !== undefined) {
-              existingOrshinSuugch.tsahilgaaniiZaalt = userData.tsahilgaaniiZaalt;
+              existingOrshinSuugch.tsahilgaaniiZaalt =
+                userData.tsahilgaaniiZaalt;
             }
             await existingOrshinSuugch.save();
 
@@ -1093,13 +1141,13 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             });
             continue; // Skip the rest of the processing for this row
           } else {
-            throw new Error(`Оршин суугч олдсонгүй: Тоот ${userData.toot}, Давхар ${userData.davkhar}`);
+            throw new Error(
+              `Оршин суугч олдсонгүй: Тоот ${userData.toot}, Давхар ${userData.davkhar}`,
+            );
           }
         }
 
         const validationErrors = [];
-
-
 
         if (!userData.ner || userData.ner.length === 0) {
           validationErrors.push("Нэр");
@@ -1156,7 +1204,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         if (excelBarilgiinId) {
           // If barilgiinId is provided in Excel, use it
           const matchingBarilga = baiguullaga.barilguud?.find(
-            (b) => String(b._id) === String(excelBarilgiinId)
+            (b) => String(b._id) === String(excelBarilgiinId),
           );
           if (matchingBarilga) {
             finalBarilgiinId = String(matchingBarilga._id);
@@ -1164,7 +1212,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         } else if (excelBarilgaName) {
           // If building name is provided in Excel, find by name
           const matchingBarilga = baiguullaga.barilguud?.find(
-            (b) => String(b.ner).trim() === excelBarilgaName
+            (b) => String(b.ner).trim() === excelBarilgaName,
           );
           if (matchingBarilga) {
             finalBarilgiinId = String(matchingBarilga._id);
@@ -1259,55 +1307,66 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             if (walletUserInfo && walletUserInfo.userId) {
               walletUserId = walletUserInfo.userId;
             } else {
-              walletUserInfo = await walletApiService.registerUser(phoneNumber, email);
+              walletUserInfo = await walletApiService.registerUser(
+                phoneNumber,
+                email,
+              );
 
               if (walletUserInfo && walletUserInfo.userId) {
                 walletUserId = walletUserInfo.userId;
               }
             }
-          } catch (walletError) {
-          }
+          } catch (walletError) {}
         }
 
         // Check if user already exists (by phone number OR walletUserId - unified check)
         const existingUser = await OrshinSuugch(db.erunkhiiKholbolt).findOne({
           $or: [
             { utas: phoneNumber },
-            ...(walletUserId ? [{ walletUserId: walletUserId }] : [])
-          ]
+            ...(walletUserId ? [{ walletUserId: walletUserId }] : []),
+          ],
         });
 
         // Prevent duplicate: one toot (optionally + davkhar) can have only one resident per building
         const tootRaw = userData.toot.trim();
-        const davkharToCheck = userData.davkhar ? String(userData.davkhar).trim() : "";
+        const davkharToCheck = userData.davkhar
+          ? String(userData.davkhar).trim()
+          : "";
         const tootListToCheck = tootRaw
           .split(",")
           .map((t) => t.trim())
           .filter((t) => t && t.length > 0);
         for (const tootToCheck of tootListToCheck) {
-          const baseMatch = { toot: tootToCheck, barilgiinId: finalBarilgiinId };
-          const baseTootMatch = { toot: tootToCheck, barilgiinId: finalBarilgiinId };
+          const baseMatch = {
+            toot: tootToCheck,
+            barilgiinId: finalBarilgiinId,
+          };
+          const baseTootMatch = {
+            toot: tootToCheck,
+            barilgiinId: finalBarilgiinId,
+          };
           if (davkharToCheck) {
             baseMatch.davkhar = davkharToCheck;
             baseTootMatch.davkhar = davkharToCheck;
           }
           const duplicateQuery = {
-            $or: [
-              baseMatch,
-              { toots: { $elemMatch: baseTootMatch } },
-            ],
+            $or: [baseMatch, { toots: { $elemMatch: baseTootMatch } }],
           };
           if (existingUser) {
             duplicateQuery._id = { $ne: existingUser._id };
           }
-          const duplicateResident = await OrshinSuugch(db.erunkhiiKholbolt).findOne(duplicateQuery);
+          const duplicateResident = await OrshinSuugch(
+            db.erunkhiiKholbolt,
+          ).findOne(duplicateQuery);
           if (duplicateResident) {
-            throw new Error(`"${tootToCheck}" тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна (мөр ${rowNumber}).`);
+            throw new Error(
+              `"${tootToCheck}" тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна (мөр ${rowNumber}).`,
+            );
           }
         }
 
         const targetBarilga = baiguullaga.barilguud?.find(
-          (b) => String(b._id) === String(finalBarilgiinId)
+          (b) => String(b._id) === String(finalBarilgiinId),
         );
 
         if (!targetBarilga) {
@@ -1326,7 +1385,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           const ortsToValidate = (userData.orts || "1").trim();
           const floorKey = `${ortsToValidate}::${davkharToValidate}`;
 
-          const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+          const davkhariinToonuud =
+            targetBarilga.tokhirgoo?.davkhariinToonuud || {};
           let tootArray = davkhariinToonuud[floorKey];
           let foundToonuud = [];
 
@@ -1334,7 +1394,10 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           if (tootArray && Array.isArray(tootArray) && tootArray.length > 0) {
             let registeredToonuud = [];
 
-            if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
+            if (
+              typeof tootArray[0] === "string" &&
+              tootArray[0].includes(",")
+            ) {
               registeredToonuud = tootArray[0]
                 .split(",")
                 .map((t) => t.trim())
@@ -1355,16 +1418,22 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
           // If no toots were found, block import for this row
           if (foundToonuud.length === 0) {
-            throw new Error(`"${userData.toot}" тоот бүртгэлгүй байна. Та барилгын тохиргооноос тоотыг шалгана уу.`);
+            throw new Error(
+              `"${userData.toot}" тоот бүртгэлгүй байна. Та барилгын тохиргооноос тоотыг шалгана уу.`,
+            );
           } else if (foundToonuud.length < tootListToValidate.length) {
-            const notFound = tootListToValidate.filter(t => !foundToonuud.includes(t));
-            throw new Error(`"${notFound.join(", ")}" тоотнууд бүртгэлгүй байна.`);
+            const notFound = tootListToValidate.filter(
+              (t) => !foundToonuud.includes(t),
+            );
+            throw new Error(
+              `"${notFound.join(", ")}" тоотнууд бүртгэлгүй байна.`,
+            );
           }
         }
 
         // Get ashiglaltiinZardluud and liftShalgaya from baiguullaga.barilguud[].tokhirgoo
         const targetBarilgaForRow = baiguullaga.barilguud?.find(
-          (b) => String(b._id) === String(finalBarilgiinId)
+          (b) => String(b._id) === String(finalBarilgiinId),
         );
 
         const ashiglaltiinZardluudData =
@@ -1401,7 +1470,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           tailbar: userData.tailbar || "", // Save tailbar to orshinSuugch
           toots: [], // Initialize toots array
           // Link to Wallet API (unifies Excel-imported users with website/mobile users)
-          ...(walletUserId ? { walletUserId: walletUserId } : {})
+          ...(walletUserId ? { walletUserId: walletUserId } : {}),
         };
 
         // If user already exists, update it; otherwise create new
@@ -1448,13 +1517,14 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
               horoo: horooData,
               soh: sohNer,
               bairniiNer: targetBarilga.ner || "",
-              createdAt: new Date()
+              createdAt: new Date(),
             };
 
             // Check if this toot already exists in user's toots array
             const existingTootIndex = orshinSuugch.toots?.findIndex(
-              t => t.toot === tootEntry.toot &&
-                t.barilgiinId === tootEntry.barilgiinId
+              (t) =>
+                t.toot === tootEntry.toot &&
+                t.barilgiinId === tootEntry.barilgiinId,
             );
 
             if (existingTootIndex >= 0) {
@@ -1470,49 +1540,62 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
         // --- AUTO CREATE GUEST SETTINGS (OrshinSuugchMashin) ---
         try {
           const OrshinSuugchMashin = require("../models/orshinSuugchMashin");
-          const rowBuilding = baiguullaga.barilguud?.find(b => String(b._id) === String(finalBarilgiinId));
+          const rowBuilding = baiguullaga.barilguud?.find(
+            (b) => String(b._id) === String(finalBarilgiinId),
+          );
           const buildingSettings = rowBuilding?.tokhirgoo?.zochinTokhirgoo;
           const orgSettings = baiguullaga.tokhirgoo?.zochinTokhirgoo;
-          
-          const defaultSettings = buildingSettings && buildingSettings.zochinUrikhEsekh !== undefined
-             ? buildingSettings 
-             : orgSettings;
+
+          const defaultSettings =
+            buildingSettings && buildingSettings.zochinUrikhEsekh !== undefined
+              ? buildingSettings
+              : orgSettings;
 
           if (defaultSettings) {
-             const OrshinSuugchMashinModel = OrshinSuugchMashin(db.erunkhiiKholbolt);
-             
-             // Check if settings already exist in central database
-             const existingSettings = await OrshinSuugchMashinModel.findOne({
+            const OrshinSuugchMashinModel = OrshinSuugchMashin(
+              db.erunkhiiKholbolt,
+            );
+
+            // Check if settings already exist in central database
+            const existingSettings = await OrshinSuugchMashinModel.findOne({
+              orshinSuugchiinId: orshinSuugch._id.toString(),
+              zochinTurul: "Оршин суугч",
+            });
+
+            if (!existingSettings) {
+              const newSettings = new OrshinSuugchMashinModel({
                 orshinSuugchiinId: orshinSuugch._id.toString(),
-                zochinTurul: "Оршин суугч"
-             });
-             
-             if (!existingSettings) {
-                const newSettings = new OrshinSuugchMashinModel({
-                    orshinSuugchiinId: orshinSuugch._id.toString(),
-                    baiguullagiinId: baiguullaga._id.toString(),
-                    barilgiinId: finalBarilgiinId,
-                    ezenToot: orshinSuugch.toot || userData.toot || "",
-                    zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false, 
-                    zochinTurul: "Оршин суугч", 
-                    zochinErkhiinToo: defaultSettings.zochinErkhiinToo || 0,
-                    zochinTusBurUneguiMinut: defaultSettings.zochinTusBurUneguiMinut || 0,
-                    zochinNiitUneguiMinut: defaultSettings.zochinNiitUneguiMinut || 0,
-                    zochinTailbar: defaultSettings.zochinTailbar || "",
-                    davtamjiinTurul: defaultSettings.davtamjiinTurul || "saraar",
-                    davtamjUtga: defaultSettings.davtamjUtga
-                });
-                
-                await newSettings.save();
-             }
+                baiguullagiinId: baiguullaga._id.toString(),
+                barilgiinId: finalBarilgiinId,
+                ezenToot: orshinSuugch.toot || userData.toot || "",
+                zochinUrikhEsekh: defaultSettings.zochinUrikhEsekh !== false,
+                zochinTurul: "Оршин суугч",
+                zochinErkhiinToo: defaultSettings.zochinErkhiinToo || 0,
+                zochinTusBurUneguiMinut:
+                  defaultSettings.zochinTusBurUneguiMinut || 0,
+                zochinNiitUneguiMinut:
+                  defaultSettings.zochinNiitUneguiMinut || 0,
+                zochinTailbar: defaultSettings.zochinTailbar || "",
+                davtamjiinTurul: defaultSettings.davtamjiinTurul || "saraar",
+                davtamjUtga: defaultSettings.davtamjUtga,
+              });
+
+              await newSettings.save();
+            }
           }
         } catch (zochinErr) {
           // Error creating guest settings - silently continue
         }
 
         // Create gerees for all OWN_ORG toots that don't have gerees yet
-        if (orshinSuugch.toots && Array.isArray(orshinSuugch.toots) && orshinSuugch.toots.length > 0) {
-          const ownOrgToots = orshinSuugch.toots.filter(t => t.source === "OWN_ORG" && t.baiguullagiinId && t.barilgiinId);
+        if (
+          orshinSuugch.toots &&
+          Array.isArray(orshinSuugch.toots) &&
+          orshinSuugch.toots.length > 0
+        ) {
+          const ownOrgToots = orshinSuugch.toots.filter(
+            (t) => t.source === "OWN_ORG" && t.baiguullagiinId && t.barilgiinId,
+          );
 
           for (const tootEntry of ownOrgToots) {
             try {
@@ -1522,7 +1605,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 orshinSuugchId: orshinSuugch._id.toString(),
                 barilgiinId: tootEntry.barilgiinId,
                 toot: tootEntry.toot,
-                tuluv: { $ne: "Цуцалсан" } // Only check active gerees
+                tuluv: { $ne: "Цуцалсан" }, // Only check active gerees
               });
 
               if (existingGeree) {
@@ -1531,16 +1614,19 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
               // Get ashiglaltiinZardluud from barilga
               const targetBarilgaForToot = baiguullaga.barilguud?.find(
-                (b) => String(b._id) === String(tootEntry.barilgiinId)
+                (b) => String(b._id) === String(tootEntry.barilgiinId),
               );
 
               if (!targetBarilgaForToot) {
                 continue;
               }
 
-              const ashiglaltiinZardluudData = targetBarilgaForToot.tokhirgoo?.ashiglaltiinZardluud || [];
-              const liftShalgayaData = targetBarilgaForToot.tokhirgoo?.liftShalgaya;
-              const choloolugdokhDavkhar = liftShalgayaData?.choloolugdokhDavkhar || [];
+              const ashiglaltiinZardluudData =
+                targetBarilgaForToot.tokhirgoo?.ashiglaltiinZardluud || [];
+              const liftShalgayaData =
+                targetBarilgaForToot.tokhirgoo?.liftShalgaya;
+              const choloolugdokhDavkhar =
+                liftShalgayaData?.choloolugdokhDavkhar || [];
 
               const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
                 ner: zardal.ner,
@@ -1564,24 +1650,38 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
               }));
 
               // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
-              const tailbarFromZardluud = ashiglaltiinZardluudData
-                .map((zardal) => zardal.tailbar)
-                .filter((tailbar) => tailbar && tailbar.trim())
-                .join("; ") || "";
+              const tailbarFromZardluud =
+                ashiglaltiinZardluudData
+                  .map((zardal) => zardal.tailbar)
+                  .filter((tailbar) => tailbar && tailbar.trim())
+                  .join("; ") || "";
 
-              const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
-                const tariff = zardal.tariff || 0;
-                const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
-                if (isLiftItem && tootEntry.davkhar && choloolugdokhDavkhar.includes(tootEntry.davkhar)) {
-                  return total;
-                }
-                return total + tariff;
-              }, 0);
+              const niitTulbur = ashiglaltiinZardluudData.reduce(
+                (total, zardal) => {
+                  const tariff = zardal.tariff || 0;
+                  const isLiftItem =
+                    zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                  if (
+                    isLiftItem &&
+                    tootEntry.davkhar &&
+                    choloolugdokhDavkhar.includes(tootEntry.davkhar)
+                  ) {
+                    return total;
+                  }
+                  return total + tariff;
+                },
+                0,
+              );
 
-              const duuregNer = targetBarilgaForToot.tokhirgoo?.duuregNer || tootEntry.duureg || "";
-              const horooData = targetBarilgaForToot.tokhirgoo?.horoo || tootEntry.horoo || {};
+              const duuregNer =
+                targetBarilgaForToot.tokhirgoo?.duuregNer ||
+                tootEntry.duureg ||
+                "";
+              const horooData =
+                targetBarilgaForToot.tokhirgoo?.horoo || tootEntry.horoo || {};
               const horooNer = horooData.ner || "";
-              const sohNer = targetBarilgaForToot.tokhirgoo?.sohNer || tootEntry.soh || "";
+              const sohNer =
+                targetBarilgaForToot.tokhirgoo?.sohNer || tootEntry.soh || "";
 
               // Create geree (contract) for this specific toot
               // Use timestamp + microsecond precision to ensure uniqueness
@@ -1637,7 +1737,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                   tootEntry.barilgiinId,
                   tootEntry.davkhar,
                   tootEntry.toot,
-                  tukhainBaaziinKholbolt
+                  tukhainBaaziinKholbolt,
                 );
               }
 
@@ -1647,13 +1747,12 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                   geree,
                   baiguullaga,
                   tukhainBaaziinKholbolt,
-                  "automataar"
+                  "automataar",
                 );
 
                 if (!invoiceResult.success) {
                 }
-              } catch (invoiceError) {
-              }
+              } catch (invoiceError) {}
             } catch (tootGereeError) {
               // Continue with next toot if this one fails
             }
@@ -1684,19 +1783,28 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           }));
 
           // Extract tailbar from ashiglaltiinZardluud (combine all tailbar values if multiple exist)
-          const tailbarFromZardluud = ashiglaltiinZardluudData
-            .map((zardal) => zardal.tailbar)
-            .filter((tailbar) => tailbar && tailbar.trim())
-            .join("; ") || "";
+          const tailbarFromZardluud =
+            ashiglaltiinZardluudData
+              .map((zardal) => zardal.tailbar)
+              .filter((tailbar) => tailbar && tailbar.trim())
+              .join("; ") || "";
 
-          const niitTulbur = ashiglaltiinZardluudData.reduce((total, zardal) => {
-            const tariff = zardal.tariff || 0;
-            const isLiftItem = zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
-            if (isLiftItem && userData.davkhar && choloolugdokhDavkhar.includes(userData.davkhar)) {
-              return total;
-            }
-            return total + tariff;
-          }, 0);
+          const niitTulbur = ashiglaltiinZardluudData.reduce(
+            (total, zardal) => {
+              const tariff = zardal.tariff || 0;
+              const isLiftItem =
+                zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+              if (
+                isLiftItem &&
+                userData.davkhar &&
+                choloolugdokhDavkhar.includes(userData.davkhar)
+              ) {
+                return total;
+              }
+              return total + tariff;
+            },
+            0,
+          );
 
           // Use timestamp + microsecond precision to ensure uniqueness
           const uniqueSuffix = Date.now() + i;
@@ -1725,7 +1833,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             orts: userData.orts || "",
             burtgesenAjiltan: orshinSuugch._id,
             orshinSuugchId: orshinSuugch._id.toString(),
-            temdeglel: userData.tailbar || "Excel файлаас автоматаар үүссэн гэрээ",
+            temdeglel:
+              userData.tailbar || "Excel файлаас автоматаар үүссэн гэрээ",
             tailbar: userData.tailbar || tailbarFromZardluud || "",
             actOgnoo: new Date(),
             baritsaaniiUldegdel: 0,
@@ -1751,7 +1860,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
               finalBarilgiinId,
               userData.davkhar,
               userObject.toot,
-              tukhainBaaziinKholbolt
+              tukhainBaaziinKholbolt,
             );
           }
 
@@ -1760,13 +1869,12 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
               geree,
               baiguullaga,
               tukhainBaaziinKholbolt,
-              "automataar"
+              "automataar",
             );
 
             if (!invoiceResult.success) {
             }
-          } catch (invoiceError) {
-          }
+          } catch (invoiceError) {}
         }
 
         results.success.push({
@@ -1813,7 +1921,9 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
       }
 
       // Fetch baiguullaga to get building configuration
-      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(baiguullagiinId);
+      const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
+        baiguullagiinId,
+      );
 
       if (!baiguullaga) {
         throw new aldaa("Байгууллага олдсонгүй");
@@ -1821,7 +1931,7 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
 
       // Find target building
       const targetBarilga = baiguullaga.barilguud?.find(
-        (b) => String(b._id) === String(barilgiinId)
+        (b) => String(b._id) === String(barilgiinId),
       );
 
       if (!targetBarilga) {
@@ -1830,11 +1940,12 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
 
       // Determine number of orts (entrances) from building configuration
       // Method 1: Check davkhariinToonuud keys to find unique orts values
-      const davkhariinToonuud = targetBarilga.tokhirgoo?.davkhariinToonuud || {};
+      const davkhariinToonuud =
+        targetBarilga.tokhirgoo?.davkhariinToonuud || {};
       const ortsSet = new Set();
 
       // Extract orts from keys like "1::5", "2::5", etc.
-      Object.keys(davkhariinToonuud).forEach(key => {
+      Object.keys(davkhariinToonuud).forEach((key) => {
         if (key.includes("::")) {
           const parts = key.split("::");
           if (parts.length === 2) {
@@ -1848,16 +1959,17 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
         const ortsValue = targetBarilga.tokhirgoo.orts;
 
         // Try to parse as a number first (handles both number and numeric string like "2")
-        const ortsAsNumber = typeof ortsValue === 'number' ? ortsValue : parseInt(ortsValue);
+        const ortsAsNumber =
+          typeof ortsValue === "number" ? ortsValue : parseInt(ortsValue);
 
         if (!isNaN(ortsAsNumber) && ortsAsNumber > 0) {
           // If orts is a number, create range from 1 to orts
           for (let i = 1; i <= ortsAsNumber; i++) {
             ortsSet.add(String(i));
           }
-        } else if (typeof ortsValue === 'string' && ortsValue.includes(',')) {
+        } else if (typeof ortsValue === "string" && ortsValue.includes(",")) {
           // If it's a comma-separated string like "1,2,3"
-          ortsValue.split(',').forEach(o => {
+          ortsValue.split(",").forEach((o) => {
             const trimmed = o.trim();
             if (trimmed) ortsSet.add(trimmed);
           });
@@ -1865,7 +1977,10 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
       }
 
       // If no orts found, default to 1
-      const ortsList = ortsSet.size > 0 ? Array.from(ortsSet).sort((a, b) => parseInt(a) - parseInt(b)) : ["1"];
+      const ortsList =
+        ortsSet.size > 0
+          ? Array.from(ortsSet).sort((a, b) => parseInt(a) - parseInt(b))
+          : ["1"];
 
       const wb = XLSX.utils.book_new();
       const headers = ["Давхар", "Тоот"];
@@ -1891,18 +2006,18 @@ exports.generateTootBurtgelExcelTemplate = asyncHandler(
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="tootBurtgel_import_template_${Date.now()}.xlsx"`
+        `attachment; filename="tootBurtgel_import_template_${Date.now()}.xlsx"`,
       );
 
       res.send(excelBuffer);
     } catch (error) {
       next(error);
     }
-  }
+  },
 );
 // TootBurtgel Excel Import
 exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
@@ -1931,7 +2046,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     }
 
     const baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findById(
-      baiguullagiinId
+      baiguullagiinId,
     );
 
     if (!baiguullaga) {
@@ -1949,7 +2064,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
     }
 
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString()
+      (kholbolt) => kholbolt.baiguullagiinId === baiguullaga._id.toString(),
     );
 
     if (!tukhainBaaziinKholbolt) {
@@ -1958,7 +2073,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
     // Get target barilga
     const targetBarilga = baiguullaga.barilguud?.find(
-      (b) => String(b._id) === String(defaultBarilgiinId)
+      (b) => String(b._id) === String(defaultBarilgiinId),
     );
 
     if (!targetBarilga) {
@@ -1967,7 +2082,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
     // Get or initialize davkhar array and davkhariinToonuud object
     const barilgaIndex = baiguullaga.barilguud.findIndex(
-      (b) => String(b._id) === String(defaultBarilgiinId)
+      (b) => String(b._id) === String(defaultBarilgiinId),
     );
 
     if (!targetBarilga.tokhirgoo) {
@@ -2014,7 +2129,9 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
       // Should have "Давхар" and "Тоот" columns
       const requiredColumns = ["Тоот", "Давхар"];
-      const hasRequiredColumns = requiredColumns.every(col => columnNames.includes(col));
+      const hasRequiredColumns = requiredColumns.every((col) =>
+        columnNames.includes(col),
+      );
 
       if (!hasRequiredColumns) {
         results.failed.push({
@@ -2078,7 +2195,9 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
           const createdTootBurtgelIds = [];
           for (const toot of tootList) {
             // Check if tootBurtgel already exists to prevent duplicates
-            const existingToot = await TootBurtgel(tukhainBaaziinKholbolt).findOne({
+            const existingToot = await TootBurtgel(
+              tukhainBaaziinKholbolt,
+            ).findOne({
               kharagdakhDugaar: toot,
               baiguullagiinId: baiguullaga._id.toString(),
               barilgiinId: defaultBarilgiinId || "",
@@ -2102,7 +2221,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
 
             // Save tootBurtgel
             const tootBurtgel = new TootBurtgel(tukhainBaaziinKholbolt)(
-              tootBurtgelData
+              tootBurtgelData,
             );
             await tootBurtgel.save();
             createdTootBurtgelIds.push(tootBurtgel._id.toString());
@@ -2118,7 +2237,9 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
               // Relaxing this constraint for import? Or keeping strict?
               // User wants valid import. If Excel has floor 5 but building has only 4, it should probably fail.
               // Keeping strict as per existing code.
-              throw new Error(`Давхар "${davkharStr}" барилгын мэдээлэлд бүртгэгдээгүй байна. Зөвхөн одоо байгаа давхарт тоот оноох боломжтой.`);
+              throw new Error(
+                `Давхар "${davkharStr}" барилгын мэдээлэлд бүртгэгдээгүй байна. Зөвхөн одоо байгаа давхарт тоот оноох боломжтой.`,
+              );
             }
 
             // Create key format: "orts::davkhar" (e.g., "1::1", "1::2")
@@ -2133,9 +2254,9 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
             const existingToonuud = davkhariinToonuud[floorKey][0] || "";
             let existingTootList = existingToonuud
               ? existingToonuud
-                .split(",")
-                .map((t) => t.trim())
-                .filter((t) => t)
+                  .split(",")
+                  .map((t) => t.trim())
+                  .filter((t) => t)
               : [];
 
             // Add all toots from the list if not already present
@@ -2192,7 +2313,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
             [davkharPath]: davkharArray,
             [toonuudPath]: davkhariinToonuud,
           },
-        }
+        },
       );
     }
 
@@ -2201,7 +2322,7 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: "Алдаатай өгөгдөл байна",
-        results
+        results,
       });
     }
 
@@ -2215,42 +2336,44 @@ exports.importTootBurtgelFromExcel = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.generateInitialBalanceTemplate = asyncHandler(async (req, res, next) => {
-  try {
-    const headers = ["Утас", "Гэрээний дугаар", "Тоот", "Эхний үлдэгдэл"];
+exports.generateInitialBalanceTemplate = asyncHandler(
+  async (req, res, next) => {
+    try {
+      const headers = ["Утас", "Гэрээний дугаар", "Тоот", "Эхний үлдэгдэл"];
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([headers]);
 
-    const colWidths = [
-      { wch: 15 }, // Утас
-      { wch: 20 }, // Гэрээний дугаар
-      { wch: 10 }, // Тоот
-      { wch: 15 }, // Эхний үлдэгдэл
-    ];
-    ws["!cols"] = colWidths;
+      const colWidths = [
+        { wch: 15 }, // Утас
+        { wch: 20 }, // Гэрээний дугаар
+        { wch: 10 }, // Тоот
+        { wch: 15 }, // Эхний үлдэгдэл
+      ];
+      ws["!cols"] = colWidths;
 
-    XLSX.utils.book_append_sheet(wb, ws, "Эхний үлдэгдэл");
+      XLSX.utils.book_append_sheet(wb, ws, "Эхний үлдэгдэл");
 
-    const excelBuffer = XLSX.write(wb, {
-      type: "buffer",
-      bookType: "xlsx",
-    });
+      const excelBuffer = XLSX.write(wb, {
+        type: "buffer",
+        bookType: "xlsx",
+      });
 
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="initial_balance_template_${Date.now()}.xlsx"`
-    );
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="initial_balance_template_${Date.now()}.xlsx"`,
+      );
 
-    res.send(excelBuffer);
-  } catch (error) {
-    next(error);
-  }
-});
+      res.send(excelBuffer);
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
   try {
@@ -2275,7 +2398,8 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
     }
 
     const tukhainBaaziinKholbolt = db.kholboltuud.find(
-      (kholbolt) => String(kholbolt.baiguullagiinId) === String(baiguullagiinId)
+      (kholbolt) =>
+        String(kholbolt.baiguullagiinId) === String(baiguullagiinId),
     );
 
     if (!tukhainBaaziinKholbolt) {
@@ -2317,13 +2441,15 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
 
         const orConditions = [];
         if (utas) orConditions.push({ utas: utas });
-        if (gereeniiDugaar) orConditions.push({ gereeniiDugaar: gereeniiDugaar });
+        if (gereeniiDugaar)
+          orConditions.push({ gereeniiDugaar: gereeniiDugaar });
         if (toot) orConditions.push({ toot: toot });
 
         if (orConditions.length === 0) {
           results.failed.push({
             row: rowNumber,
-            reason: "Утас, Гэрээний дугаар, эсвэл Тоот-ын аль нэгийг бөглөнө үү",
+            reason:
+              "Утас, Гэрээний дугаар, эсвэл Тоот-ын аль нэгийг бөглөнө үү",
           });
           continue;
         }
@@ -2357,7 +2483,8 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
           ekhniiUldegdelEsekh: true,
           source: "gar",
           tailbar: "Excel-ээр оруулсан эхний үлдэгдэл",
-          guilgeeKhiisenAjiltniiNer: req.body.nevtersenAjiltniiToken?.ner || "System",
+          guilgeeKhiisenAjiltniiNer:
+            req.body.nevtersenAjiltniiToken?.ner || "System",
           guilgeeKhiisenAjiltniiId: req.body.nevtersenAjiltniiToken?.id || null,
         });
 
@@ -2365,7 +2492,7 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
 
         // Update global balance on the geree
         await GereeModel.findByIdAndUpdate(geree._id, {
-          $inc: { globalUldegdel: amount }
+          $inc: { globalUldegdel: amount },
         });
 
         // Also update any existing UNPAID invoices for this contract to include
@@ -2411,15 +2538,17 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
           }
         } catch (invoiceUpdateError) {
           // Non-fatal: log but don't fail the import
-          console.error("Error updating unpaid invoices with initial balance:", invoiceUpdateError);
+          console.error(
+            "Error updating unpaid invoices with initial balance:",
+            invoiceUpdateError,
+          );
         }
 
         results.success.push({
           row: rowNumber,
           gereeniiDugaar: geree.gereeniiDugaar,
-          amount: amount
+          amount: amount,
         });
-
       } catch (rowError) {
         results.failed.push({
           row: rowNumber,
@@ -2427,7 +2556,6 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
         });
       }
     }
-    
 
     res.json({
       success: true,
@@ -2438,6 +2566,3 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
     next(error);
   }
 });
-
-
-
