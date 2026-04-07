@@ -143,6 +143,63 @@ async function recalcGlobalUldegdel({
       .sort({ ognoo: -1, createdAt: -1 });
 
     if (allInvoices.length > 0) {
+      const invDate = (inv) => inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
+      const monthKey = (d) => {
+        const x = d instanceof Date ? d : new Date(d);
+        if (Number.isNaN(x.getTime())) return null;
+        return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`;
+      };
+      const ascInvoices = [...allInvoices].sort((a, b) => {
+        const da = invDate(a) ? new Date(invDate(a)).getTime() : 0;
+        const db = invDate(b) ? new Date(invDate(b)).getTime() : 0;
+        if (da !== db) return da - db;
+        const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (ca !== cb) return ca - cb;
+        return String(a._id).localeCompare(String(b._id));
+      });
+
+      // Allocate open avlaga rows to invoice months so e.g. Feb avlaga increases Feb invoice.
+      const avlagaByInvoiceId = {};
+      ascInvoices.forEach((inv) => {
+        avlagaByInvoiceId[String(inv._id)] = 0;
+      });
+      try {
+        const openTulukhRows = await GereeniiTulukhAvlagaModel.find({
+          gereeniiId: gid,
+          baiguullagiinId: oid,
+          uldegdel: { $gt: 0 },
+        })
+          .sort({ ognoo: 1, createdAt: 1 })
+          .lean();
+
+        for (const row of openTulukhRows) {
+          const amt = Math.round(
+            (Number(row.uldegdel) || Number(row.undsenDun) || Number(row.tulukhDun) || 0) * 100,
+          ) / 100;
+          if (amt <= 0) continue;
+
+          const rMonth = monthKey(row.ognoo || row.createdAt);
+          let target = null;
+          if (rMonth) {
+            target = ascInvoices.find((inv) => monthKey(invDate(inv)) === rMonth) || null;
+          }
+          // fallback: nearest next invoice, otherwise latest
+          if (!target && rMonth) {
+            target =
+              ascInvoices.find((inv) => {
+                const m = monthKey(invDate(inv));
+                return m && m >= rMonth;
+              }) || ascInvoices[ascInvoices.length - 1];
+          }
+          if (!target) target = ascInvoices[ascInvoices.length - 1];
+          avlagaByInvoiceId[String(target._id)] =
+            Math.round((avlagaByInvoiceId[String(target._id)] + amt) * 100) / 100;
+        }
+      } catch (_avlagaAllocErr) {
+        // Continue with invoice-only calculation if avlaga allocation fails
+      }
+
       for (const inv of allInvoices) {
         const id = String(inv._id);
         if (excludeInvoiceId && id === String(excludeInvoiceId)) continue;
@@ -167,6 +224,7 @@ async function recalcGlobalUldegdel({
         ) {
           originalTotal = Math.round(inv.niitTulburOriginal * 100) / 100;
         }
+        originalTotal = Math.round((originalTotal + (avlagaByInvoiceId[id] || 0)) * 100) / 100;
 
         // 2) Calculate paid amount excluding system_sync, then remaining.
         const totalPaid = Math.round(

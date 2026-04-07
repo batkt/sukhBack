@@ -477,6 +477,57 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
           .sort({ ognoo: -1, createdAt: -1 });
 
         const invoiceChanges = [];
+        const invDate = (inv) => inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
+        const monthKey = (d) => {
+          const x = d instanceof Date ? d : new Date(d);
+          if (Number.isNaN(x.getTime())) return null;
+          return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`;
+        };
+        const ascInvoices = [...allInvoices].sort((a, b) => {
+          const da = invDate(a) ? new Date(invDate(a)).getTime() : 0;
+          const db = invDate(b) ? new Date(invDate(b)).getTime() : 0;
+          if (da !== db) return da - db;
+          const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          if (ca !== cb) return ca - cb;
+          return String(a._id).localeCompare(String(b._id));
+        });
+        const avlagaByInvoiceId = {};
+        ascInvoices.forEach((inv) => {
+          avlagaByInvoiceId[String(inv._id)] = 0;
+        });
+        try {
+          const openTulukhRows = await GereeniiTulukhAvlaga(kholbolt)
+            .find({
+              gereeniiId,
+              baiguullagiinId: String(baiguullagiinId),
+              uldegdel: { $gt: 0 },
+            })
+            .sort({ ognoo: 1, createdAt: 1 })
+            .lean();
+
+          for (const row of openTulukhRows) {
+            const amt = Math.round(
+              (Number(row.uldegdel) || Number(row.undsenDun) || Number(row.tulukhDun) || 0) * 100,
+            ) / 100;
+            if (amt <= 0) continue;
+            const rMonth = monthKey(row.ognoo || row.createdAt);
+            let target = null;
+            if (rMonth) {
+              target = ascInvoices.find((inv) => monthKey(invDate(inv)) === rMonth) || null;
+            }
+            if (!target && rMonth) {
+              target =
+                ascInvoices.find((inv) => {
+                  const m = monthKey(invDate(inv));
+                  return m && m >= rMonth;
+                }) || ascInvoices[ascInvoices.length - 1];
+            }
+            if (!target) target = ascInvoices[ascInvoices.length - 1];
+            avlagaByInvoiceId[String(target._id)] =
+              Math.round((avlagaByInvoiceId[String(target._id)] + amt) * 100) / 100;
+          }
+        } catch (_avlagaAllocErr) {}
 
         for (const inv of allInvoices) {
           // Rebuild originalTotal if missing
@@ -488,6 +539,10 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
               .reduce((s, z) => s + (Number(z.dun) || Number(z.tariff) || 0), 0);
             originalTotal = Math.round(zardalTotal * 100) / 100;
           }
+          originalTotal =
+            Math.round(
+              ((originalTotal || 0) + (avlagaByInvoiceId[String(inv._id)] || 0)) * 100,
+            ) / 100;
           originalTotal = Math.round((originalTotal || 0) * 100) / 100;
 
           // Invoice-scoped remaining: do NOT distribute contract-wide globalUldegdel into invoices.
