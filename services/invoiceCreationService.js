@@ -126,8 +126,12 @@ const gereeNeesNekhemjlekhUusgekh = async (
         monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
       }
 
-      // Check period ends now
-      const monthEnd = new Date(currentDate);
+      // End of window must match manualSendInvoice (last ms of calendar month).
+      // If billingReferenceDate is 1st of month, `new Date(currentDate)` was only that midnight →
+      // almost no invoices matched $lte monthEnd → duplicate logic broke; past-month create failed.
+      const monthEnd = usingHistoricalBilling
+        ? new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999)
+        : new Date(currentDate);
 
       let checkBarilgiinId = tempData.barilgiinId;
       if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {

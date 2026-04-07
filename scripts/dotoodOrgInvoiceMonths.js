@@ -5,8 +5,10 @@
  *   node scripts/dotoodOrgInvoiceMonths.js
  *   node scripts/dotoodOrgInvoiceMonths.js --year=2026 --months=2,3
  *   node scripts/dotoodOrgInvoiceMonths.js --override
+ *   node scripts/dotoodOrgInvoiceMonths.js --skip-db-name-check   # if kholbolt DB name differs on purpose
  *
  * Uses invoiceSendService.manualSendMassInvoices internally; org-specific wiring lives only here.
+ * Tenant DB for this org must resolve to databaseName "dotoodSukh" (zevback kholbolt URI), or the script exits.
  */
 
 const path = require("path");
@@ -14,6 +16,8 @@ const express = require("express");
 const dotenv = require("dotenv");
 
 const BAIGUULLAGIIN_ID = "697723dc3e77b46e52ccf577";
+/** Must match the database name in this org's Mongo URI inside zevback `kholboltuud`. */
+const TENANT_DATABASE_NAME = "dotoodSukh";
 
 const projectRoot = path.resolve(__dirname, "..");
 process.chdir(projectRoot);
@@ -34,10 +38,12 @@ function parseArgs(argv) {
     override: false,
     barilgiinId: null,
     waitMs: 4000,
+    skipDbNameCheck: false,
   };
 
   for (const arg of argv) {
     if (arg === "--override") out.override = true;
+    else if (arg === "--skip-db-name-check") out.skipDbNameCheck = true;
     else if (arg.startsWith("--year="))
       out.year = parseInt(arg.slice("--year=".length), 10);
     else if (arg.startsWith("--months=")) {
@@ -160,6 +166,35 @@ async function main() {
     "  Compare databaseName to the DB you use in mongosh (e.g. use dotoodSukh).",
   );
   console.log("============================================================\n");
+
+  if (
+    !opts.skipDbNameCheck &&
+    tenantDbName !== TENANT_DATABASE_NAME
+  ) {
+    console.error("❌ Tenant database mismatch for this org.");
+    console.error(
+      `   kholbolt databaseName (what the app writes to): "${tenantDbName}"`,
+    );
+    console.error(
+      `   This script expects:                             "${TENANT_DATABASE_NAME}"`,
+    );
+    console.error(
+      "   In MongoDB, open the registry DB your app uses on startup (often the db in MONGODB_URI),",
+    );
+    console.error(
+      "   find the baiguullaga / tenant row for this org, and set its Mongo URI so the database",
+    );
+    console.error(
+      `   name is ${TENANT_DATABASE_NAME} (path before ?authSource=…).`,
+    );
+    console.error(
+      "   Until that matches, invoices will not show up in `use dotoodSukh`.",
+    );
+    console.error(
+      "   Override: add --skip-db-name-check (not recommended).\n",
+    );
+    process.exit(1);
+  }
 
   const summary = [];
 
