@@ -115,7 +115,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       const freshGereeForAvlaga = await Geree(tukhainBaaziinKholbolt, true)
         .findById(guilgee.gereeniiId)
         .select(
-          "gereeniiDugaar orshinSuugchId baiguullagiinId baiguullagiinNer barilgiinId",
+          "gereeniiDugaar orshinSuugchId baiguullagiinId baiguullagiinNer barilgiinId khayag gereeniiOgnoo mailKhayagTo gereeniiZagvariinId dansniiDugaar tulukhUdur ovog ner register utas davkhar",
         )
         .lean();
 
@@ -192,7 +192,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 tukhainBaaziinKholbolt,
               );
 
-              const existingMonthlyInvoice = await NekhemjlekhModel.findOne({
+              const monthlyInvoices = await NekhemjlekhModel.find({
                 gereeniiId: guilgee.gereeniiId,
                 tuluv: { $ne: "Хүчингүй" },
                 $or: [
@@ -205,23 +205,90 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                   },
                 ],
               })
-                .select("_id")
+                .select("_id tuluv")
                 .lean();
 
-              if (!existingMonthlyInvoice) {
-                const { manualSendInvoice } = require("../services/invoiceSendService");
-                const ensured = await manualSendInvoice(
-                  guilgee.gereeniiId,
-                  baiguullagiinId,
-                  false,
-                  avlagaDate.getMonth() + 1,
+              const unpaidMonthlyInvoice = (monthlyInvoices || []).find(
+                (inv) => !["Төлсөн", "Хүчингүй"].includes(inv?.tuluv),
+              );
+              const hasAnyMonthlyInvoice = (monthlyInvoices || []).length > 0;
+
+              // Rule:
+              // - If unpaid invoice exists for that month: reuse it (do nothing here)
+              // - If none exists or all are paid: create AVlaga-only invoice container (no ashiglaltiin zardluud)
+              if (!unpaidMonthlyInvoice) {
+                const suuliinNekhemjlekh = await NekhemjlekhModel.findOne()
+                  .sort({ dugaalaltDugaar: -1 })
+                  .select("dugaalaltDugaar")
+                  .lean();
+                const suuliinDugaar = suuliinNekhemjlekh?.dugaalaltDugaar;
+                const nextDugaar =
+                  suuliinDugaar && !isNaN(suuliinDugaar) ? suuliinDugaar + 1 : 1;
+
+                const invoiceDate = new Date(
                   avlagaDate.getFullYear(),
-                  req.app,
+                  avlagaDate.getMonth(),
+                  1,
+                  12,
+                  0,
+                  0,
+                  0,
                 );
 
-                if (ensured?.success) {
+                const autoInvoice = new NekhemjlekhModel({
+                  baiguullagiinNer:
+                    freshGereeForAvlaga.baiguullagiinNer || "",
+                  baiguullagiinId:
+                    freshGereeForAvlaga.baiguullagiinId ||
+                    String(baiguullagiinId),
+                  barilgiinId: freshGereeForAvlaga.barilgiinId || "",
+                  ovog: freshGereeForAvlaga.ovog || "",
+                  ner: freshGereeForAvlaga.ner || "",
+                  register: freshGereeForAvlaga.register || "",
+                  utas: Array.isArray(freshGereeForAvlaga.utas)
+                    ? freshGereeForAvlaga.utas
+                    : [],
+                  khayag: freshGereeForAvlaga.khayag || "",
+                  gereeniiOgnoo: freshGereeForAvlaga.gereeniiOgnoo || null,
+                  gereeniiId: guilgee.gereeniiId,
+                  gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
+                  davkhar: freshGereeForAvlaga.davkhar || "",
+                  dansniiDugaar: freshGereeForAvlaga.dansniiDugaar || "",
+                  gereeniiZagvariinId:
+                    freshGereeForAvlaga.gereeniiZagvariinId || "",
+                  tulukhUdur: Array.isArray(freshGereeForAvlaga.tulukhUdur)
+                    ? freshGereeForAvlaga.tulukhUdur
+                    : [],
+                  ognoo: invoiceDate,
+                  mailKhayagTo: freshGereeForAvlaga.mailKhayagTo || "",
+                  medeelel: {
+                    zardluud: [],
+                    guilgeenuud: [],
+                    segmentuud: [],
+                    khungulultuud: [],
+                    tailbar: "Авлага",
+                    uusgegsenEsekh: "garan",
+                    uusgegsenOgnoo: new Date(),
+                  },
+                  nekhemjlekh: "Авлагаар автоматаар үүсгэсэн нэхэмжлэх",
+                  zagvariinNer: freshGereeForAvlaga.baiguullagiinNer || "",
+                  content: "Авлага тусгах суурь нэхэмжлэх",
+                  nekhemjlekhiinOgnoo: new Date(),
+                  nekhemjlekhiinDugaar: `AVL-${Date.now()}-${Math.floor(
+                    Math.random() * 1000,
+                  )}`,
+                  dugaalaltDugaar: nextDugaar,
+                  niitTulbur: 0,
+                  niitTulburOriginal: 0,
+                  uldegdel: 0,
+                  tuluv: "Төлөөгүй",
+                  tailbar: "Авлага",
+                });
+
+                await autoInvoice.save();
+                if (hasAnyMonthlyInvoice) {
                   console.log(
-                    "✅ [GEREE AVLAGA] Auto-created missing month invoice",
+                    "✅ [GEREE AVLAGA] Month had only paid invoices; created new avlaga-only invoice",
                     {
                       gereeniiId: guilgee.gereeniiId,
                       month: avlagaDate.getMonth() + 1,
@@ -229,9 +296,13 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                     },
                   );
                 } else {
-                  console.error(
-                    "❌ [GEREE AVLAGA] Failed to auto-create month invoice",
-                    ensured?.error || "unknown error",
+                  console.log(
+                    "✅ [GEREE AVLAGA] Created missing avlaga-only month invoice",
+                    {
+                      gereeniiId: guilgee.gereeniiId,
+                      month: avlagaDate.getMonth() + 1,
+                      year: avlagaDate.getFullYear(),
+                    },
                   );
                 }
               }
