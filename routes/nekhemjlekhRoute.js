@@ -485,7 +485,6 @@ router.post("/sync-all-from-ledger", tokenShalgakh, async (req, res, next) => {
             : null;
           if (!originalTotal && Array.isArray(inv.medeelel?.zardluud)) {
             const zardalTotal = inv.medeelel.zardluud
-              .filter(z => !z.isEkhniiUldegdel)
               .reduce((s, z) => s + (Number(z.dun) || Number(z.tariff) || 0), 0);
             originalTotal = Math.round(zardalTotal * 100) / 100;
           }

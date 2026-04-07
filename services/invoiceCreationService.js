@@ -148,10 +148,15 @@ const gereeNeesNekhemjlekhUusgekh = async (
             },
           },
           {
-            createdAt: {
-              $gte: monthStart,
-              $lte: monthEnd,
-            },
+            $and: [
+              { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
+              {
+                createdAt: {
+                  $gte: monthStart,
+                  $lte: monthEnd,
+                },
+              },
+            ],
           },
         ],
       };

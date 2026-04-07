@@ -151,7 +151,6 @@ async function recalcGlobalUldegdel({
         let originalTotal = 0;
         if (Array.isArray(inv.medeelel?.zardluud)) {
           originalTotal = inv.medeelel.zardluud
-            .filter((z) => !z.isEkhniiUldegdel && z.ner !== "Эхний үлдэгдэл")
             .reduce((s, z) => {
               const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
               const d = z.dun != null ? Number(z.dun) : null;
