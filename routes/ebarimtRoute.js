@@ -133,15 +133,34 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
         : process.env.EBARIMTSHINE_IP;
       
       var url = baseUrl + "rest/receipt";
+      console.log("[EBARIMT] Sending receipt request", {
+        orgId,
+        shouldUseTest,
+        baseUrl: baseUrl || null,
+        url,
+      });
       
       request.post(url, { json: true, body: ugugdul }, (err, res1, body) => {
         if (err) {
+          console.error("[EBARIMT] request.post error:", err.message, { url });
           if (next) next(err);
           return;
         }
         
+        console.log("[EBARIMT] receipt response", {
+          statusCode: res1?.statusCode,
+          hasBody: !!body,
+          bodyStatus: body?.status || null,
+          bodySuccess: body?.success,
+          bodyMessage: body?.message || body?.error || null,
+        });
         
         if (body && (body.error || body.message)) {
+          console.error("[EBARIMT] receipt returned error/message", {
+            error: body.error || null,
+            message: body.message || null,
+            statusCode: res1?.statusCode,
+          });
           if (next)
             next(new Error(body.message || body.error || "E-barimt API error"));
           return;
@@ -151,6 +170,7 @@ async function ebarimtDuudya(ugugdul, onFinish, next, shine = false, baiguullagi
       });
     } else if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
   } catch (aldaa) {
+    console.error("[EBARIMT] ebarimtDuudya outer error:", aldaa.message);
     if (!!next) next(new Error("ИБаримт dll холболт хийгдээгүй байна!"));
   }
 }
