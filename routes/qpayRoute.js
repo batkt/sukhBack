@@ -1871,6 +1871,14 @@ router.get(
         const shouldCreateEbarimt =
           tuxainSalbar &&
           (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
+        console.log("ℹ️ [QPAY CALLBACK] Ebarimt gate:", {
+          hasTokhirgoo: !!tuxainSalbar,
+          eBarimtAshiglakhEsekh: tuxainSalbar?.eBarimtAshiglakhEsekh,
+          eBarimtShine: tuxainSalbar?.eBarimtShine,
+          shouldCreateEbarimt,
+          hasMerchantTin: !!tuxainSalbar?.merchantTin,
+          merchantTin: tuxainSalbar?.merchantTin || null,
+        });
 
         if (shouldCreateEbarimt) {
           if (!tuxainSalbar.merchantTin) {
@@ -1889,6 +1897,12 @@ router.get(
               tuxainSalbar.EbarimtDistrictCode ||
               tuxainSalbar.districtCode ||
               "";
+            console.log("ℹ️ [QPAY CALLBACK] Ebarimt district lookup input:", {
+              cityName,
+              districtCodeString,
+              horooNameFromConfig:
+                tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || null,
+            });
 
             // Extract horoo/district name from the district code string
             // E.g., "Сонгинохайрхан20-р хороо" -> "20-р хороо"
@@ -1966,7 +1980,14 @@ router.get(
                 "districtCode must be a 4-digit numeric code for e-barimt creation",
               );
             }
+            console.log("✅ [QPAY CALLBACK] Ebarimt district code resolved:", {
+              ebarimtDistrictCode,
+            });
           } catch (lookupError) {
+            console.error(
+              "❌ [QPAY CALLBACK] Ebarimt district lookup failed:",
+              lookupError.message,
+            );
             throw new Error(
               "Failed to lookup district code for e-barimt creation",
             );
@@ -1990,6 +2011,10 @@ router.get(
             kholbolt,
             nuatTulukhEsekh,
           );
+          console.log("✅ [QPAY CALLBACK] Ebarimt object created", {
+            nekhemjlekhiinId: nekhemjlekh._id?.toString(),
+            qpayPaymentId: nekhemjlekh.qpayPaymentId || null,
+          });
 
           var butsaakhMethod = async function (d, khariuObject) {
             try {
@@ -2056,6 +2081,9 @@ router.get(
 
           ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
         } else {
+          console.log(
+            "ℹ️ [QPAY CALLBACK] Ebarimt skipped because feature flags are disabled",
+          );
         }
       } catch (ebarimtError) {
         console.error("❌ [QPAY CALLBACK] Error in E-barimt block:", ebarimtError.message);
@@ -2380,9 +2408,20 @@ router.get(
             const shouldCreateEbarimt =
               tuxainSalbar &&
               (tuxainSalbar.eBarimtAshiglakhEsekh || tuxainSalbar.eBarimtShine);
+            console.log("ℹ️ [QPAY MULTI CALLBACK] Ebarimt gate:", {
+              invoiceId: updatedInvoice._id?.toString(),
+              hasTokhirgoo: !!tuxainSalbar,
+              eBarimtAshiglakhEsekh: tuxainSalbar?.eBarimtAshiglakhEsekh,
+              eBarimtShine: tuxainSalbar?.eBarimtShine,
+              shouldCreateEbarimt,
+              hasMerchantTin: !!tuxainSalbar?.merchantTin,
+            });
 
             if (shouldCreateEbarimt) {
               if (!tuxainSalbar.merchantTin) {
+                console.error(
+                  "❌ [QPAY MULTI CALLBACK] Ebarimt skipped: merchantTin missing",
+                );
               } else {
                 // Ebarimt API requires a 4-digit numeric district code
                 // Look up the code from tatvariinAlba using city name and district/horoo name
@@ -2396,6 +2435,18 @@ router.get(
                     tuxainSalbar.EbarimtDistrictCode ||
                     tuxainSalbar.districtCode ||
                     "";
+                  console.log(
+                    "ℹ️ [QPAY MULTI CALLBACK] Ebarimt district lookup input:",
+                    {
+                      invoiceId: updatedInvoice._id?.toString(),
+                      cityName,
+                      districtCodeString,
+                      horooNameFromConfig:
+                        tuxainSalbar.EbarimtDHoroo?.ner ||
+                        tuxainSalbar.horoo?.ner ||
+                        null,
+                    },
+                  );
 
                   // Extract horoo/district name from the district code string
                   const horooName =
@@ -2471,7 +2522,21 @@ router.get(
                     !ebarimtDistrictCode ||
                     !/^\d{4}$/.test(ebarimtDistrictCode)
                   ) {
+                    console.error(
+                      "❌ [QPAY MULTI CALLBACK] Ebarimt skipped: invalid district code",
+                      {
+                        invoiceId: updatedInvoice._id?.toString(),
+                        ebarimtDistrictCode,
+                      },
+                    );
                   } else {
+                    console.log(
+                      "✅ [QPAY MULTI CALLBACK] Ebarimt district code resolved",
+                      {
+                        invoiceId: updatedInvoice._id?.toString(),
+                        ebarimtDistrictCode,
+                      },
+                    );
                     const {
                       nekhemjlekheesEbarimtShineUusgye,
                       ebarimtDuudya,
@@ -2489,6 +2554,13 @@ router.get(
                       ebarimtDistrictCode,
                       kholbolt,
                       nuatTulukhEsekh,
+                    );
+                    console.log(
+                      "✅ [QPAY MULTI CALLBACK] Ebarimt object created",
+                      {
+                        invoiceId: updatedInvoice._id?.toString(),
+                        qpayPaymentId: paymentTransactionId || null,
+                      },
                     );
 
                     // The ebarimt object already has invoice data set in nekhemjlekheesEbarimtShineUusgye
@@ -2563,11 +2635,25 @@ router.get(
                     // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
                     ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
                   }
-                } catch (lookupError) {}
+                } catch (lookupError) {
+                  console.error(
+                    "❌ [QPAY MULTI CALLBACK] Ebarimt district lookup/create failed:",
+                    lookupError.message,
+                  );
+                }
               }
             } else {
+              console.log(
+                "ℹ️ [QPAY MULTI CALLBACK] Ebarimt skipped because feature flags are disabled",
+                { invoiceId: updatedInvoice._id?.toString() },
+              );
             }
-          } catch (ebarimtError) {}
+          } catch (ebarimtError) {
+            console.error(
+              "❌ [QPAY MULTI CALLBACK] Error in E-barimt block:",
+              ebarimtError.message,
+            );
+          }
 
           // Emit socket event for each invoice
           const io = req.app.get("socketio");
@@ -2580,7 +2666,12 @@ router.get(
               paymentId: updatedInvoice.qpayPaymentId,
             },
           );
-        } catch (invoiceErr) {}
+        } catch (invoiceErr) {
+          console.error(
+            "❌ [QPAY MULTI CALLBACK] Invoice processing error:",
+            invoiceErr.message,
+          );
+        }
       });
 
       await Promise.all(updatePromises);
