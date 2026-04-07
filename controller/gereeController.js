@@ -13,7 +13,6 @@ function parseOgnooKeepClock(value) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
 
   if (typeof value === "string") {
-    const hasExplicitTime = /[T\s]\d{2}:\d{2}/.test(value);
     const m = value.match(
       /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/,
     );
@@ -21,9 +20,7 @@ function parseOgnooKeepClock(value) {
       const year = Number(m[1]);
       const month = Number(m[2]) - 1;
       const day = Number(m[3]);
-      // Date-only inputs are treated as noon local time to avoid
-      // "previous day" UTC display in Mongo shell.
-      const hour = hasExplicitTime ? Number(m[4] || 0) : 12;
+      const hour = Number(m[4] || 0);
       const minute = Number(m[5] || 0);
       const second = Number(m[6] || 0);
       return new Date(year, month, day, hour, minute, second, 0);
@@ -45,7 +42,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     // Normalize amount fields based on turul type
     // avlaga = debt/invoice (uses tulukhDun - amount TO pay)
     // tulult/ashiglalt = payment (uses tulsunDun - amount PAID)
-    const dun = Number(guilgee.dun || guilgee.tulukhDun || guilgee.tulsunDun || 0);
+    const dun = Number(
+      guilgee.dun || guilgee.tulukhDun || guilgee.tulsunDun || 0,
+    );
 
     if (guilgee.turul === "avlaga") {
       // For avlaga: set tulukhDun, NOT tulsunDun
@@ -254,14 +253,22 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                   .lean();
                 const suuliinDugaar = suuliinNekhemjlekh?.dugaalaltDugaar;
                 const nextDugaar =
-                  suuliinDugaar && !isNaN(suuliinDugaar) ? suuliinDugaar + 1 : 1;
+                  suuliinDugaar && !isNaN(suuliinDugaar)
+                    ? suuliinDugaar + 1
+                    : 1;
 
-                // Keep the exact picked avlaga datetime for the created avlaga-only invoice.
-                const invoiceDate = new Date(avlagaDate);
+                const invoiceDate = new Date(
+                  avlagaDate.getFullYear(),
+                  avlagaDate.getMonth(),
+                  1,
+                  12,
+                  0,
+                  0,
+                  0,
+                );
 
                 const autoInvoice = new NekhemjlekhModel({
-                  baiguullagiinNer:
-                    freshGereeForAvlaga.baiguullagiinNer || "",
+                  baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
                   baiguullagiinId:
                     freshGereeForAvlaga.baiguullagiinId ||
                     String(baiguullagiinId),
@@ -297,7 +304,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                   nekhemjlekh: "Авлагаар автоматаар үүсгэсэн нэхэмжлэх",
                   zagvariinNer: freshGereeForAvlaga.baiguullagiinNer || "",
                   content: "Авлага тусгах суурь нэхэмжлэх",
-                  nekhemjlekhiinOgnoo: new Date(invoiceDate),
+                  nekhemjlekhiinOgnoo: new Date(),
                   nekhemjlekhiinDugaar: `AVL-${Date.now()}-${Math.floor(
                     Math.random() * 1000,
                   )}`,
@@ -372,7 +379,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 await NekhemjlekhModel.findByIdAndUpdate(invoice._id, {
                   $set: {
                     niitTulbur: newNiitTulbur,
-                    niitTulburOriginal: (invoice.niitTulburOriginal || invoice.niitTulbur || 0) + dun,
+                    niitTulburOriginal:
+                      (invoice.niitTulburOriginal || invoice.niitTulbur || 0) +
+                      dun,
                     uldegdel: newUldegdel,
                     ekhniiUldegdel: (invoice.ekhniiUldegdel || 0) + dun,
                     "medeelel.zardluud": zardluud,
@@ -541,8 +550,8 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     );
 
     // Full recalculation from raw amounts using shared utility
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
     const NekhemjlekhiinTuukhRecalc = require("../models/nekhemjlekhiinTuukh");
     const GereeniiTulsunAvlagaRecalc = require("../models/gereeniiTulsunAvlaga");
@@ -551,20 +560,35 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         gereeId: guilgee.gereeniiId,
         baiguullagiinId,
         GereeModel: Geree(tukhainBaaziinKholbolt),
-        NekhemjlekhiinTuukhModel: NekhemjlekhiinTuukhRecalc(tukhainBaaziinKholbolt),
+        NekhemjlekhiinTuukhModel: NekhemjlekhiinTuukhRecalc(
+          tukhainBaaziinKholbolt,
+        ),
         GereeniiTulukhAvlagaModel: GereeniiTulukhAvlagaModel,
-        GereeniiTulsunAvlagaModel: GereeniiTulsunAvlagaRecalc(tukhainBaaziinKholbolt),
+        GereeniiTulsunAvlagaModel: GereeniiTulsunAvlagaRecalc(
+          tukhainBaaziinKholbolt,
+        ),
       });
     } catch (recalcErr) {
-      console.error("❌ [GEREE] Error in full recalculation:", recalcErr.message);
+      console.error(
+        "❌ [GEREE] Error in full recalculation:",
+        recalcErr.message,
+      );
     }
 
-    const result = await Geree(tukhainBaaziinKholbolt).findById(guilgee.gereeniiId);
+    const result = await Geree(tukhainBaaziinKholbolt).findById(
+      guilgee.gereeniiId,
+    );
 
     try {
-      await daraagiinTulukhOgnooZasya(guilgee.gereeniiId, tukhainBaaziinKholbolt);
+      await daraagiinTulukhOgnooZasya(
+        guilgee.gereeniiId,
+        tukhainBaaziinKholbolt,
+      );
     } catch (dateUpdateError) {
-      console.error("⚠️ [GEREE] Error updating next payment date:", dateUpdateError.message);
+      console.error(
+        "⚠️ [GEREE] Error updating next payment date:",
+        dateUpdateError.message,
+      );
     }
 
     try {
@@ -578,7 +602,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
           message: `Гэрээний дугаар: ${result.gereeniiDugaar || "N/A"}, Төлбөр: ${guilgee.tulukhDun || 0}₮`,
           kharsanEsekh: false,
           turul: "мэдэгдэл",
-          ognoo: new Date()
+          ognoo: new Date(),
         });
 
         await medegdel.save();
