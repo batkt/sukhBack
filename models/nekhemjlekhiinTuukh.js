@@ -319,20 +319,29 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
       $set: { ekhniiUldegdel: nextGereeEkhnii },
     });
 
+    // orshinSuugch documents live on the central connection (erunkhiiKholbolt), not the
+    // per-org tenant DB where geree / nekhemjlekhiinTuukh are stored — same as walletController, excel, qpayRoute.
+    const centralConn = db.erunkhiiKholbolt;
+    const OrshinOnCentral = centralConn ? OrshinSuugch(centralConn) : null;
+    if (!OrshinOnCentral) {
+      console.error(
+        "[nekhemjlekhiinTuukh] erunkhiiKholbolt missing; geree ekhnii updated but orshinSuugch not synced",
+      );
+      return;
+    }
+
     const applyOrshinEkhniiDecrement = async (osId) => {
       if (!osId) return false;
-      const osLean = await OrshinSuugch(kholbolt)
-        .findById(osId)
+      const osLean = await OrshinOnCentral.findById(osId)
         .select("ekhniiUldegdel")
         .lean();
       if (!osLean?._id) return false;
       const curOs = Number(osLean.ekhniiUldegdel) || 0;
       const nextOs =
         Math.round(Math.max(0, curOs - delta) * 100) / 100;
-      const updated = await OrshinSuugch(kholbolt).findByIdAndUpdate(
-        osLean._id,
-        { $set: { ekhniiUldegdel: nextOs } },
-      );
+      const updated = await OrshinOnCentral.findByIdAndUpdate(osLean._id, {
+        $set: { ekhniiUldegdel: nextOs },
+      });
       return !!updated;
     };
 
@@ -368,8 +377,10 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
       for (const bid of barilgiinCandidates) {
         if (tried.has(bid)) continue;
         tried.add(bid);
-        const found = await OrshinSuugch(kholbolt)
-          .findOne({ ...baseQ, barilgiinId: bid })
+        const found = await OrshinOnCentral.findOne({
+          ...baseQ,
+          barilgiinId: bid,
+        })
           .select("_id ekhniiUldegdel utas nevtrekhNer")
           .lean();
         if (
@@ -381,8 +392,7 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
         }
       }
       if (!osLean) {
-        const found = await OrshinSuugch(kholbolt)
-          .findOne(baseQ)
+        const found = await OrshinOnCentral.findOne(baseQ)
           .select("_id ekhniiUldegdel utas nevtrekhNer")
           .lean();
         if (
