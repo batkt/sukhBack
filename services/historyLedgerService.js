@@ -24,6 +24,42 @@ function toOgnooString(d) {
   return date.toISOString().slice(0, 10);
 }
 
+/** Same notion of “Эхний үлдэгдэл” line as nekhemjlekhiinTuukh / invoiceSendService. */
+function isEkhniiUldegdelZardalLine(z) {
+  return (
+    !!z &&
+    (z.isEkhniiUldegdel === true ||
+      z.ner === "Эхний үлдэгдэл" ||
+      (typeof z.ner === "string" && z.ner.includes("Эхний үлдэгдэл")))
+  );
+}
+
+function zardalLineChargeAmount(z) {
+  const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
+  const d = z.dun != null ? Number(z.dun) : null;
+  const tariff = z.tariff != null ? Number(z.tariff) : 0;
+  return t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
+}
+
+/** True if some invoice already lists opening balance as a zardal row (avoid double with tulukh avlaga / geree). */
+function invoicesAlreadyShowEkhniiOpening(invoices) {
+  for (const inv of invoices || []) {
+    const zardluud = inv.medeelel?.zardluud || [];
+    for (const z of zardluud) {
+      if (!isEkhniiUldegdelZardalLine(z)) continue;
+      if (zardalLineChargeAmount(z) > 0.01) return true;
+    }
+  }
+  return false;
+}
+
+function tulukhAvlagaIsEkhniiDuplicate(s) {
+  if (s.ekhniiUldegdelEsekh) return true;
+  const n = typeof s.zardliinNer === "string" ? s.zardliinNer : "";
+  const t = typeof s.tailbar === "string" ? s.tailbar : "";
+  return n.includes("Эхний үлдэгдэл") || t.includes("Эхний үлдэгдэл");
+}
+
 /**
  *
  * @param {Object} options
@@ -90,8 +126,10 @@ async function getHistoryLedger(options) {
   /** @type {Array<{ ognoo: Date, createdAt: Date, tulukhDun: number, tulsunDun: number, ner: string, isSystem: boolean, _id: string, ajiltan?: string, khelber?: string, tailbar?: string, burtgesenOgnoo?: string, parentInvoiceId?: string, sourceCollection: string, nekhemjlekhiinDugaar?: string, invoiceUldegdel?: number|null, nekhemjlekhiinTuluv?: string }>} */
   const rawRows = [];
 
-  // 0) Geree ekhniiUldegdel (initial balance) — so ledger shows when contract has initial balance
+  // 0) Geree ekhniiUldegdel (initial balance) — skip if the same opening is already on a nekhemjlekhiin line (Хуулга double)
+  const skipGereeEkhniiSynthetic = invoicesAlreadyShowEkhniiOpening(invoices);
   if (
+    !skipGereeEkhniiSynthetic &&
     gereeDoc &&
     typeof gereeDoc.ekhniiUldegdel === "number" &&
     gereeDoc.ekhniiUldegdel > 0
@@ -195,7 +233,11 @@ async function getHistoryLedger(options) {
   }
 
   // 2) GereeniiTulukhAvlaga (every avlaga / receivable — Эхний үлдэгдэл, Авлага, etc.)
+  const skipTulukhEkhniiDuplicate = invoicesAlreadyShowEkhniiOpening(invoices);
   for (const s of tulukhList) {
+    if (skipTulukhEkhniiDuplicate && tulukhAvlagaIsEkhniiDuplicate(s)) {
+      continue;
+    }
     const tulukhDun =
       typeof s.tulukhDun === "number"
         ? s.tulukhDun
