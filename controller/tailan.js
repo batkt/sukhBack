@@ -1237,9 +1237,11 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
 
     if (ekhlekhOgnoo || duusakhOgnoo) {
       const start = ekhlekhOgnoo
-        ? new Date(ekhlekhOgnoo)
+        ? parseDate(ekhlekhOgnoo) || new Date("1970-01-01")
         : new Date("1970-01-01");
-      const end = duusakhOgnoo ? new Date(duusakhOgnoo) : new Date("2999-12-31");
+      const end = duusakhOgnoo
+        ? parseDate(duusakhOgnoo) || new Date("2999-12-31")
+        : new Date("2999-12-31");
       match.$and = match.$and || [];
       match.$and.push({
         $or: [
@@ -1282,6 +1284,10 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       const d = new Date(str);
       return isNaN(d.getTime()) ? null : d;
     };
+
+    console.log(
+      `[tailanAvlagiinNasjilt] Received params - ekhlekhOgnoo: ${ekhlekhOgnoo}, duusakhOgnoo: ${duusakhOgnoo}`
+    );
 
     const refDate = duusakhOgnoo
       ? parseDate(duusakhOgnoo) || new Date()
