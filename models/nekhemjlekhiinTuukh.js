@@ -228,7 +228,15 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
   }
 });
 
-// After save: decrement orshinSuugch.ekhniiUldegdel by new FIFO payments on the ekhnii line (idempotent via ekhniiAppliedToOrshinSuugchDun).
+function orshinMatchesGereeUtas(osDoc, uniqPhones) {
+  if (!uniqPhones.length) return true;
+  const u = String(osDoc?.utas || "").trim();
+  const n = String(osDoc?.nevtrekhNer || "").trim();
+  return uniqPhones.some((p) => p === u || p === n);
+}
+
+// After save: decrement geree.ekhniiUldegdel and (if linked) orshinSuugch.ekhniiUldegdel
+// by new FIFO payments on the invoice ekhnii line (idempotent via ekhniiAppliedToOrshinSuugchDun).
 nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
   const delta = doc._pendingOrshinEkhniiDelta;
   delete doc._pendingOrshinEkhniiDelta;
@@ -245,22 +253,64 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
     );
     if (!kholbolt) return;
 
-    const geree = await Geree(kholbolt)
+    const gereeLean = await Geree(kholbolt)
       .findById(doc.gereeniiId)
-      .select("orshinSuugchId")
+      .select(
+        "orshinSuugchId ekhniiUldegdel utas barilgiinId baiguullagiinId",
+      )
       .lean();
-    if (!geree?.orshinSuugchId) return;
+    if (!gereeLean) return;
 
-    const osDoc = await OrshinSuugch(kholbolt).findById(geree.orshinSuugchId);
-    if (!osDoc) return;
+    const uniqPhones = [
+      ...new Set(
+        (gereeLean.utas || [])
+          .map((x) => String(x || "").trim())
+          .filter(Boolean),
+      ),
+    ];
 
-    const cur = Number(osDoc.ekhniiUldegdel) || 0;
-    osDoc.ekhniiUldegdel =
-      Math.round(Math.max(0, cur - delta) * 100) / 100;
-    await osDoc.save();
+    const curGereeEkhnii = Number(gereeLean.ekhniiUldegdel) || 0;
+    const nextGereeEkhnii =
+      Math.round(Math.max(0, curGereeEkhnii - delta) * 100) / 100;
+    await Geree(kholbolt).findByIdAndUpdate(doc.gereeniiId, {
+      $set: { ekhniiUldegdel: nextGereeEkhnii },
+    });
+
+    let osDoc = null;
+    if (gereeLean.orshinSuugchId) {
+      const byId = await OrshinSuugch(kholbolt).findById(
+        gereeLean.orshinSuugchId,
+      );
+      if (byId && orshinMatchesGereeUtas(byId, uniqPhones)) {
+        osDoc = byId;
+      }
+    }
+    if (!osDoc && uniqPhones.length) {
+      const orgId = String(
+        gereeLean.baiguullagiinId || doc.baiguullagiinId,
+      );
+      const q = {
+        baiguullagiinId: orgId,
+        $or: [
+          { utas: { $in: uniqPhones } },
+          { nevtrekhNer: { $in: uniqPhones } },
+        ],
+      };
+      if (gereeLean.barilgiinId) {
+        q.barilgiinId = String(gereeLean.barilgiinId);
+      }
+      osDoc = await OrshinSuugch(kholbolt).findOne(q);
+    }
+
+    if (osDoc) {
+      const curOs = Number(osDoc.ekhniiUldegdel) || 0;
+      osDoc.ekhniiUldegdel =
+        Math.round(Math.max(0, curOs - delta) * 100) / 100;
+      await osDoc.save();
+    }
   } catch (e) {
     console.error(
-      "[nekhemjlekhiinTuukh] orshinSuugch ekhniiUldegdel sync failed:",
+      "[nekhemjlekhiinTuukh] geree/orshin ekhniiUldegdel sync failed:",
       e.message,
     );
   }
