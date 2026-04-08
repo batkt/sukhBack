@@ -584,6 +584,17 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       _id: newAvlagaId || undefined, // Use existing record ID or let Mongoose generate one (avoiding manual-xxx string which causes CastError)
       avlagaGuilgeeIndex: count,
     };
+    // "ashiglalt" is receivable-side like avlaga; keep amount in tulukhDun for invoice generation.
+    if (guilgee?.turul === "ashiglalt") {
+      const amt =
+        Number(guilgee?.tulukhDun) ||
+        Number(guilgee?.undsenDun) ||
+        Number(guilgee?.dun) ||
+        Number(guilgee?.tulsunDun) ||
+        0;
+      guilgeeForNekhemjlekh.tulukhDun = amt;
+      guilgeeForNekhemjlekh.tulsunDun = 0;
+    }
 
     // Push to guilgeenuudForNekhemjlekh for manual adjustments
     const updateData = {
