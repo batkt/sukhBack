@@ -142,12 +142,29 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
       const freshGereeForAvlaga = await Geree(tukhainBaaziinKholbolt, true)
         .findById(guilgee.gereeniiId)
         .select(
-          "gereeniiDugaar orshinSuugchId baiguullagiinId baiguullagiinNer barilgiinId khayag gereeniiOgnoo mailKhayagTo gereeniiZagvariinId dansniiDugaar tulukhUdur ovog ner register utas davkhar",
+          "gereeniiDugaar orshinSuugchId baiguullagiinId baiguullagiinNer barilgiinId khayag gereeniiOgnoo mailKhayagTo gereeniiZagvariinId dansniiDugaar tulukhUdur ovog ner register utas davkhar positiveBalance",
         )
         .lean();
 
       if (freshGereeForAvlaga) {
         if (guilgee.turul === "avlaga") {
+          const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+          const charge = round2(dun);
+          const currentPositive = round2(freshGereeForAvlaga.positiveBalance);
+          const usedFromPositive = round2(Math.min(currentPositive, charge));
+          const netCharge = round2(charge - usedFromPositive);
+
+          if (usedFromPositive > 0.01) {
+            await Geree(tukhainBaaziinKholbolt).findByIdAndUpdate(
+              guilgee.gereeniiId,
+              {
+                $set: {
+                  positiveBalance: round2(currentPositive - usedFromPositive),
+                },
+              },
+            );
+          }
+
           // Create standalone GereeniiTulukhAvlaga record immediately for history visibility
           const TulukhAvlagaModel = GereeniiTulukhAvlaga(
             tukhainBaaziinKholbolt,
@@ -164,9 +181,11 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               parseOgnooKeepClock(guilgee.ognoo) ||
               guilgee.guilgeeKhiisenOgnoo ||
               new Date(),
-            undsenDun: dun,
-            tulukhDun: dun,
-            uldegdel: dun,
+            // If there is existing overpayment credit, consume it first so new avlaga does not
+            // appear as an artificial "break" in ledger right after large payments.
+            undsenDun: netCharge,
+            tulukhDun: netCharge,
+            uldegdel: netCharge,
             turul: "avlaga",
             zardliinNer: guilgee.ekhniiUldegdelEsekh
               ? "Эхний үлдэгдэл"
@@ -188,9 +207,10 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             newAvlagaId,
           );
 
-          // Ensure the avlaga month has an invoice container.
-          // If no invoice exists for that month, auto-create one so avlaga is reflected immediately.
-          try {
+          // Ensure the avlaga month has an invoice container only when there is unpaid amount left.
+          // If fully covered by positiveBalance credit, skip creating AVL invoice noise.
+          if (netCharge > 0.01) {
+            try {
             const avlagaDate =
               parseOgnooKeepClock(guilgee.ognoo) ||
               (guilgee.guilgeeKhiisenOgnoo
@@ -338,11 +358,12 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
                 }
               }
             }
-          } catch (ensureInvoiceError) {
-            console.error(
-              "❌ [GEREE AVLAGA] Error ensuring month invoice:",
-              ensureInvoiceError.message,
-            );
+            } catch (ensureInvoiceError) {
+              console.error(
+                "❌ [GEREE AVLAGA] Error ensuring month invoice:",
+                ensureInvoiceError.message,
+              );
+            }
           }
 
           // If this is an initial balance (ekhniiUldegdelEsekh), also update any

@@ -91,8 +91,12 @@ async function recalcGlobalUldegdel({
       ? ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1].uldegdel
       : 0;
 
-  const newGlobalUldegdel = finalUldegdel;
-  const newPositiveBalance = Math.max(0, -newGlobalUldegdel);
+  const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const EPS = 0.01;
+  let newGlobalUldegdel = round2(finalUldegdel);
+  if (Math.abs(newGlobalUldegdel) <= EPS) newGlobalUldegdel = 0;
+  let newPositiveBalance = round2(Math.max(0, -newGlobalUldegdel));
+  if (newPositiveBalance <= EPS) newPositiveBalance = 0;
 
   console.log(
     `📊 [RECALC ${gid}] Using ledger's final uldegdel: ${finalUldegdel}`,
@@ -558,8 +562,12 @@ async function recalcGlobalUldegdelFallback({
     }
   }
 
-  const newGlobalUldegdel = totalCharges - totalPayments;
-  const newPositiveBalance = Math.max(0, -newGlobalUldegdel);
+  const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+  const EPS = 0.01;
+  let newGlobalUldegdel = round2(totalCharges - totalPayments);
+  if (Math.abs(newGlobalUldegdel) <= EPS) newGlobalUldegdel = 0;
+  let newPositiveBalance = round2(Math.max(0, -newGlobalUldegdel));
+  if (newPositiveBalance <= EPS) newPositiveBalance = 0;
 
   geree.globalUldegdel = newGlobalUldegdel;
   geree.positiveBalance = newPositiveBalance;
