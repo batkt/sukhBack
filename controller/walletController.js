@@ -538,7 +538,22 @@ exports.walletBillingRemove = asyncHandler(async (req, res, next) => {
     }
 
     // 2. Remove from Wallet API using the proper mapping (UUID or phone) from the token
-    const result = await walletApiService.removeBilling(userId, billingId);
+    let result = null;
+    try {
+      result = await walletApiService.removeBilling(userId, billingId);
+    } catch (apiErr) {
+      if (apiErr.message && (
+          apiErr.message.toLowerCase().includes('бүртгэл хийгдээгүй') || 
+          apiErr.message.toLowerCase().includes('notfound error') || 
+          apiErr.message.toLowerCase().includes('not found') ||
+          apiErr.message.toLowerCase().includes('олдсонгүй')
+      )) {
+        console.warn("⚠️ [WALLET REMOVE] API rejected with not found/unregistered, proceeding with local cleanup anyway:", apiErr.message);
+        result = { success: true, message: "API record not found, continuing local cleanup" };
+      } else {
+        throw apiErr;
+      }
+    }
 
     // 3. Local Cleanup
     let localUpdated = false;
