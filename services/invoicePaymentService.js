@@ -46,6 +46,49 @@ async function applyPaymentToOpenTulukhAvlaga({
   return Math.round((Number(amount) - remaining) * 100) / 100;
 }
 
+function resolveGuilgeeKhiisenAjiltanFromOptions(options) {
+  const token = options.nevtersenAjiltniiToken;
+  let ner = "";
+  let id = "";
+
+  if (
+    options.guilgeeKhiisenAjiltniiNer != null &&
+    String(options.guilgeeKhiisenAjiltniiNer).trim() !== ""
+  ) {
+    ner = String(options.guilgeeKhiisenAjiltniiNer);
+  }
+  if (
+    options.guilgeeKhiisenAjiltniiId != null &&
+    String(options.guilgeeKhiisenAjiltniiId).trim() !== ""
+  ) {
+    id = String(options.guilgeeKhiisenAjiltniiId);
+  }
+
+  if (token) {
+    if (token.ner != null && String(token.ner).trim() !== "")
+      ner = String(token.ner);
+    if (token.id != null && String(token.id).trim() !== "")
+      id = String(token.id);
+  }
+
+  if (!id && options.createdBy != null && String(options.createdBy).trim() !== "")
+    id = String(options.createdBy);
+
+  if (!ner) {
+    const nameCandidate =
+      options.createdByNer ||
+      options.ajiltanNer ||
+      options.burtgesenAjiltaniiNer;
+    if (nameCandidate != null && String(nameCandidate).trim() !== "")
+      ner = String(nameCandidate);
+  }
+
+  return {
+    ner: ner || null,
+    id: id || null,
+  };
+}
+
 /**
  * Mark invoices as paid with credit/overpayment system
  * Payment reduces from latest month first, then previous months
@@ -58,6 +101,12 @@ async function applyPaymentToOpenTulukhAvlaga({
  * @param {Array<String>} [options.nekhemjlekhiinIds] - Array of invoice IDs (mark specific invoices)
  * @param {Boolean} [options.markEkhniiUldegdel] - If true, also mark invoices with ekhniiUldegdel (default: false)
  * @param {String} [options.tailbar] - Payment description/notes
+ * @param {Object} [options.nevtersenAjiltniiToken] - { ner, id } logged-in staff (same as other routes)
+ * @param {String} [options.guilgeeKhiisenAjiltniiNer] - Staff name for ledger
+ * @param {String} [options.guilgeeKhiisenAjiltniiId] - Staff id for ledger
+ * @param {String} [options.createdBy] - Fallback staff id
+ * @param {String} [options.createdByNer] - Fallback staff name
+ * @param {String} [options.ajiltanNer] - Fallback staff name
  * @returns {Object} - Result with updated invoices count and details
  */
 async function markInvoicesAsPaid(options) {
@@ -72,6 +121,8 @@ async function markInvoicesAsPaid(options) {
     barilgiinId, // Optional: if provided, restrict to contracts/invoices in this building
     ognoo, // Optional: payment date (YYYY-MM-DD or ISO string) - uses selected date instead of today
   } = options;
+
+  const ajiltanMeta = resolveGuilgeeKhiisenAjiltanFromOptions(options);
 
   if (!baiguullagiinId) {
     throw new Error("baiguullagiinId is required");
@@ -315,8 +366,8 @@ async function markInvoicesAsPaid(options) {
           tailbar: tailbar || `Илүү төлөлт (positiveBalance): ${dun}₮`,
 
           source: "geree",
-          guilgeeKhiisenAjiltniiNer: null,
-          guilgeeKhiisenAjiltniiId: null,
+          guilgeeKhiisenAjiltniiNer: ajiltanMeta.ner,
+          guilgeeKhiisenAjiltniiId: ajiltanMeta.id,
         });
         await prepayDoc.save();
       } catch (historyError) {
@@ -526,8 +577,8 @@ async function markInvoicesAsPaid(options) {
         tailbar: tailbar || "Төлөлт хийгдлээ",
 
         source: "nekhemjlekh",
-        guilgeeKhiisenAjiltniiNer: null,
-        guilgeeKhiisenAjiltniiId: null,
+        guilgeeKhiisenAjiltniiNer: ajiltanMeta.ner,
+        guilgeeKhiisenAjiltniiId: ajiltanMeta.id,
       });
 
       const savedTulsun = await tulsunDoc.save();

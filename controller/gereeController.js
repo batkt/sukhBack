@@ -123,9 +123,39 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     }
 
     guilgee.guilgeeKhiisenOgnoo = new Date();
-    if (req.body.nevtersenAjiltniiToken) {
-      guilgee.guilgeeKhiisenAjiltniiNer = req.body.nevtersenAjiltniiToken.ner;
-      guilgee.guilgeeKhiisenAjiltniiId = req.body.nevtersenAjiltniiToken.id;
+    const staffToken =
+      req.body.nevtersenAjiltniiToken || req.nevtersenAjiltniiToken;
+    if (staffToken?.ner || staffToken?.id) {
+      if (staffToken.ner != null && String(staffToken.ner).trim() !== "") {
+        guilgee.guilgeeKhiisenAjiltniiNer = staffToken.ner;
+      }
+      if (staffToken.id != null && String(staffToken.id).trim() !== "") {
+        guilgee.guilgeeKhiisenAjiltniiId = String(staffToken.id);
+      }
+    }
+    const missingAjiltanId =
+      guilgee.guilgeeKhiisenAjiltniiId == null ||
+      String(guilgee.guilgeeKhiisenAjiltniiId).trim() === "";
+    const missingAjiltanNer =
+      guilgee.guilgeeKhiisenAjiltniiNer == null ||
+      String(guilgee.guilgeeKhiisenAjiltniiNer).trim() === "";
+    if (
+      missingAjiltanId &&
+      req.body.createdBy != null &&
+      String(req.body.createdBy).trim() !== ""
+    ) {
+      guilgee.guilgeeKhiisenAjiltniiId = String(req.body.createdBy);
+    }
+    if (missingAjiltanNer) {
+      const ner =
+        req.body.createdByNer ||
+        req.body.ajiltanNer ||
+        (typeof req.body.guilgeeKhiisenAjiltniiNer === "string"
+          ? req.body.guilgeeKhiisenAjiltniiNer
+          : null);
+      if (ner != null && String(ner).trim() !== "") {
+        guilgee.guilgeeKhiisenAjiltniiNer = ner;
+      }
     }
 
     // Capture standalone record ID for syncing

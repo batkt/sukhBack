@@ -161,6 +161,8 @@ router.post("/markInvoicesAsPaid", tokenShalgakh, async (req, res, next) => {
     const result = await markInvoicesAsPaid({
       ...req.body,
       barilgiinId: barilgiinId, // Pass barilgiinId to service
+      nevtersenAjiltniiToken:
+        req.body.nevtersenAjiltniiToken ?? req.nevtersenAjiltniiToken,
     });
     const baiguullagiinId = req.body?.baiguullagiinId;
     if (baiguullagiinId) {
