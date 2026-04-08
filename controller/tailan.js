@@ -1273,18 +1273,34 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     const contractMap = {};
     contracts.forEach((c) => (contractMap[String(c._id)] = c));
 
-    const refDate = duusakhOgnoo ? new Date(duusakhOgnoo) : new Date();
+    const parseDate = (dateStr) => {
+      if (!dateStr) return null;
+      let str = String(dateStr).trim();
+      if (/^\d{4}\.\d{2}\.\d{2}/.test(str)) {
+        str = str.replace(/^(\d{4})\.(\d{2})\.(\d{2})/, "$1-$2-$3");
+      }
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
+    const refDate = duusakhOgnoo
+      ? parseDate(duusakhOgnoo) || new Date()
+      : new Date();
     refDate.setHours(23, 59, 59, 999);
+
+    console.log(
+      `[tailanAvlagiinNasjilt] refDate: ${refDate.toISOString()}, duusakhOgnoo: ${duusakhOgnoo}`
+    );
 
     const residentMap = {};
 
     const processItem = (item, isStandalone = false) => {
       const dueDate = item.tulukhOgnoo
-        ? new Date(item.tulukhOgnoo)
+        ? parseDate(item.tulukhOgnoo)
         : item.ognoo
-        ? new Date(item.ognoo)
+        ? parseDate(item.ognoo)
         : null;
-      if (!dueDate) return;
+      if (!dueDate || isNaN(dueDate.getTime())) return;
       dueDate.setHours(0, 0, 0, 0);
 
       const diffTime = refDate - dueDate;
