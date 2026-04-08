@@ -138,12 +138,13 @@ async function recalcGlobalUldegdel({
   // IMPORTANT: Do NOT force the newest invoice to "absorb" contract-wide globalUldegdel,
   // because that makes e.g. April show Feb+Mar+Apr combined.
   try {
-    const allInvoices = await NekhemjlekhiinTuukhModel
-      .find({ gereeniiId: gid })
-      .sort({ ognoo: -1, createdAt: -1 });
+    const allInvoices = await NekhemjlekhiinTuukhModel.find({
+      gereeniiId: gid,
+    }).sort({ ognoo: -1, createdAt: -1 });
 
     if (allInvoices.length > 0) {
-      const invDate = (inv) => inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
+      const invDate = (inv) =>
+        inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
       /** YYYY-MM in Mongolia (same idea as history ledger — avoids server-local month drift). */
       const monthKeyMn = (d) => {
         const x = d instanceof Date ? d : new Date(d);
@@ -168,7 +169,8 @@ async function recalcGlobalUldegdel({
         return inv.nekhemjlekhiin === "Авлагаар автоматаар үүсгэсэн нэхэмжлэх";
       };
       const isPaidInvoice = (inv) => String(inv?.tuluv || "") === "Төлсөн";
-      const isCanceledInvoice = (inv) => String(inv?.tuluv || "") === "Хүчингүй";
+      const isCanceledInvoice = (inv) =>
+        String(inv?.tuluv || "") === "Хүчингүй";
       const tulukhRowAmt = (row) =>
         Math.round(
           (Number(row.uldegdel) ||
@@ -196,7 +198,11 @@ async function recalcGlobalUldegdel({
         const contractPayments = await GereeniiTulsunAvlagaModel.find({
           baiguullagiinId: oid,
           gereeniiId: gid,
-          $or: [{ nekhemjlekhId: null }, { nekhemjlekhId: "" }, { nekhemjlekhId: { $exists: false } }],
+          $or: [
+            { nekhemjlekhId: null },
+            { nekhemjlekhId: "" },
+            { nekhemjlekhId: { $exists: false } },
+          ],
         })
           .sort({ ognoo: 1, createdAt: 1 })
           .lean();
@@ -225,14 +231,19 @@ async function recalcGlobalUldegdel({
 
         const sumSyncedFromPayment = (invDoc, payId) => {
           const key = `sync_tulsunAvlaga_${payId}_`;
-          return Math.round(
-            (invDoc.paymentHistory || []).reduce((s, ph) => {
-              if (typeof ph?.guilgeeniiId === "string" && ph.guilgeeniiId.startsWith(key)) {
-                return s + (Number(ph?.dun) || 0);
-              }
-              return s;
-            }, 0) * 100,
-          ) / 100;
+          return (
+            Math.round(
+              (invDoc.paymentHistory || []).reduce((s, ph) => {
+                if (
+                  typeof ph?.guilgeeniiId === "string" &&
+                  ph.guilgeeniiId.startsWith(key)
+                ) {
+                  return s + (Number(ph?.dun) || 0);
+                }
+                return s;
+              }, 0) * 100,
+            ) / 100
+          );
         };
 
         for (const pay of contractPayments) {
@@ -243,9 +254,13 @@ async function recalcGlobalUldegdel({
           // If this payment was already synced onto invoices, don't double-apply.
           let alreadySynced = 0;
           for (const inv of ascInvoices) {
-            alreadySynced = Math.round((alreadySynced + sumSyncedFromPayment(inv, pay._id)) * 100) / 100;
+            alreadySynced =
+              Math.round(
+                (alreadySynced + sumSyncedFromPayment(inv, pay._id)) * 100,
+              ) / 100;
           }
-          remainingToAllocate = Math.round((remainingToAllocate - alreadySynced) * 100) / 100;
+          remainingToAllocate =
+            Math.round((remainingToAllocate - alreadySynced) * 100) / 100;
           if (remainingToAllocate <= 0.01) continue;
 
           const ordered = orderInvoicesForPayMonth(pay.ognoo || pay.createdAt);
@@ -257,13 +272,18 @@ async function recalcGlobalUldegdel({
 
             // Use current uldegdel if present, otherwise compute from stored fields.
             const invUld =
-              typeof inv.uldegdel === "number" && !Number.isNaN(inv.uldegdel) ? inv.uldegdel : 0;
+              typeof inv.uldegdel === "number" && !Number.isNaN(inv.uldegdel)
+                ? inv.uldegdel
+                : 0;
             if (invUld <= 0.01) continue;
 
-            const apply = Math.round(Math.min(remainingToAllocate, invUld) * 100) / 100;
+            const apply =
+              Math.round(Math.min(remainingToAllocate, invUld) * 100) / 100;
             if (apply <= 0.01) continue;
 
-            inv.paymentHistory = Array.isArray(inv.paymentHistory) ? inv.paymentHistory : [];
+            inv.paymentHistory = Array.isArray(inv.paymentHistory)
+              ? inv.paymentHistory
+              : [];
             inv.paymentHistory.push({
               ognoo: pay.ognoo || pay.createdAt || new Date(),
               dun: apply,
@@ -272,11 +292,15 @@ async function recalcGlobalUldegdel({
               tailbar: `SYNC: ${pay.tailbar || "gereeniiTulsunAvlaga"}`,
             });
 
-            remainingToAllocate = Math.round((remainingToAllocate - apply) * 100) / 100;
+            remainingToAllocate =
+              Math.round((remainingToAllocate - apply) * 100) / 100;
           }
         }
       } catch (reconcileErr) {
-        console.error(`❌ [RECALC ${gid}] Contract payment reconciliation failed:`, reconcileErr.message);
+        console.error(
+          `❌ [RECALC ${gid}] Contract payment reconciliation failed:`,
+          reconcileErr.message,
+        );
       }
 
       // If a month has an AVL-* shell invoice, avlaga must be represented ONLY by that shell
@@ -344,9 +368,7 @@ async function recalcGlobalUldegdel({
                 return m && m >= rMonth && !isPaidInvoice(inv);
               }) ||
               // last resort: latest unpaid invoice
-              [...ascInvoices]
-                .reverse()
-                .find((inv) => !isPaidInvoice(inv)) ||
+              [...ascInvoices].reverse().find((inv) => !isPaidInvoice(inv)) ||
               // absolute last resort: keep old behavior (should be rare)
               ascInvoices[ascInvoices.length - 1];
           }
@@ -356,7 +378,8 @@ async function recalcGlobalUldegdel({
               ascInvoices[ascInvoices.length - 1];
           }
           avlagaByInvoiceId[String(target._id)] =
-            Math.round((avlagaByInvoiceId[String(target._id)] + amt) * 100) / 100;
+            Math.round((avlagaByInvoiceId[String(target._id)] + amt) * 100) /
+            100;
         }
       } catch (_avlagaAllocErr) {
         // Continue with invoice-only calculation if avlaga allocation fails
@@ -369,17 +392,18 @@ async function recalcGlobalUldegdel({
         // 1) Recalculate originalTotal from zardluud (preferred), fallback to stored original.
         let originalTotal = 0;
         if (Array.isArray(inv.medeelel?.zardluud)) {
-          originalTotal = inv.medeelel.zardluud
-            .reduce((s, z) => {
-              const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
-              const d = z.dun != null ? Number(z.dun) : null;
-              const tariff = z.tariff != null ? Number(z.tariff) : 0;
-              const val = t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
-              return s + (Number(val) || 0);
-            }, 0);
+          originalTotal = inv.medeelel.zardluud.reduce((s, z) => {
+            const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
+            const d = z.dun != null ? Number(z.dun) : null;
+            const tariff = z.tariff != null ? Number(z.tariff) : 0;
+            const val =
+              t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
+            return s + (Number(val) || 0);
+          }, 0);
         }
         originalTotal = Math.round(originalTotal * 100) / 100;
-        const allocatedAvlaga = Math.round((avlagaByInvoiceId[id] || 0) * 100) / 100;
+        const allocatedAvlaga =
+          Math.round((avlagaByInvoiceId[id] || 0) * 100) / 100;
 
         if (isAvlagaOnlyShellInvoice(inv)) {
           // Auto "AVL-*" invoice: empty zardluud — total must track live gereeniiTulukhAvlaga.uldegdel,
@@ -413,27 +437,25 @@ async function recalcGlobalUldegdel({
           ) {
             originalTotal = Math.round(inv.niitTulburOriginal * 100) / 100;
           }
-          // If the month already has an AVL shell, do NOT also add the same avlaga to the normal invoice.
-          const invM = monthKeyMn(invDate(inv));
-          if (!(invM && monthHasAvlagaShell.has(invM))) {
-            originalTotal = Math.round((originalTotal + allocatedAvlaga) * 100) / 100;
-          }
         }
 
         // 2) Calculate paid amount excluding system_sync, then remaining.
-        const totalPaid = Math.round(
-          (inv.paymentHistory || []).reduce((s, p) => {
-            if (p?.turul === "system_sync") return s;
-            return s + (Number(p?.dun) || 0);
-          }, 0) * 100,
-        ) / 100;
+        const totalPaid =
+          Math.round(
+            (inv.paymentHistory || []).reduce((s, p) => {
+              if (p?.turul === "system_sync") return s;
+              return s + (Number(p?.dun) || 0);
+            }, 0) * 100,
+          ) / 100;
 
-        const remaining = Math.round(Math.max(0, originalTotal - totalPaid) * 100) / 100;
+        const remaining =
+          Math.round(Math.max(0, originalTotal - totalPaid) * 100) / 100;
         const tuluv = remaining <= 0.01 ? "Төлсөн" : "Төлөөгүй";
 
         const needsFix =
           (originalTotal > 0 &&
-            Math.abs((Number(inv.niitTulburOriginal) || 0) - originalTotal) > 0.01) ||
+            Math.abs((Number(inv.niitTulburOriginal) || 0) - originalTotal) >
+              0.01) ||
           Math.abs((Number(inv.uldegdel) || 0) - remaining) > 0.01 ||
           Math.abs((Number(inv.niitTulbur) || 0) - remaining) > 0.01 ||
           inv.tuluv !== tuluv;
