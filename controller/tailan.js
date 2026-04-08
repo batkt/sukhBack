@@ -1313,6 +1313,12 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       if (days < 0 && !isStandalone) return;
 
+      if (item.gereeniiDugaar === "ГД-36586914" || item.gereeniiDugaar === "ГД-36586382") {
+        console.log(
+          `[DEBUG processItem] gereeniiDugaar: ${item.gereeniiDugaar}, refDate: ${refDate.toISOString()}, dueDate: ${dueDate.toISOString()}, days: ${days}`
+        );
+      }
+
       let bucket = "p120plus";
       if (days <= 30) bucket = "p0_30";
       else if (days <= 60) bucket = "p31_60";
