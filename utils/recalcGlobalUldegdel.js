@@ -168,6 +168,7 @@ async function recalcGlobalUldegdel({
         return inv.nekhemjlekhiin === "Авлагаар автоматаар үүсгэсэн нэхэмжлэх";
       };
       const isPaidInvoice = (inv) => String(inv?.tuluv || "") === "Төлсөн";
+      const isCanceledInvoice = (inv) => String(inv?.tuluv || "") === "Хүчингүй";
       const tulukhRowAmt = (row) =>
         Math.round(
           (Number(row.uldegdel) ||
@@ -184,6 +185,99 @@ async function recalcGlobalUldegdel({
         if (ca !== cb) return ca - cb;
         return String(a._id).localeCompare(String(b._id));
       });
+
+      // --- PAYMENT RECONCILIATION (contract -> invoice) ---
+      // Problem: ledger/global can be 0 while some invoices still show uldegdel > 0
+      // if payments exist only in gereeniiTulsunAvlaga (contract-level) but not in invoice.paymentHistory.
+      //
+      // Fix: allocate ONLY contract-level payments (no nekhemjlekhId) into invoices as paymentHistory entries.
+      // Ordering: for each payment date, apply to that month first, then later months, then older months.
+      try {
+        const contractPayments = await GereeniiTulsunAvlagaModel.find({
+          baiguullagiinId: oid,
+          gereeniiId: gid,
+          $or: [{ nekhemjlekhId: null }, { nekhemjlekhId: "" }, { nekhemjlekhId: { $exists: false } }],
+        })
+          .sort({ ognoo: 1, createdAt: 1 })
+          .lean();
+
+        const mk = (d) => {
+          const x = d instanceof Date ? d : new Date(d);
+          if (Number.isNaN(x.getTime())) return null;
+          return monthKeyMn(x);
+        };
+
+        const orderInvoicesForPayMonth = (payDate) => {
+          const payMonth = mk(payDate);
+          if (!payMonth) return ascInvoices;
+
+          const inMonth = [];
+          const after = [];
+          const before = [];
+          for (const inv of ascInvoices) {
+            const m = mk(invDate(inv));
+            if (m === payMonth) inMonth.push(inv);
+            else if (m && m > payMonth) after.push(inv);
+            else before.push(inv);
+          }
+          return [...inMonth, ...after, ...before];
+        };
+
+        const sumSyncedFromPayment = (invDoc, payId) => {
+          const key = `sync_tulsunAvlaga_${payId}_`;
+          return Math.round(
+            (invDoc.paymentHistory || []).reduce((s, ph) => {
+              if (typeof ph?.guilgeeniiId === "string" && ph.guilgeeniiId.startsWith(key)) {
+                return s + (Number(ph?.dun) || 0);
+              }
+              return s;
+            }, 0) * 100,
+          ) / 100;
+        };
+
+        for (const pay of contractPayments) {
+          const payAmt = Math.round((Number(pay?.tulsunDun) || 0) * 100) / 100;
+          if (payAmt <= 0.01) continue;
+
+          let remainingToAllocate = payAmt;
+          // If this payment was already synced onto invoices, don't double-apply.
+          let alreadySynced = 0;
+          for (const inv of ascInvoices) {
+            alreadySynced = Math.round((alreadySynced + sumSyncedFromPayment(inv, pay._id)) * 100) / 100;
+          }
+          remainingToAllocate = Math.round((remainingToAllocate - alreadySynced) * 100) / 100;
+          if (remainingToAllocate <= 0.01) continue;
+
+          const ordered = orderInvoicesForPayMonth(pay.ognoo || pay.createdAt);
+          let idx = 0;
+          for (const inv of ordered) {
+            if (remainingToAllocate <= 0.01) break;
+            if (isCanceledInvoice(inv)) continue;
+            if (isAvlagaOnlyShellInvoice(inv)) continue; // AVL shell mirrors avlaga rows; do not sync contract payments here
+
+            // Use current uldegdel if present, otherwise compute from stored fields.
+            const invUld =
+              typeof inv.uldegdel === "number" && !Number.isNaN(inv.uldegdel) ? inv.uldegdel : 0;
+            if (invUld <= 0.01) continue;
+
+            const apply = Math.round(Math.min(remainingToAllocate, invUld) * 100) / 100;
+            if (apply <= 0.01) continue;
+
+            inv.paymentHistory = Array.isArray(inv.paymentHistory) ? inv.paymentHistory : [];
+            inv.paymentHistory.push({
+              ognoo: pay.ognoo || pay.createdAt || new Date(),
+              dun: apply,
+              turul: "төлөлт",
+              guilgeeniiId: `sync_tulsunAvlaga_${pay._id}_${idx++}`,
+              tailbar: `SYNC: ${pay.tailbar || "gereeniiTulsunAvlaga"}`,
+            });
+
+            remainingToAllocate = Math.round((remainingToAllocate - apply) * 100) / 100;
+          }
+        }
+      } catch (reconcileErr) {
+        console.error(`❌ [RECALC ${gid}] Contract payment reconciliation failed:`, reconcileErr.message);
+      }
 
       // If a month has an AVL-* shell invoice, avlaga must be represented ONLY by that shell
       // (otherwise it shows up on both the normal invoice and the AVL invoice).
