@@ -258,7 +258,19 @@ function orshinMatchesGereeUtas(osDoc, uniqPhones) {
   if (!uniqPhones.length) return true;
   const u = String(osDoc?.utas || "").trim();
   const n = String(osDoc?.nevtrekhNer || "").trim();
-  return uniqPhones.some((p) => p === u || p === n);
+  const last8 = (s) => {
+    const d = String(s || "").replace(/\D/g, "");
+    return d.length >= 8 ? d.slice(-8) : d;
+  };
+  const u8 = last8(u);
+  const n8 = last8(n);
+  return uniqPhones.some((p) => {
+    const pTrim = String(p || "").trim();
+    if (pTrim === u || pTrim === n) return true;
+    const p8 = last8(pTrim);
+    if (p8.length === 8 && (p8 === u8 || p8 === n8)) return true;
+    return false;
+  });
 }
 
 // After save: decrement geree.ekhniiUldegdel and (if linked) orshinSuugch.ekhniiUldegdel
@@ -307,16 +319,34 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
       $set: { ekhniiUldegdel: nextGereeEkhnii },
     });
 
-    let osDoc = null;
+    const applyOrshinEkhniiDecrement = async (osId) => {
+      if (!osId) return false;
+      const osLean = await OrshinSuugch(kholbolt)
+        .findById(osId)
+        .select("ekhniiUldegdel")
+        .lean();
+      if (!osLean?._id) return false;
+      const curOs = Number(osLean.ekhniiUldegdel) || 0;
+      const nextOs =
+        Math.round(Math.max(0, curOs - delta) * 100) / 100;
+      const updated = await OrshinSuugch(kholbolt).findByIdAndUpdate(
+        osLean._id,
+        { $set: { ekhniiUldegdel: nextOs } },
+      );
+      return !!updated;
+    };
+
+    // Primary: geree.orshinSuugchId is authoritative — do not require phone match
+    // (strict === against expanded variants skipped valid residents; geree still updated).
+    let orshinSynced = false;
     if (gereeLean.orshinSuugchId) {
-      const byId = await OrshinSuugch(kholbolt).findById(
+      orshinSynced = await applyOrshinEkhniiDecrement(
         gereeLean.orshinSuugchId,
       );
-      if (byId && orshinMatchesGereeUtas(byId, uniqPhones)) {
-        osDoc = byId;
-      }
     }
-    if (!osDoc && uniqPhones.length) {
+
+    // Fallback: missing/wrong id — resolve by org + phone (+ optional building)
+    if (!orshinSynced && uniqPhones.length) {
       const orgId = String(
         gereeLean.baiguullagiinId || doc.baiguullagiinId,
       );
@@ -333,26 +363,38 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
       ]
         .map((x) => (x != null ? String(x).trim() : ""))
         .filter(Boolean);
+      let osLean = null;
       const tried = new Set();
       for (const bid of barilgiinCandidates) {
         if (tried.has(bid)) continue;
         tried.add(bid);
-        osDoc = await OrshinSuugch(kholbolt).findOne({
-          ...baseQ,
-          barilgiinId: bid,
-        });
-        if (osDoc) break;
+        const found = await OrshinSuugch(kholbolt)
+          .findOne({ ...baseQ, barilgiinId: bid })
+          .select("_id ekhniiUldegdel utas nevtrekhNer")
+          .lean();
+        if (
+          found &&
+          orshinMatchesGereeUtas(found, uniqPhones)
+        ) {
+          osLean = found;
+          break;
+        }
       }
-      if (!osDoc) {
-        osDoc = await OrshinSuugch(kholbolt).findOne(baseQ);
+      if (!osLean) {
+        const found = await OrshinSuugch(kholbolt)
+          .findOne(baseQ)
+          .select("_id ekhniiUldegdel utas nevtrekhNer")
+          .lean();
+        if (
+          found &&
+          orshinMatchesGereeUtas(found, uniqPhones)
+        ) {
+          osLean = found;
+        }
       }
-    }
-
-    if (osDoc) {
-      const curOs = Number(osDoc.ekhniiUldegdel) || 0;
-      osDoc.ekhniiUldegdel =
-        Math.round(Math.max(0, curOs - delta) * 100) / 100;
-      await osDoc.save();
+      if (osLean?._id) {
+        await applyOrshinEkhniiDecrement(osLean._id);
+      }
     }
   } catch (e) {
     console.error(
