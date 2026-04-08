@@ -2874,9 +2874,15 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
 
       const group = groupMap.get(groupKey);
 
-      // Extract details from medeelel
+      // Deduplication check: see if this invoice has a starting balance item
       const zardluud = inv.medeelel?.zardluud || [];
-      const khungulultuud = inv.medeelel?.khungulultuud || [];
+      const hasEkhniiUldegdel = zardluud.some((z) => {
+        const ner = String(z.ner || z.tailbar || "").toLowerCase();
+        return ner.includes("эхний үлдэгдэл") || ner.includes("ekhni uldegdel") || z.isEkhniiUldegdel;
+      });
+      if (hasEkhniiUldegdel) {
+        group.hasInvoiceEkhniiUldegdel = true;
+      }
 
       const tulukhDun = Number(inv.niitTulburOriginal != null ? inv.niitTulburOriginal : inv.niitTulbur) || 0;
       const uldegdel = Number(inv.uldegdel || 0);
@@ -2891,18 +2897,16 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
         uldegdel,
         tuluv: inv.tuluv || "Төлөөгүй",
         nekhemjlekhiinDugaar: inv.nekhemjlekhiinDugaar || "",
-        // Each individual cost item names/amounts
         zardluud: zardluud.map((z) => ({
           ner: z.ner || z.tailbar || "Бусад зардал",
           dun: Number(z.tulukhDun || z.dun || 0),
           tailbar: z.tailbar || "",
           turul: z.turul || "",
           zardliinTurul: z.zardliinTurul || "",
-          // Electricity readings if any
           zaaltTog: z.zaaltTog || null,
           zaaltUs: z.zaaltUs || null,
         })),
-        khungulultuud: khungulultuud.map((k) => ({
+        khungulultuud: (inv.medeelel?.khungulultuud || []).map((k) => ({
           ner: k.tailbar || "Хөнгөлөлт",
           dun: Number(k.khungulultiinDun || k.tulukhDun || 0),
           turul: k.turul || "",
@@ -2913,7 +2917,14 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       group.niitTulukhDun += tulukhDun;
       group.niitUldegdel += uldegdel;
       group.invoiceToo += 1;
-      group.niitTulsunDun += tulukhDun - uldegdel; // Accurate payment calculation from invoice
+
+      // Only count payments that occurred WITHIN the period
+      const periodPayments = (inv.paymentHistory || []).filter(p => {
+        const pDate = new Date(p.ognoo || p.tulsunOgnoo || p.createdAt);
+        return pDate >= startDate && pDate <= endDate;
+      }).reduce((s, p) => s + (Number(p.dun || p.tulsunDun || 0)), 0);
+      
+      group.niitTulsunDun += periodPayments;
     }
 
     // ── Process Standalone Receivables ───────────────────────────────────────
@@ -2945,6 +2956,12 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       }
 
       const group = groupMap.get(gid);
+
+      // SKIP standalone ekhnii uldegdel if any invoice in the range already has it
+      const ner = String(s.zardliinNer || "").toLowerCase();
+      const isEkhnii = ner.includes("эхний үлдэгдэл") || ner.includes("ekhni uldegdel") || s.ekhniiUldegdelEsekh;
+      if (isEkhnii && group.hasInvoiceEkhniiUldegdel) continue;
+
       const row = {
         _id: s._id,
         toot: group._id.toot,
@@ -2964,7 +2981,7 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       group.avlaga.push(row);
       group.niitTulukhDun += row.tulukhDun;
       group.niitUldegdel += row.uldegdel;
-      group.niitTulsunDun += (row.tulukhDun - row.uldegdel);
+      // We don't count paid based on tulukh - uldegdel for standalone, we only count payments from TulsunRecords
     }
 
     // ── Process Standalone Payments ──────────────────────────────────────────
