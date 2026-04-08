@@ -218,6 +218,64 @@ async function recalcGlobalAfterDelete(kholbolt, gereeniiId, baiguullagiinId) {
   });
 }
 
+/** YYYY-MM in Asia/Ulaanbaatar (aligns with recalc / history ledger). */
+function monthKeyMnLedger(d) {
+  const x = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(x.getTime())) return null;
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Ulaanbaatar",
+      year: "numeric",
+      month: "2-digit",
+    }).formatToParts(x);
+    const y = parts.find((p) => p.type === "year")?.value;
+    const m = parts.find((p) => p.type === "month")?.value;
+    if (y && m) return `${y}-${m}`;
+  } catch (_e) {}
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function isAvlagaOnlyShellNekhemjlekh(inv) {
+  const dugaar = String(inv.nekhemjlekhiinDugaar || "");
+  if (dugaar.startsWith("AVL-")) return true;
+  return inv.nekhemjlekhiin === "Авлагаар автоматаар үүсгэсэн нэхэмжлэх";
+}
+
+function invDateForMonthKey(inv) {
+  return inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
+}
+
+function nekhemjlekhiinZardluudSum(inv) {
+  const z = inv.medeelel?.zardluud;
+  if (!Array.isArray(z) || z.length === 0) return 0;
+  return z.reduce((s, row) => {
+    const t = typeof row.tulukhDun === "number" ? row.tulukhDun : null;
+    const d = row.dun != null ? Number(row.dun) : null;
+    const tariff = row.tariff != null ? Number(row.tariff) : 0;
+    const val =
+      t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
+    return s + (Number(val) || 0);
+  }, 0);
+}
+
+function nekhemjlekhiinHasRealPayments(inv) {
+  const ph = inv.paymentHistory || [];
+  const paid = ph.reduce((s, p) => {
+    if (p?.turul === "system_sync") return s;
+    return s + (Number(p?.dun) || 0);
+  }, 0);
+  return paid > 0.01;
+}
+
+function avlagaShellInvoiceSafeToCascadeDelete(inv) {
+  if (!isAvlagaOnlyShellNekhemjlekh(inv)) return false;
+  if (inv.tuluv === "Хүчингүй") return false;
+  if (inv.qpayPaymentId || inv.qpayInvoiceId) return false;
+  if (nekhemjlekhiinHasRealPayments(inv)) return false;
+  if (nekhemjlekhiinZardluudSum(inv) > 0.01) return false;
+  return true;
+}
+
 // Custom DELETE for gereeniiTulukhAvlaga — full recalculation after delete
 router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
   try {
@@ -232,6 +290,9 @@ router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
     if (!doc) return res.status(404).json({ error: "Олдсонгүй" });
 
     const gereeniiId = doc.gereeniiId;
+    const oid = String(
+      doc.baiguullagiinId || req.query.baiguullagiinId || "",
+    );
 
     // Clean up inside invoice if it was attached
     const NekhemjlekhiinTuukhModel = require("../models/nekhemjlekhiinTuukh")(kholbolt);
@@ -240,7 +301,55 @@ router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
       { $pull: { "medeelel.guilgeenuud": { _id: doc._id } } }
     );
 
+    const deletedMonthKey = monthKeyMnLedger(doc.ognoo || doc.createdAt);
+    let nekhemjlekhiinIdsToDelete = [];
+
+    if (deletedMonthKey && oid) {
+      const allTulukh = await Model.find({
+        gereeniiId: String(gereeniiId),
+        baiguullagiinId: oid,
+      })
+        .select("_id ognoo createdAt")
+        .lean();
+
+      const othersSameMonth = allTulukh.filter(
+        (row) =>
+          String(row._id) !== String(doc._id) &&
+          monthKeyMnLedger(row.ognoo || row.createdAt) === deletedMonthKey,
+      );
+
+      if (othersSameMonth.length === 0) {
+        const invoices = await NekhemjlekhiinTuukhModel.find({
+          gereeniiId: String(gereeniiId),
+          baiguullagiinId: oid,
+          tuluv: { $ne: "Хүчингүй" },
+        }).lean();
+
+        nekhemjlekhiinIdsToDelete = invoices
+          .filter(
+            (inv) =>
+              monthKeyMnLedger(invDateForMonthKey(inv)) === deletedMonthKey &&
+              avlagaShellInvoiceSafeToCascadeDelete(inv),
+          )
+          .map((inv) => inv._id);
+      }
+    }
+
     await Model.collection.deleteOne({ _id: doc._id });
+
+    for (const invId of nekhemjlekhiinIdsToDelete) {
+      try {
+        const invDoc = await NekhemjlekhiinTuukhModel.findById(invId);
+        if (invDoc && avlagaShellInvoiceSafeToCascadeDelete(invDoc)) {
+          await invDoc.deleteOne();
+        }
+      } catch (invDelErr) {
+        console.error(
+          "❌ Error deleting avlaga-only nekhemjlekhiin after tulukh delete:",
+          invDelErr.message,
+        );
+      }
+    }
 
     try {
       await recalcGlobalAfterDelete(kholbolt, gereeniiId, req.query.baiguullagiinId);
@@ -248,7 +357,12 @@ router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
       console.error("❌ Error recalculating globalUldegdel after avlaga delete:", recalcErr.message);
     }
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      deletedNekhemjlekhiinIds: nekhemjlekhiinIdsToDelete.map((id) =>
+        String(id),
+      ),
+    });
   } catch (err) {
     console.error("❌ Error deleting gereeniiTulukhAvlaga:", err.message);
     res.status(500).json({ error: err.message });
