@@ -185,6 +185,16 @@ async function recalcGlobalUldegdel({
         return String(a._id).localeCompare(String(b._id));
       });
 
+      // If a month has an AVL-* shell invoice, avlaga must be represented ONLY by that shell
+      // (otherwise it shows up on both the normal invoice and the AVL invoice).
+      const monthHasAvlagaShell = new Set();
+      for (const inv of ascInvoices) {
+        const m = monthKeyMn(invDate(inv));
+        if (m && isAvlagaOnlyShellInvoice(inv)) {
+          monthHasAvlagaShell.add(m);
+        }
+      }
+
       // Allocate open avlaga rows to invoice months so e.g. Feb avlaga increases Feb invoice.
       const avlagaByInvoiceId = {};
       ascInvoices.forEach((inv) => {
@@ -207,19 +217,19 @@ async function recalcGlobalUldegdel({
           const rMonth = monthKeyMn(row.ognoo || row.createdAt);
           let target = null;
           if (rMonth) {
-            // Prefer unpaid invoices for that month. If monthly invoice is paid, prefer AVL-* shell invoice.
+            // Prefer AVL-* shell invoice for that month (unpaid), otherwise an unpaid normal invoice.
             target =
               ascInvoices.find(
                 (inv) =>
                   monthKeyMn(invDate(inv)) === rMonth &&
                   !isPaidInvoice(inv) &&
-                  !isAvlagaOnlyShellInvoice(inv),
+                  isAvlagaOnlyShellInvoice(inv),
               ) ||
               ascInvoices.find(
                 (inv) =>
                   monthKeyMn(invDate(inv)) === rMonth &&
                   !isPaidInvoice(inv) &&
-                  isAvlagaOnlyShellInvoice(inv),
+                  !isAvlagaOnlyShellInvoice(inv),
               ) ||
               null;
           }
@@ -309,7 +319,11 @@ async function recalcGlobalUldegdel({
           ) {
             originalTotal = Math.round(inv.niitTulburOriginal * 100) / 100;
           }
-          originalTotal = Math.round((originalTotal + allocatedAvlaga) * 100) / 100;
+          // If the month already has an AVL shell, do NOT also add the same avlaga to the normal invoice.
+          const invM = monthKeyMn(invDate(inv));
+          if (!(invM && monthHasAvlagaShell.has(invM))) {
+            originalTotal = Math.round((originalTotal + allocatedAvlaga) * 100) / 100;
+          }
         }
 
         // 2) Calculate paid amount excluding system_sync, then remaining.
