@@ -2867,8 +2867,8 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
           avlaga: [],
           niitTulukhDun: 0,
           niitTulsunDun: 0,
-          // Use contract's live balance if available
-          niitUldegdel: Number(c.uldegdel != null ? c.uldegdel : 0),
+          // Use contract's live balance if available (globalUldegdel is used in the dashboard)
+          niitUldegdel: Number(c.globalUldegdel != null ? c.globalUldegdel : (c.uldegdel != null ? c.uldegdel : 0)),
           invoiceToo: 0,
           paymentToo: 0,
           hasInvoiceEkhniiUldegdel: false,
@@ -2952,7 +2952,7 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
           avlaga: [],
           niitTulukhDun: 0,
           niitTulsunDun: 0,
-          niitUldegdel: Number(meta.uldegdel || 0),
+          niitUldegdel: Number(meta.globalUldegdel != null ? meta.globalUldegdel : (meta.uldegdel || 0)),
           invoiceToo: 0,
           paymentToo: 0,
           hasInvoiceEkhniiUldegdel: false,
@@ -3010,7 +3010,7 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
           avlaga: [],
           niitTulukhDun: 0,
           niitTulsunDun: 0,
-          niitUldegdel: Number(meta.uldegdel || 0),
+          niitUldegdel: Number(meta.globalUldegdel != null ? meta.globalUldegdel : (meta.uldegdel || 0)),
           invoiceToo: 0,
           paymentToo: 0,
         });
