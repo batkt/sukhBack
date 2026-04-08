@@ -131,9 +131,7 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
   try {
     const invoice = this;
 
-    // Remaining unpaid "Эхний үлдэгдэл" on this invoice (payments eat ekhnii first, then other lines).
-    // Root field ekhniiUldegdel is updated so UI/reports match paymentHistory (was stuck at original 1500).
-    const applyEkhniiUldegdelRemaining = () => {
+    const recordContractEkhniiSyncDeltaOnly = () => {
       const zardluud = invoice.medeelel?.zardluud;
       if (!Array.isArray(zardluud)) return;
       const ekhniiIdx = zardluud.findIndex((z) => isEkhniiUldegdelZardal(z));
@@ -143,47 +141,26 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
       const t =
         typeof ekhniiRow.tulukhDun === "number" ? ekhniiRow.tulukhDun : null;
       const d = ekhniiRow.dun != null ? Number(ekhniiRow.dun) : null;
-      const tariff =
-        ekhniiRow.tariff != null ? Number(ekhniiRow.tariff) : 0;
+      const tariff = ekhniiRow.tariff != null ? Number(ekhniiRow.tariff) : 0;
       const ekhniiOriginal =
         t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
       if (!Number.isFinite(ekhniiOriginal) || ekhniiOriginal <= 0.01) return;
 
-      const totalPaid = Math.round(
-        (invoice.paymentHistory || []).reduce((sum, p) => {
-          if (p && p.turul === "system_sync") return sum;
-          return sum + (Number(p?.dun) || 0);
-        }, 0) * 100,
-      ) / 100;
+      const totalPaid =
+        Math.round(
+          (invoice.paymentHistory || []).reduce((sum, p) => {
+            if (p && p.turul === "system_sync") return sum;
+            return sum + (Number(p?.dun) || 0);
+          }, 0) * 100,
+        ) / 100;
 
-      const paidTowardEkhnii = Math.round(
-        Math.min(totalPaid, ekhniiOriginal) * 100,
-      ) / 100;
-      invoice.ekhniiUldegdel = Math.round(
-        Math.max(0, ekhniiOriginal - paidTowardEkhnii) * 100,
-      ) / 100;
-
-      // Keep the ekhnii line in zardluud aligned with FIFO (dun stays original; tulsunDun = paid on this line).
-      const nextZardluud = zardluud.map((z, i) =>
-        i === ekhniiIdx
-          ? {
-              ...z,
-              tulsunDun: paidTowardEkhnii,
-              tulsenEsekh: paidTowardEkhnii >= ekhniiOriginal - 0.01,
-            }
-          : z,
-      );
-      invoice.medeelel = {
-        ...(invoice.medeelel && typeof invoice.medeelel === "object"
-          ? invoice.medeelel
-          : {}),
-        zardluud: nextZardluud,
-      };
-      invoice.markModified("medeelel");
+      const paidTowardEkhnii =
+        Math.round(Math.min(totalPaid, ekhniiOriginal) * 100) / 100;
 
       const prevApplied =
-        Math.round((Number(invoice.ekhniiAppliedToOrshinSuugchDun) || 0) * 100) /
-        100;
+        Math.round(
+          (Number(invoice.ekhniiAppliedToOrshinSuugchDun) || 0) * 100,
+        ) / 100;
       const delta = Math.round((paidTowardEkhnii - prevApplied) * 100) / 100;
       if (!invoice.$locals || typeof invoice.$locals !== "object") {
         invoice.$locals = {};
@@ -200,7 +177,7 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
     // The caller already set niitTulbur, uldegdel, and tuluv correctly
     if (invoice._skipTuluvRecalc) {
       delete invoice._skipTuluvRecalc;
-      applyEkhniiUldegdelRemaining();
+      recordContractEkhniiSyncDeltaOnly();
       return next();
     }
 
@@ -214,21 +191,23 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
         invoice.niitTulburOriginal = invoice.niitTulbur;
       } else {
         // Round existing original too (in case it was stored with float artifacts)
-        invoice.niitTulburOriginal = Math.round(invoice.niitTulburOriginal * 100) / 100;
+        invoice.niitTulburOriginal =
+          Math.round(invoice.niitTulburOriginal * 100) / 100;
       }
 
-      const totalPaid = Math.round(
-        (invoice.paymentHistory || []).reduce((sum, p) => {
-          // system_sync is an internal adjustment row and must not affect the invoice's real paid amount
-          if (p && p.turul === "system_sync") return sum;
-          return sum + (p?.dun || 0);
-        }, 0) * 100
-      ) / 100;
+      const totalPaid =
+        Math.round(
+          (invoice.paymentHistory || []).reduce((sum, p) => {
+            // system_sync is an internal adjustment row and must not affect the invoice's real paid amount
+            if (p && p.turul === "system_sync") return sum;
+            return sum + (p?.dun || 0);
+          }, 0) * 100,
+        ) / 100;
 
       // remaining = originalTotal - paid, rounded to 2dp
-      const remaining = Math.round(
-        Math.max(0, invoice.niitTulburOriginal - totalPaid) * 100
-      ) / 100;
+      const remaining =
+        Math.round(Math.max(0, invoice.niitTulburOriginal - totalPaid) * 100) /
+        100;
 
       invoice.uldegdel = remaining;
 
@@ -246,7 +225,7 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
       }
     }
 
-    applyEkhniiUldegdelRemaining();
+    recordContractEkhniiSyncDeltaOnly();
 
     next();
   } catch (err) {
@@ -295,9 +274,7 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
 
     const gereeLean = await Geree(kholbolt)
       .findById(doc.gereeniiId)
-      .select(
-        "orshinSuugchId ekhniiUldegdel utas barilgiinId baiguullagiinId",
-      )
+      .select("orshinSuugchId ekhniiUldegdel utas barilgiinId baiguullagiinId")
       .lean();
     if (!gereeLean) return;
 
@@ -337,8 +314,7 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
         .lean();
       if (!osLean?._id) return false;
       const curOs = Number(osLean.ekhniiUldegdel) || 0;
-      const nextOs =
-        Math.round(Math.max(0, curOs - delta) * 100) / 100;
+      const nextOs = Math.round(Math.max(0, curOs - delta) * 100) / 100;
       const updated = await OrshinOnCentral.findByIdAndUpdate(osLean._id, {
         $set: { ekhniiUldegdel: nextOs },
       });
@@ -349,16 +325,12 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
     // (strict === against expanded variants skipped valid residents; geree still updated).
     let orshinSynced = false;
     if (gereeLean.orshinSuugchId) {
-      orshinSynced = await applyOrshinEkhniiDecrement(
-        gereeLean.orshinSuugchId,
-      );
+      orshinSynced = await applyOrshinEkhniiDecrement(gereeLean.orshinSuugchId);
     }
 
     // Fallback: missing/wrong id — resolve by org + phone (+ optional building)
     if (!orshinSynced && uniqPhones.length) {
-      const orgId = String(
-        gereeLean.baiguullagiinId || doc.baiguullagiinId,
-      );
+      const orgId = String(gereeLean.baiguullagiinId || doc.baiguullagiinId);
       const baseQ = {
         baiguullagiinId: orgId,
         $or: [
@@ -366,10 +338,7 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
           { nevtrekhNer: { $in: uniqPhones } },
         ],
       };
-      const barilgiinCandidates = [
-        gereeLean.barilgiinId,
-        doc.barilgiinId,
-      ]
+      const barilgiinCandidates = [gereeLean.barilgiinId, doc.barilgiinId]
         .map((x) => (x != null ? String(x).trim() : ""))
         .filter(Boolean);
       let osLean = null;
@@ -383,10 +352,7 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
         })
           .select("_id ekhniiUldegdel utas nevtrekhNer")
           .lean();
-        if (
-          found &&
-          orshinMatchesGereeUtas(found, uniqPhones)
-        ) {
+        if (found && orshinMatchesGereeUtas(found, uniqPhones)) {
           osLean = found;
           break;
         }
@@ -395,10 +361,7 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
         const found = await OrshinOnCentral.findOne(baseQ)
           .select("_id ekhniiUldegdel utas nevtrekhNer")
           .lean();
-        if (
-          found &&
-          orshinMatchesGereeUtas(found, uniqPhones)
-        ) {
+        if (found && orshinMatchesGereeUtas(found, uniqPhones)) {
           osLean = found;
         }
       }

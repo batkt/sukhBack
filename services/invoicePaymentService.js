@@ -124,13 +124,18 @@ async function markInvoicesAsPaid(options) {
   // then move forward to next months (chronological).
   try {
     const paymentDate = ognoo ? new Date(ognoo) : null;
-    if (paymentDate && !Number.isNaN(paymentDate.getTime()) && invoices.length > 1) {
+    if (
+      paymentDate &&
+      !Number.isNaN(paymentDate.getTime()) &&
+      invoices.length > 1
+    ) {
       const mk = (d) => {
         const x = d instanceof Date ? d : new Date(d);
         if (Number.isNaN(x.getTime())) return null;
         return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`;
       };
-      const invDate = (inv) => inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
+      const invDate = (inv) =>
+        inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
 
       const payMonth = mk(paymentDate);
       const asc = [...invoices].sort((a, b) => {
@@ -159,7 +164,6 @@ async function markInvoicesAsPaid(options) {
   } catch (_orderErr) {
     // keep default ordering
   }
-
 
   if (invoices.length === 0) {
     // No invoices found - save entire payment as positiveBalance
@@ -429,12 +433,6 @@ async function markInvoicesAsPaid(options) {
       if (updatedInvoice.gereeniiId) {
         gereesNeedingRecalc.add(String(updatedInvoice.gereeniiId));
       }
-
-      // NOTE: Do NOT create gereeniiTulsunAvlaga per invoice here - we create ONE consolidated record after the loop
-
-      // NOTE: Do NOT reset geree.ekhniiUldegdel to 0 here (contract-level field).
-      // Invoice-level nekhemjlekhiinTuukh.ekhniiUldegdel is synced on save: remaining unpaid
-      // "Эхний үлдэгдэл" after payments (FIFO against that line first) — see model pre-save.
     } catch (error) {
       console.error(
         `❌ [INVOICE PAYMENT] Error updating invoice ${invoice._id}:`,
@@ -443,8 +441,6 @@ async function markInvoicesAsPaid(options) {
     }
   }
 
-  // Create ONE consolidated gereeniiTulsunAvlaga record for the full payment amount (dun)
-  // so one user payment shows as one entry in HistoryModal, not split across invoices
   if (dun > 0 && (updatedInvoices.length > 0 || invoices.length > 0)) {
     const paymentDate = ognoo ? new Date(ognoo) : new Date();
     const firstInvoice =
@@ -485,7 +481,6 @@ async function markInvoicesAsPaid(options) {
     }
   }
 
-  // If there's remaining payment after invoices, apply to avlaga FIRST, then only leftover goes to positiveBalance
   if (remainingPayment > 0) {
     // Determine which geree(s) to update
     const gereesToUpdate = new Set();
