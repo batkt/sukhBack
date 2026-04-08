@@ -20,7 +20,7 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     gereeniiDugaar: String,
     ekhniiUldegdel: Number,
     ekhniiUldegdelUsgeer: String,
-    /** Cumulative amount of invoice payments applied to "Эхний үлдэгдэл" for orshinSuugch sync (idempotent). */
+    /** Tracks FIFO ekhnii paid on this invoice — only for idempotent orshinSuugch sync (geree is not decremented here). */
     ekhniiAppliedToOrshinSuugchDun: { type: Number, default: 0 },
     davkhar: String,
     uldegdel: Number,
@@ -252,8 +252,8 @@ function orshinMatchesGereeUtas(osDoc, uniqPhones) {
   });
 }
 
-// After save: decrement geree.ekhniiUldegdel and (if linked) orshinSuugch.ekhniiUldegdel
-// by new FIFO payments on the invoice ekhnii line (idempotent via ekhniiAppliedToOrshinSuugchDun).
+// After save: decrement orshinSuugch.ekhniiUldegdel only (erunkhiiKholbolt) — not geree / not invoice zardluud.
+// Idempotent via ekhniiAppliedToOrshinSuugchDun on the invoice.
 nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
   const delta = Number(doc.$locals?.pendingOrshinEkhniiDelta) || 0;
   if (doc.$locals && "pendingOrshinEkhniiDelta" in doc.$locals) {
@@ -274,7 +274,7 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
 
     const gereeLean = await Geree(kholbolt)
       .findById(doc.gereeniiId)
-      .select("orshinSuugchId ekhniiUldegdel utas barilgiinId baiguullagiinId")
+      .select("orshinSuugchId utas barilgiinId baiguullagiinId")
       .lean();
     if (!gereeLean) return;
 
@@ -289,20 +289,13 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
       ),
     ]);
 
-    const curGereeEkhnii = Number(gereeLean.ekhniiUldegdel) || 0;
-    const nextGereeEkhnii =
-      Math.round(Math.max(0, curGereeEkhnii - delta) * 100) / 100;
-    await Geree(kholbolt).findByIdAndUpdate(doc.gereeniiId, {
-      $set: { ekhniiUldegdel: nextGereeEkhnii },
-    });
-
     // orshinSuugch documents live on the central connection (erunkhiiKholbolt), not the
     // per-org tenant DB where geree / nekhemjlekhiinTuukh are stored — same as walletController, excel, qpayRoute.
     const centralConn = db.erunkhiiKholbolt;
     const OrshinOnCentral = centralConn ? OrshinSuugch(centralConn) : null;
     if (!OrshinOnCentral) {
       console.error(
-        "[nekhemjlekhiinTuukh] erunkhiiKholbolt missing; geree ekhnii updated but orshinSuugch not synced",
+        "[nekhemjlekhiinTuukh] erunkhiiKholbolt missing; orshinSuugch ekhniiUldegdel not synced",
       );
       return;
     }
@@ -321,8 +314,7 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
       return !!updated;
     };
 
-    // Primary: geree.orshinSuugchId is authoritative — do not require phone match
-    // (strict === against expanded variants skipped valid residents; geree still updated).
+    // Primary: geree.orshinSuugchId is authoritative — do not require phone match.
     let orshinSynced = false;
     if (gereeLean.orshinSuugchId) {
       orshinSynced = await applyOrshinEkhniiDecrement(gereeLean.orshinSuugchId);
@@ -371,7 +363,7 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
     }
   } catch (e) {
     console.error(
-      "[nekhemjlekhiinTuukh] geree/orshin ekhniiUldegdel sync failed:",
+      "[nekhemjlekhiinTuukh] orshinSuugch ekhniiUldegdel sync failed:",
       e.message,
     );
   }

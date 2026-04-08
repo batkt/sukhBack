@@ -138,13 +138,6 @@ async function getHistoryLedger(options) {
     const zardluud = inv.medeelel?.zardluud || [];
     for (let i = 0; i < zardluud.length; i++) {
       const z = zardluud[i];
-      if (
-        z.isEkhniiUldegdel === true ||
-        z.ner === "Эхний үлдэгдэл" ||
-        (typeof z.ner === "string" && z.ner.includes("Эхний үлдэгдэл"))
-      ) {
-        continue;
-      }
       const t = typeof z.tulukhDun === "number" ? z.tulukhDun : null;
       const d = z.dun != null ? Number(z.dun) : null;
       const tariff = z.tariff != null ? Number(z.tariff) : 0;

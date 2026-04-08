@@ -4,16 +4,6 @@ const Geree = require("../models/geree");
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 
-/** Opening-balance row on the invoice — payments must not bump tulsunDun here (geree/orshin + paymentHistory handle it). */
-function isEkhniiUldegdelZardalLine(z) {
-  return (
-    !!z &&
-    (z.isEkhniiUldegdel === true ||
-      z.ner === "Эхний үлдэгдэл" ||
-      (typeof z.ner === "string" && z.ner.includes("Эхний үлдэгдэл")))
-  );
-}
-
 /**
  * Mark invoices as paid with credit/overpayment system
  * Payment reduces from latest month first, then previous months
@@ -347,9 +337,6 @@ async function markInvoicesAsPaid(options) {
       ) {
         let remainingToDistribute = amountToApply;
         const updatedZardluud = invoice.medeelel.zardluud.map((z) => {
-          if (isEkhniiUldegdelZardalLine(z)) {
-            return { ...z };
-          }
           const itemDun = z.dun || 0;
           const itemTulsunDun = z.tulsunDun || 0;
           const itemUldegdel = itemDun - itemTulsunDun;
