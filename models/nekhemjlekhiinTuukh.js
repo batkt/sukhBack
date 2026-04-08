@@ -99,6 +99,33 @@ nekhemjlekhiinTuukhSchema.index(
   { unique: true, sparse: true },
 );
 
+// Match invoiceSendService / historyLedger — some invoices use trailing spaces or longer labels.
+function isEkhniiUldegdelZardal(z) {
+  return (
+    !!z &&
+    (z.isEkhniiUldegdel === true ||
+      z.ner === "Эхний үлдэгдэл" ||
+      (typeof z.ner === "string" && z.ner.includes("Эхний үлдэгдэл")))
+  );
+}
+
+function expandPhoneVariantsForOrshin(phones) {
+  const out = new Set();
+  for (const raw of phones || []) {
+    const p = String(raw || "").trim();
+    if (!p) continue;
+    out.add(p);
+    const digits = p.replace(/\D/g, "");
+    if (digits.length >= 8) {
+      const last8 = digits.slice(-8);
+      out.add(last8);
+      out.add(`976${last8}`);
+      out.add(`+976${last8}`);
+    }
+  }
+  return [...out];
+}
+
 // Ensure tuluv and uldegdel always stay consistent with payments
 nekhemjlekhiinTuukhSchema.pre("save", function (next) {
   try {
@@ -109,11 +136,7 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
     const applyEkhniiUldegdelRemaining = () => {
       const zardluud = invoice.medeelel?.zardluud;
       if (!Array.isArray(zardluud)) return;
-      const ekhniiIdx = zardluud.findIndex(
-        (z) =>
-          z &&
-          (z.isEkhniiUldegdel === true || z.ner === "Эхний үлдэгдэл"),
-      );
+      const ekhniiIdx = zardluud.findIndex((z) => isEkhniiUldegdelZardal(z));
       if (ekhniiIdx === -1) return;
       const ekhniiRow = zardluud[ekhniiIdx];
 
@@ -162,11 +185,14 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
         Math.round((Number(invoice.ekhniiAppliedToOrshinSuugchDun) || 0) * 100) /
         100;
       const delta = Math.round((paidTowardEkhnii - prevApplied) * 100) / 100;
+      if (!invoice.$locals || typeof invoice.$locals !== "object") {
+        invoice.$locals = {};
+      }
       if (delta > 0.01) {
         invoice.ekhniiAppliedToOrshinSuugchDun = paidTowardEkhnii;
-        invoice._pendingOrshinEkhniiDelta = delta;
+        invoice.$locals.pendingOrshinEkhniiDelta = delta;
       } else {
-        invoice._pendingOrshinEkhniiDelta = 0;
+        invoice.$locals.pendingOrshinEkhniiDelta = 0;
       }
     };
 
@@ -238,8 +264,10 @@ function orshinMatchesGereeUtas(osDoc, uniqPhones) {
 // After save: decrement geree.ekhniiUldegdel and (if linked) orshinSuugch.ekhniiUldegdel
 // by new FIFO payments on the invoice ekhnii line (idempotent via ekhniiAppliedToOrshinSuugchDun).
 nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
-  const delta = doc._pendingOrshinEkhniiDelta;
-  delete doc._pendingOrshinEkhniiDelta;
+  const delta = Number(doc.$locals?.pendingOrshinEkhniiDelta) || 0;
+  if (doc.$locals && "pendingOrshinEkhniiDelta" in doc.$locals) {
+    delete doc.$locals.pendingOrshinEkhniiDelta;
+  }
   if (!delta || delta <= 0.01) return;
   if (!doc.gereeniiId || !doc.baiguullagiinId) return;
 
@@ -261,13 +289,16 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
       .lean();
     if (!gereeLean) return;
 
-    const uniqPhones = [
+    const uniqPhones = expandPhoneVariantsForOrshin([
       ...new Set(
-        (gereeLean.utas || [])
+        [
+          ...(gereeLean.utas || []),
+          ...((doc.utas && Array.isArray(doc.utas) && doc.utas) || []),
+        ]
           .map((x) => String(x || "").trim())
           .filter(Boolean),
       ),
-    ];
+    ]);
 
     const curGereeEkhnii = Number(gereeLean.ekhniiUldegdel) || 0;
     const nextGereeEkhnii =
@@ -289,17 +320,32 @@ nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
       const orgId = String(
         gereeLean.baiguullagiinId || doc.baiguullagiinId,
       );
-      const q = {
+      const baseQ = {
         baiguullagiinId: orgId,
         $or: [
           { utas: { $in: uniqPhones } },
           { nevtrekhNer: { $in: uniqPhones } },
         ],
       };
-      if (gereeLean.barilgiinId) {
-        q.barilgiinId = String(gereeLean.barilgiinId);
+      const barilgiinCandidates = [
+        gereeLean.barilgiinId,
+        doc.barilgiinId,
+      ]
+        .map((x) => (x != null ? String(x).trim() : ""))
+        .filter(Boolean);
+      const tried = new Set();
+      for (const bid of barilgiinCandidates) {
+        if (tried.has(bid)) continue;
+        tried.add(bid);
+        osDoc = await OrshinSuugch(kholbolt).findOne({
+          ...baseQ,
+          barilgiinId: bid,
+        });
+        if (osDoc) break;
       }
-      osDoc = await OrshinSuugch(kholbolt).findOne(q);
+      if (!osDoc) {
+        osDoc = await OrshinSuugch(kholbolt).findOne(baseQ);
+      }
     }
 
     if (osDoc) {
