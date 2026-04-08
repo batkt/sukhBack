@@ -1245,21 +1245,9 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     };
     applySearch(match);
 
-    if (ekhlekhOgnoo || duusakhOgnoo) {
-      const start = ekhlekhOgnoo
-        ? parseDate(ekhlekhOgnoo) || new Date("1970-01-01")
-        : new Date("1970-01-01");
-      const end = duusakhOgnoo
-        ? parseDate(duusakhOgnoo) || new Date("2999-12-31")
-        : new Date("2999-12-31");
-      match.$and = match.$and || [];
-      match.$and.push({
-        $or: [
-          { ognoo: { $gte: start, $lte: end } },
-          { tulukhOgnoo: { $gte: start, $lte: end } },
-        ],
-      });
-    }
+    // Note: Date range is used for aging reference (refDate), not for filtering invoices
+    // This allows aging to be calculated from the selected end date, but all unpaid invoices are included
+
 
     const [invoices, standaloneReceivables] = await Promise.all([
       NekhemjlekhiinTuukh(kholbolt).find(match).lean(),
@@ -1271,16 +1259,6 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
         })
         .lean(),
     ]);
-
-    console.log(
-      `[DEBUG] Found ${invoices.length} invoices. Sample:`,
-      invoices.slice(0, 2).map((i) => ({
-        gereeniiDugaar: i.gereeniiDugaar,
-        tulukhOgnoo: i.tulukhOgnoo,
-        ognoo: i.ognoo,
-        createdAt: i.createdAt,
-      }))
-    );
 
     const allGereeIds = [
       ...new Set([
@@ -1322,12 +1300,6 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       const diffTime = refDate - dueDate;
       const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       if (days < 0 && !isStandalone) return;
-
-      if (item.gereeniiDugaar === "ГД-36586914" || item.gereeniiDugaar === "ГД-36586382") {
-        console.log(
-          `[DEBUG processItem] gereeniiDugaar: ${item.gereeniiDugaar}, refDate: ${refDate.toISOString()}, dueDate: ${dueDate.toISOString()}, days: ${days}`
-        );
-      }
 
       let bucket = "p120plus";
       if (days <= 30) bucket = "p0_30";
