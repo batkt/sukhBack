@@ -1194,6 +1194,16 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
     const Geree = require("../models/geree");
 
+    const parseDate = (dateStr) => {
+      if (!dateStr) return null;
+      let str = String(dateStr).trim();
+      if (/^\d{4}\.\d{2}\.\d{2}/.test(str)) {
+        str = str.replace(/^(\d{4})\.(\d{2})\.(\d{2})/, "$1-$2-$3");
+      }
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     const match = {
       baiguullagiinId: String(baiguullagiinId),
       tuluv: { $ne: "Төлсөн" },
@@ -1274,16 +1284,6 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       .lean();
     const contractMap = {};
     contracts.forEach((c) => (contractMap[String(c._id)] = c));
-
-    const parseDate = (dateStr) => {
-      if (!dateStr) return null;
-      let str = String(dateStr).trim();
-      if (/^\d{4}\.\d{2}\.\d{2}/.test(str)) {
-        str = str.replace(/^(\d{4})\.(\d{2})\.(\d{2})/, "$1-$2-$3");
-      }
-      const d = new Date(str);
-      return isNaN(d.getTime()) ? null : d;
-    };
 
     console.log(
       `[tailanAvlagiinNasjilt] Received params - ekhlekhOgnoo: ${ekhlekhOgnoo}, duusakhOgnoo: ${duusakhOgnoo}`
