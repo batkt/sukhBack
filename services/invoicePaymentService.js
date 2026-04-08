@@ -4,6 +4,48 @@ const Geree = require("../models/geree");
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 
+function isAvlagaOnlyShellInvoiceDoc(inv) {
+  const dugaar = String(inv?.nekhemjlekhiinDugaar || "");
+  if (dugaar.startsWith("AVL-")) return true;
+  return inv?.nekhemjlekh === "Авлагаар автоматаар үүсгэсэн нэхэмжлэх";
+}
+
+async function applyPaymentToOpenTulukhAvlaga({
+  GereeniiTulukhAvlagaModel,
+  baiguullagiinId,
+  gereeniiId,
+  amount,
+}) {
+  let remaining = Number(amount) || 0;
+  if (remaining <= 0.01) return 0;
+
+  const openTulukhRows = await GereeniiTulukhAvlagaModel.find({
+    gereeniiId: String(gereeniiId),
+    baiguullagiinId: String(baiguullagiinId),
+    uldegdel: { $gt: 0 },
+  })
+    .sort({ ognoo: 1, createdAt: 1 })
+    .lean();
+
+  for (const row of openTulukhRows) {
+    if (remaining <= 0.01) break;
+    const currentUldegdel = Number(row.uldegdel) || 0;
+    if (currentUldegdel <= 0.01) continue;
+
+    const applyHere = Math.min(remaining, currentUldegdel);
+    const newUldegdel = Math.round((currentUldegdel - applyHere) * 100) / 100;
+
+    await GereeniiTulukhAvlagaModel.updateOne(
+      { _id: row._id },
+      { $set: { uldegdel: newUldegdel } },
+    );
+
+    remaining = Math.round((remaining - applyHere) * 100) / 100;
+  }
+
+  return Math.round((Number(amount) - remaining) * 100) / 100;
+}
+
 /**
  * Mark invoices as paid with credit/overpayment system
  * Payment reduces from latest month first, then previous months
@@ -405,6 +447,25 @@ async function markInvoicesAsPaid(options) {
           `❌ [INVOICE PAYMENT] Failed to update invoice ${invoice._id}`,
         );
         continue;
+      }
+
+      // Special case: AVL-* invoice is just a shell that mirrors open receivables (gereeniiTulukhAvlaga).
+      // If we record payment only on the invoice, recalcGlobalUldegdel will immediately pull the avlaga back in,
+      // making it look like payment "didn't work". So we must also reduce the underlying open avlaga rows.
+      try {
+        if (isAvlagaOnlyShellInvoiceDoc(updatedInvoice)) {
+          await applyPaymentToOpenTulukhAvlaga({
+            GereeniiTulukhAvlagaModel,
+            baiguullagiinId,
+            gereeniiId: updatedInvoice.gereeniiId,
+            amount: amountToApply,
+          });
+        }
+      } catch (avlagaPayErr) {
+        console.error(
+          `❌ [INVOICE PAYMENT] Error applying payment to AVL avlaga rows for invoice ${invoice._id}:`,
+          avlagaPayErr.message,
+        );
       }
 
       try {
