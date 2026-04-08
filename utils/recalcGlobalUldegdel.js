@@ -167,6 +167,7 @@ async function recalcGlobalUldegdel({
         if (dugaar.startsWith("AVL-")) return true;
         return inv.nekhemjlekhiin === "Авлагаар автоматаар үүсгэсэн нэхэмжлэх";
       };
+      const isPaidInvoice = (inv) => String(inv?.tuluv || "") === "Төлсөн";
       const tulukhRowAmt = (row) =>
         Math.round(
           (Number(row.uldegdel) ||
@@ -206,8 +207,20 @@ async function recalcGlobalUldegdel({
           const rMonth = monthKeyMn(row.ognoo || row.createdAt);
           let target = null;
           if (rMonth) {
+            // Prefer unpaid invoices for that month. If monthly invoice is paid, prefer AVL-* shell invoice.
             target =
-              ascInvoices.find((inv) => monthKeyMn(invDate(inv)) === rMonth) ||
+              ascInvoices.find(
+                (inv) =>
+                  monthKeyMn(invDate(inv)) === rMonth &&
+                  !isPaidInvoice(inv) &&
+                  !isAvlagaOnlyShellInvoice(inv),
+              ) ||
+              ascInvoices.find(
+                (inv) =>
+                  monthKeyMn(invDate(inv)) === rMonth &&
+                  !isPaidInvoice(inv) &&
+                  isAvlagaOnlyShellInvoice(inv),
+              ) ||
               null;
           }
           // fallback: nearest next invoice, otherwise latest
@@ -215,10 +228,29 @@ async function recalcGlobalUldegdel({
             target =
               ascInvoices.find((inv) => {
                 const m = monthKeyMn(invDate(inv));
-                return m && m >= rMonth;
-              }) || ascInvoices[ascInvoices.length - 1];
+                return (
+                  m &&
+                  m >= rMonth &&
+                  !isPaidInvoice(inv) &&
+                  !isAvlagaOnlyShellInvoice(inv)
+                );
+              }) ||
+              ascInvoices.find((inv) => {
+                const m = monthKeyMn(invDate(inv));
+                return m && m >= rMonth && !isPaidInvoice(inv);
+              }) ||
+              // last resort: latest unpaid invoice
+              [...ascInvoices]
+                .reverse()
+                .find((inv) => !isPaidInvoice(inv)) ||
+              // absolute last resort: keep old behavior (should be rare)
+              ascInvoices[ascInvoices.length - 1];
           }
-          if (!target) target = ascInvoices[ascInvoices.length - 1];
+          if (!target) {
+            target =
+              [...ascInvoices].reverse().find((inv) => !isPaidInvoice(inv)) ||
+              ascInvoices[ascInvoices.length - 1];
+          }
           avlagaByInvoiceId[String(target._id)] =
             Math.round((avlagaByInvoiceId[String(target._id)] + amt) * 100) / 100;
         }
