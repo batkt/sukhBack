@@ -1272,6 +1272,16 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
         .lean(),
     ]);
 
+    console.log(
+      `[DEBUG] Found ${invoices.length} invoices. Sample:`,
+      invoices.slice(0, 2).map((i) => ({
+        gereeniiDugaar: i.gereeniiDugaar,
+        tulukhOgnoo: i.tulukhOgnoo,
+        ognoo: i.ognoo,
+        createdAt: i.createdAt,
+      }))
+    );
+
     const allGereeIds = [
       ...new Set([
         ...invoices.map((i) => String(i.gereeniiId)),
