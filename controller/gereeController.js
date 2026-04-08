@@ -522,13 +522,20 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
         } else if (guilgee.turul === "ashiglalt") {
           // ASHIGLALT behaves like AVLAGA (charge/receivable side), but keeps its own type/name.
           const tulukhModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
-          const amount =
-            guilgee.undsenDun ??
-            guilgee.tulukhDun ??
-            guilgee.dun ??
-            guilgee.tulsunDun ??
-            0;
-          const charge = Number(amount) || 0;
+          const toNum = (v) => {
+            const n = Number(v);
+            return Number.isFinite(n) ? n : 0;
+          };
+          // Important: do NOT use nullish-coalescing here because 0 can be present
+          // on tulukhDun while frontend sends the real amount in tulsunDun.
+          // Pick first positive amount, same practical behavior as avlaga inputs.
+          const candidates = [
+            toNum(guilgee.undsenDun),
+            toNum(guilgee.tulukhDun),
+            toNum(guilgee.dun),
+            toNum(guilgee.tulsunDun),
+          ];
+          const charge = candidates.find((x) => x > 0.01) || 0;
 
           const tulukhDoc = new tulukhModel({
             baiguullagiinId:
