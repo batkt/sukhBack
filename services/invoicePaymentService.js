@@ -403,6 +403,21 @@ async function markInvoicesAsPaid(options) {
         continue;
       }
 
+      // findByIdAndUpdate does not run document pre('save'); refresh so ekhniiUldegdel
+      // (remaining "Эхний үлдэгдэл") syncs from paymentHistory.
+      try {
+        const invFresh = await NekhemjlekhiinTuukh.findById(invoice._id);
+        if (invFresh) {
+          invFresh._skipTuluvRecalc = true;
+          await invFresh.save();
+        }
+      } catch (ekhniiSyncErr) {
+        console.error(
+          `❌ [INVOICE PAYMENT] ekhniiUldegdel sync save failed for ${invoice._id}:`,
+          ekhniiSyncErr.message,
+        );
+      }
+
       remainingPayment -= amountToApply;
       updatedInvoices.push({
         invoice: updatedInvoice,
@@ -417,11 +432,9 @@ async function markInvoicesAsPaid(options) {
 
       // NOTE: Do NOT create gereeniiTulsunAvlaga per invoice here - we create ONE consolidated record after the loop
 
-      // NOTE: Do NOT reset geree.ekhniiUldegdel to 0 here.
-      // The recalculation formula depends on it as a permanent charge component:
-      //   totalCharges = geree.ekhniiUldegdel + SUM(inv.original - inv.ekhniiUldegdel) + SUM(avlaga)
-      // Resetting it to 0 while the invoice still has ekhniiUldegdel > 0 breaks the balance.
-      // invoiceCreationService already prevents double-counting via existingEkhniiUldegdelInvoices check.
+      // NOTE: Do NOT reset geree.ekhniiUldegdel to 0 here (contract-level field).
+      // Invoice-level nekhemjlekhiinTuukh.ekhniiUldegdel is synced on save: remaining unpaid
+      // "Эхний үлдэгдэл" after payments (FIFO against that line first) — see model pre-save.
     } catch (error) {
       console.error(
         `❌ [INVOICE PAYMENT] Error updating invoice ${invoice._id}:`,

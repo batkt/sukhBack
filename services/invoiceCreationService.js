@@ -31,6 +31,26 @@ async function getCronScheduleForGeree(kholbolt, tempData, org) {
   return cron;
 }
 
+/**
+ * Invoices that already carry an "Эхний үлдэгдэл" line (must not add ekhnii again on a later invoice).
+ * Note: nekhemjlekhiinTuukh.ekhniiUldegdel is *remaining* unpaid on that line after payments, so it can be 0
+ * while the zardluud row still exists — count the row, not only ekhniiUldegdel > 0.
+ */
+async function countInvoicesWithEkhniiZardalRow(nekhemjlekhiinModel, gereeniiIdStr) {
+  return nekhemjlekhiinModel.countDocuments({
+    gereeniiId: gereeniiIdStr,
+    $or: [
+      { ekhniiUldegdel: { $exists: true, $gt: 0 } },
+      { "medeelel.zardluud": { $elemMatch: { isEkhniiUldegdel: true } } },
+      {
+        "medeelel.zardluud": {
+          $elemMatch: { ner: "Эхний үлдэгдэл" },
+        },
+      },
+    ],
+  });
+}
+
 const gereeNeesNekhemjlekhUusgekh = async (
   tempData,
   org,
@@ -83,12 +103,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
           0,
         );
 
-        existingEkhniiUldegdelInvoices = await nekhemjlekhiinTuukh(
-          tukhainBaaziinKholbolt,
-        ).countDocuments({
-          gereeniiId: tempData._id.toString(),
-          ekhniiUldegdel: { $exists: true, $gt: 0 },
-        });
+        existingEkhniiUldegdelInvoices = await countInvoicesWithEkhniiZardalRow(
+          nekhemjlekhiinTuukh(tukhainBaaziinKholbolt),
+          tempData._id.toString(),
+        );
 
         if (
           gereeCreatedDate < currentMonthCronDate &&
@@ -109,12 +127,10 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // when invoices are backfilled/created in a different month.
     try {
       if (existingEkhniiUldegdelInvoices == null) {
-        existingEkhniiUldegdelInvoices = await nekhemjlekhiinTuukh(
-          tukhainBaaziinKholbolt,
-        ).countDocuments({
-          gereeniiId: tempData._id.toString(),
-          ekhniiUldegdel: { $exists: true, $gt: 0 },
-        });
+        existingEkhniiUldegdelInvoices = await countInvoicesWithEkhniiZardalRow(
+          nekhemjlekhiinTuukh(tukhainBaaziinKholbolt),
+          tempData._id.toString(),
+        );
       }
       if (
         includeEkhniiUldegdel !== true &&

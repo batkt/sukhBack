@@ -102,10 +102,45 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
   try {
     const invoice = this;
 
+    // Remaining unpaid "Эхний үлдэгдэл" on this invoice (payments eat ekhnii first, then other lines).
+    // Root field ekhniiUldegdel is updated so UI/reports match paymentHistory (was stuck at original 1500).
+    const applyEkhniiUldegdelRemaining = () => {
+      const zardluud = invoice.medeelel?.zardluud;
+      if (!Array.isArray(zardluud)) return;
+      const ekhniiRow = zardluud.find(
+        (z) =>
+          z &&
+          (z.isEkhniiUldegdel === true || z.ner === "Эхний үлдэгдэл"),
+      );
+      if (!ekhniiRow) return;
+
+      const t =
+        typeof ekhniiRow.tulukhDun === "number" ? ekhniiRow.tulukhDun : null;
+      const d = ekhniiRow.dun != null ? Number(ekhniiRow.dun) : null;
+      const tariff =
+        ekhniiRow.tariff != null ? Number(ekhniiRow.tariff) : 0;
+      const ekhniiOriginal =
+        t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
+      if (!Number.isFinite(ekhniiOriginal) || ekhniiOriginal <= 0.01) return;
+
+      const totalPaid = Math.round(
+        (invoice.paymentHistory || []).reduce((sum, p) => {
+          if (p && p.turul === "system_sync") return sum;
+          return sum + (Number(p?.dun) || 0);
+        }, 0) * 100,
+      ) / 100;
+
+      const paidTowardEkhnii = Math.min(totalPaid, ekhniiOriginal);
+      invoice.ekhniiUldegdel = Math.round(
+        Math.max(0, ekhniiOriginal - paidTowardEkhnii) * 100,
+      ) / 100;
+    };
+
     // If tuluv was explicitly set by manualSendInvoice or payment logic, skip recalculation
     // The caller already set niitTulbur, uldegdel, and tuluv correctly
     if (invoice._skipTuluvRecalc) {
       delete invoice._skipTuluvRecalc;
+      applyEkhniiUldegdelRemaining();
       return next();
     }
 
@@ -151,6 +186,7 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
       }
     }
 
+    applyEkhniiUldegdelRemaining();
 
     next();
   } catch (err) {

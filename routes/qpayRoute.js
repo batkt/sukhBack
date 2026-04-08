@@ -2327,6 +2327,21 @@ router.get(
           // Use the updated invoice for further operations
           nekhemjlekh = updatedInvoice;
 
+          try {
+            const invFresh = await nekhemjlekhiinTuukh(kholbolt).findById(
+              nekhemjlekh._id,
+            );
+            if (invFresh) {
+              invFresh._skipTuluvRecalc = true;
+              await invFresh.save();
+            }
+          } catch (ekhniiSyncErr) {
+            console.error(
+              "[QPAY MULTI] ekhniiUldegdel sync save failed:",
+              ekhniiSyncErr.message,
+            );
+          }
+
           // NOTE: Do NOT reset geree.ekhniiUldegdel to 0 here.
           // The recalculation formula depends on it as a permanent charge component.
           // invoiceCreationService prevents double-counting via existingEkhniiUldegdelInvoices check.
