@@ -398,11 +398,8 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               );
             }
           }
-        } else if (
-          guilgee.turul === "tulult" ||
-          guilgee.turul === "ashiglalt"
-        ) {
-          // TULULT/ASHIGLALT: Store in GereeniiTulsunAvlaga (payment record)
+        } else if (guilgee.turul === "tulult") {
+          // TULULT: Store in GereeniiTulsunAvlaga (payment record)
           const tulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);
 
           const tulsunDoc = new tulsunModel({
@@ -422,7 +419,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             tulsunDun: guilgee.tulsunDun || 0,
             tulsunAldangi: 0,
 
-            turul: guilgee.turul, // "tulult" or "ashiglalt"
+            turul: guilgee.turul, // "tulult"
             zardliinTurul: guilgee.zardliinTurul || "",
             zardliinId: guilgee.zardliinId || "",
             zardliinNer: guilgee.zardliinNer || "",
@@ -522,6 +519,56 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               invoicePayError.message,
             );
           }
+        } else if (guilgee.turul === "ashiglalt") {
+          // ASHIGLALT behaves like AVLAGA (charge/receivable side), but keeps its own type/name.
+          const tulukhModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
+          const amount =
+            guilgee.undsenDun ??
+            guilgee.tulukhDun ??
+            guilgee.dun ??
+            0;
+          const charge = Number(amount) || 0;
+
+          const tulukhDoc = new tulukhModel({
+            baiguullagiinId:
+              freshGereeForAvlaga.baiguullagiinId || String(baiguullagiinId),
+            baiguullagiinNer: freshGereeForAvlaga.baiguullagiinNer || "",
+            barilgiinId: freshGereeForAvlaga.barilgiinId || "",
+            gereeniiId: guilgee.gereeniiId,
+            gereeniiDugaar: freshGereeForAvlaga.gereeniiDugaar || "",
+            orshinSuugchId: freshGereeForAvlaga.orshinSuugchId || "",
+            nekhemjlekhId: null,
+            ognoo:
+              parseOgnooKeepClock(guilgee.ognoo) ||
+              guilgee.guilgeeKhiisenOgnoo ||
+              new Date(),
+            undsenDun: charge,
+            tulukhDun: charge,
+            tulukhAldangi: 0,
+            uldegdel: charge,
+            turul: "ashiglalt",
+            aldangiinTurul: guilgee.aldangiinTurul || "",
+            zardliinTurul: guilgee.zardliinTurul || "",
+            zardliinId: guilgee.zardliinId || "",
+            zardliinNer: guilgee.zardliinNer || "Ашиглалт",
+            nekhemjlekhDeerKharagdakh: true,
+            nuatBodokhEsekh:
+              typeof guilgee.nuatBodokhEsekh === "boolean"
+                ? guilgee.nuatBodokhEsekh
+                : true,
+            ekhniiUldegdelEsekh: false,
+            tailbar: guilgee.tailbar || "Ашиглалтын авлага",
+            nemeltTailbar: guilgee.nemeltTailbar || "",
+            source: "geree",
+            guilgeeKhiisenAjiltniiNer: guilgee.guilgeeKhiisenAjiltniiNer || "",
+            guilgeeKhiisenAjiltniiId: guilgee.guilgeeKhiisenAjiltniiId || "",
+          });
+
+          const savedTulukh = await tulukhDoc.save();
+          newAvlagaId = savedTulukh._id;
+          console.log(
+            "✅ [GEREE ASHIGLALT] Created gereeniiTulukhAvlaga record",
+          );
         }
       }
     } catch (recordError) {
