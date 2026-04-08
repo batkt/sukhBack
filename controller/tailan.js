@@ -1245,25 +1245,88 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     };
     applySearch(match);
 
-    // Note: Date range is used for aging reference (refDate), not for filtering invoices
-    // This allows aging to be calculated from the selected end date, but all unpaid invoices are included
+    // When ekhlekhOgnoo is provided, filter invoices by date range
+    // Without it, show ALL unpaid invoices for complete aging view
+    if (ekhlekhOgnoo) {
+      const startDate = parseDate(ekhlekhOgnoo);
+      if (startDate) {
+        startDate.setHours(0, 0, 0, 0);
+        match.ognoo = match.ognoo || {};
+        match.ognoo.$gte = startDate;
+      }
+    }
+    if (duusakhOgnoo) {
+      const endDate = parseDate(duusakhOgnoo);
+      if (endDate) {
+        endDate.setHours(23, 59, 59, 999);
+        match.ognoo = match.ognoo || {};
+        match.ognoo.$lte = endDate;
+      }
+    }
 
+    const standaloneMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      uldegdel: { $gt: 0 },
+      nekhemjlekhId: { $in: [null, ""] },
+    };
+    if (barilgiinId) standaloneMatch.barilgiinId = String(barilgiinId);
+    if (ekhlekhOgnoo || duusakhOgnoo) {
+      standaloneMatch.ognoo = {};
+      if (ekhlekhOgnoo) {
+        const s = parseDate(ekhlekhOgnoo);
+        if (s) { s.setHours(0, 0, 0, 0); standaloneMatch.ognoo.$gte = s; }
+      }
+      if (duusakhOgnoo) {
+        const e = parseDate(duusakhOgnoo);
+        if (e) { e.setHours(23, 59, 59, 999); standaloneMatch.ognoo.$lte = e; }
+      }
+      if (!Object.keys(standaloneMatch.ognoo).length) delete standaloneMatch.ognoo;
+    }
 
-    const [invoices, standaloneReceivables] = await Promise.all([
+    const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+
+    // Build standalone payment match (same date filtering)
+    const standalonePaidMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      nekhemjlekhId: { $in: [null, ""] },
+    };
+    if (barilgiinId) standalonePaidMatch.barilgiinId = String(barilgiinId);
+    if (ekhlekhOgnoo || duusakhOgnoo) {
+      standalonePaidMatch.ognoo = {};
+      if (ekhlekhOgnoo) {
+        const s = parseDate(ekhlekhOgnoo);
+        if (s) { s.setHours(0, 0, 0, 0); standalonePaidMatch.ognoo.$gte = s; }
+      }
+      if (duusakhOgnoo) {
+        const e = parseDate(duusakhOgnoo);
+        if (e) { e.setHours(23, 59, 59, 999); standalonePaidMatch.ognoo.$lte = e; }
+      }
+      if (!Object.keys(standalonePaidMatch.ognoo).length) delete standalonePaidMatch.ognoo;
+    }
+
+    const [invoices, standaloneReceivables, standalonePayments] = await Promise.all([
       NekhemjlekhiinTuukh(kholbolt).find(match).lean(),
       GereeniiTulukhAvlaga(kholbolt)
-        .find({
-          baiguullagiinId: String(baiguullagiinId),
-          uldegdel: { $gt: 0 },
-          nekhemjlekhId: { $in: [null, ""] },
-        })
+        .find(standaloneMatch)
+        .lean(),
+      GereeniiTulsunAvlaga(kholbolt)
+        .find(standalonePaidMatch)
         .lean(),
     ]);
+
+    // Build a map of standalone payments per gereeId
+    const standalonePaidByGereeId = {};
+    standalonePayments.forEach((p) => {
+      const gid = String(p.gereeniiId);
+      if (!gid || gid === "undefined" || gid === "null") return;
+      standalonePaidByGereeId[gid] = (standalonePaidByGereeId[gid] || 0) + (Number(p.tulsunDun) || 0);
+    });
 
     const allGereeIds = [
       ...new Set([
         ...invoices.map((i) => String(i.gereeniiId)),
         ...standaloneReceivables.map((r) => String(r.gereeniiId)),
+        ...standalonePayments.map((p) => String(p.gereeniiId)),
       ]),
     ].filter((id) => id && id !== "undefined" && id !== "null");
 
@@ -1289,23 +1352,32 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     const residentMap = {};
 
     const processItem = (item, isStandalone = false) => {
-      const dueDate = item.tulukhOgnoo
-        ? parseDate(item.tulukhOgnoo)
-        : item.ognoo
+      // Use ognoo (invoice/billing date) as the PRIMARY date for aging.
+      // tulukhOgnoo is the PAY-BY date (often set to next month) which would
+      // produce negative days and cause items to be skipped entirely.
+      // Fallback chain: ognoo → createdAt → tulukhOgnoo
+      const agingDate = item.ognoo
         ? parseDate(item.ognoo)
+        : item.createdAt
+        ? parseDate(item.createdAt)
+        : item.tulukhOgnoo
+        ? parseDate(item.tulukhOgnoo)
         : null;
-      if (!dueDate || isNaN(dueDate.getTime())) return;
-      dueDate.setHours(0, 0, 0, 0);
+      if (!agingDate || isNaN(agingDate.getTime())) return;
+      agingDate.setHours(0, 0, 0, 0);
 
-      const diffTime = refDate - dueDate;
+      const diffTime = refDate - agingDate;
       const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-      if (days < 0 && !isStandalone) return;
+
+      // If days is negative (future-dated invoice), put in 0-30 bucket
+      // instead of skipping — the charge still exists as receivable
+      const effectiveDays = Math.max(0, days);
 
       let bucket = "p120plus";
-      if (days <= 30) bucket = "p0_30";
-      else if (days <= 60) bucket = "p31_60";
-      else if (days <= 90) bucket = "p61_90";
-      else if (days <= 120) bucket = "p91_120";
+      if (effectiveDays <= 30) bucket = "p0_30";
+      else if (effectiveDays <= 60) bucket = "p31_60";
+      else if (effectiveDays <= 90) bucket = "p61_90";
+      else bucket = "p120plus"; // Combine everything > 90 into 120+ bucket
 
       const amount = Number(
         item.uldegdel ?? item.niitTulbur ?? item.undsenDun ?? 0
@@ -1331,7 +1403,6 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
           p0_30: 0,
           p31_60: 0,
           p61_90: 0,
-          p91_120: 0,
           p120plus: 0,
           maxDays: 0,
         };
@@ -1360,7 +1431,7 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       r.khungulult += khungulult;
       r.uldegdel += amount;
       r[bucket] += amount;
-      if (days > r.maxDays) r.maxDays = days;
+      if (effectiveDays > r.maxDays) r.maxDays = effectiveDays;
     };
 
     invoices.forEach((i) => processItem(i));
@@ -1382,6 +1453,23 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       }
     });
 
+    // Apply standalone payments (GereeniiTulsunAvlaga) — subtract from tulsunDun
+    // and reduce uldegdel to match guilgeeTuukh page values
+    for (const [gid, paidAmount] of Object.entries(standalonePaidByGereeId)) {
+      if (!residentMap[gid]) continue;
+      const r = residentMap[gid];
+      r.tulsunDun += paidAmount;
+      r.uldegdel -= paidAmount;
+      // Redistribute reduced uldegdel across buckets (reduce from oldest first)
+      let remaining = paidAmount;
+      for (const b of ["p120plus", "p61_90", "p31_60", "p0_30"]) {
+        if (remaining <= 0) break;
+        const deduct = Math.min(r[b], remaining);
+        r[b] -= deduct;
+        remaining -= deduct;
+      }
+    }
+
     const detailedData = Object.values(residentMap).filter(
       (r) => Math.abs(r.uldegdel) > 0.01
     );
@@ -1390,7 +1478,6 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       if (days <= 30) return "0-30";
       if (days <= 60) return "31-60";
       if (days <= 90) return "61-90";
-      if (days <= 120) return "91-120";
       return "120+";
     };
 
@@ -1404,14 +1491,12 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       p0_30: 0,
       p31_60: 0,
       p61_90: 0,
-      p91_120: 0,
       p120plus: 0,
     };
     const ageCounts = {
       p0_30: 0,
       p31_60: 0,
       p61_90: 0,
-      p91_120: 0,
       p120plus: 0,
     };
 
@@ -1427,10 +1512,6 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       if (r.p61_90 > 0) {
         ageBuckets.p61_90 += r.p61_90;
         ageCounts.p61_90++;
-      }
-      if (r.p91_120 > 0) {
-        ageBuckets.p91_120 += r.p91_120;
-        ageCounts.p91_120++;
       }
       if (r.p120plus > 0) {
         ageBuckets.p120plus += r.p120plus;
