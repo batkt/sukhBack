@@ -526,6 +526,7 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
             guilgee.undsenDun ??
             guilgee.tulukhDun ??
             guilgee.dun ??
+            guilgee.tulsunDun ??
             0;
           const charge = Number(amount) || 0;
 
