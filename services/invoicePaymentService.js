@@ -4,6 +4,16 @@ const Geree = require("../models/geree");
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 
+/** Opening-balance row on the invoice — payments must not bump tulsunDun here (geree/orshin + paymentHistory handle it). */
+function isEkhniiUldegdelZardalLine(z) {
+  return (
+    !!z &&
+    (z.isEkhniiUldegdel === true ||
+      z.ner === "Эхний үлдэгдэл" ||
+      (typeof z.ner === "string" && z.ner.includes("Эхний үлдэгдэл")))
+  );
+}
+
 /**
  * Mark invoices as paid with credit/overpayment system
  * Payment reduces from latest month first, then previous months
@@ -337,6 +347,9 @@ async function markInvoicesAsPaid(options) {
       ) {
         let remainingToDistribute = amountToApply;
         const updatedZardluud = invoice.medeelel.zardluud.map((z) => {
+          if (isEkhniiUldegdelZardalLine(z)) {
+            return { ...z };
+          }
           const itemDun = z.dun || 0;
           const itemTulsunDun = z.tulsunDun || 0;
           const itemUldegdel = itemDun - itemTulsunDun;
@@ -407,8 +420,6 @@ async function markInvoicesAsPaid(options) {
         continue;
       }
 
-      // findByIdAndUpdate does not run document pre('save'); refresh so ekhniiUldegdel
-      // (remaining "Эхний үлдэгдэл") syncs from paymentHistory.
       try {
         const invFresh = await NekhemjlekhiinTuukh.findById(invoice._id);
         if (invFresh) {
@@ -482,7 +493,6 @@ async function markInvoicesAsPaid(options) {
   }
 
   if (remainingPayment > 0) {
-    // Determine which geree(s) to update
     const gereesToUpdate = new Set();
 
     if (gereeniiId) {
@@ -521,7 +531,6 @@ async function markInvoicesAsPaid(options) {
 
           let leftoverForGeree = balancePerGeree;
 
-          // 1) Apply remaining to outstanding avlaga records FIRST (oldest first)
           try {
             const openTulukhRows = await GereeniiTulukhAvlagaModel.find({
               gereeniiId: String(gereeId),
