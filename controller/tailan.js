@@ -2804,10 +2804,44 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       };
     }
 
-    // Fetch all matching invoices (lean – no model hooks)
-    const invoices = await NekhemjlekhiinTuukh(kholbolt)
-      .find(query)
-      .lean({ virtuals: false });
+    const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+    const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+    const Geree = require("../models/geree");
+
+    // Standalone Receivables (e.g. initial balances)
+    const standaloneMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      ognoo: { $gte: startDate, $lte: endDate },
+      nekhemjlekhId: { $in: [null, ""] },
+    };
+    if (barilgiinId) standaloneMatch.barilgiinId = String(barilgiinId);
+
+    // Standalone Payments
+    const standalonePaidMatch = {
+      baiguullagiinId: String(baiguullagiinId),
+      ognoo: { $gte: startDate, $lte: endDate },
+      nekhemjlekhId: { $in: [null, ""] },
+    };
+    if (barilgiinId) standalonePaidMatch.barilgiinId = String(barilgiinId);
+
+    const [invoices, standaloneReceivables, standalonePayments] = await Promise.all([
+      NekhemjlekhiinTuukh(kholbolt).find(query).lean(),
+      GereeniiTulukhAvlaga(kholbolt).find(standaloneMatch).lean(),
+      GereeniiTulsunAvlaga(kholbolt).find(standalonePaidMatch).lean(),
+    ]);
+
+    // Fetch contracts for all involved records
+    const allGereeIds = [
+      ...new Set([
+        ...invoices.map((i) => String(i.gereeniiId)),
+        ...standaloneReceivables.map((r) => String(r.gereeniiId)),
+        ...standalonePayments.map((p) => String(p.gereeniiId)),
+      ]),
+    ].filter((id) => id && id !== "undefined" && id !== "null");
+
+    const contracts = await Geree(kholbolt).find({ _id: { $in: allGereeIds } }).lean();
+    const contractMap = {};
+    contracts.forEach((c) => (contractMap[String(c._id)] = c));
 
     // ── Group invoices by contract ───────────────────────────────────────────
     const groupMap = new Map();
@@ -2834,6 +2868,7 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
           niitTulsunDun: 0,
           niitUldegdel: 0,
           invoiceToo: 0,
+          paymentToo: 0,
         });
       }
 
@@ -2878,7 +2913,93 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       group.niitTulukhDun += tulukhDun;
       group.niitUldegdel += uldegdel;
       group.invoiceToo += 1;
-      if (inv.tuluv === "Төлсөн") group.niitTulsunDun += tulukhDun;
+      group.niitTulsunDun += tulukhDun - uldegdel; // Accurate payment calculation from invoice
+    }
+
+    // ── Process Standalone Receivables ───────────────────────────────────────
+    for (const s of standaloneReceivables) {
+      const gid = String(s.gereeniiId);
+      if (!gid || gid === "undefined" || gid === "null") continue;
+      
+      const meta = contractMap[gid] || s;
+      if (!groupMap.has(gid)) {
+        groupMap.set(gid, {
+          _id: {
+            gereeniiId: gid,
+            gereeniiDugaar: meta.gereeniiDugaar || "",
+            register: meta.register || meta.rd || "",
+            ovog: meta.ovog || "",
+            ner: meta.ner || "",
+            utas: Array.isArray(meta.utas) ? meta.utas : meta.utas ? [meta.utas] : [],
+            davkhar: meta.davkhar || "",
+            orts: meta.orts || "",
+            toot: meta.toot || meta.medeelel?.toot || "",
+          },
+          avlaga: [],
+          niitTulukhDun: 0,
+          niitTulsunDun: 0,
+          niitUldegdel: 0,
+          invoiceToo: 0,
+          paymentToo: 0,
+        });
+      }
+
+      const group = groupMap.get(gid);
+      const row = {
+        _id: s._id,
+        toot: group._id.toot,
+        ognoo: s.ognoo || null,
+        tailbar: s.zardliinNer || "Авлага (Нэхэмжлэхгүй)",
+        tulukhDun: Number(s.tulukhDun || s.undsenDun || 0),
+        niitTulbur: Number(s.undsenDun || 0),
+        uldegdel: Number(s.uldegdel || 0),
+        tuluv: "Төлөөгүй",
+        zardluud: [{
+          ner: s.zardliinNer || "Авлага",
+          dun: Number(s.tulukhDun || s.undsenDun || 0),
+          tailbar: s.tailbar || "",
+        }],
+        khungulultuud: [],
+      };
+      group.avlaga.push(row);
+      group.niitTulukhDun += row.tulukhDun;
+      group.niitUldegdel += row.uldegdel;
+      group.niitTulsunDun += (row.tulukhDun - row.uldegdel);
+    }
+
+    // ── Process Standalone Payments ──────────────────────────────────────────
+    for (const p of standalonePayments) {
+      const gid = String(p.gereeniiId);
+      if (!gid || gid === "undefined" || gid === "null") continue;
+
+      if (!groupMap.has(gid)) {
+         const meta = contractMap[gid] || p;
+         groupMap.set(gid, {
+          _id: {
+            gereeniiId: gid,
+            gereeniiDugaar: meta.gereeniiDugaar || "",
+            register: meta.register || meta.rd || "",
+            ovog: meta.ovog || "",
+            ner: meta.ner || "",
+            utas: Array.isArray(meta.utas) ? meta.utas : meta.utas ? [meta.utas] : [],
+            davkhar: meta.davkhar || "",
+            orts: meta.orts || "",
+            toot: meta.toot || meta.medeelel?.toot || "",
+          },
+          avlaga: [],
+          niitTulukhDun: 0,
+          niitTulsunDun: 0,
+          niitUldegdel: 0,
+          invoiceToo: 0,
+          paymentToo: 0,
+        });
+      }
+
+      const group = groupMap.get(gid);
+      const paidDun = Number(p.tulsunDun || 0);
+      group.niitTulsunDun += paidDun;
+      group.niitUldegdel -= paidDun;
+      group.paymentToo += 1;
     }
 
     // ── Convert map to array ──────────────────────────────────────────────────
