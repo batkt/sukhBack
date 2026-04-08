@@ -20,6 +20,8 @@ const nekhemjlekhiinTuukhSchema = new Schema(
     gereeniiDugaar: String,
     ekhniiUldegdel: Number,
     ekhniiUldegdelUsgeer: String,
+    /** Cumulative amount of invoice payments applied to "Эхний үлдэгдэл" for orshinSuugch sync (idempotent). */
+    ekhniiAppliedToOrshinSuugchDun: { type: Number, default: 0 },
     davkhar: String,
     uldegdel: Number,
     daraagiinTulukhOgnoo: Date,
@@ -107,12 +109,13 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
     const applyEkhniiUldegdelRemaining = () => {
       const zardluud = invoice.medeelel?.zardluud;
       if (!Array.isArray(zardluud)) return;
-      const ekhniiRow = zardluud.find(
+      const ekhniiIdx = zardluud.findIndex(
         (z) =>
           z &&
           (z.isEkhniiUldegdel === true || z.ner === "Эхний үлдэгдэл"),
       );
-      if (!ekhniiRow) return;
+      if (ekhniiIdx === -1) return;
+      const ekhniiRow = zardluud[ekhniiIdx];
 
       const t =
         typeof ekhniiRow.tulukhDun === "number" ? ekhniiRow.tulukhDun : null;
@@ -130,10 +133,41 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
         }, 0) * 100,
       ) / 100;
 
-      const paidTowardEkhnii = Math.min(totalPaid, ekhniiOriginal);
+      const paidTowardEkhnii = Math.round(
+        Math.min(totalPaid, ekhniiOriginal) * 100,
+      ) / 100;
       invoice.ekhniiUldegdel = Math.round(
         Math.max(0, ekhniiOriginal - paidTowardEkhnii) * 100,
       ) / 100;
+
+      // Keep the ekhnii line in zardluud aligned with FIFO (dun stays original; tulsunDun = paid on this line).
+      const nextZardluud = zardluud.map((z, i) =>
+        i === ekhniiIdx
+          ? {
+              ...z,
+              tulsunDun: paidTowardEkhnii,
+              tulsenEsekh: paidTowardEkhnii >= ekhniiOriginal - 0.01,
+            }
+          : z,
+      );
+      invoice.medeelel = {
+        ...(invoice.medeelel && typeof invoice.medeelel === "object"
+          ? invoice.medeelel
+          : {}),
+        zardluud: nextZardluud,
+      };
+      invoice.markModified("medeelel");
+
+      const prevApplied =
+        Math.round((Number(invoice.ekhniiAppliedToOrshinSuugchDun) || 0) * 100) /
+        100;
+      const delta = Math.round((paidTowardEkhnii - prevApplied) * 100) / 100;
+      if (delta > 0.01) {
+        invoice.ekhniiAppliedToOrshinSuugchDun = paidTowardEkhnii;
+        invoice._pendingOrshinEkhniiDelta = delta;
+      } else {
+        invoice._pendingOrshinEkhniiDelta = 0;
+      }
     };
 
     // If tuluv was explicitly set by manualSendInvoice or payment logic, skip recalculation
@@ -191,6 +225,44 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
     next();
   } catch (err) {
     next(err);
+  }
+});
+
+// After save: decrement orshinSuugch.ekhniiUldegdel by new FIFO payments on the ekhnii line (idempotent via ekhniiAppliedToOrshinSuugchDun).
+nekhemjlekhiinTuukhSchema.post("save", async function (doc) {
+  const delta = doc._pendingOrshinEkhniiDelta;
+  delete doc._pendingOrshinEkhniiDelta;
+  if (!delta || delta <= 0.01) return;
+  if (!doc.gereeniiId || !doc.baiguullagiinId) return;
+
+  try {
+    const { db } = require("zevbackv2");
+    const Geree = require("./geree");
+    const OrshinSuugch = require("./orshinSuugch");
+
+    const kholbolt = db.kholboltuud.find(
+      (k) => String(k.baiguullagiinId) === String(doc.baiguullagiinId),
+    );
+    if (!kholbolt) return;
+
+    const geree = await Geree(kholbolt)
+      .findById(doc.gereeniiId)
+      .select("orshinSuugchId")
+      .lean();
+    if (!geree?.orshinSuugchId) return;
+
+    const osDoc = await OrshinSuugch(kholbolt).findById(geree.orshinSuugchId);
+    if (!osDoc) return;
+
+    const cur = Number(osDoc.ekhniiUldegdel) || 0;
+    osDoc.ekhniiUldegdel =
+      Math.round(Math.max(0, cur - delta) * 100) / 100;
+    await osDoc.save();
+  } catch (e) {
+    console.error(
+      "[nekhemjlekhiinTuukh] orshinSuugch ekhniiUldegdel sync failed:",
+      e.message,
+    );
   }
 });
 
