@@ -144,11 +144,36 @@ async function recalcGlobalUldegdel({
 
     if (allInvoices.length > 0) {
       const invDate = (inv) => inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
-      const monthKey = (d) => {
+      /** YYYY-MM in Mongolia (same idea as history ledger — avoids server-local month drift). */
+      const monthKeyMn = (d) => {
         const x = d instanceof Date ? d : new Date(d);
         if (Number.isNaN(x.getTime())) return null;
+        try {
+          const parts = new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Asia/Ulaanbaatar",
+            year: "numeric",
+            month: "2-digit",
+          }).formatToParts(x);
+          const y = parts.find((p) => p.type === "year")?.value;
+          const m = parts.find((p) => p.type === "month")?.value;
+          if (y && m) return `${y}-${m}`;
+        } catch (_e) {
+          // fall through
+        }
         return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`;
       };
+      const isAvlagaOnlyShellInvoice = (inv) => {
+        const dugaar = String(inv.nekhemjlekhiinDugaar || "");
+        if (dugaar.startsWith("AVL-")) return true;
+        return inv.nekhemjlekhiin === "Авлагаар автоматаар үүсгэсэн нэхэмжлэх";
+      };
+      const tulukhRowAmt = (row) =>
+        Math.round(
+          (Number(row.uldegdel) ||
+            Number(row.undsenDun) ||
+            Number(row.tulukhDun) ||
+            0) * 100,
+        ) / 100;
       const ascInvoices = [...allInvoices].sort((a, b) => {
         const da = invDate(a) ? new Date(invDate(a)).getTime() : 0;
         const db = invDate(b) ? new Date(invDate(b)).getTime() : 0;
@@ -164,8 +189,9 @@ async function recalcGlobalUldegdel({
       ascInvoices.forEach((inv) => {
         avlagaByInvoiceId[String(inv._id)] = 0;
       });
+      let openTulukhRows = [];
       try {
-        const openTulukhRows = await GereeniiTulukhAvlagaModel.find({
+        openTulukhRows = await GereeniiTulukhAvlagaModel.find({
           gereeniiId: gid,
           baiguullagiinId: oid,
           uldegdel: { $gt: 0 },
@@ -174,21 +200,21 @@ async function recalcGlobalUldegdel({
           .lean();
 
         for (const row of openTulukhRows) {
-          const amt = Math.round(
-            (Number(row.uldegdel) || Number(row.undsenDun) || Number(row.tulukhDun) || 0) * 100,
-          ) / 100;
+          const amt = tulukhRowAmt(row);
           if (amt <= 0) continue;
 
-          const rMonth = monthKey(row.ognoo || row.createdAt);
+          const rMonth = monthKeyMn(row.ognoo || row.createdAt);
           let target = null;
           if (rMonth) {
-            target = ascInvoices.find((inv) => monthKey(invDate(inv)) === rMonth) || null;
+            target =
+              ascInvoices.find((inv) => monthKeyMn(invDate(inv)) === rMonth) ||
+              null;
           }
           // fallback: nearest next invoice, otherwise latest
           if (!target && rMonth) {
             target =
               ascInvoices.find((inv) => {
-                const m = monthKey(invDate(inv));
+                const m = monthKeyMn(invDate(inv));
                 return m && m >= rMonth;
               }) || ascInvoices[ascInvoices.length - 1];
           }
@@ -217,14 +243,42 @@ async function recalcGlobalUldegdel({
             }, 0);
         }
         originalTotal = Math.round(originalTotal * 100) / 100;
-        if (
-          originalTotal <= 0 &&
-          typeof inv.niitTulburOriginal === "number" &&
-          inv.niitTulburOriginal > 0
-        ) {
-          originalTotal = Math.round(inv.niitTulburOriginal * 100) / 100;
+        const allocatedAvlaga = Math.round((avlagaByInvoiceId[id] || 0) * 100) / 100;
+
+        if (isAvlagaOnlyShellInvoice(inv)) {
+          // Auto "AVL-*" invoice: empty zardluud — total must track live gereeniiTulukhAvlaga.uldegdel,
+          // not stale niitTulburOriginal (e.g. 200 vs 172 after partial avlaga settlement).
+          if (allocatedAvlaga > 0.01) {
+            originalTotal = allocatedAvlaga;
+          } else {
+            const invM = monthKeyMn(invDate(inv));
+            let sameMonthOpen = 0;
+            for (const row of openTulukhRows) {
+              const a = tulukhRowAmt(row);
+              if (a <= 0) continue;
+              if (invM && monthKeyMn(row.ognoo || row.createdAt) === invM) {
+                sameMonthOpen = Math.round((sameMonthOpen + a) * 100) / 100;
+              }
+            }
+            originalTotal = sameMonthOpen;
+            if (
+              originalTotal <= 0.01 &&
+              typeof inv.niitTulburOriginal === "number" &&
+              inv.niitTulburOriginal > 0
+            ) {
+              originalTotal = Math.round(inv.niitTulburOriginal * 100) / 100;
+            }
+          }
+        } else {
+          if (
+            originalTotal <= 0 &&
+            typeof inv.niitTulburOriginal === "number" &&
+            inv.niitTulburOriginal > 0
+          ) {
+            originalTotal = Math.round(inv.niitTulburOriginal * 100) / 100;
+          }
+          originalTotal = Math.round((originalTotal + allocatedAvlaga) * 100) / 100;
         }
-        originalTotal = Math.round((originalTotal + (avlagaByInvoiceId[id] || 0)) * 100) / 100;
 
         // 2) Calculate paid amount excluding system_sync, then remaining.
         const totalPaid = Math.round(
