@@ -2850,6 +2850,7 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       const groupKey = inv.gereeniiId || inv.gereeniiDugaar || String(inv._id);
 
       if (!groupMap.has(groupKey)) {
+        const c = contractMap[String(inv.gereeniiId)] || inv;
         groupMap.set(groupKey, {
           // Maintaining the nested _id structure as the user preferred in their snippet
           _id: {
@@ -2866,9 +2867,11 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
           avlaga: [],
           niitTulukhDun: 0,
           niitTulsunDun: 0,
-          niitUldegdel: 0,
+          // Use contract's live balance if available
+          niitUldegdel: Number(c.uldegdel != null ? c.uldegdel : 0),
           invoiceToo: 0,
           paymentToo: 0,
+          hasInvoiceEkhniiUldegdel: false,
         });
       }
 
@@ -2915,7 +2918,7 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
 
       group.avlaga.push(avlagaRow);
       group.niitTulukhDun += tulukhDun;
-      group.niitUldegdel += uldegdel;
+      // We don't add uldegdel to niitUldegdel here because we use the contract's total balance
       group.invoiceToo += 1;
 
       // Only count payments that occurred WITHIN the period
@@ -2949,9 +2952,10 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
           avlaga: [],
           niitTulukhDun: 0,
           niitTulsunDun: 0,
-          niitUldegdel: 0,
+          niitUldegdel: Number(meta.uldegdel || 0),
           invoiceToo: 0,
           paymentToo: 0,
+          hasInvoiceEkhniiUldegdel: false,
         });
       }
 
@@ -2980,7 +2984,7 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       };
       group.avlaga.push(row);
       group.niitTulukhDun += row.tulukhDun;
-      group.niitUldegdel += row.uldegdel;
+      // Standalone receivable uldegdel is also not added to niitUldegdel as we use the contract total
       // We don't count paid based on tulukh - uldegdel for standalone, we only count payments from TulsunRecords
     }
 
@@ -3006,7 +3010,7 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
           avlaga: [],
           niitTulukhDun: 0,
           niitTulsunDun: 0,
-          niitUldegdel: 0,
+          niitUldegdel: Number(meta.uldegdel || 0),
           invoiceToo: 0,
           paymentToo: 0,
         });
@@ -3015,7 +3019,9 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       const group = groupMap.get(gid);
       const paidDun = Number(p.tulsunDun || 0);
       group.niitTulsunDun += paidDun;
-      group.niitUldegdel -= paidDun;
+      // Note: We don't subtract from niitUldegdel here because niitUldegdel is the absolute CURRENT balance
+      // If we wanted "Balance at End Date", we would need a different calculation.
+      // But for syncing with dashboard/uldegdels, the current balance is usually what they want.
       group.paymentToo += 1;
     }
 
