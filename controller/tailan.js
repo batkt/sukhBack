@@ -1376,6 +1376,20 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       (r) => Math.abs(r.uldegdel) > 0.01
     );
 
+    const computeAgeBucket = (days) => {
+      if (days <= 30) return "0-30";
+      if (days <= 60) return "31-60";
+      if (days <= 90) return "61-90";
+      if (days <= 120) return "91-120";
+      return "120+";
+    };
+
+    detailedData.forEach((r) => {
+      const days = Number(r.maxDays || 0);
+      r.ageBucket = computeAgeBucket(days);
+      r.daysOverdue = days;
+    });
+
     const ageBuckets = {
       p0_30: 0,
       p31_60: 0,
