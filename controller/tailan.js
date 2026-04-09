@@ -1579,7 +1579,7 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
       !reportParams.view
     ) {
       reportParams.view = "delgerengui";
-      reportParams.khuudasniiKhemjee = 10000; // Get all records for export
+      reportParams.khuudasniiKhemjee = 30000; // Get all records for export (larger for nasjilt)
     }
 
     // Create a mock request with report parameters
@@ -1635,22 +1635,38 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         "Нийт төлбөр",
         "Төлөв",
       ];
-      rows = list.map((r) => [
-        r.gereeniiDugaar || "",
-        r.ovog || "",
-        r.ner || "",
-        Array.isArray(r.utas) ? r.utas.join(", ") : r.utas || "",
-        r.toot || "",
-        r.davkhar || "",
-        r.bairNer || "",
-        r.orts || "",
-        r.ognoo ? new Date(r.ognoo).toLocaleDateString("mn-MN") : "",
-        r.tulukhOgnoo
-          ? new Date(r.tulukhOgnoo).toLocaleDateString("mn-MN")
-          : "",
-        r.niitTulbur || 0,
-        r.tuluv || "",
-      ]);
+      rows = list.map((r) => {
+        let ognooStr = "";
+        try {
+          if (r.ognoo) {
+            const d = new Date(r.ognoo);
+            if (!isNaN(d.getTime())) ognooStr = d.toLocaleDateString("mn-MN");
+          }
+        } catch (e) {}
+
+        let tulukhOgnooStr = "";
+        try {
+          if (r.tulukhOgnoo) {
+            const d = new Date(r.tulukhOgnoo);
+            if (!isNaN(d.getTime())) tulukhOgnooStr = d.toLocaleDateString("mn-MN");
+          }
+        } catch (e) {}
+
+        return [
+          r.gereeniiDugaar || "",
+          r.ovog || "",
+          r.ner || "",
+          Array.isArray(r.utas) ? r.utas.join(", ") : r.utas || "",
+          r.toot || "",
+          r.davkhar || "",
+          r.bairNer || "",
+          r.orts || "",
+          ognooStr,
+          tulukhOgnooStr,
+          r.niitTulbur || 0,
+          r.tuluv || "",
+        ];
+      });
       fileName = "orlogo_avlaga";
     } else if (report === "negtgel") {
       const ExcelJS = require("exceljs");
@@ -1776,7 +1792,13 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
           // Find invoices in this period
           group.avlaga.forEach(inv => {
             if (!inv.ognoo) return;
-            const invP = `${new Date(inv.ognoo).getFullYear()}-${String(new Date(inv.ognoo).getMonth() + 1).padStart(2, "0")}`;
+            let invP = "";
+            try {
+              const d = new Date(inv.ognoo);
+              if (!isNaN(d.getTime())) {
+                invP = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+              }
+            } catch (e) {}
             if (invP !== period) return;
 
             inv.zardluud.forEach(z => {
@@ -2045,25 +2067,30 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         "Хугацаа хэтэрсэн сар",
         "Насжилтын ангилал",
       ];
-      rows = (data.detailed?.list || []).map((r) => [
-        r.gereeniiDugaar || "",
-        r.ovog || "",
-        r.ner || "",
-        Array.isArray(r.utas) ? r.utas.join(", ") : r.utas || "",
-        r.toot || "",
-        r.davkhar || "",
-        r.bairNer || "",
-        r.orts || "",
-        r.ognoo ? new Date(r.ognoo).toLocaleDateString("mn-MN") : "",
-        r.tulukhOgnoo
-          ? new Date(r.tulukhOgnoo).toLocaleDateString("mn-MN")
-          : "",
-        r.niitTulbur || 0,
-        r.tuluv || "",
-        r.daysOverdue || 0,
-        r.monthsOverdue || 0,
-        r.ageBucket || "",
-      ]);
+      rows = (data.detailed?.list || []).map((r) => {
+        let ogStr = "";
+        try { if(r.ognoo) { const d = new Date(r.ognoo); if(!isNaN(d.getTime())) ogStr = d.toLocaleDateString("mn-MN"); } } catch(e){}
+        let tuStr = "";
+        try { if(r.tulukhOgnoo) { const d = new Date(r.tulukhOgnoo); if(!isNaN(d.getTime())) tuStr = d.toLocaleDateString("mn-MN"); } } catch(e){}
+
+        return [
+          r.gereeniiDugaar || "",
+          r.ovog || "",
+          r.ner || "",
+          Array.isArray(r.utas) ? r.utas.join(", ") : r.utas || "",
+          r.toot || "",
+          r.davkhar || "",
+          r.bairNer || "",
+          r.orts || "",
+          ogStr,
+          tuStr,
+          r.niitTulbur || 0,
+          r.tuluv || "",
+          r.daysOverdue || 0,
+          r.monthsOverdue || 0,
+          r.ageBucket || "",
+        ];
+      });
       fileName = "avlagiin_nasjilt";
     } else if (report === "udsan-avlaga") {
       headers = [
@@ -2081,23 +2108,28 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         "Хугацаа хэтэрсэн сар",
         "Дугааллын дугаар",
       ];
-      rows = (data.list || []).map((r) => [
-        r.gereeniiDugaar || "",
-        r.ovog || "",
-        r.ner || "",
-        Array.isArray(r.utas) ? r.utas.join(", ") : r.utas || "",
-        r.toot || "",
-        r.davkhar || "",
-        r.bairNer || "",
-        r.ognoo ? new Date(r.ognoo).toLocaleDateString("mn-MN") : "",
-        r.tulukhOgnoo
-          ? new Date(r.tulukhOgnoo).toLocaleDateString("mn-MN")
-          : "",
-        r.niitTulbur || 0,
-        r.tuluv || "",
-        r.monthsOverdue || 0,
-        r.dugaalaltDugaar || "",
-      ]);
+      rows = (data.list || []).map((r) => {
+        let ogStr = "";
+        try { if(r.ognoo) { const d = new Date(r.ognoo); if(!isNaN(d.getTime())) ogStr = d.toLocaleDateString("mn-MN"); } } catch(e){}
+        let tuStr = "";
+        try { if(r.tulukhOgnoo) { const d = new Date(r.tulukhOgnoo); if(!isNaN(d.getTime())) tuStr = d.toLocaleDateString("mn-MN"); } } catch(e){}
+
+        return [
+          r.gereeniiDugaar || "",
+          r.ovog || "",
+          r.ner || "",
+          Array.isArray(r.utas) ? r.utas.join(", ") : r.utas || "",
+          r.toot || "",
+          r.davkhar || "",
+          r.bairNer || "",
+          ogStr,
+          tuStr,
+          r.niitTulbur || 0,
+          r.tuluv || "",
+          r.monthsOverdue || 0,
+          r.dugaalaltDugaar || "",
+        ];
+      });
       fileName = "udsan_avlaga";
     } else if (report === "tsutslasan-gereenii-avlaga") {
       headers = [
@@ -2702,13 +2734,20 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       tuluv, // optional: "Төлсөн" | "Төлөөгүй" | "Хугацаа хэтэрсэн"
     } = source || {};
 
-    if (!baiguullagiinId || !ekhlekhOgnoo || !duusakhOgnoo) {
+    if (!baiguullagiinId) {
       return res.status(400).json({
         success: false,
-        aldaa: "Мэдээлэл дутуу байна",
-        required: ["baiguullagiinId", "ekhlekhOgnoo", "duusakhOgnoo"],
+        aldaa: "baiguullagiinId шаардлагатай",
       });
     }
+
+    // Default to current month if dates missing
+    const now = new Date();
+    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
+
+    const startStr = ekhlekhOgnoo || defaultStart;
+    const endStr = duusakhOgnoo || defaultEnd;
 
     const kholbolt = db.kholboltuud.find(
       (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
@@ -2722,9 +2761,9 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
     const NekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 
     // ── Date range ───────────────────────────────────────────────────────────
-    const startDate = new Date(ekhlekhOgnoo);
+    const startDate = new Date(startStr);
     startDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(duusakhOgnoo);
+    const endDate = new Date(endStr);
     endDate.setHours(23, 59, 59, 999);
 
     // ── Build DB query ────────────────────────────────────────────────────────
