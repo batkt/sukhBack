@@ -231,9 +231,6 @@ async function getHistoryLedger(options) {
       });
     }
   }
-
-  // Match tulukh-avlaga rows to geree.avlaga.guilgeenuud by _id (same id when saved from gereeniiGuilgeeKhadgalya).
-  // Those entries keep the user-entered tulukhDun even if gereeniiTulukhAvlaga.undsenDun was never backfilled.
   const avlagaGuilgeeById = new Map();
   const avlagaGuilgeenuud = gereeDoc?.avlaga?.guilgeenuud || [];
   for (const g of avlagaGuilgeenuud) {
@@ -301,10 +298,7 @@ async function getHistoryLedger(options) {
       ner: p.tailbar || "Төлбөр",
       isSystem: false,
       _id: p._id.toString(),
-      ajiltan:
-        p.guilgeeKhiisenAjiltniiNer ||
-        p.guilgeeKhiisenAjiltniiId ||
-        "",
+      ajiltan: p.guilgeeKhiisenAjiltniiNer || p.guilgeeKhiisenAjiltniiId || "",
       khelber: p.turul || p.source || "Төлбөр",
       tailbar: p.tailbar || "",
       burtgesenOgnoo: p.createdAt
@@ -403,13 +397,11 @@ async function getHistoryLedger(options) {
     const sb = SRC_ORDER[b.sourceCollection] ?? 99;
     if (sa !== sb) return sa - sb;
     const chargeFirstA =
-      ((a.tulukhDunNet ?? a.tulukhDun) ?? 0) > 0.01 ||
-      (a.tulukhDun ?? 0) > 0.01
+      (a.tulukhDunNet ?? a.tulukhDun ?? 0) > 0.01 || (a.tulukhDun ?? 0) > 0.01
         ? 0
         : 1;
     const chargeFirstB =
-      ((b.tulukhDunNet ?? b.tulukhDun) ?? 0) > 0.01 ||
-      (b.tulukhDun ?? 0) > 0.01
+      (b.tulukhDunNet ?? b.tulukhDun ?? 0) > 0.01 || (b.tulukhDun ?? 0) > 0.01
         ? 0
         : 1;
     if (chargeFirstA !== chargeFirstB) return chargeFirstA - chargeFirstB;
@@ -418,18 +410,22 @@ async function getHistoryLedger(options) {
 
   // Running balance: uldegdel = cumulative charges - cumulative payments on the CONTRACT after this row
   // (not per-invoice / per-month). Use invoiceUldegdel on rows from nekhemjlekhiinTuukh for that invoice's own balance.
+  // For gereeniiTulukhAvlaga: use economic net (tulukhDunNet) when it is > 0; when net is 0 but display
+  // gross > 0 (charge fully covered by positiveBalance), still add gross so e.g. -60k credit + 50k avlaga => -10k.
   // Round to 2dp at each step to eliminate float precision artifacts (e.g. -5999.199999999996)
   let runningBalance = 0;
   let jagsaalt = rawRows.map((row) => {
+    const grossPart = Math.round((row.tulukhDun ?? 0) * 100) / 100;
+    const netPart =
+      row.tulukhDunNet != null && !Number.isNaN(row.tulukhDunNet)
+        ? Math.round(Number(row.tulukhDunNet) * 100) / 100
+        : null;
     const balanceCharge =
-      row.tulukhDunNet != null
-        ? Math.round((row.tulukhDunNet ?? 0) * 100) / 100
-        : Math.round((row.tulukhDun ?? 0) * 100) / 100;
-    const displayCharge = Math.round((row.tulukhDun ?? 0) * 100) / 100;
+      netPart != null && netPart > 0.01 ? netPart : grossPart;
+    const displayCharge = grossPart;
     const pay = Math.round((row.tulsunDun ?? 0) * 100) / 100;
-    runningBalance = Math.round(
-      (runningBalance + balanceCharge - pay) * 100,
-    ) / 100;
+    runningBalance =
+      Math.round((runningBalance + balanceCharge - pay) * 100) / 100;
     return {
       _id: row._id,
       ognoo: toOgnooString(row.ognoo),
