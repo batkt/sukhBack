@@ -450,19 +450,30 @@ async function getHistoryLedger(options) {
   // No normalization — running balance is the pure cumulative sum of each row's charge minus payment.
   // globalUldegdel from geree is returned separately for the frontend summary/total display.
 
+  console.log(`📑 [LEDGER ${gid}] Final running balance: ${runningBalance}`);
+
   const rawGlobalUldegdel =
     gereeDoc && typeof gereeDoc.globalUldegdel === "number"
       ? gereeDoc.globalUldegdel
       : jagsaalt.length > 0
         ? jagsaalt[jagsaalt.length - 1].uldegdel
         : 0;
-  const globalUldegdel = Math.round(rawGlobalUldegdel * 100) / 100;
-  const positiveBalance =
-    gereeDoc && typeof gereeDoc.positiveBalance === "number"
-      ? Math.round(gereeDoc.positiveBalance * 100) / 100
-      : 0;
 
-  return { jagsaalt, globalUldegdel, positiveBalance };
+  const rawPositiveBalance =
+    gereeDoc && typeof gereeDoc.positiveBalance === "number"
+      ? gereeDoc.positiveBalance
+      : rawGlobalUldegdel < 0
+        ? Math.abs(rawGlobalUldegdel)
+        : 0;
+
+  console.log(`📑 [LEDGER ${gid}] Global Balance (Doc): ${gereeDoc?.globalUldegdel}, Final Ledger Row: ${jagsaalt.length > 0 ? jagsaalt[jagsaalt.length - 1].uldegdel : "none"}`);
+  console.log(`📑 [LEDGER ${gid}] Positive Balance: ${rawPositiveBalance}`);
+
+  return {
+    jagsaalt,
+    globalUldegdel: rawGlobalUldegdel,
+    positiveBalance: rawPositiveBalance,
+  };
 }
 
 module.exports = {
