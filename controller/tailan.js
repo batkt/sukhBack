@@ -1206,7 +1206,6 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
 
     const match = {
       baiguullagiinId: String(baiguullagiinId),
-      tuluv: { $ne: "Төлсөн" },
     };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
 
@@ -1361,9 +1360,8 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       else bucket = "p120plus"; // Combine everything > 90 into 120+ bucket
 
       const amount = Number(
-        item.uldegdel ?? item.niitTulbur ?? item.undsenDun ?? 0
+        item.uldegdel ?? (item.tuluv === "Төлсөн" ? 0 : item.niitTulbur) ?? item.undsenDun ?? 0
       );
-      if (amount <= 0 && !isStandalone) return;
 
       const gid = String(item.gereeniiId);
       if (!residentMap[gid]) {
@@ -1395,14 +1393,19 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       let khungulult = 0;
 
       if (!isStandalone) {
-        tulsun = (item.paymentHistory || []).reduce(
-          (s, p) => s + (Number(p.dun) || 0),
+        // Fallback to medeelel.guilgeenuud if paymentHistory isn't there
+        const guilgeeList = item.paymentHistory || item.medeelel?.guilgeenuud || [];
+        tulsun = guilgeeList.reduce(
+          (s, p) => s + (Number(p.tulsunDun ?? p.dun) || 0),
           0
         );
         khungulult = (item.medeelel?.khungulultuud || []).reduce(
           (s, k) => s + (Number(k.dun) || 0),
           0
         );
+        if (item.tuluv === "Төлсөн" && tulsun === 0) {
+           tulsun = undsen;
+        }
       } else {
         tulsun = undsen - amount;
       }
@@ -1411,8 +1414,13 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       r.tulsunDun += tulsun;
       r.khungulult += khungulult;
       r.uldegdel += amount;
-      r[bucket] += amount;
-      if (effectiveDays > r.maxDays) r.maxDays = effectiveDays;
+
+      if (amount <= 0 && !isStandalone) return;
+
+      if (amount > 0) {
+        r[bucket] += amount;
+        if (effectiveDays > r.maxDays) r.maxDays = effectiveDays;
+      }
     };
 
     invoices.forEach((i) => processItem(i));
@@ -2870,7 +2878,8 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
           avlaga: [],
           niitTulukhDun: 0,
           niitTulsunDun: 0,
-          niitUldegdel: 0, // Sum of all receivables/charges in the period (ignoring payments)
+          niitUldegdel: 0, 
+          globalUldegdel: Number(c.globalUldegdel ?? c.uldegdel ?? 0),
           invoiceToo: 0,
           paymentToo: 0,
           hasInvoiceEkhniiUldegdel: false,
@@ -3022,9 +3031,14 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       }
 
       const group = groupMap.get(gid);
+      if (!group.globalUldegdel && groupMap.has(gid)) {
+         const meta = contractMap[gid];
+         if (meta) {
+           group.globalUldegdel = Number(meta.globalUldegdel ?? meta.uldegdel ?? 0);
+         }
+      }
       const paidDun = Number(p.tulsunDun || 0);
       group.niitTulsunDun += paidDun;
-      // Payments do not affect the 'Sum of Receivables' total column
       group.paymentToo += 1;
     }
 
