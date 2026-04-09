@@ -771,8 +771,43 @@ const gereeNeesNekhemjlekhUusgekh = async (
       // Error fetching guilgeenuudForNekhemjlekh - silently continue
     }
 
+    // Ekhnii tulukh rows are summed into ekhniiUldegdelAmount; the same row can also appear in
+    // guilgeenuudForNekhemjlekh (same _id). Exclude those from guilgeenuudTotal to avoid double count.
+    let tulukhAvlagaEkhniiRecords = [];
+    if (includeEkhniiUldegdel) {
+      try {
+        const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+        tulukhAvlagaEkhniiRecords = await GereeniiTulukhAvlaga(
+          tukhainBaaziinKholbolt,
+        )
+          .find({
+            gereeniiId: String(tempData.gereeniiId || tempData._id),
+            baiguullagiinId: String(tempData.baiguullagiinId),
+            ekhniiUldegdelEsekh: true,
+          })
+          .lean();
+      } catch (error) {
+        // Error fetching ekhnii tulukh — continue without dedupe ids
+      }
+    }
+
+    const ekhniiTulukhIdsForGuilgeeDedup = new Set(
+      (tulukhAvlagaEkhniiRecords || [])
+        .filter((rec) => rec._id != null)
+        .map((rec) => String(rec._id)),
+    );
+
     const guilgeenuudTotal = guilgeenuudForNekhemjlekh.reduce(
       (sum, guilgee) => {
+        const gid = guilgee._id != null ? String(guilgee._id) : null;
+        if (
+          gid &&
+          includeEkhniiUldegdel &&
+          ekhniiTulukhIdsForGuilgeeDedup.size > 0 &&
+          ekhniiTulukhIdsForGuilgeeDedup.has(gid)
+        ) {
+          return sum;
+        }
         return sum + (guilgee.tulukhDun || 0);
       },
       0,
@@ -791,41 +826,21 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // Only fetch and include ekhniiUldegdel if the flag is true (checkbox checked)
     if (includeEkhniiUldegdel) {
-      // First check gereeniiTulukhAvlaga for ekhniiUldegdel records (primary source)
-      try {
-        const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
-        const tulukhAvlagaRecords = await GereeniiTulukhAvlaga(
-          tukhainBaaziinKholbolt,
-        )
-          .find({
-            gereeniiId: String(tempData.gereeniiId || tempData._id),
-            baiguullagiinId: String(tempData.baiguullagiinId),
-            ekhniiUldegdelEsekh: true,
-          })
-          .lean();
+      if (tulukhAvlagaEkhniiRecords && tulukhAvlagaEkhniiRecords.length > 0) {
+        ekhniiUldegdelFromOrshinSuugch = tulukhAvlagaEkhniiRecords.reduce(
+          (sum, record) => {
+            const amount = Number(
+              record.uldegdel ?? record.undsenDun ?? record.tulukhDun ?? 0,
+            );
+            return sum + amount;
+          },
+          0,
+        );
 
-        if (tulukhAvlagaRecords && tulukhAvlagaRecords.length > 0) {
-          // Sum up all ekhniiUldegdel records and use uldegdel (remaining balance after payments)
-          // This ensures the invoice shows the correct remaining amount, not the original amount
-          ekhniiUldegdelFromOrshinSuugch = tulukhAvlagaRecords.reduce(
-            (sum, record) => {
-              // Use uldegdel (remaining) if available, otherwise fall back to undsenDun/tulukhDun
-              const amount = Number(
-                record.uldegdel ?? record.undsenDun ?? record.tulukhDun ?? 0,
-              );
-              return sum + amount;
-            },
-            0,
-          );
-
-          // Get the tailbar (description) from the first record
-          const firstRecord = tulukhAvlagaRecords[0];
-          ekhniiUldegdelTailbar =
-            firstRecord.tailbar || firstRecord.temdeglel || "";
-          ekhniiUldegdelRecordId = firstRecord._id?.toString();
-        }
-      } catch (error) {
-        // Error fetching ekhniiUldegdel from gereeniiTulukhAvlaga - silently continue
+        const firstRecord = tulukhAvlagaEkhniiRecords[0];
+        ekhniiUldegdelTailbar =
+          firstRecord.tailbar || firstRecord.temdeglel || "";
+        ekhniiUldegdelRecordId = firstRecord._id?.toString();
       }
 
       // Fallback to orshinSuugch.ekhniiUldegdel if no gereeniiTulukhAvlaga records found

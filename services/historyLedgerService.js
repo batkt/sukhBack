@@ -385,7 +385,6 @@ async function getHistoryLedger(options) {
     gereeniiTulsunAvlaga: 3,
   };
 
-  // Sort by date-only (oldest first), then createdAt, then source priority, then charges before payments
   rawRows.sort((a, b) => {
     const da = dayOnly(a.ognoo);
     const db = dayOnly(b.ognoo);
@@ -407,12 +406,6 @@ async function getHistoryLedger(options) {
     if (chargeFirstA !== chargeFirstB) return chargeFirstA - chargeFirstB;
     return String(a._id).localeCompare(String(b._id));
   });
-
-  // Running balance: uldegdel = cumulative charges - cumulative payments on the CONTRACT after this row
-  // (not per-invoice / per-month). Use invoiceUldegdel on rows from nekhemjlekhiinTuukh for that invoice's own balance.
-  // For gereeniiTulukhAvlaga: use economic net (tulukhDunNet) when it is > 0; when net is 0 but display
-  // gross > 0 (charge fully covered by positiveBalance), still add gross so e.g. -60k credit + 50k avlaga => -10k.
-  // Round to 2dp at each step to eliminate float precision artifacts (e.g. -5999.199999999996)
   let runningBalance = 0;
   let jagsaalt = rawRows.map((row) => {
     const grossPart = Math.round((row.tulukhDun ?? 0) * 100) / 100;
