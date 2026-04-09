@@ -1262,25 +1262,18 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     const GereeniiTulukhAvlagaModel2 = require("../models/gereeniiTulukhAvlaga");
     const GereeniiTulsunAvlagaModel2 = require("../models/gereeniiTulsunAvlaga");
 
-    // Collect all geree IDs that have any activity in this building
-    const invQuery = { baiguullagiinId: String(baiguullagiinId), ...(barilgiinId ? { barilgiinId: String(barilgiinId) } : {}) };
-    const [invoiceGereeIds, tulukhGereeIds, tulsunGereeIds] = await Promise.all([
-      NekhemjlekhiinTuukh(kholbolt).distinct("gereeniiId", invQuery),
-      GereeniiTulukhAvlagaModel2(kholbolt).distinct("gereeniiId", invQuery),
-      GereeniiTulsunAvlagaModel2(kholbolt).distinct("gereeniiId", invQuery),
-    ]);
+    // Collect all geree IDs from active contracts in this building
+    const gereeQuery = { baiguullagiinId: String(baiguullagiinId) };
+    if (barilgiinId) gereeQuery.barilgiinId = String(barilgiinId);
+    
+    const allContractsList = await Geree(kholbolt).find(gereeQuery).lean();
+    const gereeContracts = allContractsList.filter(c => {
+      const st = String(c.tuluv || c.status || "").toLowerCase();
+      return st !== "цуцалсан" && st !== "tsutlsasan";
+    });
 
-    const allGereeIds = [
-      ...new Set([
-        ...invoiceGereeIds.map(String),
-        ...tulukhGereeIds.map(String),
-        ...tulsunGereeIds.map(String),
-      ]),
-    ].filter((id) => id && id !== "undefined" && id !== "null");
+    const allGereeIds = gereeContracts.map(c => String(c._id));
 
-    const gereeContracts = await Geree(kholbolt)
-      .find({ _id: { $in: allGereeIds } })
-      .lean();
     const contractMap = {};
     gereeContracts.forEach((c) => (contractMap[String(c._id)] = c));
 
@@ -1346,21 +1339,27 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
 
         if (rowsUntilDate.length === 0) return;
 
-        // Compute totals from the filtered ledger rows
+        // Compute totals from the filtered ledger rows ONLY in the selected date range
         let undsenDun = 0;
         let tulsunDun = 0;
+        const startMs = ekhlekhOgnoo ? parseDate(ekhlekhOgnoo).getTime() : 0;
+        const endMs = refDate.getTime();
+        
         rowsUntilDate.forEach((row) => {
-          undsenDun += Number(row.tulukhDun || 0);
-          tulsunDun += Number(row.tulsunDun || 0);
+          const rowTime = row.ognoo ? new Date(row.ognoo).getTime() : 0;
+          if (rowTime >= startMs && rowTime <= endMs) {
+             undsenDun += Number(row.tulukhDun || 0);
+             tulsunDun += Number(row.tulsunDun || 0);
+          }
         });
         undsenDun = Math.round(undsenDun * 100) / 100;
         tulsunDun = Math.round(tulsunDun * 100) / 100;
 
-        // Авлага = running balance as of refDate
+        // Авлага = running balance as of refDate, OR use contract balance fallback
         const lastRow = rowsUntilDate[rowsUntilDate.length - 1];
-        const uldegdel = Math.round((lastRow?.uldegdel ?? 0) * 100) / 100;
+        let uldegdel = Math.round((lastRow?.uldegdel ?? meta.globalUldegdel ?? meta.uldegdel ?? 0) * 100) / 100;
 
-        // Skip if zero balance
+        // Skip if zero balance (allow minor floating point variance)
         if (Math.abs(uldegdel) < 0.01) return;
 
         // Oldest charge row for aging bucket
@@ -2769,24 +2768,54 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       GereeniiTulsunAvlaga(kholbolt).find(standalonePaidMatch).lean(),
     ]);
 
-    // Fetch contracts for all involved records
-    const allGereeIds = [
-      ...new Set([
-        ...invoices.map((i) => String(i.gereeniiId)),
-        ...standaloneReceivables.map((r) => String(r.gereeniiId)),
-        ...standalonePayments.map((p) => String(p.gereeniiId)),
-      ]),
-    ].filter((id) => id && id !== "undefined" && id !== "null");
+    // Fetch ALL active contracts regardless of activity to accurately reflect the total building balance matching the Tulbur page
+    const gereeQuery = { baiguullagiinId: String(baiguullagiinId) };
+    if (barilgiinId) gereeQuery.barilgiinId = String(barilgiinId);
+    
+    const allContractsList = await Geree(kholbolt).find(gereeQuery).lean();
+    const contracts = allContractsList.filter(c => {
+      const st = String(c.tuluv || c.status || "").toLowerCase();
+      return st !== "цуцалсан" && st !== "tsutlsasan";
+    });
 
-    const contracts = await Geree(kholbolt).find({ _id: { $in: allGereeIds } }).lean();
     const contractMap = {};
     contracts.forEach((c) => (contractMap[String(c._id)] = c));
 
     // ── Group invoices by contract ───────────────────────────────────────────
     const groupMap = new Map();
 
+    // Pre-populate groupMap with ALL active contracts
+    contracts.forEach((c) => {
+       groupMap.set(String(c._id), {
+          _id: {
+            gereeniiId: String(c._id),
+            gereeniiDugaar: c.gereeniiDugaar || "",
+            register: c.register || c.rd || "",
+            ovog: c.ovog || "",
+            ner: c.ner || "",
+            utas: Array.isArray(c.utas) ? c.utas : c.utas ? [c.utas] : [],
+            davkhar: c.davkhar || "",
+            orts: c.orts || "",
+            toot: c.toot || c.medeelel?.toot || "",
+          },
+          avlaga: [],
+          niitTulukhDun: 0,
+          niitTulsunDun: 0,
+          niitUldegdel: 0, 
+          globalUldegdel: Number(c.globalUldegdel ?? c.uldegdel ?? 0),
+          invoiceToo: 0,
+          paymentToo: 0,
+          hasInvoiceEkhniiUldegdel: false,
+       });
+    });
+
     for (const inv of invoices) {
       const groupKey = inv.gereeniiId || inv.gereeniiDugaar || String(inv._id);
+      
+      // If contract is cancelled or not found, we skip to align with Active filter
+      if (!groupMap.has(groupKey) && inv.gereeniiId && !contractMap[String(inv.gereeniiId)]) {
+        continue;
+      }
 
       if (!groupMap.has(groupKey)) {
         const c = contractMap[String(inv.gereeniiId)] || inv;
@@ -2875,6 +2904,10 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       const gid = String(s.gereeniiId);
       if (!gid || gid === "undefined" || gid === "null") continue;
       
+      if (!groupMap.has(gid) && !contractMap[gid]) {
+         continue; // Exclude inactive contracts
+      }
+      
       const meta = contractMap[gid] || s;
       if (!groupMap.has(gid)) {
         groupMap.set(gid, {
@@ -2934,6 +2967,10 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
     for (const p of standalonePayments) {
       const gid = String(p.gereeniiId);
       if (!gid || gid === "undefined" || gid === "null") continue;
+
+      if (!groupMap.has(gid) && !contractMap[gid]) {
+         continue;
+      }
 
       if (!groupMap.has(gid)) {
          const meta = contractMap[gid] || p;
