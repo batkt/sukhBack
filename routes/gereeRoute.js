@@ -121,7 +121,24 @@ router.get(
         baiguullagiinId,
         barilgiinId,
       });
-      res.json(result);
+      // Return a compact, human-friendly payload for the History UI.
+      // Keep backend calculations in services/historyLedgerService, but avoid exposing
+      // internal/summary fields like globalUldegdel/positiveBalance here.
+      const jagsaalt = (result?.jagsaalt || []).map((r) => ({
+        _id: r._id,
+        ognoo: r.ognoo,
+        burtgesenOgnoo: r.burtgesenOgnoo,
+        ner: r.ner,
+        khelber: r.khelber,
+        tailbar: r.tailbar,
+        ajiltan: r.ajiltan,
+        tulukhDun: r.tulukhDun,
+        tulsunDun: r.tulsunDun,
+        uldegdel: r.uldegdel,
+        nekhemjlekhiinDugaar: r.nekhemjlekhiinDugaar,
+        nekhemjlekhiinTuluv: r.nekhemjlekhiinTuluv,
+      }));
+      res.json({ jagsaalt });
     } catch (err) {
       next(err);
     }
