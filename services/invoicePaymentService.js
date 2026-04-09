@@ -3,6 +3,7 @@ const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
 const Geree = require("../models/geree");
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
+const { parseOgnooKeepClock } = require("../utils/parseOgnooKeepClock");
 
 function isAvlagaOnlyShellInvoiceDoc(inv) {
   const dugaar = String(inv?.nekhemjlekhiinDugaar || "");
@@ -123,6 +124,11 @@ async function markInvoicesAsPaid(options) {
   } = options;
 
   const ajiltanMeta = resolveGuilgeeKhiisenAjiltanFromOptions(options);
+
+  function resolvePaymentOgnoo() {
+    const d = parseOgnooKeepClock(ognoo);
+    return d && !Number.isNaN(d.getTime()) ? d : new Date();
+  }
 
   if (!baiguullagiinId) {
     throw new Error("baiguullagiinId is required");
@@ -344,7 +350,7 @@ async function markInvoicesAsPaid(options) {
       // NEW: Also create a history record for this prepayment so it's visible and counts
       // towards the dashboard balance reduction.
       try {
-        const paymentDate = ognoo ? new Date(ognoo) : new Date();
+        const paymentDate = resolvePaymentOgnoo();
         const prepayDoc = new GereeniiTulsunAvlagaModel({
           baiguullagiinId: String(baiguullagiinId),
           baiguullagiinNer: gereeToUpdate.baiguullagiinNer || "",
@@ -451,7 +457,7 @@ async function markInvoicesAsPaid(options) {
       }
 
       // Update invoice
-      const paymentDate = ognoo ? new Date(ognoo) : new Date();
+      const paymentDate = resolvePaymentOgnoo();
       const updateData = {
         $push: {
           paymentHistory: {
@@ -552,7 +558,7 @@ async function markInvoicesAsPaid(options) {
   }
 
   if (dun > 0 && (updatedInvoices.length > 0 || invoices.length > 0)) {
-    const paymentDate = ognoo ? new Date(ognoo) : new Date();
+    const paymentDate = resolvePaymentOgnoo();
     const firstInvoice =
       updatedInvoices.length > 0 ? updatedInvoices[0].invoice : invoices[0];
     try {

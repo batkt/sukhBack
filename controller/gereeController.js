@@ -5,31 +5,7 @@ const Medegdel = require("../models/medegdel");
 const { daraagiinTulukhOgnooZasya } = require("./tulbur");
 const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
 const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
-
-// Keep user-selected wall-clock time (e.g. 09:07 stays 09:07) when saving dates.
-// This avoids timezone shifts caused by parsing ISO offsets.
-function parseOgnooKeepClock(value) {
-  if (!value) return null;
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-
-  if (typeof value === "string") {
-    const m = value.match(
-      /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/,
-    );
-    if (m) {
-      const year = Number(m[1]);
-      const month = Number(m[2]) - 1;
-      const day = Number(m[3]);
-      const hour = Number(m[4] || 0);
-      const minute = Number(m[5] || 0);
-      const second = Number(m[6] || 0);
-      return new Date(year, month, day, hour, minute, second, 0);
-    }
-  }
-
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
+const { parseOgnooKeepClock } = require("../utils/parseOgnooKeepClock");
 
 exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
   try {
