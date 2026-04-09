@@ -1339,23 +1339,19 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
 
         if (rowsUntilDate.length === 0) return;
 
-        // Compute totals from the filtered ledger rows ONLY in the selected date range
+        // Compute CUMULATIVE totals from ALL ledger rows up to refDate
+        // Нийт = total charges, Төлсөн = total payments (not filtered by ekhlekhOgnoo)
         let undsenDun = 0;
         let tulsunDun = 0;
-        const startMs = ekhlekhOgnoo ? parseDate(ekhlekhOgnoo).getTime() : 0;
-        const endMs = refDate.getTime();
         
         rowsUntilDate.forEach((row) => {
-          const rowTime = row.ognoo ? new Date(row.ognoo).getTime() : 0;
-          if (rowTime >= startMs && rowTime <= endMs) {
-             undsenDun += Number(row.tulukhDun || 0);
-             tulsunDun += Number(row.tulsunDun || 0);
-          }
+           undsenDun += Number(row.tulukhDun || 0);
+           tulsunDun += Number(row.tulsunDun || 0);
         });
         undsenDun = Math.round(undsenDun * 100) / 100;
         tulsunDun = Math.round(tulsunDun * 100) / 100;
 
-        // Авлага = running balance as of refDate, OR use contract balance fallback
+        // Авлага = running balance as of refDate (actual remaining balance)
         const lastRow = rowsUntilDate[rowsUntilDate.length - 1];
         let uldegdel = Math.round((lastRow?.uldegdel ?? meta.globalUldegdel ?? meta.uldegdel ?? 0) * 100) / 100;
 
@@ -1386,10 +1382,13 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
         }
         if (remaining > 0) p120plus += remaining;
 
+        // Build proper name: combine ovog+ner correctly
+        const fullNer = [meta.ovog || "", meta.ner || ""].filter(Boolean).join(" ");
+
         residentMap[gid] = {
           _id: gid,
           gereeniiDugaar: meta.gereeniiDugaar || "",
-          ner: meta.ner || (meta.ovog ? `${meta.ovog} ${meta.ner}` : ""),
+          ner: fullNer,
           ovog: meta.ovog || "",
           utas: meta.utas || [],
           toot: meta.toot || meta.medeelel?.toot || "",
