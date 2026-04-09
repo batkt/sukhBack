@@ -1206,7 +1206,6 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
 
     const match = {
       baiguullagiinId: String(baiguullagiinId),
-      tuluv: { $ne: "Төлсөн" },
     };
     if (barilgiinId) match.barilgiinId = String(barilgiinId);
 
@@ -1245,16 +1244,9 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     };
     applySearch(match);
 
-    // When ekhlekhOgnoo is provided, filter invoices by date range
-    // Without it, show ALL unpaid invoices for complete aging view
-    if (ekhlekhOgnoo) {
-      const startDate = parseDate(ekhlekhOgnoo);
-      if (startDate) {
-        startDate.setHours(0, 0, 0, 0);
-        match.ognoo = match.ognoo || {};
-        match.ognoo.$gte = startDate;
-      }
-    }
+    // When ekhlekhOgnoo is provided, we don't filter invoices by start date 
+    // because Aging must be cumulative to show accurate total balances.
+    // We only use duusakhOgnoo for "as of" date filtering.
     if (duusakhOgnoo) {
       const endDate = parseDate(duusakhOgnoo);
       if (endDate) {
@@ -1264,129 +1256,136 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       }
     }
 
-    const standaloneMatch = {
-      baiguullagiinId: String(baiguullagiinId),
-      uldegdel: { $gt: 0 },
-      nekhemjlekhId: { $in: [null, ""] },
-    };
-    if (barilgiinId) standaloneMatch.barilgiinId = String(barilgiinId);
-    if (ekhlekhOgnoo || duusakhOgnoo) {
-      standaloneMatch.ognoo = {};
-      if (ekhlekhOgnoo) {
-        const s = parseDate(ekhlekhOgnoo);
-        if (s) { s.setHours(0, 0, 0, 0); standaloneMatch.ognoo.$gte = s; }
-      }
-      if (duusakhOgnoo) {
-        const e = parseDate(duusakhOgnoo);
-        if (e) { e.setHours(23, 59, 59, 999); standaloneMatch.ognoo.$lte = e; }
-      }
-      if (!Object.keys(standaloneMatch.ognoo).length) delete standaloneMatch.ognoo;
-    }
+    // ─── Use getHistoryLedger per contract for 100% accurate balances ─────────
+    // This matches the guilgeeTuukh (Ledger) page exactly.
+    const { getHistoryLedger } = require("../services/historyLedgerService");
+    const GereeniiTulukhAvlagaModel2 = require("../models/gereeniiTulukhAvlaga");
+    const GereeniiTulsunAvlagaModel2 = require("../models/gereeniiTulsunAvlaga");
 
-    const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
-
-    // Build standalone payment match (same date filtering)
-    const standalonePaidMatch = {
-      baiguullagiinId: String(baiguullagiinId),
-      nekhemjlekhId: { $in: [null, ""] },
-    };
-    if (barilgiinId) standalonePaidMatch.barilgiinId = String(barilgiinId);
-    if (ekhlekhOgnoo || duusakhOgnoo) {
-      standalonePaidMatch.ognoo = {};
-      if (ekhlekhOgnoo) {
-        const s = parseDate(ekhlekhOgnoo);
-        if (s) { s.setHours(0, 0, 0, 0); standalonePaidMatch.ognoo.$gte = s; }
-      }
-      if (duusakhOgnoo) {
-        const e = parseDate(duusakhOgnoo);
-        if (e) { e.setHours(23, 59, 59, 999); standalonePaidMatch.ognoo.$lte = e; }
-      }
-      if (!Object.keys(standalonePaidMatch.ognoo).length) delete standalonePaidMatch.ognoo;
-    }
-
-    const [invoices, standaloneReceivables, standalonePayments] = await Promise.all([
-      NekhemjlekhiinTuukh(kholbolt).find(match).lean(),
-      GereeniiTulukhAvlaga(kholbolt)
-        .find(standaloneMatch)
-        .lean(),
-      GereeniiTulsunAvlaga(kholbolt)
-        .find(standalonePaidMatch)
-        .lean(),
-    ]);
-
-    // Build a map of standalone payments per gereeId
-    const standalonePaidByGereeId = {};
-    standalonePayments.forEach((p) => {
-      const gid = String(p.gereeniiId);
-      if (!gid || gid === "undefined" || gid === "null") return;
-      standalonePaidByGereeId[gid] = (standalonePaidByGereeId[gid] || 0) + (Number(p.tulsunDun) || 0);
+    // Collect all geree IDs from active contracts in this building
+    const gereeQuery = { baiguullagiinId: String(baiguullagiinId) };
+    if (barilgiinId) gereeQuery.barilgiinId = String(barilgiinId);
+    
+    const allContractsList = await Geree(kholbolt).find(gereeQuery).lean();
+    const gereeContracts = allContractsList.filter(c => {
+      const st = String(c.tuluv || c.status || "").toLowerCase();
+      return st !== "цуцалсан" && st !== "tsutlsasan";
     });
 
-    const allGereeIds = [
-      ...new Set([
-        ...invoices.map((i) => String(i.gereeniiId)),
-        ...standaloneReceivables.map((r) => String(r.gereeniiId)),
-        ...standalonePayments.map((p) => String(p.gereeniiId)),
-      ]),
-    ].filter((id) => id && id !== "undefined" && id !== "null");
+    const allGereeIds = gereeContracts.map(c => String(c._id));
 
-    const contracts = await Geree(kholbolt)
-      .find({ _id: { $in: allGereeIds } })
-      .lean();
     const contractMap = {};
-    contracts.forEach((c) => (contractMap[String(c._id)] = c));
-
-    console.log(
-      `[tailanAvlagiinNasjilt] Received params - ekhlekhOgnoo: ${ekhlekhOgnoo}, duusakhOgnoo: ${duusakhOgnoo}`
-    );
+    gereeContracts.forEach((c) => (contractMap[String(c._id)] = c));
 
     const refDate = duusakhOgnoo
       ? parseDate(duusakhOgnoo) || new Date()
       : new Date();
     refDate.setHours(23, 59, 59, 999);
 
-    console.log(
-      `[tailanAvlagiinNasjilt] refDate: ${refDate.toISOString()}, duusakhOgnoo: ${duusakhOgnoo}`
-    );
+    console.log(`[tailanAvlagiinNasjilt] refDate: ${refDate.toISOString()}, total contracts: ${allGereeIds.length}`);
 
     const residentMap = {};
 
-    const processItem = (item, isStandalone = false) => {
-      // Use ognoo (invoice/billing date) as the PRIMARY date for aging.
-      // tulukhOgnoo is the PAY-BY date (often set to next month) which would
-      // produce negative days and cause items to be skipped entirely.
-      // Fallback chain: ognoo → createdAt → tulukhOgnoo
-      const agingDate = item.ognoo
-        ? parseDate(item.ognoo)
-        : item.createdAt
-        ? parseDate(item.createdAt)
-        : item.tulukhOgnoo
-        ? parseDate(item.tulukhOgnoo)
-        : null;
-      if (!agingDate || isNaN(agingDate.getTime())) return;
-      agingDate.setHours(0, 0, 0, 0);
+    // Process each contract using the same ledger service as guilgee tuukh
+    await Promise.all(
+      allGereeIds.map(async (gid) => {
+        const meta = contractMap[gid];
+        if (!meta) return;
 
-      const diffTime = refDate - agingDate;
-      const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        // Apply search/filter
+        if (search || orshinSuugch || toot || davkhar || gereeniiDugaar) {
+          if (search) {
+            const re = new RegExp(escapeRegex(String(search).trim()), "i");
+            if (!re.test(meta.ner) && !re.test(meta.ovog) && !re.test(meta.toot) && !re.test(meta.gereeniiDugaar)) return;
+          }
+          if (orshinSuugch) {
+            const rn = new RegExp(escapeRegex(String(orshinSuugch).trim()), "i");
+            if (!rn.test(meta.ner) && !rn.test(meta.ovog)) return;
+          }
+          if (toot) {
+            const rt = new RegExp(escapeRegex(String(toot).trim()), "i");
+            if (!rt.test(String(meta.toot || "")) && !rt.test(String(meta.medeelel?.toot || ""))) return;
+          }
+          if (davkhar) {
+            const rd = new RegExp(escapeRegex(String(davkhar).trim()), "i");
+            if (!rd.test(String(meta.davkhar || ""))) return;
+          }
+          if (gereeniiDugaar) {
+            const rg = new RegExp(escapeRegex(String(gereeniiDugaar).trim()), "i");
+            if (!rg.test(String(meta.gereeniiDugaar || ""))) return;
+          }
+        }
 
-      // If days is negative (future-dated invoice), put in 0-30 bucket
-      // instead of skipping — the charge still exists as receivable
-      const effectiveDays = Math.max(0, days);
+        let ledgerResult;
+        try {
+          ledgerResult = await getHistoryLedger({
+            gereeniiId: gid,
+            baiguullagiinId: String(baiguullagiinId),
+            barilgiinId: barilgiinId ? String(barilgiinId) : undefined,
+          });
+        } catch (e) {
+          console.error(`[Aging] getHistoryLedger failed for ${gid}:`, e.message);
+          return;
+        }
 
-      let bucket = "p120plus";
-      if (effectiveDays <= 30) bucket = "p0_30";
-      else if (effectiveDays <= 60) bucket = "p31_60";
-      else if (effectiveDays <= 90) bucket = "p61_90";
-      else bucket = "p120plus"; // Combine everything > 90 into 120+ bucket
+        const { jagsaalt } = ledgerResult;
+        if (!jagsaalt || jagsaalt.length === 0) return;
 
-      const amount = Number(
-        item.uldegdel ?? item.niitTulbur ?? item.undsenDun ?? 0
-      );
-      if (amount <= 0 && !isStandalone) return;
+        // Filter rows up to refDate for point-in-time snapshot
+        const rowsUntilDate = jagsaalt.filter((row) => {
+          const rowDate = row.ognoo ? new Date(row.ognoo) : null;
+          return rowDate && rowDate.getTime() <= refDate.getTime();
+        });
 
-      const gid = String(item.gereeniiId);
-      if (!residentMap[gid]) {
-        const meta = contractMap[gid] || item;
+        if (rowsUntilDate.length === 0) return;
+
+        // Compute totals from the filtered ledger rows ONLY in the selected date range
+        let undsenDun = 0;
+        let tulsunDun = 0;
+        const startMs = ekhlekhOgnoo ? parseDate(ekhlekhOgnoo).getTime() : 0;
+        const endMs = refDate.getTime();
+        
+        rowsUntilDate.forEach((row) => {
+          const rowTime = row.ognoo ? new Date(row.ognoo).getTime() : 0;
+          if (rowTime >= startMs && rowTime <= endMs) {
+             undsenDun += Number(row.tulukhDun || 0);
+             tulsunDun += Number(row.tulsunDun || 0);
+          }
+        });
+        undsenDun = Math.round(undsenDun * 100) / 100;
+        tulsunDun = Math.round(tulsunDun * 100) / 100;
+
+        // Авлага = running balance as of refDate, OR use contract balance fallback
+        const lastRow = rowsUntilDate[rowsUntilDate.length - 1];
+        let uldegdel = Math.round((lastRow?.uldegdel ?? meta.globalUldegdel ?? meta.uldegdel ?? 0) * 100) / 100;
+
+        // Skip if zero balance (allow minor floating point variance)
+        if (Math.abs(uldegdel) < 0.01) return;
+
+        // Oldest charge row for aging bucket
+        let maxDays = 0;
+        const chargeRows = rowsUntilDate.filter((r) => (r.tulukhDun || 0) > 0);
+        for (const row of chargeRows) {
+          const diffDays = Math.floor((refDate.getTime() - new Date(row.ognoo).getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays > maxDays) maxDays = diffDays;
+        }
+
+        // Distribute balance across aging buckets (oldest-first)
+        let remaining = uldegdel > 0 ? uldegdel : 0;
+        let p0_30 = 0, p31_60 = 0, p61_90 = 0, p120plus = 0;
+        const sortedChargeRows = [...chargeRows].sort((a, b) => new Date(a.ognoo) - new Date(b.ognoo));
+        for (const row of sortedChargeRows) {
+          if (remaining <= 0) break;
+          const days = Math.max(0, Math.floor((refDate.getTime() - new Date(row.ognoo).getTime()) / (1000 * 60 * 60 * 24)));
+          const amt = Math.min(remaining, row.tulukhDun || 0);
+          remaining -= amt;
+          if (days <= 30) p0_30 += amt;
+          else if (days <= 60) p31_60 += amt;
+          else if (days <= 90) p61_90 += amt;
+          else p120plus += amt;
+        }
+        if (remaining > 0) p120plus += remaining;
+
         residentMap[gid] = {
           _id: gid,
           gereeniiDugaar: meta.gereeniiDugaar || "",
@@ -1396,79 +1395,18 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
           toot: meta.toot || meta.medeelel?.toot || "",
           register: meta.register || meta.rd || "",
           davkhar: meta.davkhar || "",
-          undsenDun: 0,
+          undsenDun,
           khungulult: 0,
-          tulsunDun: 0,
-          uldegdel: 0,
-          p0_30: 0,
-          p31_60: 0,
-          p61_90: 0,
-          p120plus: 0,
-          maxDays: 0,
+          tulsunDun,
+          uldegdel,
+          p0_30: Math.round(p0_30 * 100) / 100,
+          p31_60: Math.round(p31_60 * 100) / 100,
+          p61_90: Math.round(p61_90 * 100) / 100,
+          p120plus: Math.round(p120plus * 100) / 100,
+          maxDays,
         };
-      }
-
-      const r = residentMap[gid];
-      const undsen = Number(item.niitTulbur ?? item.undsenDun ?? 0);
-      let tulsun = 0;
-      let khungulult = 0;
-
-      if (!isStandalone) {
-        tulsun = (item.paymentHistory || []).reduce(
-          (s, p) => s + (Number(p.dun) || 0),
-          0
-        );
-        khungulult = (item.medeelel?.khungulultuud || []).reduce(
-          (s, k) => s + (Number(k.dun) || 0),
-          0
-        );
-      } else {
-        tulsun = undsen - amount;
-      }
-
-      r.undsenDun += undsen;
-      r.tulsunDun += tulsun;
-      r.khungulult += khungulult;
-      r.uldegdel += amount;
-      r[bucket] += amount;
-      if (effectiveDays > r.maxDays) r.maxDays = effectiveDays;
-    };
-
-    invoices.forEach((i) => processItem(i));
-    standaloneReceivables.forEach((s) => {
-      const g = contractMap[String(s.gereeniiId)];
-      if (g) {
-        const re = search
-          ? new RegExp(escapeRegex(String(search).trim()), "i")
-          : null;
-        if (
-          re &&
-          !re.test(g.ner) &&
-          !re.test(g.ovog) &&
-          !re.test(g.toot) &&
-          !re.test(g.gereeniiDugaar)
-        )
-          return;
-        processItem(s, true);
-      }
-    });
-
-    // Apply standalone payments (GereeniiTulsunAvlaga) — subtract from tulsunDun
-    // and reduce uldegdel to match guilgeeTuukh page values
-    for (const [gid, paidAmount] of Object.entries(standalonePaidByGereeId)) {
-      if (!residentMap[gid]) continue;
-      const r = residentMap[gid];
-      r.tulsunDun += paidAmount;
-      r.uldegdel -= paidAmount;
-      // Redistribute reduced uldegdel across buckets (reduce from oldest first)
-      let remaining = paidAmount;
-      for (const b of ["p120plus", "p61_90", "p31_60", "p0_30"]) {
-        if (remaining <= 0) break;
-        const deduct = Math.min(r[b], remaining);
-        r[b] -= deduct;
-        remaining -= deduct;
-      }
-    }
+      })
+    );
 
     const detailedData = Object.values(residentMap).filter(
       (r) => Math.abs(r.uldegdel) > 0.01
@@ -2830,24 +2768,54 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       GereeniiTulsunAvlaga(kholbolt).find(standalonePaidMatch).lean(),
     ]);
 
-    // Fetch contracts for all involved records
-    const allGereeIds = [
-      ...new Set([
-        ...invoices.map((i) => String(i.gereeniiId)),
-        ...standaloneReceivables.map((r) => String(r.gereeniiId)),
-        ...standalonePayments.map((p) => String(p.gereeniiId)),
-      ]),
-    ].filter((id) => id && id !== "undefined" && id !== "null");
+    // Fetch ALL active contracts regardless of activity to accurately reflect the total building balance matching the Tulbur page
+    const gereeQuery = { baiguullagiinId: String(baiguullagiinId) };
+    if (barilgiinId) gereeQuery.barilgiinId = String(barilgiinId);
+    
+    const allContractsList = await Geree(kholbolt).find(gereeQuery).lean();
+    const contracts = allContractsList.filter(c => {
+      const st = String(c.tuluv || c.status || "").toLowerCase();
+      return st !== "цуцалсан" && st !== "tsutlsasan";
+    });
 
-    const contracts = await Geree(kholbolt).find({ _id: { $in: allGereeIds } }).lean();
     const contractMap = {};
     contracts.forEach((c) => (contractMap[String(c._id)] = c));
 
     // ── Group invoices by contract ───────────────────────────────────────────
     const groupMap = new Map();
 
+    // Pre-populate groupMap with ALL active contracts
+    contracts.forEach((c) => {
+       groupMap.set(String(c._id), {
+          _id: {
+            gereeniiId: String(c._id),
+            gereeniiDugaar: c.gereeniiDugaar || "",
+            register: c.register || c.rd || "",
+            ovog: c.ovog || "",
+            ner: c.ner || "",
+            utas: Array.isArray(c.utas) ? c.utas : c.utas ? [c.utas] : [],
+            davkhar: c.davkhar || "",
+            orts: c.orts || "",
+            toot: c.toot || c.medeelel?.toot || "",
+          },
+          avlaga: [],
+          niitTulukhDun: 0,
+          niitTulsunDun: 0,
+          niitUldegdel: 0, 
+          globalUldegdel: Number(c.globalUldegdel ?? c.uldegdel ?? 0),
+          invoiceToo: 0,
+          paymentToo: 0,
+          hasInvoiceEkhniiUldegdel: false,
+       });
+    });
+
     for (const inv of invoices) {
       const groupKey = inv.gereeniiId || inv.gereeniiDugaar || String(inv._id);
+      
+      // If contract is cancelled or not found, we skip to align with Active filter
+      if (!groupMap.has(groupKey) && inv.gereeniiId && !contractMap[String(inv.gereeniiId)]) {
+        continue;
+      }
 
       if (!groupMap.has(groupKey)) {
         const c = contractMap[String(inv.gereeniiId)] || inv;
@@ -2867,7 +2835,8 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
           avlaga: [],
           niitTulukhDun: 0,
           niitTulsunDun: 0,
-          niitUldegdel: 0, // Sum of all receivables/charges in the period (ignoring payments)
+          niitUldegdel: 0, 
+          globalUldegdel: Number(c.globalUldegdel ?? c.uldegdel ?? 0),
           invoiceToo: 0,
           paymentToo: 0,
           hasInvoiceEkhniiUldegdel: false,
@@ -2935,6 +2904,10 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       const gid = String(s.gereeniiId);
       if (!gid || gid === "undefined" || gid === "null") continue;
       
+      if (!groupMap.has(gid) && !contractMap[gid]) {
+         continue; // Exclude inactive contracts
+      }
+      
       const meta = contractMap[gid] || s;
       if (!groupMap.has(gid)) {
         groupMap.set(gid, {
@@ -2995,6 +2968,10 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       const gid = String(p.gereeniiId);
       if (!gid || gid === "undefined" || gid === "null") continue;
 
+      if (!groupMap.has(gid) && !contractMap[gid]) {
+         continue;
+      }
+
       if (!groupMap.has(gid)) {
          const meta = contractMap[gid] || p;
          groupMap.set(gid, {
@@ -3019,9 +2996,14 @@ exports.tailanNegtgelTailan = asyncHandler(async (req, res, next) => {
       }
 
       const group = groupMap.get(gid);
+      if (!group.globalUldegdel && groupMap.has(gid)) {
+         const meta = contractMap[gid];
+         if (meta) {
+           group.globalUldegdel = Number(meta.globalUldegdel ?? meta.uldegdel ?? 0);
+         }
+      }
       const paidDun = Number(p.tulsunDun || 0);
       group.niitTulsunDun += paidDun;
-      // Payments do not affect the 'Sum of Receivables' total column
       group.paymentToo += 1;
     }
 
