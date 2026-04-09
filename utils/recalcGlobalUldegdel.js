@@ -178,7 +178,6 @@ async function recalcGlobalUldegdel({
       const tulukhRowAmt = (row) =>
         Math.round(
           (Number(row.uldegdel) ||
-            Number(row.undsenDun) ||
             Number(row.tulukhDun) ||
             0) * 100,
         ) / 100;
@@ -535,15 +534,18 @@ async function recalcGlobalUldegdelFallback({
     baiguullagiinId: oid,
     gereeniiId: gid,
   })
-    .select("undsenDun tulukhDun")
+    .select("undsenDun tulukhDun uldegdel")
     .lean();
   for (const a of allAvlaga) {
+    // Prefer net (tulukhDun / uldegdel) so gross undsenDun does not inflate charges when credit covered the line.
     const amount =
-      Number.isFinite(a.undsenDun) && a.undsenDun > 0
-        ? a.undsenDun
-        : Number.isFinite(a.tulukhDun) && a.tulukhDun > 0
-          ? a.tulukhDun
-          : 0;
+      Number.isFinite(a.tulukhDun) && a.tulukhDun > 0.01
+        ? a.tulukhDun
+        : Number.isFinite(a.uldegdel) && a.uldegdel > 0.01
+          ? a.uldegdel
+          : Number.isFinite(a.undsenDun) && a.undsenDun > 0.01
+            ? a.undsenDun
+            : 0;
     if (amount > 0) {
       totalCharges += amount;
     }

@@ -118,7 +118,7 @@ async function getHistoryLedger(options) {
       .sort({ ognoo: 1, createdAt: 1 }),
     GereeModel.findById(gereeniiId)
       .select(
-        "ekhniiUldegdel gereeniiOgnoo createdAt zardluud globalUldegdel positiveBalance burtgesenAjiltan",
+        "ekhniiUldegdel gereeniiOgnoo createdAt zardluud globalUldegdel positiveBalance burtgesenAjiltan +avlaga",
       )
       .lean(),
   ]);
@@ -232,23 +232,49 @@ async function getHistoryLedger(options) {
     }
   }
 
+  // Match tulukh-avlaga rows to geree.avlaga.guilgeenuud by _id (same id when saved from gereeniiGuilgeeKhadgalya).
+  // Those entries keep the user-entered tulukhDun even if gereeniiTulukhAvlaga.undsenDun was never backfilled.
+  const avlagaGuilgeeById = new Map();
+  const avlagaGuilgeenuud = gereeDoc?.avlaga?.guilgeenuud || [];
+  for (const g of avlagaGuilgeenuud) {
+    if (g && g._id != null) avlagaGuilgeeById.set(String(g._id), g);
+  }
+
   // 2) GereeniiTulukhAvlaga (every avlaga / receivable — Эхний үлдэгдэл, Авлага, etc.)
   const skipTulukhEkhniiDuplicate = invoicesAlreadyShowEkhniiOpening(invoices);
   for (const s of tulukhList) {
     if (skipTulukhEkhniiDuplicate && tulukhAvlagaIsEkhniiDuplicate(s)) {
       continue;
     }
-    const tulukhDun =
-      typeof s.tulukhDun === "number"
+    const netTulukh =
+      typeof s.tulukhDun === "number" && !Number.isNaN(s.tulukhDun)
         ? s.tulukhDun
-        : s.undsenDun != null
-          ? Number(s.undsenDun)
-          : 0;
+        : 0;
+    const grossUndsen =
+      typeof s.undsenDun === "number" && !Number.isNaN(s.undsenDun)
+        ? s.undsenDun
+        : 0;
+    const matchedGuilgee = avlagaGuilgeeById.get(String(s._id));
+    const fromGuilgeeGross =
+      matchedGuilgee != null
+        ? Number(matchedGuilgee.tulukhDun) ||
+          Number(matchedGuilgee.dun) ||
+          Number(matchedGuilgee.undsenDun) ||
+          0
+        : 0;
+    // Display: DB gross, else embedded geree guilgee amount, else net.
+    const displayTulukh =
+      grossUndsen > 0.01
+        ? grossUndsen
+        : fromGuilgeeGross > 0.01
+          ? fromGuilgeeGross
+          : netTulukh;
     const ognoo = s.ognoo || s.createdAt;
     rawRows.push({
       ognoo: ognoo ? new Date(ognoo) : new Date(0),
       createdAt: s.createdAt ? new Date(s.createdAt) : new Date(0),
-      tulukhDun,
+      tulukhDun: displayTulukh,
+      tulukhDunNet: netTulukh,
       tulsunDun: 0,
       ner: s.zardliinNer || s.tailbar || "Авлага",
       isSystem: !!s.ekhniiUldegdelEsekh,
@@ -376,8 +402,16 @@ async function getHistoryLedger(options) {
     const sa = SRC_ORDER[a.sourceCollection] ?? 99;
     const sb = SRC_ORDER[b.sourceCollection] ?? 99;
     if (sa !== sb) return sa - sb;
-    const chargeFirstA = (a.tulukhDun ?? 0) > 0 ? 0 : 1;
-    const chargeFirstB = (b.tulukhDun ?? 0) > 0 ? 0 : 1;
+    const chargeFirstA =
+      ((a.tulukhDunNet ?? a.tulukhDun) ?? 0) > 0.01 ||
+      (a.tulukhDun ?? 0) > 0.01
+        ? 0
+        : 1;
+    const chargeFirstB =
+      ((b.tulukhDunNet ?? b.tulukhDun) ?? 0) > 0.01 ||
+      (b.tulukhDun ?? 0) > 0.01
+        ? 0
+        : 1;
     if (chargeFirstA !== chargeFirstB) return chargeFirstA - chargeFirstB;
     return String(a._id).localeCompare(String(b._id));
   });
@@ -387,14 +421,20 @@ async function getHistoryLedger(options) {
   // Round to 2dp at each step to eliminate float precision artifacts (e.g. -5999.199999999996)
   let runningBalance = 0;
   let jagsaalt = rawRows.map((row) => {
-    const charge = Math.round((row.tulukhDun ?? 0) * 100) / 100;
+    const balanceCharge =
+      row.tulukhDunNet != null
+        ? Math.round((row.tulukhDunNet ?? 0) * 100) / 100
+        : Math.round((row.tulukhDun ?? 0) * 100) / 100;
+    const displayCharge = Math.round((row.tulukhDun ?? 0) * 100) / 100;
     const pay = Math.round((row.tulsunDun ?? 0) * 100) / 100;
-    runningBalance = Math.round((runningBalance + charge - pay) * 100) / 100;
+    runningBalance = Math.round(
+      (runningBalance + balanceCharge - pay) * 100,
+    ) / 100;
     return {
       _id: row._id,
       ognoo: toOgnooString(row.ognoo),
       ner: row.ner,
-      tulukhDun: charge,
+      tulukhDun: displayCharge,
       tulsunDun: pay,
       uldegdel: runningBalance,
       isSystem: !!row.isSystem,

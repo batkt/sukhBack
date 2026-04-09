@@ -196,9 +196,9 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
               parseOgnooKeepClock(guilgee.ognoo) ||
               guilgee.guilgeeKhiisenOgnoo ||
               new Date(),
-            // If there is existing overpayment credit, consume it first so new avlaga does not
-            // appear as an artificial "break" in ledger right after large payments.
-            undsenDun: netCharge,
+            // Gross (undsenDun) = what the user entered — shown in Хуулга "Төлөх дүн".
+            // tulukhDun / uldegdel = net after positiveBalance credit (economic debt on this line).
+            undsenDun: charge,
             tulukhDun: netCharge,
             uldegdel: netCharge,
             turul: "avlaga",
