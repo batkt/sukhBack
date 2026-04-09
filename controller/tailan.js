@@ -1245,16 +1245,9 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     };
     applySearch(match);
 
-    // When ekhlekhOgnoo is provided, filter invoices by date range
-    // Without it, show ALL unpaid invoices for complete aging view
-    if (ekhlekhOgnoo) {
-      const startDate = parseDate(ekhlekhOgnoo);
-      if (startDate) {
-        startDate.setHours(0, 0, 0, 0);
-        match.ognoo = match.ognoo || {};
-        match.ognoo.$gte = startDate;
-      }
-    }
+    // When ekhlekhOgnoo is provided, we don't filter invoices by start date 
+    // because Aging must be cumulative to show accurate total balances.
+    // We only use duusakhOgnoo for "as of" date filtering.
     if (duusakhOgnoo) {
       const endDate = parseDate(duusakhOgnoo);
       if (endDate) {
@@ -1270,16 +1263,10 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       nekhemjlekhId: { $in: [null, ""] },
     };
     if (barilgiinId) standaloneMatch.barilgiinId = String(barilgiinId);
-    if (ekhlekhOgnoo || duusakhOgnoo) {
+    if (duusakhOgnoo) {
       standaloneMatch.ognoo = {};
-      if (ekhlekhOgnoo) {
-        const s = parseDate(ekhlekhOgnoo);
-        if (s) { s.setHours(0, 0, 0, 0); standaloneMatch.ognoo.$gte = s; }
-      }
-      if (duusakhOgnoo) {
-        const e = parseDate(duusakhOgnoo);
-        if (e) { e.setHours(23, 59, 59, 999); standaloneMatch.ognoo.$lte = e; }
-      }
+      const e = parseDate(duusakhOgnoo);
+      if (e) { e.setHours(23, 59, 59, 999); standaloneMatch.ognoo.$lte = e; }
       if (!Object.keys(standaloneMatch.ognoo).length) delete standaloneMatch.ognoo;
     }
 
@@ -1291,16 +1278,10 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
       nekhemjlekhId: { $in: [null, ""] },
     };
     if (barilgiinId) standalonePaidMatch.barilgiinId = String(barilgiinId);
-    if (ekhlekhOgnoo || duusakhOgnoo) {
+    if (duusakhOgnoo) {
       standalonePaidMatch.ognoo = {};
-      if (ekhlekhOgnoo) {
-        const s = parseDate(ekhlekhOgnoo);
-        if (s) { s.setHours(0, 0, 0, 0); standalonePaidMatch.ognoo.$gte = s; }
-      }
-      if (duusakhOgnoo) {
-        const e = parseDate(duusakhOgnoo);
-        if (e) { e.setHours(23, 59, 59, 999); standalonePaidMatch.ognoo.$lte = e; }
-      }
+      const e = parseDate(duusakhOgnoo);
+      if (e) { e.setHours(23, 59, 59, 999); standalonePaidMatch.ognoo.$lte = e; }
       if (!Object.keys(standalonePaidMatch.ognoo).length) delete standalonePaidMatch.ognoo;
     }
 
@@ -1456,7 +1437,29 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
     // Apply standalone payments (GereeniiTulsunAvlaga) — subtract from tulsunDun
     // and reduce uldegdel to match guilgeeTuukh page values
     for (const [gid, paidAmount] of Object.entries(standalonePaidByGereeId)) {
-      if (!residentMap[gid]) continue;
+      if (!residentMap[gid]) {
+        const meta = contractMap[gid];
+        if (!meta) continue;
+        residentMap[gid] = {
+          _id: gid,
+          gereeniiDugaar: meta.gereeniiDugaar || "",
+          ner: meta.ner || (meta.ovog ? `${meta.ovog} ${meta.ner}` : ""),
+          ovog: meta.ovog || "",
+          utas: meta.utas || [],
+          toot: meta.toot || meta.medeelel?.toot || "",
+          register: meta.register || meta.rd || "",
+          davkhar: meta.davkhar || "",
+          undsenDun: 0,
+          khungulult: 0,
+          tulsunDun: 0,
+          uldegdel: 0,
+          p0_30: 0,
+          p31_60: 0,
+          p61_90: 0,
+          p120plus: 0,
+          maxDays: 0,
+        };
+      }
       const r = residentMap[gid];
       r.tulsunDun += paidAmount;
       r.uldegdel -= paidAmount;
