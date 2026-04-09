@@ -74,12 +74,27 @@ function resolveGuilgeeKhiisenAjiltanFromOptions(options) {
 
   if (!id && options.createdBy != null && String(options.createdBy).trim() !== "")
     id = String(options.createdBy);
+  if (
+    !id &&
+    options.burtgesenAjiltaniiId != null &&
+    String(options.burtgesenAjiltaniiId).trim() !== ""
+  )
+    id = String(options.burtgesenAjiltaniiId);
+  if (
+    !id &&
+    options.burtgesenAjiltan != null &&
+    String(options.burtgesenAjiltan).trim() !== ""
+  )
+    id = String(options.burtgesenAjiltan);
 
   if (!ner) {
     const nameCandidate =
+      options.burtgesenAjiltaniiNer ||
       options.createdByNer ||
       options.ajiltanNer ||
-      options.burtgesenAjiltaniiNer;
+      (typeof options.guilgeeKhiisenAjiltniiNer === "string"
+        ? options.guilgeeKhiisenAjiltniiNer
+        : null);
     if (nameCandidate != null && String(nameCandidate).trim() !== "")
       ner = String(nameCandidate);
   }

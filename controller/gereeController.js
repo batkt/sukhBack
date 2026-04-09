@@ -115,15 +115,24 @@ exports.gereeniiGuilgeeKhadgalya = asyncHandler(async (req, res, next) => {
     const missingAjiltanNer =
       guilgee.guilgeeKhiisenAjiltniiNer == null ||
       String(guilgee.guilgeeKhiisenAjiltniiNer).trim() === "";
-    if (
-      missingAjiltanId &&
-      req.body.createdBy != null &&
-      String(req.body.createdBy).trim() !== ""
-    ) {
-      guilgee.guilgeeKhiisenAjiltniiId = String(req.body.createdBy);
+    if (missingAjiltanId) {
+      if (req.body.createdBy != null && String(req.body.createdBy).trim() !== "") {
+        guilgee.guilgeeKhiisenAjiltniiId = String(req.body.createdBy);
+      } else if (
+        req.body.burtgesenAjiltaniiId != null &&
+        String(req.body.burtgesenAjiltaniiId).trim() !== ""
+      ) {
+        guilgee.guilgeeKhiisenAjiltniiId = String(req.body.burtgesenAjiltaniiId);
+      } else if (
+        req.body.burtgesenAjiltan != null &&
+        String(req.body.burtgesenAjiltan).trim() !== ""
+      ) {
+        guilgee.guilgeeKhiisenAjiltniiId = String(req.body.burtgesenAjiltan);
+      }
     }
     if (missingAjiltanNer) {
       const ner =
+        req.body.burtgesenAjiltaniiNer ||
         req.body.createdByNer ||
         req.body.ajiltanNer ||
         (typeof req.body.guilgeeKhiisenAjiltniiNer === "string"

@@ -275,7 +275,10 @@ async function getHistoryLedger(options) {
       ner: p.tailbar || "Төлбөр",
       isSystem: false,
       _id: p._id.toString(),
-      ajiltan: p.guilgeeKhiisenAjiltniiNer || "",
+      ajiltan:
+        p.guilgeeKhiisenAjiltniiNer ||
+        p.guilgeeKhiisenAjiltniiId ||
+        "",
       khelber: p.turul || p.source || "Төлбөр",
       tailbar: p.tailbar || "",
       burtgesenOgnoo: p.createdAt
