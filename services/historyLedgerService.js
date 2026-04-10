@@ -389,12 +389,7 @@ async function getHistoryLedger(options) {
     const da = dayOnly(a.ognoo);
     const db = dayOnly(b.ognoo);
     if (da !== db) return da - db;
-    const ca = a.createdAt.getTime();
-    const cb = b.createdAt.getTime();
-    if (ca !== cb) return ca - cb;
-    const sa = SRC_ORDER[a.sourceCollection] ?? 99;
-    const sb = SRC_ORDER[b.sourceCollection] ?? 99;
-    if (sa !== sb) return sa - sb;
+
     const isEkhniiA =
       a.ner === "Эхний үлдэгдэл" || (a.tailbar && a.tailbar.includes("Эхний үлдэгдэл"))
         ? 0
@@ -404,6 +399,14 @@ async function getHistoryLedger(options) {
         ? 0
         : 1;
     if (isEkhniiA !== isEkhniiB) return isEkhniiA - isEkhniiB;
+
+    const sa = SRC_ORDER[a.sourceCollection] ?? 99;
+    const sb = SRC_ORDER[b.sourceCollection] ?? 99;
+    if (sa !== sb) return sa - sb;
+
+    const ca = a.createdAt.getTime();
+    const cb = b.createdAt.getTime();
+    if (ca !== cb) return ca - cb;
 
     const chargeFirstA =
       (a.tulukhDunNet ?? a.tulukhDun ?? 0) > 0.01 || (a.tulukhDun ?? 0) > 0.01
@@ -431,12 +434,11 @@ async function getHistoryLedger(options) {
     const displayCharge = grossPart;
     const pay = Math.round((row.tulsunDun ?? 0) * 100) / 100;
     
-    // If it's an opening balance row, it's already included in the starting runningBalance
-    // so we don't add it again to the running sum, but we keep it for display.
+    // If it's an opening balance row, its value is already accounted for in the initial runningBalance.
+    // We only subtract payments made in that row if any.
     if (!isEkhnii) {
       runningBalance = Math.round((runningBalance + balanceCharge - pay) * 100) / 100;
     } else {
-      // For Opening Balance rows, we only account for any payments made against them in this row
       runningBalance = Math.round((runningBalance - pay) * 100) / 100;
     }
     return {
