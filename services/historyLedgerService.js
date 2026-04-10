@@ -389,25 +389,12 @@ async function getHistoryLedger(options) {
     const da = dayOnly(a.ognoo);
     const db = dayOnly(b.ognoo);
     if (da !== db) return da - db;
-
-    const isEkhniiA =
-      a.ner === "Эхний үлдэгдэл" || (a.tailbar && a.tailbar.includes("Эхний үлдэгдэл"))
-        ? 0
-        : 1;
-    const isEkhniiB =
-      b.ner === "Эхний үлдэгдэл" || (b.tailbar && b.tailbar.includes("Эхний үлдэгдэл"))
-        ? 0
-        : 1;
-    if (isEkhniiA !== isEkhniiB) return isEkhniiA - isEkhniiB;
-
-    const sa = SRC_ORDER[a.sourceCollection] ?? 99;
-    const sb = SRC_ORDER[b.sourceCollection] ?? 99;
-    if (sa !== sb) return sa - sb;
-
     const ca = a.createdAt.getTime();
     const cb = b.createdAt.getTime();
     if (ca !== cb) return ca - cb;
-
+    const sa = SRC_ORDER[a.sourceCollection] ?? 99;
+    const sb = SRC_ORDER[b.sourceCollection] ?? 99;
+    if (sa !== sb) return sa - sb;
     const chargeFirstA =
       (a.tulukhDunNet ?? a.tulukhDun ?? 0) > 0.01 || (a.tulukhDun ?? 0) > 0.01
         ? 0
@@ -419,11 +406,8 @@ async function getHistoryLedger(options) {
     if (chargeFirstA !== chargeFirstB) return chargeFirstA - chargeFirstB;
     return String(a._id).localeCompare(String(b._id));
   });
-  let runningBalance = Number(gereeDoc?.ekhniiUldegdel || 0);
+  let runningBalance = 0;
   let jagsaalt = rawRows.map((row) => {
-    const isEkhnii =
-      row.ner === "Эхний үлдэгдэл" || (row.tailbar && row.tailbar.includes("Эхний үлдэгдэл"));
-
     const grossPart = Math.round((row.tulukhDun ?? 0) * 100) / 100;
     const netPart =
       row.tulukhDunNet != null && !Number.isNaN(row.tulukhDunNet)
@@ -433,14 +417,8 @@ async function getHistoryLedger(options) {
       netPart != null && netPart > 0.01 ? netPart : grossPart;
     const displayCharge = grossPart;
     const pay = Math.round((row.tulsunDun ?? 0) * 100) / 100;
-    
-    // If it's an opening balance row, its value is already accounted for in the initial runningBalance.
-    // We only subtract payments made in that row if any.
-    if (!isEkhnii) {
-      runningBalance = Math.round((runningBalance + balanceCharge - pay) * 100) / 100;
-    } else {
-      runningBalance = Math.round((runningBalance - pay) * 100) / 100;
-    }
+    runningBalance =
+      Math.round((runningBalance + balanceCharge - pay) * 100) / 100;
     return {
       _id: row._id,
       ognoo: toOgnooString(row.ognoo),
@@ -472,30 +450,19 @@ async function getHistoryLedger(options) {
   // No normalization — running balance is the pure cumulative sum of each row's charge minus payment.
   // globalUldegdel from geree is returned separately for the frontend summary/total display.
 
-  console.log(`📑 [LEDGER ${gid}] Final running balance: ${runningBalance}`);
-
   const rawGlobalUldegdel =
     gereeDoc && typeof gereeDoc.globalUldegdel === "number"
       ? gereeDoc.globalUldegdel
       : jagsaalt.length > 0
         ? jagsaalt[jagsaalt.length - 1].uldegdel
         : 0;
-
-  const rawPositiveBalance =
+  const globalUldegdel = Math.round(rawGlobalUldegdel * 100) / 100;
+  const positiveBalance =
     gereeDoc && typeof gereeDoc.positiveBalance === "number"
-      ? gereeDoc.positiveBalance
-      : rawGlobalUldegdel < 0
-        ? Math.abs(rawGlobalUldegdel)
-        : 0;
+      ? Math.round(gereeDoc.positiveBalance * 100) / 100
+      : 0;
 
-  console.log(`📑 [LEDGER ${gid}] Global Balance (Doc): ${gereeDoc?.globalUldegdel}, Final Ledger Row: ${jagsaalt.length > 0 ? jagsaalt[jagsaalt.length - 1].uldegdel : "none"}`);
-  console.log(`📑 [LEDGER ${gid}] Positive Balance: ${rawPositiveBalance}`);
-
-  return {
-    jagsaalt,
-    globalUldegdel: rawGlobalUldegdel,
-    positiveBalance: rawPositiveBalance,
-  };
+  return { jagsaalt, globalUldegdel, positiveBalance };
 }
 
 module.exports = {
