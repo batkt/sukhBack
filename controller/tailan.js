@@ -1369,7 +1369,7 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
         // Distribute balance across aging buckets (oldest-first)
         let remaining = uldegdel > 0 ? uldegdel : 0;
         let p0_30 = 0, p31_60 = 0, p61_90 = 0, p120plus = 0;
-        const sortedChargeRows = [...chargeRows].sort((a, b) => new Date(a.ognoo) - new Date(b.ognoo));
+        const sortedChargeRows = [...chargeRows].sort((a, b) => new Date(b.ognoo) - new Date(a.ognoo));
         for (const row of sortedChargeRows) {
           if (remaining <= 0) break;
           const days = Math.max(0, Math.floor((refDate.getTime() - new Date(row.ognoo).getTime()) / (1000 * 60 * 60 * 24)));
