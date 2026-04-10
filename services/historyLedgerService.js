@@ -395,6 +395,16 @@ async function getHistoryLedger(options) {
     const sa = SRC_ORDER[a.sourceCollection] ?? 99;
     const sb = SRC_ORDER[b.sourceCollection] ?? 99;
     if (sa !== sb) return sa - sb;
+    const isEkhniiA =
+      a.ner === "Эхний үлдэгдэл" || (a.tailbar && a.tailbar.includes("Эхний үлдэгдэл"))
+        ? 0
+        : 1;
+    const isEkhniiB =
+      b.ner === "Эхний үлдэгдэл" || (b.tailbar && b.tailbar.includes("Эхний үлдэгдэл"))
+        ? 0
+        : 1;
+    if (isEkhniiA !== isEkhniiB) return isEkhniiA - isEkhniiB;
+
     const chargeFirstA =
       (a.tulukhDunNet ?? a.tulukhDun ?? 0) > 0.01 || (a.tulukhDun ?? 0) > 0.01
         ? 0
