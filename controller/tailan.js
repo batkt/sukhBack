@@ -2052,43 +2052,32 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
     } else if (report === "avlagiin-nasjilt") {
       headers = [
         "Гэрээний дугаар",
-        "Овог",
-        "Нэр",
+        "Оршин суугч",
         "Утас",
-        "Тоот",
         "Давхар",
-        "Байр",
-        "Орц",
-        "Огноо",
-        "Төлөх огноо",
-        "Нийт төлбөр",
-        "Төлөв",
-        "Хугацаа хэтэрсэн хоног",
-        "Хугацаа хэтэрсэн сар",
-        "Насжилтын ангилал",
+        "Тоот",
+        "Төлөх",
+        "Төлсөн",
+        "Нийт үлдэгдэл",
+        "0-30",
+        "31-60",
+        "61-90",
+        "120+",
       ];
       rows = (data.detailed?.list || []).map((r) => {
-        let ogStr = "";
-        try { if(r.ognoo) { const d = new Date(r.ognoo); if(!isNaN(d.getTime())) ogStr = d.toLocaleDateString("mn-MN"); } } catch(e){}
-        let tuStr = "";
-        try { if(r.tulukhOgnoo) { const d = new Date(r.tulukhOgnoo); if(!isNaN(d.getTime())) tuStr = d.toLocaleDateString("mn-MN"); } } catch(e){}
-
         return [
           r.gereeniiDugaar || "",
-          r.ovog || "",
           r.ner || "",
           Array.isArray(r.utas) ? r.utas.join(", ") : r.utas || "",
-          r.toot || "",
           r.davkhar || "",
-          r.bairNer || "",
-          r.orts || "",
-          ogStr,
-          tuStr,
-          r.niitTulbur || 0,
-          r.tuluv || "",
-          r.daysOverdue || 0,
-          r.monthsOverdue || 0,
-          r.ageBucket || "",
+          r.toot || "",
+          r.undsenDun || 0,
+          r.tulsunDun || 0,
+          r.uldegdel || 0,
+          r.p0_30 || 0,
+          r.p31_60 || 0,
+          r.p61_90 || 0,
+          r.p120plus || 0,
         ];
       });
       fileName = "avlagiin_nasjilt";
