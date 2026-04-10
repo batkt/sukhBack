@@ -416,8 +416,11 @@ async function getHistoryLedger(options) {
     if (chargeFirstA !== chargeFirstB) return chargeFirstA - chargeFirstB;
     return String(a._id).localeCompare(String(b._id));
   });
-  let runningBalance = 0;
+  let runningBalance = Number(gereeDoc?.ekhniiUldegdel || 0);
   let jagsaalt = rawRows.map((row) => {
+    const isEkhnii =
+      row.ner === "Эхний үлдэгдэл" || (row.tailbar && row.tailbar.includes("Эхний үлдэгдэл"));
+
     const grossPart = Math.round((row.tulukhDun ?? 0) * 100) / 100;
     const netPart =
       row.tulukhDunNet != null && !Number.isNaN(row.tulukhDunNet)
@@ -427,8 +430,15 @@ async function getHistoryLedger(options) {
       netPart != null && netPart > 0.01 ? netPart : grossPart;
     const displayCharge = grossPart;
     const pay = Math.round((row.tulsunDun ?? 0) * 100) / 100;
-    runningBalance =
-      Math.round((runningBalance + balanceCharge - pay) * 100) / 100;
+    
+    // If it's an opening balance row, it's already included in the starting runningBalance
+    // so we don't add it again to the running sum, but we keep it for display.
+    if (!isEkhnii) {
+      runningBalance = Math.round((runningBalance + balanceCharge - pay) * 100) / 100;
+    } else {
+      // For Opening Balance rows, we only account for any payments made against them in this row
+      runningBalance = Math.round((runningBalance - pay) * 100) / 100;
+    }
     return {
       _id: row._id,
       ognoo: toOgnooString(row.ognoo),
