@@ -152,6 +152,7 @@ async function getHistoryLedger(options) {
       burtgesenOgnoo: gereeDoc.createdAt
         ? new Date(gereeDoc.createdAt).toISOString()
         : undefined,
+      agingDate: gereeOgnoo ? new Date(gereeOgnoo) : new Date(0),
       sourceCollection: "geree",
     });
   }
@@ -195,6 +196,7 @@ async function getHistoryLedger(options) {
         burtgesenOgnoo,
         parentInvoiceId: invId,
         sourceCollection: "nekhemjlekhiinTuukh",
+        agingDate: invOgnoo ? new Date(invOgnoo) : new Date(0),
         ...(nekhemjlekhiinDugaar && { nekhemjlekhiinDugaar }),
         ...(invoiceUldegdel != null && { invoiceUldegdel }),
         ...(nekhemjlekhiinTuluv && { nekhemjlekhiinTuluv }),
@@ -225,6 +227,7 @@ async function getHistoryLedger(options) {
         burtgesenOgnoo,
         parentInvoiceId: invId,
         sourceCollection: "nekhemjlekhiinTuukh",
+        agingDate: invOgnoo ? new Date(invOgnoo) : new Date(0),
         ...(nekhemjlekhiinDugaar && { nekhemjlekhiinDugaar }),
         ...(invoiceUldegdel != null && { invoiceUldegdel }),
         ...(nekhemjlekhiinTuluv && { nekhemjlekhiinTuluv }),
@@ -282,6 +285,7 @@ async function getHistoryLedger(options) {
       burtgesenOgnoo: s.createdAt
         ? new Date(s.createdAt).toISOString()
         : undefined,
+      agingDate: ognoo ? new Date(ognoo) : new Date(0),
       sourceCollection: "gereeniiTulukhAvlaga",
     });
   }
@@ -304,6 +308,7 @@ async function getHistoryLedger(options) {
       burtgesenOgnoo: p.createdAt
         ? new Date(p.createdAt).toISOString()
         : undefined,
+      agingDate: ognoo ? new Date(ognoo) : new Date(0),
       sourceCollection: "gereeniiTulsunAvlaga",
     });
   }
@@ -344,6 +349,7 @@ async function getHistoryLedger(options) {
         khelber: "Нэхэмжлэх",
         tailbar: z.tailbar || z.ner || "",
         burtgesenOgnoo,
+        agingDate: gereeOgnoo ? new Date(gereeOgnoo) : new Date(0),
         sourceCollection: "geree",
       });
     });
@@ -366,6 +372,7 @@ async function getHistoryLedger(options) {
       ajiltan: "Систем",
       khelber: "Нэхэмжлэх",
       tailbar: "",
+      agingDate: gereeOgnoo ? new Date(gereeOgnoo) : new Date(0),
       sourceCollection: "geree",
     });
   }
@@ -443,6 +450,7 @@ async function getHistoryLedger(options) {
       ...(row.nekhemjlekhiinTuluv && {
         nekhemjlekhiinTuluv: row.nekhemjlekhiinTuluv,
       }),
+      agingDate: toOgnooString(row.agingDate),
       sourceCollection: row.sourceCollection,
     };
   });

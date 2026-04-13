@@ -1341,46 +1341,39 @@ exports.tailanAvlagiinNasjilt = asyncHandler(async (req, res, next) => {
 
         // Compute CUMULATIVE totals from ALL ledger rows up to refDate
         // Нийт = total charges, Төлсөн = total payments (not filtered by ekhlekhOgnoo)
-        let undsenDun = 0;
-        let tulsunDun = 0;
-        
+        let undsenDun = 0, tulsunDun = 0;
+        let p0_30 = 0, p31_60 = 0, p61_90 = 0, p120plus = 0;
+
         rowsUntilDate.forEach((row) => {
-           undsenDun += Number(row.tulukhDun || 0);
-           tulsunDun += Number(row.tulsunDun || 0);
+          undsenDun += Number(row.tulukhDun || 0);
+          tulsunDun += Number(row.tulsunDun || 0);
+
+          const netVal = (Number(row.tulukhDun) || 0) - (Number(row.tulsunDun) || 0);
+          if (Math.abs(netVal) < 0.01) return;
+
+          // For aging, use agingDate (pinned to invoice if linked)
+          const ad = row.agingDate ? new Date(row.agingDate) : new Date(row.ognoo);
+          const days = Math.max(0, Math.floor((refDate.getTime() - ad.getTime()) / (1000 * 60 * 60 * 24)));
+
+          if (days <= 30) p0_30 += netVal;
+          else if (days <= 60) p31_60 += netVal;
+          else if (days <= 90) p61_90 += netVal;
+          else p120plus += netVal;
         });
+
         undsenDun = Math.round(undsenDun * 100) / 100;
         tulsunDun = Math.round(tulsunDun * 100) / 100;
 
-        // Авлага = running balance as of refDate (actual remaining balance)
-        const lastRow = rowsUntilDate[rowsUntilDate.length - 1];
-        let uldegdel = Math.round((lastRow?.uldegdel ?? meta.globalUldegdel ?? meta.uldegdel ?? 0) * 100) / 100;
-
-        // Skip if zero balance (allow minor floating point variance)
+        const uldegdel = Math.round((undsenDun - tulsunDun) * 100) / 100;
         if (Math.abs(uldegdel) < 0.01) return;
 
-        // Oldest charge row for aging bucket
+        // Oldest charge row for maxDays display (optional metadata)
         let maxDays = 0;
         const chargeRows = rowsUntilDate.filter((r) => (r.tulukhDun || 0) > 0);
         for (const row of chargeRows) {
           const diffDays = Math.floor((refDate.getTime() - new Date(row.ognoo).getTime()) / (1000 * 60 * 60 * 24));
           if (diffDays > maxDays) maxDays = diffDays;
         }
-
-        // Distribute balance across aging buckets (oldest-first)
-        let remaining = uldegdel > 0 ? uldegdel : 0;
-        let p0_30 = 0, p31_60 = 0, p61_90 = 0, p120plus = 0;
-        const sortedChargeRows = [...chargeRows].sort((a, b) => new Date(b.ognoo) - new Date(a.ognoo));
-        for (const row of sortedChargeRows) {
-          if (remaining <= 0) break;
-          const days = Math.max(0, Math.floor((refDate.getTime() - new Date(row.ognoo).getTime()) / (1000 * 60 * 60 * 24)));
-          const amt = Math.min(remaining, row.tulukhDun || 0);
-          remaining -= amt;
-          if (days <= 30) p0_30 += amt;
-          else if (days <= 60) p31_60 += amt;
-          else if (days <= 90) p61_90 += amt;
-          else p120plus += amt;
-        }
-        if (remaining > 0) p120plus += remaining;
 
         // Build proper name: combine ovog+ner correctly
         const fullNer = [meta.ovog || "", meta.ner || ""].filter(Boolean).join(" ");
