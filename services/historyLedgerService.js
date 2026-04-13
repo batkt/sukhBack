@@ -393,15 +393,22 @@ async function getHistoryLedger(options) {
   };
 
   rawRows.sort((a, b) => {
+    const aga = a.agingDate.getTime();
+    const agb = b.agingDate.getTime();
+    if (aga !== agb) return aga - agb;
+
     const da = dayOnly(a.ognoo);
     const db = dayOnly(b.ognoo);
     if (da !== db) return da - db;
+
     const ca = a.createdAt.getTime();
     const cb = b.createdAt.getTime();
     if (ca !== cb) return ca - cb;
+
     const sa = SRC_ORDER[a.sourceCollection] ?? 99;
     const sb = SRC_ORDER[b.sourceCollection] ?? 99;
     if (sa !== sb) return sa - sb;
+
     const chargeFirstA =
       (a.tulukhDunNet ?? a.tulukhDun ?? 0) > 0.01 || (a.tulukhDun ?? 0) > 0.01
         ? 0
@@ -411,6 +418,7 @@ async function getHistoryLedger(options) {
         ? 0
         : 1;
     if (chargeFirstA !== chargeFirstB) return chargeFirstA - chargeFirstB;
+
     return String(a._id).localeCompare(String(b._id));
   });
   let runningBalance = 0;

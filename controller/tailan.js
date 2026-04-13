@@ -2057,7 +2057,8 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
         "61-90",
         "120+",
       ];
-      rows = (data.detailed?.list || []).map((r) => {
+      const list = data.detailed?.list || [];
+      rows = list.map((r) => {
         return [
           r.gereeniiDugaar || "",
           r.ner || "",
@@ -2073,6 +2074,34 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
           r.p120plus || 0,
         ];
       });
+
+      // Add Footer Totals
+      const sums = new Array(12).fill(0);
+      list.forEach((r) => {
+        sums[5] += r.undsenDun || 0;
+        sums[6] += r.tulsunDun || 0;
+        sums[7] += r.uldegdel || 0;
+        sums[8] += r.p0_30 || 0;
+        sums[9] += r.p31_60 || 0;
+        sums[10] += r.p61_90 || 0;
+        sums[11] += r.p120plus || 0;
+      });
+
+      rows.push([
+        "НИЙТ",
+        "",
+        "",
+        "",
+        "",
+        Math.round(sums[5] * 100) / 100,
+        Math.round(sums[6] * 100) / 100,
+        Math.round(sums[7] * 100) / 100,
+        Math.round(sums[8] * 100) / 100,
+        Math.round(sums[9] * 100) / 100,
+        Math.round(sums[10] * 100) / 100,
+        Math.round(sums[11] * 100) / 100,
+      ]);
+
       fileName = "avlagiin_nasjilt";
     } else if (report === "udsan-avlaga") {
       headers = [
