@@ -393,8 +393,8 @@ async function getHistoryLedger(options) {
   };
 
   rawRows.sort((a, b) => {
-    const aga = a.agingDate.getTime();
-    const agb = b.agingDate.getTime();
+    const aga = dayOnly(a.agingDate);
+    const agb = dayOnly(b.agingDate);
     if (aga !== agb) return aga - agb;
 
     const da = dayOnly(a.ognoo);
