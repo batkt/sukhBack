@@ -125,6 +125,8 @@ async function getHistoryLedger(options) {
 
   /** @type {Array<{ ognoo: Date, createdAt: Date, tulukhDun: number, tulsunDun: number, ner: string, isSystem: boolean, _id: string, ajiltan?: string, khelber?: string, tailbar?: string, burtgesenOgnoo?: string, parentInvoiceId?: string, sourceCollection: string, nekhemjlekhiinDugaar?: string, invoiceUldegdel?: number|null, nekhemjlekhiinTuluv?: string }>} */
   const rawRows = [];
+  const seenInvoiceIds = new Set();
+  const invGuilgeeIds = new Set();
 
   // 0) Geree ekhniiUldegdel (initial balance) — skip if the same opening is already on a nekhemjlekhiin line (Хуулга double)
   const skipGereeEkhniiSynthetic = invoicesAlreadyShowEkhniiOpening(invoices);
@@ -160,6 +162,8 @@ async function getHistoryLedger(options) {
   // 1) Invoice charge lines (zardluud) — every line (Lift, dundiin omch, tseverlegee, etc.)
   for (const inv of invoices) {
     const invId = inv._id.toString();
+    if (seenInvoiceIds.has(invId)) continue;
+    seenInvoiceIds.add(invId);
     const invOgnoo = inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
     const invCreated = inv.createdAt ? new Date(inv.createdAt) : new Date(0);
     const ajiltan = inv.maililgeesenAjiltniiNer || "";
@@ -182,6 +186,8 @@ async function getHistoryLedger(options) {
       const tariff = z.tariff != null ? Number(z.tariff) : 0;
       const tulukhDun =
         t != null && t > 0 ? t : d != null && d > 0 ? d : tariff;
+      const rowId = (z._id && z._id.toString()) || `inv-${invId}-z-${i}`;
+      invGuilgeeIds.add(rowId);
       rawRows.push({
         ognoo: invOgnoo ? new Date(invOgnoo) : new Date(0),
         createdAt: invCreated,
@@ -189,7 +195,7 @@ async function getHistoryLedger(options) {
         tulsunDun: 0,
         ner: z.ner || "Нэхэмжлэх",
         isSystem: true,
-        _id: (z._id && z._id.toString()) || `inv-${invId}-z-${i}`,
+        _id: rowId,
         ajiltan,
         khelber: "Нэхэмжлэх",
         tailbar: z.tailbar || z.ner || z.zardliinTurul || "",
@@ -213,6 +219,8 @@ async function getHistoryLedger(options) {
             ? Number(g.dun)
             : 0;
       const gOgnoo = g.ognoo || invOgnoo;
+      const rowId = (g._id && g._id.toString()) || `inv-${invId}-g-${i}`;
+      invGuilgeeIds.add(rowId);
       rawRows.push({
         ognoo: gOgnoo ? new Date(gOgnoo) : new Date(0),
         createdAt: invCreated,
@@ -220,7 +228,7 @@ async function getHistoryLedger(options) {
         tulsunDun,
         ner: g.tailbar || "Төлбөр",
         isSystem: false,
-        _id: `inv-${invId}-g-${i}`,
+        _id: rowId,
         ajiltan,
         khelber: "Төлбөр",
         tailbar: g.tailbar || "",
@@ -243,6 +251,8 @@ async function getHistoryLedger(options) {
   // 2) GereeniiTulukhAvlaga (every avlaga / receivable — Эхний үлдэгдэл, Авлага, etc.)
   const skipTulukhEkhniiDuplicate = invoicesAlreadyShowEkhniiOpening(invoices);
   for (const s of tulukhList) {
+    const tid = String(s._id);
+    if (invGuilgeeIds.has(tid)) continue;
     if (skipTulukhEkhniiDuplicate && tulukhAvlagaIsEkhniiDuplicate(s)) {
       continue;
     }
@@ -278,7 +288,7 @@ async function getHistoryLedger(options) {
       tulsunDun: 0,
       ner: s.zardliinNer || s.tailbar || "Авлага",
       isSystem: !!s.ekhniiUldegdelEsekh,
-      _id: s._id.toString(),
+      _id: tid,
       ajiltan: s.guilgeeKhiisenAjiltniiNer || "",
       khelber: "Авлага",
       tailbar: s.tailbar || "",
@@ -292,6 +302,8 @@ async function getHistoryLedger(options) {
 
   // 3) GereeniiTulsunAvlaga (every payment — Төлбөр, ashiglalt, tulult, QPay, etc.)
   for (const p of tulsunList) {
+    const pid = String(p._id);
+    if (invGuilgeeIds.has(pid)) continue;
     const tulsunDun = typeof p.tulsunDun === "number" ? p.tulsunDun : 0;
     const ognoo = p.ognoo || p.createdAt;
     rawRows.push({
@@ -301,7 +313,7 @@ async function getHistoryLedger(options) {
       tulsunDun,
       ner: p.tailbar || "Төлбөр",
       isSystem: false,
-      _id: p._id.toString(),
+      _id: pid,
       ajiltan: p.guilgeeKhiisenAjiltniiNer || p.guilgeeKhiisenAjiltniiId || "",
       khelber: p.turul || p.source || "Төлбөр",
       tailbar: p.tailbar || "",

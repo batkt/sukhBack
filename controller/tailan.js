@@ -1660,6 +1660,24 @@ exports.tailanExport = asyncHandler(async (req, res, next) => {
           r.tuluv || "",
         ];
       });
+
+      // Add Footer Total
+      const totalNiitTulbur = list.reduce((sum, r) => sum + (Number(r.niitTulbur) || 0), 0);
+      rows.push([
+        "НИЙТ",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        Math.round(totalNiitTulbur * 100) / 100,
+        "",
+      ]);
+
       fileName = "orlogo_avlaga";
     } else if (report === "negtgel") {
       const ExcelJS = require("exceljs");

@@ -857,9 +857,10 @@ exports.downloadExcelList = asyncHandler(async (req, res, next) => {
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
+    const encodedFileName = encodeURIComponent(fileName || `export_${Date.now()}`);
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="${fileName || `export_${Date.now()}`}.xlsx"`,
+      `attachment; filename="${encodedFileName}.xlsx"; filename*=UTF-8''${encodedFileName}.xlsx`,
     );
 
     res.send(excelBuffer);
