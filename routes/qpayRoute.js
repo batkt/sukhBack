@@ -1546,6 +1546,19 @@ router.post(
       const normalizedBody = {
         ...incomingBody,
         baiguullagiinId: baiguullaga._id,
+        // quickqpaypack expects explicit type and register_number.
+        type:
+          incomingBody.type ||
+          (String(incomingBody.system || "").toLowerCase() === "person"
+            ? "PERSON"
+            : "COMPANY"),
+        register_number:
+          incomingBody.register_number ||
+          incomingBody.register ||
+          baiguullaga.register,
+        name: incomingBody.name || baiguullaga.ner || "",
+        first_name: incomingBody.first_name || incomingBody.firstName || "",
+        last_name: incomingBody.last_name || incomingBody.lastName || "",
         // Accept common alias keys from different clients.
         mashiniiDugaar:
           incomingBody.mashiniiDugaar ||
