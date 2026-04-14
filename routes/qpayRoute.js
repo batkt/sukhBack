@@ -1564,18 +1564,6 @@ router.post(
       delete normalizedBody.tukhainBaaziinKholbolt;
       delete normalizedBody.erunkhiiKholbolt;
 
-      const missingFields = [];
-      if (!normalizedBody.mashiniiDugaar) missingFields.push("mashiniiDugaar");
-      if (!normalizedBody.CAMERA_IP) missingFields.push("CAMERA_IP");
-      if (!normalizedBody.barilgiinId) missingFields.push("barilgiinId");
-
-      if (missingFields.length > 0) {
-        return res.status(400).send({
-          success: false,
-          message: `Missing required fields: ${missingFields.join(", ")}`,
-        });
-      }
-
       var khariu = await qpayKhariltsagchUusgey(normalizedBody, kholbolt);
       if (khariu === "Amjilttai") {
         res.send(khariu);
