@@ -1515,16 +1515,68 @@ router.post(
   async (req, res, next) => {
     try {
       const { db } = require("zevbackv2");
+      const incomingBody = req.body || {};
+      if (!incomingBody.register) {
+        return res.status(400).send({
+          success: false,
+          message: "register is required",
+        });
+      }
+
       var baiguullaga = await Baiguullaga(db.erunkhiiKholbolt).findOne({
-        register: req.body.register,
+        register: incomingBody.register,
       });
+      if (!baiguullaga) {
+        return res.status(404).send({
+          success: false,
+          message: "Organization not found for register",
+        });
+      }
+
       var kholbolt = db.kholboltuud.find(
         (a) => a.baiguullagiinId == baiguullaga._id,
       );
-      req.body.baiguullagiinId = baiguullaga._id;
-      delete req.body.tukhainBaaziinKholbolt;
-      delete req.body.erunkhiiKholbolt;
-      var khariu = await qpayKhariltsagchUusgey(req.body, kholbolt);
+      if (!kholbolt) {
+        return res.status(404).send({
+          success: false,
+          message: "Organization connection not found",
+        });
+      }
+
+      const normalizedBody = {
+        ...incomingBody,
+        baiguullagiinId: baiguullaga._id,
+        // Accept common alias keys from different clients.
+        mashiniiDugaar:
+          incomingBody.mashiniiDugaar ||
+          incomingBody.dugaar ||
+          incomingBody.plate_number,
+        CAMERA_IP:
+          incomingBody.CAMERA_IP ||
+          incomingBody.cameraIp ||
+          incomingBody.camera_ip,
+        barilgiinId:
+          incomingBody.barilgiinId ||
+          incomingBody.salbariinId ||
+          incomingBody.branchId,
+      };
+
+      delete normalizedBody.tukhainBaaziinKholbolt;
+      delete normalizedBody.erunkhiiKholbolt;
+
+      const missingFields = [];
+      if (!normalizedBody.mashiniiDugaar) missingFields.push("mashiniiDugaar");
+      if (!normalizedBody.CAMERA_IP) missingFields.push("CAMERA_IP");
+      if (!normalizedBody.barilgiinId) missingFields.push("barilgiinId");
+
+      if (missingFields.length > 0) {
+        return res.status(400).send({
+          success: false,
+          message: `Missing required fields: ${missingFields.join(", ")}`,
+        });
+      }
+
+      var khariu = await qpayKhariltsagchUusgey(normalizedBody, kholbolt);
       if (khariu === "Amjilttai") {
         res.send(khariu);
       } else throw new Error(khariu);
