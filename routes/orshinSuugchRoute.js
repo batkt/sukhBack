@@ -748,7 +748,7 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
             syncData.umnukhZaalt = zaalt;
           }
 
-          if (req.body.ekhniiUldegdel !== undefined && result.baiguullagiinId && result.baiguullagiinId.toString() === orgId) {
+          if (req.body.ekhniiUldegdel !== undefined) {
             syncData.ekhniiUldegdel = parseFloat(req.body.ekhniiUldegdel) || 0;
           }
 

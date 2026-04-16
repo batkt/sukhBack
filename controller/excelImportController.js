@@ -1177,6 +1177,51 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             }
             await existingOrshinSuugch.save();
 
+            // Keep active contracts in org DB aligned with updated resident opening balance.
+            if (userData.ekhniiUldegdel !== undefined) {
+              const tukhainBaaziinKholbolt = db.kholboltuud.find(
+                (kholbolt) =>
+                  String(kholbolt.baiguullagiinId) === String(baiguullaga._id),
+              );
+
+              if (tukhainBaaziinKholbolt) {
+                const GereeModel = Geree(tukhainBaaziinKholbolt);
+                const NekhemjlekhModel = require("../models/nekhemjlekhiinTuukh")(
+                  tukhainBaaziinKholbolt,
+                );
+                const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
+                const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+
+                const affectedGerees = await GereeModel.find({
+                  orshinSuugchId: existingOrshinSuugch._id.toString(),
+                  baiguullagiinId: String(baiguullaga._id),
+                  tuluv: "Идэвхтэй",
+                }).select("_id");
+
+                await GereeModel.updateMany(
+                  {
+                    _id: { $in: affectedGerees.map((g) => g._id) },
+                  },
+                  {
+                    $set: { ekhniiUldegdel: userData.ekhniiUldegdel },
+                  },
+                );
+
+                const TulukhModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
+                const TulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);
+                for (const g of affectedGerees) {
+                  await recalcGlobalUldegdel({
+                    gereeId: g._id,
+                    baiguullagiinId: String(baiguullaga._id),
+                    GereeModel,
+                    NekhemjlekhiinTuukhModel: NekhemjlekhModel,
+                    GereeniiTulukhAvlagaModel: TulukhModel,
+                    GereeniiTulsunAvlagaModel: TulsunModel,
+                  });
+                }
+              }
+            }
+
             results.success.push({
               row: rowNumber,
               message: `Шинэчлэгдсэн: Тоот ${userData.toot}, Давхар ${userData.davkhar}`,
