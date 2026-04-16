@@ -781,6 +781,64 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
                 
                 const TulukhModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
                 const TulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);
+                const targetEkhnii = Number(syncData.ekhniiUldegdel) || 0;
+
+                // Keep contract-level opening receivable rows in sync with edited value.
+                for (const gId of affectedGereeIds) {
+                  const rows = await TulukhModel.find({
+                    gereeniiId: String(gId),
+                    baiguullagiinId: String(orgId),
+                    ekhniiUldegdelEsekh: true,
+                  })
+                    .sort({ createdAt: -1 })
+                    .lean();
+
+                  const currentTotal = rows.reduce(
+                    (sum, r) => sum + (Number(r.undsenDun) || 0),
+                    0,
+                  );
+                  const delta = Math.round((targetEkhnii - currentTotal) * 100) / 100;
+
+                  if (Math.abs(delta) > 0.01) {
+                    if (delta > 0) {
+                      if (rows.length > 0) {
+                        await TulukhModel.updateOne(
+                          { _id: rows[0]._id },
+                          {
+                            $inc: {
+                              undsenDun: delta,
+                              tulukhDun: delta,
+                              uldegdel: delta,
+                            },
+                          },
+                        );
+                      } else {
+                        const gereeDoc = await GereeModel.findById(gId).lean();
+                        await TulukhModel.create({
+                          baiguullagiinId: String(orgId),
+                          baiguullagiinNer: gereeDoc?.baiguullagiinNer || "",
+                          barilgiinId: gereeDoc?.barilgiinId || "",
+                          gereeniiId: String(gId),
+                          gereeniiDugaar: gereeDoc?.gereeniiDugaar || "",
+                          orshinSuugchId: gereeDoc?.orshinSuugchId || result._id?.toString(),
+                          ognoo: new Date(),
+                          undsenDun: delta,
+                          tulukhDun: delta,
+                          uldegdel: delta,
+                          turul: "avlaga",
+                          zardliinNer: "Эхний үлдэгдэл",
+                          ekhniiUldegdelEsekh: true,
+                          source: "gar",
+                          tailbar: "Оршин суугчийн засвараар синк",
+                          guilgeeKhiisenAjiltniiNer:
+                            req.body?.nevtersenAjiltniiToken?.ner || "System",
+                          guilgeeKhiisenAjiltniiId:
+                            req.body?.nevtersenAjiltniiToken?.id || null,
+                        });
+                      }
+                    }
+                  }
+                }
 
                 for (const gId of affectedGereeIds) {
                   await recalcGlobalUldegdel({

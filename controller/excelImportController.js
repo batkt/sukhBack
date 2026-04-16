@@ -1209,7 +1209,60 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
 
                 const TulukhModel = GereeniiTulukhAvlaga(tukhainBaaziinKholbolt);
                 const TulsunModel = GereeniiTulsunAvlaga(tukhainBaaziinKholbolt);
+                const targetEkhnii = Number(userData.ekhniiUldegdel) || 0;
+
                 for (const g of affectedGerees) {
+                  const rows = await TulukhModel.find({
+                    gereeniiId: String(g._id),
+                    baiguullagiinId: String(baiguullaga._id),
+                    ekhniiUldegdelEsekh: true,
+                  })
+                    .sort({ createdAt: -1 })
+                    .lean();
+
+                  const currentTotal = rows.reduce(
+                    (sum, r) => sum + (Number(r.undsenDun) || 0),
+                    0,
+                  );
+                  const delta = Math.round((targetEkhnii - currentTotal) * 100) / 100;
+
+                  if (delta > 0.01) {
+                    if (rows.length > 0) {
+                      await TulukhModel.updateOne(
+                        { _id: rows[0]._id },
+                        {
+                          $inc: {
+                            undsenDun: delta,
+                            tulukhDun: delta,
+                            uldegdel: delta,
+                          },
+                        },
+                      );
+                    } else {
+                      const gereeDoc = await GereeModel.findById(g._id).lean();
+                      await TulukhModel.create({
+                        baiguullagiinId: String(baiguullaga._id),
+                        baiguullagiinNer: gereeDoc?.baiguullagiinNer || "",
+                        barilgiinId: gereeDoc?.barilgiinId || "",
+                        gereeniiId: String(g._id),
+                        gereeniiDugaar: gereeDoc?.gereeniiDugaar || "",
+                        orshinSuugchId:
+                          gereeDoc?.orshinSuugchId || existingOrshinSuugch._id.toString(),
+                        ognoo: new Date(),
+                        undsenDun: delta,
+                        tulukhDun: delta,
+                        uldegdel: delta,
+                        turul: "avlaga",
+                        zardliinNer: "Эхний үлдэгдэл",
+                        ekhniiUldegdelEsekh: true,
+                        source: "excel_import",
+                        tailbar: "Excel-ээр засварласан эхний үлдэгдэл",
+                        guilgeeKhiisenAjiltniiNer: "System",
+                        guilgeeKhiisenAjiltniiId: null,
+                      });
+                    }
+                  }
+
                   await recalcGlobalUldegdel({
                     gereeId: g._id,
                     baiguullagiinId: String(baiguullaga._id),
