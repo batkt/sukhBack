@@ -253,7 +253,15 @@ async function getHistoryLedger(options) {
   for (const s of tulukhList) {
     const tid = String(s._id);
     if (invGuilgeeIds.has(tid)) continue;
-    if (skipTulukhEkhniiDuplicate && tulukhAvlagaIsEkhniiDuplicate(s)) {
+    const keepRealOpeningRow =
+      s &&
+      s.ekhniiUldegdelEsekh === true &&
+      (s.source === "gar" || s.source === "excel_import");
+    if (
+      skipTulukhEkhniiDuplicate &&
+      tulukhAvlagaIsEkhniiDuplicate(s) &&
+      !keepRealOpeningRow
+    ) {
       continue;
     }
     const netTulukh =
