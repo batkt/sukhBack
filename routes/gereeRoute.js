@@ -302,12 +302,51 @@ router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
       (a) => a.baiguullagiinId == req.query.baiguullagiinId
     );
     if (!kholbolt) return res.status(400).json({ error: "Холболт олдсонгүй" });
-    if (!Types.ObjectId.isValid(req.params.id)) {
+    const Model = GereeniiTulukhAvlaga(kholbolt);
+    const incomingId = String(req.params.id || "");
+    if (!Types.ObjectId.isValid(incomingId)) {
+      const syntheticPrefix = "geree-ekhnii-";
+      if (incomingId.startsWith(syntheticPrefix)) {
+        const gereeniiId = incomingId.slice(syntheticPrefix.length);
+        if (!gereeniiId) {
+          return res.status(400).json({ error: "Буруу synthetic id" });
+        }
+        const oid = String(req.query.baiguullagiinId || "");
+        const openingRows = await Model.find({
+          gereeniiId: String(gereeniiId),
+          baiguullagiinId: oid,
+          ekhniiUldegdelEsekh: true,
+        })
+          .select("_id")
+          .lean();
+
+        if (openingRows.length === 0) {
+          return res.status(404).json({ error: "Олдсонгүй" });
+        }
+
+        await Model.deleteMany({
+          _id: { $in: openingRows.map((r) => r._id) },
+        });
+
+        try {
+          await recalcGlobalAfterDelete(kholbolt, gereeniiId, req.query.baiguullagiinId);
+        } catch (recalcErr) {
+          console.error(
+            "❌ Error recalculating globalUldegdel after synthetic opening delete:",
+            recalcErr.message,
+          );
+        }
+
+        return res.json({
+          success: true,
+          deletedSyntheticOpening: true,
+          deletedCount: openingRows.length,
+        });
+      }
       // Frontend may send temporary client-side ids (e.g. init-*) for unsaved rows.
       return res.json({ success: true, skipped: true, reason: "invalid_id" });
     }
 
-    const Model = GereeniiTulukhAvlaga(kholbolt);
     const doc = await Model.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: "Олдсонгүй" });
 
