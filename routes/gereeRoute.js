@@ -296,11 +296,16 @@ function avlagaShellInvoiceSafeToCascadeDelete(inv) {
 // Custom DELETE for gereeniiTulukhAvlaga — full recalculation after delete
 router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
   try {
+    const { Types } = require("mongoose");
     const { db } = require("zevbackv2");
     const kholbolt = db.kholboltuud.find(
       (a) => a.baiguullagiinId == req.query.baiguullagiinId
     );
     if (!kholbolt) return res.status(400).json({ error: "Холболт олдсонгүй" });
+    if (!Types.ObjectId.isValid(req.params.id)) {
+      // Frontend may send temporary client-side ids (e.g. init-*) for unsaved rows.
+      return res.json({ success: true, skipped: true, reason: "invalid_id" });
+    }
 
     const Model = GereeniiTulukhAvlaga(kholbolt);
     const doc = await Model.findById(req.params.id);
@@ -389,11 +394,16 @@ router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
 // Custom DELETE for gereeniiTulsunAvlaga — full recalculation after delete
 router.delete("/gereeniiTulsunAvlaga/:id", tokenShalgakh, async (req, res) => {
   try {
+    const { Types } = require("mongoose");
     const { db } = require("zevbackv2");
     const kholbolt = db.kholboltuud.find(
       (a) => a.baiguullagiinId == req.query.baiguullagiinId
     );
     if (!kholbolt) return res.status(400).json({ error: "Холболт олдсонгүй" });
+    if (!Types.ObjectId.isValid(req.params.id)) {
+      // Frontend may send temporary client-side ids before a row is persisted.
+      return res.json({ success: true, skipped: true, reason: "invalid_id" });
+    }
 
     const Model = GereeniiTulsunAvlaga(kholbolt);
     const doc = await Model.findById(req.params.id);
