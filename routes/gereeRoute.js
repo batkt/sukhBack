@@ -312,13 +312,36 @@ router.delete("/gereeniiTulukhAvlaga/:id", tokenShalgakh, async (req, res) => {
           return res.status(400).json({ error: "Буруу synthetic id" });
         }
         const oid = String(req.query.baiguullagiinId || "");
-        const openingRows = await Model.find({
+        let openingRows = await Model.find({
           gereeniiId: String(gereeniiId),
           baiguullagiinId: oid,
           ekhniiUldegdelEsekh: true,
         })
           .select("_id")
           .lean();
+
+        // Fallback for legacy/misaligned rows where flag/org may be missing or inconsistent.
+        if (openingRows.length === 0) {
+          const fallbackOr = [{ zardliinNer: "Эхний үлдэгдэл" }];
+          fallbackOr.push({ tailbar: /эхний\s*үлдэгдэл/i });
+          openingRows = await Model.find({
+            gereeniiId: String(gereeniiId),
+            ...(oid ? { baiguullagiinId: oid } : {}),
+            $or: fallbackOr,
+          })
+            .select("_id")
+            .lean();
+        }
+
+        // Last-resort fallback: if org-scoped lookup still misses, try contract-wide.
+        if (openingRows.length === 0) {
+          openingRows = await Model.find({
+            gereeniiId: String(gereeniiId),
+            $or: [{ ekhniiUldegdelEsekh: true }, { zardliinNer: "Эхний үлдэгдэл" }],
+          })
+            .select("_id")
+            .lean();
+        }
 
         if (openingRows.length === 0) {
           return res.status(404).json({ error: "Олдсонгүй" });
