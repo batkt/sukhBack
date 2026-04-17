@@ -343,8 +343,13 @@ const manualSendInvoice = async (
           };
         }
 
-        // Update in place: new zardluud (no ekhniiUldegdel)
-        const updatedZardluud = [...newZardluudOnly];
+        // Update in place:
+        // - refresh non-ekhnii zardluud from preview
+        // - preserve existing ekhniiUldegdel lines (Excel/manual opening balance)
+        const preservedEkhniiZardluud = oldZardluud
+          .filter((z) => isEkhniiUldegdelEntry(z))
+          .map((z) => ({ ...z }));
+        const updatedZardluud = [...preservedEkhniiZardluud, ...newZardluudOnly];
         // CRITICAL: Always recalculate niitTulburOriginal from the ACTUAL zardluud
         // sum — never from the stale stored value. This fixes the case where
         // electricity was added to medeelel.zardluud after the original save
