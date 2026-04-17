@@ -788,7 +788,11 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
                   const rows = await TulukhModel.find({
                     gereeniiId: String(gId),
                     baiguullagiinId: String(orgId),
-                    ekhniiUldegdelEsekh: true,
+                    $or: [
+                      { ekhniiUldegdelEsekh: true },
+                      { zardliinNer: "Эхний үлдэгдэл" },
+                      { tailbar: /эхний\s*үлдэгдэл/i },
+                    ],
                   })
                     .sort({ createdAt: -1 })
                     .lean();
@@ -800,42 +804,46 @@ router.put("/orshinSuugch/:id", tokenShalgakh, async (req, res, next) => {
                   const delta = Math.round((targetEkhnii - currentTotal) * 100) / 100;
 
                   if (Math.abs(delta) > 0.01) {
-                    if (delta > 0) {
-                      if (rows.length > 0) {
-                        await TulukhModel.updateOne(
-                          { _id: rows[0]._id },
-                          {
-                            $inc: {
-                              undsenDun: delta,
-                              tulukhDun: delta,
-                              uldegdel: delta,
-                            },
+                    if (rows.length > 0) {
+                      // Reuse the latest opening-balance row (including legacy name-based rows)
+                      // so orshinSuugch edits do not create duplicate "Эхний үлдэгдэл" entries.
+                      await TulukhModel.updateOne(
+                        { _id: rows[0]._id },
+                        {
+                          $set: {
+                            ekhniiUldegdelEsekh: true,
+                            zardliinNer: "Эхний үлдэгдэл",
                           },
-                        );
-                      } else {
-                        const gereeDoc = await GereeModel.findById(gId).lean();
-                        await TulukhModel.create({
-                          baiguullagiinId: String(orgId),
-                          baiguullagiinNer: gereeDoc?.baiguullagiinNer || "",
-                          barilgiinId: gereeDoc?.barilgiinId || "",
-                          gereeniiId: String(gId),
-                          gereeniiDugaar: gereeDoc?.gereeniiDugaar || "",
-                          orshinSuugchId: gereeDoc?.orshinSuugchId || result._id?.toString(),
-                          ognoo: new Date(),
-                          undsenDun: delta,
-                          tulukhDun: delta,
-                          uldegdel: delta,
-                          turul: "avlaga",
-                          zardliinNer: "Эхний үлдэгдэл",
-                          ekhniiUldegdelEsekh: true,
-                          source: "gar",
-                          tailbar: "Оршин суугчийн засвараар синк",
-                          guilgeeKhiisenAjiltniiNer:
-                            req.body?.nevtersenAjiltniiToken?.ner || "System",
-                          guilgeeKhiisenAjiltniiId:
-                            req.body?.nevtersenAjiltniiToken?.id || null,
-                        });
-                      }
+                          $inc: {
+                            undsenDun: delta,
+                            tulukhDun: delta,
+                            uldegdel: delta,
+                          },
+                        },
+                      );
+                    } else if (delta > 0) {
+                      const gereeDoc = await GereeModel.findById(gId).lean();
+                      await TulukhModel.create({
+                        baiguullagiinId: String(orgId),
+                        baiguullagiinNer: gereeDoc?.baiguullagiinNer || "",
+                        barilgiinId: gereeDoc?.barilgiinId || "",
+                        gereeniiId: String(gId),
+                        gereeniiDugaar: gereeDoc?.gereeniiDugaar || "",
+                        orshinSuugchId: gereeDoc?.orshinSuugchId || result._id?.toString(),
+                        ognoo: new Date(),
+                        undsenDun: delta,
+                        tulukhDun: delta,
+                        uldegdel: delta,
+                        turul: "avlaga",
+                        zardliinNer: "Эхний үлдэгдэл",
+                        ekhniiUldegdelEsekh: true,
+                        source: "gar",
+                        tailbar: "Оршин суугчийн засвараар синк",
+                        guilgeeKhiisenAjiltniiNer:
+                          req.body?.nevtersenAjiltniiToken?.ner || "System",
+                        guilgeeKhiisenAjiltniiId:
+                          req.body?.nevtersenAjiltniiToken?.id || null,
+                      });
                     }
                   }
                 }

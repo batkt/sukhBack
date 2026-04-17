@@ -2654,8 +2654,10 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
             const newUldegdel = currentUldegdel + amount;
 
             // Update the "Эхний үлдэгдэл" row inside medeelel.zardluud
+            let hasEkhniiLine = false;
             const zardluud = (invoice.medeelel?.zardluud || []).map((z) => {
               if (z.isEkhniiUldegdel || z.ner === "Эхний үлдэгдэл") {
+                hasEkhniiLine = true;
                 return {
                   ...z,
                   tariff: (z.tariff || 0) + amount,
@@ -2665,15 +2667,53 @@ exports.importInitialBalanceFromExcel = asyncHandler(async (req, res, next) => {
               }
               return z;
             });
+            // If invoice doesn't already have an opening-balance zardal row,
+            // append one so manual send/sync won't "lose" imported opening balance.
+            if (!hasEkhniiLine) {
+              zardluud.push({
+                ner: "Эхний үлдэгдэл",
+                zardliinTurul: "Авлага",
+                dun: amount,
+                tariff: amount,
+                tulukhDun: amount,
+                isEkhniiUldegdel: true,
+                tailbar: "Excel-ээр оруулсан эхний үлдэгдэл",
+              });
+            }
 
             await NekhemjlekhModel.findByIdAndUpdate(invoice._id, {
               $set: {
                 niitTulbur: newNiitTulbur,
+                niitTulburOriginal:
+                  (invoice.niitTulburOriginal || invoice.niitTulbur || 0) + amount,
                 uldegdel: newUldegdel,
                 ekhniiUldegdel: (invoice.ekhniiUldegdel || 0) + amount,
                 "medeelel.zardluud": zardluud,
               },
             });
+          }
+          // Keep contract balance and invoice balances in sync after import.
+          try {
+            const { recalcGlobalUldegdel } = require("../utils/recalcGlobalUldegdel");
+            const NekhemjlekhiinTuukhModel = require("../models/nekhemjlekhiinTuukh");
+            const GereeniiTulsunAvlaga = require("../models/gereeniiTulsunAvlaga");
+            await recalcGlobalUldegdel({
+              gereeId: geree._id,
+              baiguullagiinId: String(baiguullagiinId),
+              GereeModel,
+              NekhemjlekhiinTuukhModel: NekhemjlekhiinTuukhModel(
+                tukhainBaaziinKholbolt,
+              ),
+              GereeniiTulukhAvlagaModel: TulukhAvlagaModel,
+              GereeniiTulsunAvlagaModel: GereeniiTulsunAvlaga(
+                tukhainBaaziinKholbolt,
+              ),
+            });
+          } catch (recalcError) {
+            console.error(
+              "Error recalculating globalUldegdel after initial balance import:",
+              recalcError,
+            );
           }
         } catch (invoiceUpdateError) {
           // Non-fatal: log but don't fail the import
