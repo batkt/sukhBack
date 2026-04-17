@@ -441,19 +441,23 @@ async function getHistoryLedger(options) {
 
     return String(a._id).localeCompare(String(b._id));
   });
+  // Display running balance (History modal): use shown row values exactly.
+  // Accounting running balance (for globalUldegdel): use net charge when available.
   let runningBalance = 0;
+  let accountingRunningBalance = 0;
   let jagsaalt = rawRows.map((row) => {
     const grossPart = Math.round((row.tulukhDun ?? 0) * 100) / 100;
     const netPart =
       row.tulukhDunNet != null && !Number.isNaN(row.tulukhDunNet)
         ? Math.round(Number(row.tulukhDunNet) * 100) / 100
         : null;
-    const balanceCharge =
-      netPart != null && netPart > 0.01 ? netPart : grossPart;
     const displayCharge = grossPart;
     const pay = Math.round((row.tulsunDun ?? 0) * 100) / 100;
-    runningBalance =
-      Math.round((runningBalance + balanceCharge - pay) * 100) / 100;
+    const accountingCharge =
+      netPart != null && netPart > 0.01 ? netPart : grossPart;
+    runningBalance = Math.round((runningBalance + displayCharge - pay) * 100) / 100;
+    accountingRunningBalance =
+      Math.round((accountingRunningBalance + accountingCharge - pay) * 100) / 100;
     return {
       _id: row._id,
       ognoo: toOgnooString(row.ognoo),
@@ -489,8 +493,8 @@ async function getHistoryLedger(options) {
   const rawGlobalUldegdel =
     gereeDoc && typeof gereeDoc.globalUldegdel === "number"
       ? gereeDoc.globalUldegdel
-      : jagsaalt.length > 0
-        ? jagsaalt[jagsaalt.length - 1].uldegdel
+      : rawRows.length > 0
+        ? accountingRunningBalance
         : 0;
   const globalUldegdel = Math.round(rawGlobalUldegdel * 100) / 100;
   const positiveBalance =

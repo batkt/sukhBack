@@ -85,11 +85,13 @@ async function recalcGlobalUldegdel({
     });
   }
 
-  // Get the final uldegdel from the last ledger entry
+  // Use accounting summary from the ledger service (not display row uldegdel).
   const finalUldegdel =
-    ledgerResult.jagsaalt.length > 0
-      ? ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1].uldegdel
-      : 0;
+    typeof ledgerResult.globalUldegdel === "number"
+      ? ledgerResult.globalUldegdel
+      : ledgerResult.jagsaalt.length > 0
+        ? ledgerResult.jagsaalt[ledgerResult.jagsaalt.length - 1].uldegdel
+        : 0;
 
   const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
   const EPS = 0.01;
