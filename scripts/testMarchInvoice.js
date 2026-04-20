@@ -33,10 +33,10 @@ async function main() {
   console.log(`✅ ${db.kholboltuud.length} kholbolt(s) ready\n`);
 
   // ── 2. Find the target ──
-  const Geree = require("./models/geree");
-  const nekhemjlekhiinTuukh = require("./models/nekhemjlekhiinTuukh");
-  const Baiguullaga = require("./models/baiguullaga");
-  const { getKholboltByBaiguullagiinId } = require("./utils/dbConnection");
+  const Geree = require("../models/geree");
+  const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
+  const Baiguullaga = require("../models/baiguullaga");
+  const { getKholboltByBaiguullagiinId } = require("../utils/dbConnection");
 
   const kholbolt = getKholboltByBaiguullagiinId(ORG_ID);
   if (!kholbolt) {
@@ -122,7 +122,7 @@ async function main() {
   console.log("📝 CREATING March 2026 invoice...");
   console.log("═".repeat(60));
 
-  const { manualSendInvoice } = require("./services/invoiceSendService");
+  const { manualSendInvoice } = require("../services/invoiceSendService");
 
   const result = await manualSendInvoice(
     String(targetGeree._id),
