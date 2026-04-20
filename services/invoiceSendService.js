@@ -347,7 +347,7 @@ const manualSendInvoice = async (
         // - refresh non-ekhnii zardluud from preview
         // - preserve existing ekhniiUldegdel lines (Excel/manual opening balance)
         const preservedEkhniiZardluud = oldZardluud
-          .filter((z) => isEkhniiUldegdelEntry(z))
+          .filter((z) => isEkhniiUldegdelEntry(z) && (z.dun > 0 || z.tariff > 0))
           .map((z) => ({ ...z }));
         const updatedZardluud = [...preservedEkhniiZardluud, ...newZardluudOnly];
         // CRITICAL: Always recalculate niitTulburOriginal from the ACTUAL zardluud

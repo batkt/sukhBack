@@ -1300,24 +1300,25 @@ const gereeNeesNekhemjlekhUusgekh = async (
       remainingPositiveBalance = gereePositiveBalance - positiveBalanceUsed;
     }
 
-    // Always add ekhniiUldegdel row (even when 0) for display purposes
-    zardluudWithDun.push({
-      _id:
-        ekhniiUldegdelRecordId || ekhniiUldegdelId || `init-${Math.random()}`,
-      ner: "Эхний үлдэгдэл",
-      turul: "Тогтмол",
-      bodokhArga: "тогтмол",
-      zardliinTurul: "Эрчим хүч",
-      tariff: ekhniiUldegdelAmount,
-      tariffUsgeer: tempData.ekhniiUldegdelUsgeer || "₮",
-      dun: ekhniiUldegdelAmount,
-      zaalt: false,
-      ognoonuud: [],
-      nuatNemekhEsekh: false,
-      nuatBodokhEsekh: false,
-      isEkhniiUldegdel: true, // Flag to identify this row
-      tailbar: ekhniiUldegdelTailbar || "", // Include the description from gereeniiTulukhAvlaga
-    });
+    if (ekhniiUldegdelAmount > 0) {
+      zardluudWithDun.push({
+        _id:
+          ekhniiUldegdelRecordId || ekhniiUldegdelId || `init-${Math.random()}`,
+        ner: "Эхний үлдэгдэл",
+        turul: "Тогтмол",
+        bodokhArga: "тогтмол",
+        zardliinTurul: "Эрчим хүч",
+        tariff: ekhniiUldegdelAmount,
+        tariffUsgeer: tempData.ekhniiUldegdelUsgeer || "₮",
+        dun: ekhniiUldegdelAmount,
+        zaalt: false,
+        ognoonuud: [],
+        nuatNemekhEsekh: false,
+        nuatBodokhEsekh: false,
+        isEkhniiUldegdel: true, // Flag to identify this row
+        tailbar: ekhniiUldegdelTailbar || "", // Include the description from gereeniiTulukhAvlaga
+      });
+    }
 
     zardluudWithDun = zardluudWithDun.map((zardal) => {
       if (zardal.zaalt === true) {
