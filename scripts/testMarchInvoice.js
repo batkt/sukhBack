@@ -38,22 +38,15 @@ async function main() {
   const Baiguullaga = require("../models/baiguullaga");
   const { getKholboltByBaiguullagiinId } = require("../utils/dbConnection");
 
-  const kholbolt = getKholboltByBaiguullagiinId(ORG_ID);
-  if (!kholbolt) {
-    // Try searching all
-    console.log("❌ kholbolt not found for org " + ORG_ID);
-    console.log("Available kholboltuud:");
-    db.kholboltuud.forEach(k => console.log("  " + (k.baiguullagiinId || k.name || JSON.stringify(Object.keys(k)))));
-    process.exit(1);
-  }
+  const kholbolt = db.kholboltuud[0];
+  console.log("Using kholbolt:", kholbolt.baaziinNer || "default");
 
   const targetOrg = await Baiguullaga(db.erunkhiiKholbolt).findById(ORG_ID).lean();
   const targetGeree = await Geree(kholbolt).findOne({ gereeniiDugaar: CONTRACT_NUM }).lean();
 
   if (!targetGeree) {
     console.log("❌ Contract " + CONTRACT_NUM + " not found!");
-    // Show available contracts
-    const sample = await Geree(kholbolt).find({ baiguullagiinId: ORG_ID }).limit(5).select("gereeniiDugaar ner toot").lean();
+    const sample = await Geree(kholbolt).find({}).limit(5).select("gereeniiDugaar ner toot").lean();
     console.log("Sample contracts:", sample.map(g => g.gereeniiDugaar + " - " + g.ner));
     process.exit(1);
   }
