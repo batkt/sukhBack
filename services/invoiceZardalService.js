@@ -185,7 +185,10 @@ async function deleteInvoiceZardal(invoiceId, zardalId, baiguullagiinId) {
           : zardalId,
       },
     },
-    $inc: { niitTulbur: -deletedAmount },
+    $inc: {
+      niitTulbur: -deletedAmount,
+      ...(zardalIndex !== -1 ? { niitTulburOriginal: -deletedAmount } : {}),
+    },
   };
 
   await NekhemjlekhModel.findByIdAndUpdate(invoiceId, updateQuery);
@@ -203,10 +206,16 @@ async function deleteInvoiceZardal(invoiceId, zardalId, baiguullagiinId) {
   }
 
 
+  if (invoice.gereeniiId) {
+    await recalculateGereeBalance(invoice.gereeniiId, baiguullagiinId);
+  }
+
+  const finalInvoice = await NekhemjlekhModel.findById(invoiceId);
+
   return {
     success: true,
     message: "Зардал амжилттай устгагдлаа",
-    newTotal: updatedInvoice?.niitTulbur || 0,
+    newTotal: finalInvoice?.niitTulbur || 0,
   };
 }
 

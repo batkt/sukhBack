@@ -203,11 +203,6 @@ async function recalcGlobalUldegdel({
         const contractPayments = await GereeniiTulsunAvlagaModel.find({
           baiguullagiinId: oid,
           gereeniiId: gid,
-          $or: [
-            { nekhemjlekhId: null },
-            { nekhemjlekhId: "" },
-            { nekhemjlekhId: { $exists: false } },
-          ],
         })
           .sort({ ognoo: 1, createdAt: 1 })
           .lean();
@@ -236,12 +231,18 @@ async function recalcGlobalUldegdel({
 
         const sumSyncedFromPayment = (invDoc, payId) => {
           const key = `sync_tulsunAvlaga_${payId}_`;
+          const altKey = `payment_tulsunAvlaga_${payId}_`; // Legacy support if any
+          const directKey = `_${payId}`; // In case it's appended
+
           return (
             Math.round(
               (invDoc.paymentHistory || []).reduce((s, ph) => {
+                const gid = String(ph?.guilgeeniiId || "");
                 if (
-                  typeof ph?.guilgeeniiId === "string" &&
-                  ph.guilgeeniiId.startsWith(key)
+                  gid.startsWith(key) ||
+                  gid.startsWith(altKey) ||
+                  gid.endsWith(directKey) ||
+                  ph?.tulsunAvlagaId === String(payId)
                 ) {
                   return s + (Number(ph?.dun) || 0);
                 }
@@ -258,7 +259,7 @@ async function recalcGlobalUldegdel({
           let remainingToAllocate = payAmt;
           // If this payment was already synced onto invoices, don't double-apply.
           let alreadySynced = 0;
-          for (const inv of ascInvoices) {
+          for (const inv of allInvoices) {
             alreadySynced =
               Math.round(
                 (alreadySynced + sumSyncedFromPayment(inv, pay._id)) * 100,
@@ -293,7 +294,8 @@ async function recalcGlobalUldegdel({
               ognoo: pay.ognoo || pay.createdAt || new Date(),
               dun: apply,
               turul: "төлөлт",
-              guilgeeniiId: `sync_tulsunAvlaga_${pay._id}_${idx++}`,
+              guilgeeniiId: `sync_tulsunAvlaga_${pay._id}_to_${inv._id}`,
+              tulsunAvlagaId: String(pay._id),
               tailbar: `SYNC: ${pay.tailbar || "gereeniiTulsunAvlaga"}`,
             });
 
