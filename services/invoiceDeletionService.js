@@ -123,27 +123,31 @@ async function deleteAllInvoicesForOrg(baiguullagiinId) {
   }
 
   const orgId = String(baiguullagiinId);
-  let tulsunDeleted = 0;
-  let tulukhDeleted = 0;
+  let tulsunUnlinked = 0;
+  let tulukhUnlinked = 0;
   try {
-    const tulsunResult = await GereeniiTulsunAvlaga(kholbolt).deleteMany({
-      baiguullagiinId: orgId,
-    });
-    tulsunDeleted = tulsunResult.deletedCount ?? 0;
+    // SAFE: Unlink payments instead of deleting them.
+    const tulsunResult = await GereeniiTulsunAvlaga(kholbolt).updateMany(
+      { baiguullagiinId: orgId },
+      { $set: { nekhemjlekhId: null } }
+    );
+    tulsunUnlinked = tulsunResult.modifiedCount ?? 0;
   } catch (e) {
     console.error(
-      "[NEKHEMJLEKH] deleteAllInvoicesForOrg GereeniiTulsunAvlaga deleteMany error:",
+      "[NEKHEMJLEKH] deleteAllInvoicesForOrg GereeniiTulsunAvlaga updateMany error:",
       e.message,
     );
   }
   try {
-    const tulukhResult = await GereeniiTulukhAvlaga(kholbolt).deleteMany({
-      baiguullagiinId: orgId,
-    });
-    tulukhDeleted = tulukhResult.deletedCount ?? 0;
+    // SAFE: Unlink receivables instead of deleting them.
+    const tulukhResult = await GereeniiTulukhAvlaga(kholbolt).updateMany(
+      { baiguullagiinId: orgId },
+      { $set: { nekhemjlekhId: null } }
+    );
+    tulukhUnlinked = tulukhResult.modifiedCount ?? 0;
   } catch (e) {
     console.error(
-      "[NEKHEMJLEKH] deleteAllInvoicesForOrg GereeniiTulukhAvlaga deleteMany error:",
+      "[NEKHEMJLEKH] deleteAllInvoicesForOrg GereeniiTulukhAvlaga updateMany error:",
       e.message,
     );
   }
@@ -167,10 +171,10 @@ async function deleteAllInvoicesForOrg(baiguullagiinId) {
   return {
     success: true,
     deletedCount,
-    deletedTulsunAvlaga: tulsunDeleted,
-    deletedTulukhAvlaga: tulukhDeleted,
+    unlinkedTulsunAvlaga: tulsunUnlinked,
+    unlinkedTulukhAvlaga: tulukhUnlinked,
     gereeUpdatedCount: gereesInOrg.length,
-    message: `${deletedCount} нэхэмжлэх, ${tulsunDeleted} түлсүн авлага, ${tulukhDeleted} төлөх авлага устгагдлаа; ${gereesInOrg.length} гэрээний үлдэгдэл шинэчлэгдлээ`,
+    message: `${deletedCount} нэхэмжлэх устгагдлаа; ${tulsunUnlinked} төлөлт, ${tulukhUnlinked} авлага салгагдлаа; ${gereesInOrg.length} гэрээний үлдэгдэл шинэчлэгдлээ`,
   };
 }
 

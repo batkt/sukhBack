@@ -146,7 +146,13 @@ const recalculateGereeBalance = asyncHandler(async (req, res) => {
 });
 
 const deleteInvoice = asyncHandler(async (req, res) => {
-  const { invoiceId, baiguullagiinId } = req.body ?? {};
+  const { invoiceId: bodyInvId, baiguullagiinId: bodyOrgId } = req.body ?? {};
+  const { id: paramInvId } = req.params ?? {};
+  const { baiguullagiinId: queryOrgId } = req.query ?? {};
+
+  const invoiceId = bodyInvId || paramInvId;
+  const baiguullagiinId = bodyOrgId || queryOrgId;
+
   if (!baiguullagiinId) {
     return res.status(400).json({
       success: false,
@@ -156,9 +162,11 @@ const deleteInvoice = asyncHandler(async (req, res) => {
   const result = invoiceId
     ? await deleteInvoiceLogic(invoiceId, baiguullagiinId)
     : await deleteAllInvoicesForOrgLogic(baiguullagiinId);
+
   const statusCode = result.statusCode || (result.success ? 200 : 400);
-  if (result.success && baiguullagiinId && req.app?.get("socketio")) {
-    req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
+  if (result.success && baiguullagiinId) {
+    const io = req.app?.get("socketio");
+    if (io) io.emit(`tulburUpdated:${baiguullagiinId}`, {});
   }
   res.status(statusCode).json(
     result.success

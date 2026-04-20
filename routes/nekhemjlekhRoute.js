@@ -108,6 +108,7 @@ router.use((req, res, next) => {
   next();
 });
 
+router.delete("/nekhemjlekhiinTuukh/:id", tokenShalgakh, deleteInvoice);
 crud(router, "nekhemjlekhiinTuukh", nekhemjlekhiinTuukh, UstsanBarimt);
 
 router.get(
