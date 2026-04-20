@@ -194,13 +194,17 @@ async function runDeleteSideEffects(doc) {
     const invId = doc._id;
 
     try {
-      const tulsunDeleteResult = await GereeniiTulsunAvlaga(
+      // SAFE: Unlink payments instead of deleting them from the database.
+      // This preserves financial history and prevents accidental data loss.
+      const tulsunUpdateResult = await GereeniiTulsunAvlaga(
         kholbolt,
-      ).deleteMany({
-        baiguullagiinId: oid,
-        $or: [{ nekhemjlekhId: String(invId) }, { nekhemjlekhId: invId }],
-      });
-
+      ).updateMany(
+        {
+          baiguullagiinId: oid,
+          $or: [{ nekhemjlekhId: String(invId) }, { nekhemjlekhId: invId }],
+        },
+        { $set: { nekhemjlekhId: null } },
+      );
     } catch (tulsunError) {
       console.error(
         "Error cascade deleting gereeniiTulsunAvlaga:",
@@ -209,13 +213,16 @@ async function runDeleteSideEffects(doc) {
     }
 
     try {
-      const tulukhDeleteResult = await GereeniiTulukhAvlaga(
+      // SAFE: Unlink receivables instead of deleting them.
+      const tulukhUpdateResult = await GereeniiTulukhAvlaga(
         kholbolt,
-      ).deleteMany({
-        baiguullagiinId: oid,
-        $or: [{ nekhemjlekhId: String(invId) }, { nekhemjlekhId: invId }],
-      });
-
+      ).updateMany(
+        {
+          baiguullagiinId: oid,
+          $or: [{ nekhemjlekhId: String(invId) }, { nekhemjlekhId: invId }],
+        },
+        { $set: { nekhemjlekhId: null } },
+      );
     } catch (tulukhError) {
       console.error(
         "Error cascade deleting gereeniiTulukhAvlaga:",

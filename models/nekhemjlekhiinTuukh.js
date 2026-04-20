@@ -195,14 +195,22 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
           Math.round(invoice.niitTulburOriginal * 100) / 100;
       }
 
-      const totalPaid =
+      const totalPaidHistory =
         Math.round(
           (invoice.paymentHistory || []).reduce((sum, p) => {
-            // system_sync is an internal adjustment row and must not affect the invoice's real paid amount
             if (p && p.turul === "system_sync") return sum;
             return sum + (p?.dun || 0);
           }, 0) * 100,
         ) / 100;
+
+      const totalPaidGuilgee =
+        Math.round(
+          (invoice.medeelel?.guilgeenuud || []).reduce((sum, g) => {
+            return sum + (Number(g?.tulsunDun || g?.dun) || 0);
+          }, 0) * 100,
+        ) / 100;
+
+      const totalPaid = Math.max(totalPaidHistory, totalPaidGuilgee);
 
       // remaining = originalTotal - paid, rounded to 2dp
       const remaining =

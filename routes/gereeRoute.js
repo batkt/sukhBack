@@ -276,12 +276,22 @@ function nekhemjlekhiinZardluudSum(inv) {
 }
 
 function nekhemjlekhiinHasRealPayments(inv) {
-  const ph = inv.paymentHistory || [];
-  const paid = ph.reduce((s, p) => {
-    if (p?.turul === "system_sync") return s;
-    return s + (Number(p?.dun) || 0);
-  }, 0);
-  return paid > 0.01;
+  const totalPaidHistory =
+    Math.round(
+      (inv.paymentHistory || []).reduce((s, p) => {
+        if (p?.turul === "system_sync") return s;
+        return s + (Number(p?.dun) || 0);
+      }, 0) * 100,
+    ) / 100;
+
+  const totalPaidGuilgee =
+    Math.round(
+      (inv.medeelel?.guilgeenuud || []).reduce((s, g) => {
+        return s + (Number(g?.tulsunDun || g?.dun) || 0);
+      }, 0) * 100,
+    ) / 100;
+
+  return Math.max(totalPaidHistory, totalPaidGuilgee) > 0.01;
 }
 
 function avlagaShellInvoiceSafeToCascadeDelete(inv) {

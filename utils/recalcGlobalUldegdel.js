@@ -447,13 +447,22 @@ async function recalcGlobalUldegdel({
         }
 
         // 2) Calculate paid amount excluding system_sync, then remaining.
-        const totalPaid =
+        const totalPaidHistory =
           Math.round(
             (inv.paymentHistory || []).reduce((s, p) => {
               if (p?.turul === "system_sync") return s;
               return s + (Number(p?.dun) || 0);
             }, 0) * 100,
           ) / 100;
+
+        const totalPaidGuilgee =
+          Math.round(
+            (inv.medeelel?.guilgeenuud || []).reduce((s, g) => {
+              return s + (Number(g?.tulsunDun || g?.dun) || 0);
+            }, 0) * 100,
+          ) / 100;
+
+        const totalPaid = Math.max(totalPaidHistory, totalPaidGuilgee);
 
         const remaining =
           Math.round(Math.max(0, originalTotal - totalPaid) * 100) / 100;
