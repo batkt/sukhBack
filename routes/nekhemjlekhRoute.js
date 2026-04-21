@@ -36,6 +36,10 @@ function manualSendOverrideFromBody(body) {
 const MANUAL_SEND_NEW_DOC_HINT =
   "Энэ төлбөрийн мөчлөгт нэхэмжлэх аль хэдийн байгаа тул одоогийн баримт шинэчлэгдлээ. Шинэ баримт (шинэ _id) үүсгэхийн тулд body-д override: true эсвэл forceNew: true илгээнэ үү — одоогийн мөчлөгийн олдсон нэхэмжлэхүүд устгагдана.";
 
+/** When newInvoices/created is 0 but existing rows were refreshed — user-facing explanation. */
+const MANUAL_SEND_NO_NEW_USER_GUIDE =
+  "Шинэ нэхэмжлэх үүсээгүй байна (created = 0). Давхар үүсгэх тохиргоо (override эсвэл forceNew) эсвэл тухайн сар аль хэдийн үүссэн эсэхийг шалгана уу.";
+
 router.post(
   "/nekhemjlekhiinTuukhExcelDownload",
   tokenShalgakh,
@@ -322,14 +326,12 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
       } else if (nNew === 0 && (nUp > 0 || nSame > 0)) {
         message =
           nUp > 0 && nSame === 0
-            ? nUp === 1
-              ? "Одоогийн сарын нэхэмжлэх 1 шинэчлэгдлээ (шинэ баримт үүсээгүй)"
-              : `Одоогийн сарын нэхэмжлэх ${nUp} шинэчлэгдлээ (шинэ баримт үүсээгүй)`
+            ? `${MANUAL_SEND_NO_NEW_USER_GUIDE} Нэхэмжлэх ${nUp} шинэчлэгдлээ.`
             : nUp === 0 && nSame > 0
               ? nSame === 1
                 ? "Одоогийн сарын нэхэмжлэх аль хэдийн байна — өөрчлөлт оруулаагүй"
                 : `${nSame} гэрээнд одоогийн нэхэмжлэх өөрчлөгдөөгүй`
-              : `Шинэ ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}`;
+              : `${MANUAL_SEND_NO_NEW_USER_GUIDE} Шинэ ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}.`;
       } else {
         message = `Шинэ нэхэмжлэх ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}`;
       }
@@ -410,10 +412,10 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
       } else if (nNew === 0 && (nUp > 0 || nSame > 0)) {
         message =
           nUp > 0 && nSame === 0
-            ? `Одоогийн сарын нэхэмжлэх ${nUp} шинэчлэгдлээ (шинэ баримт үүсээгүй)`
+            ? `${MANUAL_SEND_NO_NEW_USER_GUIDE} Нэхэмжлэх ${nUp} шинэчлэгдлээ.`
             : nUp === 0 && nSame > 0
               ? `Өөрчлөлтгүй: одоогийн сарын нэхэмжлэх аль хэдийн ${nSame} гэрээнд байна`
-              : `Шинэ ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}`;
+              : `${MANUAL_SEND_NO_NEW_USER_GUIDE} Шинэ ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}.`;
       } else {
         message = `Шинэ нэхэмжлэх ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}`;
       }
