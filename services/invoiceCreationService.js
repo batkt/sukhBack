@@ -13,6 +13,12 @@ const {
   normalizeZardluudTurul,
   sumZardalDun,
 } = require("../utils/zardalUtils");
+const {
+  getUbCalendarParts,
+  getLiveBillingCycleBoundsUb,
+  startOfUbWallClockDay,
+  clampDayToMonth,
+} = require("../utils/billingCycleUb");
 
 async function getCronScheduleForGeree(kholbolt, tempData, org) {
   let cron = null;
@@ -73,6 +79,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
       : new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth(); // 0-11 (0 = January)
+    const ubNowParts = !usingHistoricalBilling
+      ? getUbCalendarParts(new Date())
+      : null;
 
     let cronSchedule = null;
     try {
@@ -93,15 +102,25 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
         const gereeCreatedDate =
           tempData.createdAt || tempData.gereeniiOgnoo || new Date();
-        const currentMonthCronDate = new Date(
-          currentYear,
-          currentMonth,
-          scheduledDay,
-          0,
-          0,
-          0,
-          0,
-        );
+        const currentMonthCronDate = usingHistoricalBilling
+          ? new Date(
+              currentYear,
+              currentMonth,
+              scheduledDay,
+              0,
+              0,
+              0,
+              0,
+            )
+          : startOfUbWallClockDay(
+              ubNowParts.year,
+              ubNowParts.month,
+              clampDayToMonth(
+                ubNowParts.year,
+                ubNowParts.month,
+                scheduledDay,
+              ),
+            );
 
         existingEkhniiUldegdelInvoices = await countInvoicesWithEkhniiZardalRow(
           nekhemjlekhiinTuukh(tukhainBaaziinKholbolt),
@@ -146,45 +165,66 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
     // One invoice per contract per billing cycle: look up first, reuse or update if found, create only when none exists.
     if (!shouldUseEkhniiUldegdel) {
-      // Determine the start of the check period based on the scheduled day
       let monthStart;
-      if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
-        const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
-        // If today is on or after the scheduled day, the current cycle started this month.
-        // If today is before the scheduled day, the current cycle started last month.
-        if (currentDate.getDate() >= scheduledDay) {
-          monthStart = new Date(currentYear, currentMonth, scheduledDay, 0, 0, 0, 0);
-        } else {
-          let prevMonth = currentMonth - 1;
-          let prevYear = currentYear;
-          if (prevMonth < 0) {
-            prevMonth = 11;
-            prevYear -= 1;
+      let monthEnd;
+      let nextCycleStart;
+
+      if (usingHistoricalBilling) {
+        if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
+          const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
+          if (currentDate.getDate() >= scheduledDay) {
+            monthStart = new Date(
+              currentYear,
+              currentMonth,
+              scheduledDay,
+              0,
+              0,
+              0,
+              0,
+            );
+          } else {
+            let prevMonth = currentMonth - 1;
+            let prevYear = currentYear;
+            if (prevMonth < 0) {
+              prevMonth = 11;
+              prevYear -= 1;
+            }
+            monthStart = new Date(
+              prevYear,
+              prevMonth,
+              scheduledDay,
+              0,
+              0,
+              0,
+              0,
+            );
           }
-          monthStart = new Date(prevYear, prevMonth, scheduledDay, 0, 0, 0, 0);
+        } else {
+          monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
         }
+        monthEnd = new Date(
+          currentYear,
+          currentMonth + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
+        nextCycleStart = null;
       } else {
-        // Final fallback: Start of current calendar month
-        monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+        const bounds = getLiveBillingCycleBoundsUb(
+          cronSchedule?.nekhemjlekhUusgekhOgnoo,
+          new Date(),
+        );
+        monthStart = bounds.monthStart;
+        nextCycleStart = bounds.nextCycleStart;
+        monthEnd = null;
       }
 
       // Live billing: an invoice belongs to the current cycle iff monthStart <= ognoo < nextCycleStart
-      // (same period the cron uses). Using $lte "now" was too narrow and could miss same-cycle
-      // invoices; using calendar month end was too wide vs monthStart. Half-open [monthStart, nextCycleStart) matches exactly one cycle.
-      const monthEnd = usingHistoricalBilling
-        ? new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999)
-        : null;
-      const nextCycleStart = usingHistoricalBilling
-        ? null
-        : new Date(
-            monthStart.getFullYear(),
-            monthStart.getMonth() + 1,
-            monthStart.getDate(),
-            0,
-            0,
-            0,
-            0,
-          );
+      // (same period the cron uses). Half-open [monthStart, nextCycleStart) matches exactly one cycle.
+      // Live bounds use Asia/Ulaanbaatar calendar day so a new cycle starts on the configured day in Mongolia.
 
       let checkBarilgiinId = tempData.barilgiinId;
       if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
@@ -764,8 +804,9 @@ const gereeNeesNekhemjlekhUusgekh = async (
       );
       if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
         const today = new Date();
-        const currentYear = today.getFullYear();
-        const currentMonth = today.getMonth(); // 0-11
+        const ub = getUbCalendarParts(today);
+        const currentYear = ub.year;
+        const currentMonth = ub.month; // 0-11, Mongolia calendar
         const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo; // 1-31
 
         let nextMonth = currentMonth + 1;

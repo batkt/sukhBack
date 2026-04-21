@@ -10,6 +10,7 @@ const {
   getCronScheduleForGeree,
 } = require("./invoiceCreationService");
 const { previewInvoice } = require("./invoicePreviewService");
+const { getLiveBillingCycleBoundsUb } = require("../utils/billingCycleUb");
 
 function isZardalExcludingEkhniiUldegdel(z) {
   return (
@@ -101,8 +102,15 @@ const manualSendInvoice = async (
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
 
-    // Determine the start of the check period based on the scheduled day
+    const usingHistoricalTarget =
+      targetMonth !== null &&
+      targetYear !== null &&
+      !Number.isNaN(Number(targetMonth)) &&
+      !Number.isNaN(Number(targetYear));
+
+    // Determine the start of the check period based on the scheduled day (live = UB wall-clock cycle)
     let monthStart;
+    let nextCycleStart;
     try {
       const cronSchedule = await getCronScheduleForGeree(
         tukhainBaaziinKholbolt,
@@ -110,53 +118,62 @@ const manualSendInvoice = async (
         baiguullaga,
       );
 
-      if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
-        const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
-        if (currentDate.getDate() >= scheduledDay) {
-          monthStart = new Date(
-            currentYear,
-            currentMonth,
-            scheduledDay,
-            0,
-            0,
-            0,
-            0,
-          );
-        } else {
-          let prevMonth = currentMonth - 1;
-          let prevYear = currentYear;
-          if (prevMonth < 0) {
-            prevMonth = 11;
-            prevYear -= 1;
+      if (usingHistoricalTarget) {
+        if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
+          const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
+          if (currentDate.getDate() >= scheduledDay) {
+            monthStart = new Date(
+              currentYear,
+              currentMonth,
+              scheduledDay,
+              0,
+              0,
+              0,
+              0,
+            );
+          } else {
+            let prevMonth = currentMonth - 1;
+            let prevYear = currentYear;
+            if (prevMonth < 0) {
+              prevMonth = 11;
+              prevYear -= 1;
+            }
+            monthStart = new Date(
+              prevYear,
+              prevMonth,
+              scheduledDay,
+              0,
+              0,
+              0,
+              0,
+            );
           }
-          monthStart = new Date(prevYear, prevMonth, scheduledDay, 0, 0, 0, 0);
+        } else {
+          monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
         }
+        nextCycleStart = null;
       } else {
-        monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+        const bounds = getLiveBillingCycleBoundsUb(
+          cronSchedule?.nekhemjlekhUusgekhOgnoo,
+          new Date(),
+        );
+        monthStart = bounds.monthStart;
+        nextCycleStart = bounds.nextCycleStart;
       }
     } catch (err) {
-      monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+      if (usingHistoricalTarget) {
+        monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+        nextCycleStart = null;
+      } else {
+        const bounds = getLiveBillingCycleBoundsUb(null, new Date());
+        monthStart = bounds.monthStart;
+        nextCycleStart = bounds.nextCycleStart;
+      }
     }
 
-    const usingHistoricalTarget =
-      targetMonth !== null &&
-      targetYear !== null &&
-      !Number.isNaN(Number(targetMonth)) &&
-      !Number.isNaN(Number(targetYear));
     const monthEnd = usingHistoricalTarget
       ? new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999)
       : null;
-    const nextCycleStart = usingHistoricalTarget
-      ? null
-      : new Date(
-          monthStart.getFullYear(),
-          monthStart.getMonth() + 1,
-          monthStart.getDate(),
-          0,
-          0,
-          0,
-          0,
-        );
 
     let checkBarilgiinId = geree.barilgiinId;
     if (
