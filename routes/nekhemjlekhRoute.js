@@ -21,6 +21,21 @@ const Geree = require("../models/geree");
 const Baiguullaga = require("../models/baiguullaga");
 const { db } = require("zevbackv2");
 
+/** Same as override — delete current-cycle invoice(s) then insert a new document. */
+function manualSendOverrideFromBody(body) {
+  const o = body?.override;
+  const f = body?.forceNew;
+  return (
+    o === true ||
+    o === "true" ||
+    f === true ||
+    f === "true"
+  );
+}
+
+const MANUAL_SEND_NEW_DOC_HINT =
+  "Энэ төлбөрийн мөчлөгт нэхэмжлэх аль хэдийн байгаа тул одоогийн баримт шинэчлэгдлээ. Шинэ баримт (шинэ _id) үүсгэхийн тулд body-д override: true эсвэл forceNew: true илгээнэ үү — одоогийн мөчлөгийн олдсон нэхэмжлэхүүд устгагдана.";
+
 router.post(
   "/nekhemjlekhiinTuukhExcelDownload",
   tokenShalgakh,
@@ -234,6 +249,7 @@ router.get("/preview", tokenShalgakh, async (req, res, next) => {
  *   - baiguullagiinId (required): string – organization ID
  *   - gereeId (optional): string – single contract ID (alternative to gereeIds)
  *   - override (optional): boolean – if true, delete existing invoices for the month before creating (default: false)
+ *   - forceNew (optional): boolean – alias for override (clearer name for “new DB document”)
  *   - targetMonth (optional): number – month 1–12 (default: current month)
  *   - targetYear (optional): number – year (default: current year)
  */
@@ -243,7 +259,6 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
       gereeIds,
       gereeId,
       baiguullagiinId,
-      override = false,
       targetMonth,
       targetYear,
     } = req.body;
@@ -279,7 +294,7 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
     const result = await manualSendSelectedInvoices(
       contractIds,
       baiguullagiinId,
-      override === true || override === "true",
+      manualSendOverrideFromBody(req.body),
       month,
       year,
       req.app,
@@ -294,6 +309,10 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
       const nNew = result.newInvoices ?? 0;
       const nUp = result.updatedExisting ?? 0;
       const nSame = result.unchangedExisting ?? 0;
+      const dataPayload =
+        nNew === 0 && nUp > 0
+          ? { ...result, hint: MANUAL_SEND_NEW_DOC_HINT }
+          : result;
       let message;
       if (nNew > 0 && nUp === 0 && nSame === 0) {
         message =
@@ -318,7 +337,7 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
       res.json({
         success: true,
         message: message,
-        data: result,
+        data: dataPayload,
       });
     } else {
       res.status(400).json({
@@ -340,6 +359,7 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
  *   - baiguullagiinId (required): string – organization ID
  *   - barilgiinId (optional): string – limit to contracts in this building
  *   - override (optional): boolean – if true, delete existing invoices for the month before creating (default: false)
+ *   - forceNew (optional): boolean – alias for override
  *   - targetMonth (optional): number – month 1–12 (default: current month)
  *   - targetYear (optional): number – year (default: current year)
  */
@@ -348,7 +368,6 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
     const {
       baiguullagiinId,
       barilgiinId,
-      override = false,
       targetMonth,
       targetYear,
     } = req.body;
@@ -366,7 +385,7 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
     const result = await manualSendMassInvoices(
       baiguullagiinId,
       barilgiinId || null,
-      override === true || override === "true",
+      manualSendOverrideFromBody(req.body),
       month,
       year,
       req.app,
@@ -381,6 +400,10 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
       const nNew = result.newInvoices ?? 0;
       const nUp = result.updatedExisting ?? 0;
       const nSame = result.unchangedExisting ?? 0;
+      const dataPayload =
+        nNew === 0 && nUp > 0
+          ? { ...result, hint: MANUAL_SEND_NEW_DOC_HINT }
+          : result;
       let message;
       if (nNew > 0 && nUp === 0 && nSame === 0) {
         message = `Шинэ нэхэмжлэх ${nNew} үүсгэгдлээ`;
@@ -397,7 +420,7 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
       res.json({
         success: true,
         message: message,
-        data: result,
+        data: dataPayload,
       });
     } else {
       res.status(400).json({

@@ -619,7 +619,7 @@ const manualSendMassInvoices = async (
     const results = {
       success: true,
       total: gerees.length,
-      /** @deprecated Same as succeeded — counts every successful run, not only new DB rows. Prefer newInvoices. */
+      /** New nekhemjlekh documents inserted (same as newInvoices). */
       created: 0,
       succeeded: 0,
       newInvoices: 0,
@@ -643,11 +643,12 @@ const manualSendMassInvoices = async (
         );
 
         if (invoiceResult.success) {
-          results.created++;
           results.succeeded++;
           const outcome = classifyManualInvoiceOutcome(invoiceResult);
-          if (outcome === "new") results.newInvoices++;
-          else if (outcome === "updated") results.updatedExisting++;
+          if (outcome === "new") {
+            results.newInvoices++;
+            results.created++;
+          } else if (outcome === "updated") results.updatedExisting++;
           else if (outcome === "unchanged") results.unchangedExisting++;
           results.invoices.push({
             gereeniiDugaar: geree.gereeniiDugaar,
@@ -726,7 +727,7 @@ const manualSendSelectedInvoices = async (
       success: true,
       total: gereeIds.length,
       processed: gerees.length,
-      /** @deprecated Same as succeeded — not only new rows. Prefer newInvoices. */
+      /** New nekhemjlekh documents inserted (same as newInvoices). */
       created: 0,
       succeeded: 0,
       newInvoices: 0,
@@ -751,11 +752,12 @@ const manualSendSelectedInvoices = async (
         );
 
         if (invoiceResult.success) {
-          results.created++;
           results.succeeded++;
           const outcome = classifyManualInvoiceOutcome(invoiceResult);
-          if (outcome === "new") results.newInvoices++;
-          else if (outcome === "updated") results.updatedExisting++;
+          if (outcome === "new") {
+            results.newInvoices++;
+            results.created++;
+          } else if (outcome === "updated") results.updatedExisting++;
           else if (outcome === "unchanged") results.unchangedExisting++;
           results.invoices.push({
             gereeniiId: geree._id,
