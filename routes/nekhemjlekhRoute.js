@@ -291,10 +291,29 @@ router.post("/manualSend", tokenShalgakh, async (req, res, next) => {
         const io = req.app.get("socketio");
         if (io) io.emit(`tulburUpdated:${baiguullagiinId}`, {});
       }
-      const message =
-        result.created === 1
-          ? "Нэхэмжлэх амжилттай үүсгэгдлээ"
-          : `${result.created} нэхэмжлэх амжилттай үүсгэгдлээ`;
+      const nNew = result.newInvoices ?? 0;
+      const nUp = result.updatedExisting ?? 0;
+      const nSame = result.unchangedExisting ?? 0;
+      let message;
+      if (nNew > 0 && nUp === 0 && nSame === 0) {
+        message =
+          nNew === 1
+            ? "Шинэ нэхэмжлэх 1 үүсгэгдлээ"
+            : `Шинэ нэхэмжлэх ${nNew} үүсгэгдлээ`;
+      } else if (nNew === 0 && (nUp > 0 || nSame > 0)) {
+        message =
+          nUp > 0 && nSame === 0
+            ? nUp === 1
+              ? "Одоогийн сарын нэхэмжлэх 1 шинэчлэгдлээ (шинэ баримт үүсээгүй)"
+              : `Одоогийн сарын нэхэмжлэх ${nUp} шинэчлэгдлээ (шинэ баримт үүсээгүй)`
+            : nUp === 0 && nSame > 0
+              ? nSame === 1
+                ? "Одоогийн сарын нэхэмжлэх аль хэдийн байна — өөрчлөлт оруулаагүй"
+                : `${nSame} гэрээнд одоогийн нэхэмжлэх өөрчлөгдөөгүй`
+              : `Шинэ ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}`;
+      } else {
+        message = `Шинэ нэхэмжлэх ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}`;
+      }
 
       res.json({
         success: true,
@@ -359,9 +378,25 @@ router.post("/manualSendMass", tokenShalgakh, async (req, res, next) => {
         const io = req.app.get("socketio");
         if (io) io.emit(`tulburUpdated:${baiguullagiinId}`, {});
       }
+      const nNew = result.newInvoices ?? 0;
+      const nUp = result.updatedExisting ?? 0;
+      const nSame = result.unchangedExisting ?? 0;
+      let message;
+      if (nNew > 0 && nUp === 0 && nSame === 0) {
+        message = `Шинэ нэхэмжлэх ${nNew} үүсгэгдлээ`;
+      } else if (nNew === 0 && (nUp > 0 || nSame > 0)) {
+        message =
+          nUp > 0 && nSame === 0
+            ? `Одоогийн сарын нэхэмжлэх ${nUp} шинэчлэгдлээ (шинэ баримт үүсээгүй)`
+            : nUp === 0 && nSame > 0
+              ? `Өөрчлөлтгүй: одоогийн сарын нэхэмжлэх аль хэдийн ${nSame} гэрээнд байна`
+              : `Шинэ ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}`;
+      } else {
+        message = `Шинэ нэхэмжлэх ${nNew}, шинэчилсэн ${nUp}, өөрчлөгдөөгүй ${nSame}`;
+      }
       res.json({
         success: true,
-        message: `${result.created} нэхэмжлэх амжилттай үүсгэгдлээ`,
+        message: message,
         data: result,
       });
     } else {

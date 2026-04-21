@@ -42,6 +42,15 @@ function toPlainObject(obj) {
   return obj && typeof obj.toObject === "function" ? obj.toObject() : obj;
 }
 
+/** How manualSendInvoice / gereeNeesNekhemjlekhUusgekh resolved for one contract. */
+function classifyManualInvoiceOutcome(invoiceResult) {
+  if (!invoiceResult || !invoiceResult.success) return null;
+  if (invoiceResult.alreadyExists) {
+    return invoiceResult.updated ? "updated" : "unchanged";
+  }
+  return "new";
+}
+
 async function deleteDuplicateUnsentInvoices(
   existingUnsentInvoices,
   tukhainBaaziinKholbolt,
@@ -593,7 +602,12 @@ const manualSendMassInvoices = async (
     const results = {
       success: true,
       total: gerees.length,
+      /** @deprecated Same as succeeded — counts every successful run, not only new DB rows. Prefer newInvoices. */
       created: 0,
+      succeeded: 0,
+      newInvoices: 0,
+      updatedExisting: 0,
+      unchangedExisting: 0,
       errors: 0,
       invoices: [],
       errorsList: [],
@@ -613,11 +627,17 @@ const manualSendMassInvoices = async (
 
         if (invoiceResult.success) {
           results.created++;
+          results.succeeded++;
+          const outcome = classifyManualInvoiceOutcome(invoiceResult);
+          if (outcome === "new") results.newInvoices++;
+          else if (outcome === "updated") results.updatedExisting++;
+          else if (outcome === "unchanged") results.unchangedExisting++;
           results.invoices.push({
             gereeniiDugaar: geree.gereeniiDugaar,
             nekhemjlekhiinId:
               invoiceResult.nekhemjlekh?._id || invoiceResult.nekhemjlekh,
             tulbur: invoiceResult.tulbur,
+            action: outcome,
           });
         } else {
           results.errors++;
@@ -689,7 +709,12 @@ const manualSendSelectedInvoices = async (
       success: true,
       total: gereeIds.length,
       processed: gerees.length,
+      /** @deprecated Same as succeeded — not only new rows. Prefer newInvoices. */
       created: 0,
+      succeeded: 0,
+      newInvoices: 0,
+      updatedExisting: 0,
+      unchangedExisting: 0,
       errors: 0,
       invoices: [],
       errorsList: [],
@@ -710,12 +735,18 @@ const manualSendSelectedInvoices = async (
 
         if (invoiceResult.success) {
           results.created++;
+          results.succeeded++;
+          const outcome = classifyManualInvoiceOutcome(invoiceResult);
+          if (outcome === "new") results.newInvoices++;
+          else if (outcome === "updated") results.updatedExisting++;
+          else if (outcome === "unchanged") results.unchangedExisting++;
           results.invoices.push({
             gereeniiId: geree._id,
             gereeniiDugaar: geree.gereeniiDugaar,
             nekhemjlekhiinId:
               invoiceResult.nekhemjlekh?._id || invoiceResult.nekhemjlekh,
             tulbur: invoiceResult.tulbur,
+            action: outcome,
           });
         } else {
           results.errors++;
