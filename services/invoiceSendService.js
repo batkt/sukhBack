@@ -129,31 +129,65 @@ const manualSendInvoice = async (
       monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
     }
 
-    const monthEnd = new Date(
-      currentYear,
-      currentMonth + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
-    );
+    const usingHistoricalTarget =
+      targetMonth !== null &&
+      targetYear !== null &&
+      !Number.isNaN(Number(targetMonth)) &&
+      !Number.isNaN(Number(targetYear));
+    const monthEnd = usingHistoricalTarget
+      ? new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999)
+      : null;
+    const nextCycleStart = usingHistoricalTarget
+      ? null
+      : new Date(
+          monthStart.getFullYear(),
+          monthStart.getMonth() + 1,
+          monthStart.getDate(),
+          0,
+          0,
+          0,
+          0,
+        );
+
+    let checkBarilgiinId = geree.barilgiinId;
+    if (
+      !checkBarilgiinId &&
+      baiguullaga?.barilguud &&
+      baiguullaga.barilguud.length > 0
+    ) {
+      checkBarilgiinId = String(baiguullaga.barilguud[0]._id);
+    }
+
+    const existingInvoiceQuery = {
+      gereeniiId: String(gereeId),
+      $or: usingHistoricalTarget
+        ? [
+            { ognoo: { $gte: monthStart, $lte: monthEnd } },
+            {
+              $and: [
+                { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
+                { createdAt: { $gte: monthStart, $lte: monthEnd } },
+              ],
+            },
+          ]
+        : [
+            { ognoo: { $gte: monthStart, $lt: nextCycleStart } },
+            {
+              $and: [
+                { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
+                { createdAt: { $gte: monthStart, $lt: nextCycleStart } },
+              ],
+            },
+          ],
+    };
+    if (checkBarilgiinId) {
+      existingInvoiceQuery.barilgiinId = String(checkBarilgiinId);
+    }
 
     const allExistingInvoices = await nekhemjlekhiinTuukh(
       tukhainBaaziinKholbolt,
     )
-      .find({
-        gereeniiId: String(gereeId),
-        $or: [
-          { ognoo: { $gte: monthStart, $lte: monthEnd } },
-          {
-            $and: [
-              { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
-              { createdAt: { $gte: monthStart, $lte: monthEnd } },
-            ],
-          },
-        ],
-      })
+      .find(existingInvoiceQuery)
       .sort({ createdAt: 1 });
 
     const invoicesToUpdate = allExistingInvoices;

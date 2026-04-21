@@ -168,12 +168,23 @@ const gereeNeesNekhemjlekhUusgekh = async (
         monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
       }
 
-      // End of window must match manualSendInvoice (last ms of calendar month).
-      // If billingReferenceDate is 1st of month, `new Date(currentDate)` was only that midnight →
-      // almost no invoices matched $lte monthEnd → duplicate logic broke; past-month create failed.
+      // Live billing: an invoice belongs to the current cycle iff monthStart <= ognoo < nextCycleStart
+      // (same period the cron uses). Using $lte "now" was too narrow and could miss same-cycle
+      // invoices; using calendar month end was too wide vs monthStart. Half-open [monthStart, nextCycleStart) matches exactly one cycle.
       const monthEnd = usingHistoricalBilling
         ? new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999)
-        : new Date(currentDate);
+        : null;
+      const nextCycleStart = usingHistoricalBilling
+        ? null
+        : new Date(
+            monthStart.getFullYear(),
+            monthStart.getMonth() + 1,
+            monthStart.getDate(),
+            0,
+            0,
+            0,
+            0,
+          );
 
       let checkBarilgiinId = tempData.barilgiinId;
       if (!checkBarilgiinId && org?.barilguud && org.barilguud.length > 0) {
@@ -182,25 +193,45 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
       const existingInvoiceQuery = {
         gereeniiId: tempData._id.toString(),
-        $or: [
-          {
-            ognoo: {
-              $gte: monthStart,
-              $lte: monthEnd,
-            },
-          },
-          {
-            $and: [
-              { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
+        $or: usingHistoricalBilling
+          ? [
               {
-                createdAt: {
+                ognoo: {
                   $gte: monthStart,
                   $lte: monthEnd,
                 },
               },
+              {
+                $and: [
+                  { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
+                  {
+                    createdAt: {
+                      $gte: monthStart,
+                      $lte: monthEnd,
+                    },
+                  },
+                ],
+              },
+            ]
+          : [
+              {
+                ognoo: {
+                  $gte: monthStart,
+                  $lt: nextCycleStart,
+                },
+              },
+              {
+                $and: [
+                  { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
+                  {
+                    createdAt: {
+                      $gte: monthStart,
+                      $lt: nextCycleStart,
+                    },
+                  },
+                ],
+              },
             ],
-          },
-        ],
       };
 
       if (checkBarilgiinId) {
