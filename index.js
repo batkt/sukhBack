@@ -47,7 +47,6 @@ const walletQpayRoute = require("./routes/walletQpayRoute");
 const appVersionRoute = require("./routes/appVersionRoute");
 const blogRoute = require("./routes/blogRoute");
 
-
 const { db } = require("zevbackv2");
 
 const aldaaBarigch = require("./middleware/aldaaBarigch");
@@ -73,10 +72,12 @@ process.env.UV_THREADPOOL_SIZE = 20;
     console.log("✅ Socket.IO Redis adapter connected");
 
     // 3. Connect to MongoDB (zevbackv2) - Moved inside to catch errors
-    const MONGODB_URI = process.env.MONGODB_URI || "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin";
+    const MONGODB_URI =
+      process.env.MONGODB_URI ||
+      "mongodb://admin:Br1stelback1@127.0.0.1:27017/amarSukh?authSource=admin";
     const maskedUri = MONGODB_URI.replace(/:([^:@]+)@/, ":****@");
     console.log(`🔌 [INIT] Connecting to MongoDB: ${maskedUri}`);
-    
+
     db.kholboltUusgey(app, MONGODB_URI);
     console.log("✅ MongoDB initialization started");
 
@@ -90,7 +91,6 @@ process.env.UV_THREADPOOL_SIZE = 20;
     server.listen(PORT, () => {
       console.log(`✅ SUCCESS: AmarSukh server listening on port ${PORT}`);
     });
-
   } catch (err) {
     console.error("❌ CRITICAL: Failed to initialize server:", err);
     // Print stack trace in logs for easier debugging
@@ -113,13 +113,13 @@ app.use(
   express.json({
     limit: "50mb",
     extended: true,
-  })
+  }),
 );
 
 // db.kholboltUusgey moved inside init block for crash safety
 
 app.use(
-  express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 })
+  express.urlencoded({ limit: "50mb", extended: true, parameterLimit: 50000 }),
 );
 
 app.use((req, res, next) => {
@@ -132,31 +132,37 @@ app.use((req, res, next) => {
 // Block common exploit bot scanning patterns to keep logs clean
 app.use((req, res, next) => {
   const urlLower = req.url.toLowerCase();
-  
+
   // Check for common sensitive file targets
   if (
-    urlLower.includes('.env') ||
-    urlLower.includes('tokhirgoo') ||
-    urlLower.includes('database.') ||
-    urlLower.includes('.sql') ||
-    urlLower.includes('.ini') ||
-    urlLower.includes('.aws/') ||
-    urlLower.includes('/aws') ||
-    urlLower.includes('.git/')
+    urlLower.includes(".env") ||
+    urlLower.includes("tokhirgoo") ||
+    urlLower.includes("database.") ||
+    urlLower.includes(".sql") ||
+    urlLower.includes(".ini") ||
+    urlLower.includes(".aws/") ||
+    urlLower.includes("/aws") ||
+    urlLower.includes(".git/")
   ) {
     // Immediately terminate the request with 404
     return res.status(404).end();
   }
-  
+
   next();
 });
 
 app.use(requestContextMiddleware);
 
-const { getMedegdelRoots, getMedegdelPublicRoot } = require("./config/medegdelPaths");
+const {
+  getMedegdelRoots,
+  getMedegdelPublicRoot,
+} = require("./config/medegdelPaths");
 const serveMedegdelImage = (req, res, next) => {
   const fileName = (req.params.ner || "").replace(/\.\./g, "");
-  const baiguullagiinId = (req.params.baiguullagiinId || "").replace(/\.\./g, "");
+  const baiguullagiinId = (req.params.baiguullagiinId || "").replace(
+    /\.\./g,
+    "",
+  );
   if (!fileName || !baiguullagiinId) {
     return res.status(404).json({ success: false, message: "Зураг олдсонгүй" });
   }
@@ -176,13 +182,14 @@ const serveMedegdelImage = (req, res, next) => {
     }
   }
 
-
   if (filePath) {
     res.sendFile(filePath);
   } else {
     if (fileName.match(/\.(jpg|jpeg|png|gif|pdf|webp|webm|m4a)$/i)) {
       const tried = roots.map((r) => path.join(r, baiguullagiinId, fileName));
-      console.log(`❌ [INDEX DEBUG] File not found (404). Tried: ${tried.join("; ")}`);
+      console.log(
+        `❌ [INDEX DEBUG] File not found (404). Tried: ${tried.join("; ")}`,
+      );
       const body = { success: false, message: "Зураг олдсонгүй" };
       if (req.query.debug === "1") {
         body.tried = tried;
@@ -230,7 +237,6 @@ app.use(walletQpayRoute);
 app.use(appVersionRoute);
 app.use(blogRoute);
 
-
 app.use(aldaaBarigch);
 
 async function automataarNekhemjlekhUusgekh() {
@@ -243,15 +249,15 @@ async function automataarNekhemjlekhUusgekh() {
     const nekhemjlekhUusgekhOgnoo = odoo.getDate();
 
     console.log(
-      "=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ЭХЭЛЛЭЭ ==="
+      "=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ЭХЭЛЛЭЭ ===",
     );
     console.log(
       `📅 Огноо: ${odoo.toLocaleString("mn-MN", {
         timeZone: "Asia/Ulaanbaatar",
-      })}`
+      })}`,
     );
     console.log(
-      `🔍 Хайж байна: Сарын ${nekhemjlekhUusgekhOgnoo} өдрийн тохиргоо`
+      `🔍 Хайж байна: Сарын ${nekhemjlekhUusgekhOgnoo} өдрийн тохиргоо`,
     );
 
     const baiguullaguud = await Baiguullaga(db.erunkhiiKholbolt).find({});
@@ -261,7 +267,7 @@ async function automataarNekhemjlekhUusgekh() {
     for (const baiguullaga of baiguullaguud) {
       try {
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          (k) => k.baiguullagiinId === baiguullaga._id.toString()
+          (k) => k.baiguullagiinId === baiguullaga._id.toString(),
         );
 
         if (!tukhainBaaziinKholbolt) {
@@ -277,7 +283,7 @@ async function automataarNekhemjlekhUusgekh() {
         });
 
         console.log(
-          `🔍 Байгууллага ${baiguullaga.ner}: ${schedules.length} тохиргоо олдлоо`
+          `🔍 Байгууллага ${baiguullaga.ner}: ${schedules.length} тохиргоо олдлоо`,
         );
 
         for (const schedule of schedules) {
@@ -289,31 +295,31 @@ async function automataarNekhemjlekhUusgekh() {
       } catch (error) {
         console.log(
           `Байгууллага ${baiguullaga._id} шалгах алдаа:`,
-          error.message
+          error.message,
         );
       }
     }
 
     if (tovchoonuud.length === 0) {
       console.log(
-        `Сарын ${nekhemjlekhUusgekhOgnoo} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`
+        `Сарын ${nekhemjlekhUusgekhOgnoo} өдрийн хувьд нэхэмжлэх үүсгэх тохиргоо олдсонгүй`,
       );
       return;
     }
 
     console.log(
-      `Өнөөдрийн хувьд ${tovchoonuud.length} байгууллагын тохиргоо олдлоо`
+      `Өнөөдрийн хувьд ${tovchoonuud.length} байгууллагын тохиргоо олдлоо`,
     );
 
     for (const tovchoo of tovchoonuud) {
       try {
         const baiguullaga = tovchoo.baiguullaga;
         console.log(
-          `Байгууллага боловсруулах: ${baiguullaga.ner} (${baiguullaga._id})`
+          `Байгууллага боловсруулах: ${baiguullaga.ner} (${baiguullaga._id})`,
         );
 
         const tukhainBaaziinKholbolt = db.kholboltuud.find(
-          (k) => k.baiguullagiinId === baiguullaga._id.toString()
+          (k) => k.baiguullagiinId === baiguullaga._id.toString(),
         );
 
         // Process contracts based on schedule type (organization-level or building-level)
@@ -336,16 +342,16 @@ async function automataarNekhemjlekhUusgekh() {
             `ℹ️  ${
               baiguullaga.ner
             }-д идэвхтэй гэрээ олдсонгүй (нийт: ${await Geree(
-              tukhainBaaziinKholbolt
+              tukhainBaaziinKholbolt,
             ).countDocuments({
               baiguullagiinId: baiguullaga._id.toString(),
-            })})`
+            })})`,
           );
           continue;
         }
 
         console.log(
-          `✅ ${baiguullaga.ner}-д ${gereenuud.length} идэвхтэй гэрээ боловсруулах олдлоо`
+          `✅ ${baiguullaga.ner}-д ${gereenuud.length} идэвхтэй гэрээ боловсруулах олдлоо`,
         );
 
         const batchSize = 20;
@@ -362,9 +368,9 @@ async function automataarNekhemjlekhUusgekh() {
                 geree,
                 baiguullaga,
                 tukhainBaaziinKholbolt,
-                "automataar"
-              )
-            )
+                "automataar",
+              ),
+            ),
           );
 
           results.forEach((result, index) => {
@@ -374,11 +380,11 @@ async function automataarNekhemjlekhUusgekh() {
               const urdun = result.value;
               if (urdun.alreadyExists) {
                 console.log(
-                  `ℹ️  [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} - Нэхэмжлэх энэ сард аль хэдийн байна (${urdun.nekhemjlekh._id})`
+                  `ℹ️  [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} - Нэхэмжлэх энэ сард аль хэдийн байна (${urdun.nekhemjlekh._id})`,
                 );
               } else {
                 console.log(
-                  `✅ [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} - Шинэ нэхэмжлэх үүсгэлээ (${urdun.nekhemjlekh._id})`
+                  `✅ [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} - Шинэ нэхэмжлэх үүсгэлээ (${urdun.nekhemjlekh._id})`,
                 );
               }
             } else {
@@ -391,32 +397,32 @@ async function automataarNekhemjlekhUusgekh() {
                 error?.message || error?.toString() || JSON.stringify(error);
               console.error(
                 `❌ [${processedCount}/${gereenuud.length}] Гэрээ ${batch[index].gereeniiDugaar} боловсруулах алдаа:`,
-                errorMessage
+                errorMessage,
               );
             }
           });
         }
 
         console.log(
-          `📊 ${baiguullaga.ner}: Төлөв - Amjilttai: ${successCount}, Aldaa: ${errorCount}, Niit: ${processedCount}`
+          `📊 ${baiguullaga.ner}: Төлөв - Amjilttai: ${successCount}, Aldaa: ${errorCount}, Niit: ${processedCount}`,
         );
 
         await NekhemjlekhCron(tukhainBaaziinKholbolt).findByIdAndUpdate(
           tovchoo._id,
           {
             suuldAjillasanOgnoo: new Date(),
-          }
+          },
         );
       } catch (baiguullagiinAldaa) {
         console.error(
           `❌ Байгууллага ${tovchoo.baiguullagiinId} боловсруулах алдаа:`,
-          baiguullagiinAldaa.message
+          baiguullagiinAldaa.message,
         );
       }
     }
 
     console.log(
-      "=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ДУУССАН ==="
+      "=== АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ - ӨДРИЙН АЖИЛЛАГАА ДУУССАН ===",
     );
   } catch (aldaa) {
     console.error("❌ АВТОМАТААР НЭХЭМЖЛЭХ ҮҮСГЭХ АЛДАА:", aldaa);
@@ -427,20 +433,20 @@ async function automataarNekhemjlekhUusgekh() {
 if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === "0") {
   // nehemjleh ilgeeh tsag
   const cronJob = cron.schedule(
-    "20 16 * * *",
+    "08 16 * * *",
     function () {
       const now = new Date();
       console.log(
         `⏰ [CRON] Cron job triggered at ${now.toLocaleString("mn-MN", {
           timeZone: "Asia/Ulaanbaatar",
-        })}`
+        })}`,
       );
       automataarNekhemjlekhUusgekh();
     },
     {
       scheduled: true,
       timezone: "Asia/Ulaanbaatar",
-    }
+    },
   );
 
   cron.schedule(
@@ -458,17 +464,19 @@ if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === "0") {
   );
 
   console.log(
-    "🕐 [CRON] Schedules enabled on Instance 0: 16:20 (Invoices) and 07:20 (Parking Archive)"
+    "🕐 [CRON] Schedules enabled on Instance 0: 16:20 (Invoices) and 07:20 (Parking Archive)",
   );
 } else {
-  console.log(`🕐 [CRON] Schedules disabled on Instance ${process.env.NODE_APP_INSTANCE}`);
+  console.log(
+    `🕐 [CRON] Schedules disabled on Instance ${process.env.NODE_APP_INSTANCE}`,
+  );
 }
 
 console.log(
-  "🕐 Cron job тохируулагдлаа: Өдөр бүр 16:18 цагт автоматаар нэхэмжлэх үүсгэх"
+  "🕐 Cron job тохируулагдлаа: Өдөр бүр 16:18 цагт автоматаар нэхэмжлэх үүсгэх",
 );
-if (typeof cronJob !== 'undefined') {
+if (typeof cronJob !== "undefined") {
   console.log(
-    `🕐 Cron job status: ${cronJob.running ? "Ажиллаж байна" : "Зогссон"}`
+    `🕐 Cron job status: ${cronJob.running ? "Ажиллаж байна" : "Зогссон"}`,
   );
 }
