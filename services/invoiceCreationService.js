@@ -16,6 +16,7 @@ const {
 const {
   getUbCalendarParts,
   getLiveBillingCycleBoundsUb,
+  getCycleBoundsForTargetCalendarMonthUb,
   startOfUbWallClockDay,
   clampDayToMonth,
 } = require("../utils/billingCycleUb");
@@ -166,52 +167,16 @@ const gereeNeesNekhemjlekhUusgekh = async (
     // One invoice per contract per billing cycle: look up first, reuse or update if found, create only when none exists.
     if (!shouldUseEkhniiUldegdel) {
       let monthStart;
-      let monthEnd;
       let nextCycleStart;
 
       if (usingHistoricalBilling) {
-        if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
-          const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
-          if (currentDate.getDate() >= scheduledDay) {
-            monthStart = new Date(
-              currentYear,
-              currentMonth,
-              scheduledDay,
-              0,
-              0,
-              0,
-              0,
-            );
-          } else {
-            let prevMonth = currentMonth - 1;
-            let prevYear = currentYear;
-            if (prevMonth < 0) {
-              prevMonth = 11;
-              prevYear -= 1;
-            }
-            monthStart = new Date(
-              prevYear,
-              prevMonth,
-              scheduledDay,
-              0,
-              0,
-              0,
-              0,
-            );
-          }
-        } else {
-          monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-        }
-        monthEnd = new Date(
+        const bounds = getCycleBoundsForTargetCalendarMonthUb(
+          cronSchedule?.nekhemjlekhUusgekhOgnoo,
           currentYear,
-          currentMonth + 1,
-          0,
-          23,
-          59,
-          59,
-          999,
+          currentMonth,
         );
-        nextCycleStart = null;
+        monthStart = bounds.monthStart;
+        nextCycleStart = bounds.nextCycleStart;
       } else {
         const bounds = getLiveBillingCycleBoundsUb(
           cronSchedule?.nekhemjlekhUusgekhOgnoo,
@@ -219,7 +184,6 @@ const gereeNeesNekhemjlekhUusgekh = async (
         );
         monthStart = bounds.monthStart;
         nextCycleStart = bounds.nextCycleStart;
-        monthEnd = null;
       }
 
       // Live billing: an invoice belongs to the current cycle iff monthStart <= ognoo < nextCycleStart
@@ -233,45 +197,25 @@ const gereeNeesNekhemjlekhUusgekh = async (
 
       const existingInvoiceQuery = {
         gereeniiId: tempData._id.toString(),
-        $or: usingHistoricalBilling
-          ? [
+        $or: [
+          {
+            ognoo: {
+              $gte: monthStart,
+              $lt: nextCycleStart,
+            },
+          },
+          {
+            $and: [
+              { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
               {
-                ognoo: {
-                  $gte: monthStart,
-                  $lte: monthEnd,
-                },
-              },
-              {
-                $and: [
-                  { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
-                  {
-                    createdAt: {
-                      $gte: monthStart,
-                      $lte: monthEnd,
-                    },
-                  },
-                ],
-              },
-            ]
-          : [
-              {
-                ognoo: {
+                createdAt: {
                   $gte: monthStart,
                   $lt: nextCycleStart,
                 },
               },
-              {
-                $and: [
-                  { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
-                  {
-                    createdAt: {
-                      $gte: monthStart,
-                      $lt: nextCycleStart,
-                    },
-                  },
-                ],
-              },
             ],
+          },
+        ],
       };
 
       if (checkBarilgiinId) {

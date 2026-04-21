@@ -10,7 +10,10 @@ const {
   getCronScheduleForGeree,
 } = require("./invoiceCreationService");
 const { previewInvoice } = require("./invoicePreviewService");
-const { getLiveBillingCycleBoundsUb } = require("../utils/billingCycleUb");
+const {
+  getLiveBillingCycleBoundsUb,
+  getCycleBoundsForTargetCalendarMonthUb,
+} = require("../utils/billingCycleUb");
 
 function isZardalExcludingEkhniiUldegdel(z) {
   return (
@@ -119,39 +122,13 @@ const manualSendInvoice = async (
       );
 
       if (usingHistoricalTarget) {
-        if (cronSchedule && cronSchedule.nekhemjlekhUusgekhOgnoo) {
-          const scheduledDay = cronSchedule.nekhemjlekhUusgekhOgnoo;
-          if (currentDate.getDate() >= scheduledDay) {
-            monthStart = new Date(
-              currentYear,
-              currentMonth,
-              scheduledDay,
-              0,
-              0,
-              0,
-              0,
-            );
-          } else {
-            let prevMonth = currentMonth - 1;
-            let prevYear = currentYear;
-            if (prevMonth < 0) {
-              prevMonth = 11;
-              prevYear -= 1;
-            }
-            monthStart = new Date(
-              prevYear,
-              prevMonth,
-              scheduledDay,
-              0,
-              0,
-              0,
-              0,
-            );
-          }
-        } else {
-          monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-        }
-        nextCycleStart = null;
+        const bounds = getCycleBoundsForTargetCalendarMonthUb(
+          cronSchedule?.nekhemjlekhUusgekhOgnoo,
+          currentYear,
+          currentMonth,
+        );
+        monthStart = bounds.monthStart;
+        nextCycleStart = bounds.nextCycleStart;
       } else {
         const bounds = getLiveBillingCycleBoundsUb(
           cronSchedule?.nekhemjlekhUusgekhOgnoo,
@@ -162,18 +139,19 @@ const manualSendInvoice = async (
       }
     } catch (err) {
       if (usingHistoricalTarget) {
-        monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-        nextCycleStart = null;
+        const bounds = getCycleBoundsForTargetCalendarMonthUb(
+          null,
+          currentYear,
+          currentMonth,
+        );
+        monthStart = bounds.monthStart;
+        nextCycleStart = bounds.nextCycleStart;
       } else {
         const bounds = getLiveBillingCycleBoundsUb(null, new Date());
         monthStart = bounds.monthStart;
         nextCycleStart = bounds.nextCycleStart;
       }
     }
-
-    const monthEnd = usingHistoricalTarget
-      ? new Date(currentYear, currentMonth + 1, 0, 23, 59, 59, 999)
-      : null;
 
     let checkBarilgiinId = geree.barilgiinId;
     if (
@@ -186,25 +164,15 @@ const manualSendInvoice = async (
 
     const existingInvoiceQuery = {
       gereeniiId: String(gereeId),
-      $or: usingHistoricalTarget
-        ? [
-            { ognoo: { $gte: monthStart, $lte: monthEnd } },
-            {
-              $and: [
-                { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
-                { createdAt: { $gte: monthStart, $lte: monthEnd } },
-              ],
-            },
-          ]
-        : [
-            { ognoo: { $gte: monthStart, $lt: nextCycleStart } },
-            {
-              $and: [
-                { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
-                { createdAt: { $gte: monthStart, $lt: nextCycleStart } },
-              ],
-            },
+      $or: [
+        { ognoo: { $gte: monthStart, $lt: nextCycleStart } },
+        {
+          $and: [
+            { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
+            { createdAt: { $gte: monthStart, $lt: nextCycleStart } },
           ],
+        },
+      ],
     };
     if (checkBarilgiinId) {
       existingInvoiceQuery.barilgiinId = String(checkBarilgiinId);
@@ -559,12 +527,13 @@ const manualSendInvoice = async (
     }
 
     // includeEkhniiUldegdel = false: manual send must not add ekhniiUldegdel (Excel/TransactionModal only)
+    // Last day of selected calendar month so historical billing uses the same cycle as duplicate lookup
     const billingRef =
       targetMonth !== null &&
       targetYear !== null &&
       !Number.isNaN(Number(targetMonth)) &&
       !Number.isNaN(Number(targetYear))
-        ? new Date(Number(targetYear), Number(targetMonth) - 1, 1)
+        ? new Date(Number(targetYear), Number(targetMonth), 0)
         : null;
     const result = await gereeNeesNekhemjlekhUusgekh(
       geree,

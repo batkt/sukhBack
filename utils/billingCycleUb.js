@@ -99,10 +99,27 @@ function getLiveBillingCycleBoundsUb(scheduledDay, now = new Date()) {
   return { monthStart, nextCycleStart };
 }
 
+/**
+ * UI "April 2026" must map to the billing cycle that contains the end of that calendar month.
+ * Anchoring on the 1st wrongly picks the previous cycle (e.g. day-20 schedule → Mar 20–Apr 20),
+ * so a March 21 invoice incorrectly matches "April".
+ *
+ * @param {number|null|undefined} scheduledDay
+ * @param {number} year — full year, e.g. 2026
+ * @param {number} monthIndex0 — 0 = January
+ */
+function getCycleBoundsForTargetCalendarMonthUb(scheduledDay, year, monthIndex0) {
+  const lastD = daysInCalendarMonth(year, monthIndex0);
+  const start = startOfUbWallClockDay(year, monthIndex0, lastD);
+  const refInstant = new Date(start.getTime() + 12 * 60 * 60 * 1000);
+  return getLiveBillingCycleBoundsUb(scheduledDay, refInstant);
+}
+
 module.exports = {
   UB_TZ,
   getUbCalendarParts,
   getLiveBillingCycleBoundsUb,
+  getCycleBoundsForTargetCalendarMonthUb,
   startOfUbWallClockDay,
   clampDayToMonth,
   daysInCalendarMonth,

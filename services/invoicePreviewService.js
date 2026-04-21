@@ -8,6 +8,8 @@ const {
   normalizeZardluudTurul,
   sumZardalDun,
 } = require("../utils/zardalUtils");
+const { getCronScheduleForGeree } = require("./invoiceCreationService");
+const { getCycleBoundsForTargetCalendarMonthUb } = require("../utils/billingCycleUb");
 const previewInvoice = async (
   gereeId,
   baiguullagiinId,
@@ -463,26 +465,64 @@ const previewInvoice = async (
       tulukhOgnoo = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     }
 
-    const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
-    const monthEnd = new Date(
-      currentYear,
-      currentMonth + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
-    );
-
     const nekhemjlekhiinTuukh = require("../models/nekhemjlekhiinTuukh");
-    const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
-      .findOne({
+    const usingTargetMonth =
+      targetMonth !== null &&
+      targetYear !== null &&
+      !Number.isNaN(Number(targetMonth)) &&
+      !Number.isNaN(Number(targetYear));
+
+    let existingInvoiceQuery;
+    if (usingTargetMonth) {
+      const cronSchedule = await getCronScheduleForGeree(
+        tukhainBaaziinKholbolt,
+        geree,
+        baiguullaga,
+      );
+      const bounds = getCycleBoundsForTargetCalendarMonthUb(
+        cronSchedule?.nekhemjlekhUusgekhOgnoo,
+        currentYear,
+        currentMonth,
+      );
+      existingInvoiceQuery = {
+        gereeniiId: String(gereeId),
+        $or: [
+          { ognoo: { $gte: bounds.monthStart, $lt: bounds.nextCycleStart } },
+          {
+            $and: [
+              { $or: [{ ognoo: { $exists: false } }, { ognoo: null }] },
+              {
+                createdAt: {
+                  $gte: bounds.monthStart,
+                  $lt: bounds.nextCycleStart,
+                },
+              },
+            ],
+          },
+        ],
+      };
+    } else {
+      const monthStart = new Date(currentYear, currentMonth, 1, 0, 0, 0, 0);
+      const monthEnd = new Date(
+        currentYear,
+        currentMonth + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      );
+      existingInvoiceQuery = {
         gereeniiId: String(gereeId),
         $or: [
           { ognoo: { $gte: monthStart, $lte: monthEnd } },
           { createdAt: { $gte: monthStart, $lte: monthEnd } },
         ],
-      })
+      };
+    }
+
+    const existingInvoice = await nekhemjlekhiinTuukh(tukhainBaaziinKholbolt)
+      .findOne(existingInvoiceQuery)
       .lean();
 
     const sohNer = targetBarilga?.tokhirgoo?.sohNer || "";
