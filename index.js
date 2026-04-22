@@ -433,7 +433,7 @@ async function automataarNekhemjlekhUusgekh() {
 if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === "0") {
   // nehemjleh ilgeeh tsag
   const cronJob = cron.schedule(
-    "08 16 * * *",
+    "01 01 * * *",
     function () {
       const now = new Date();
       console.log(
