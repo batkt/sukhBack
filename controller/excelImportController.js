@@ -1096,10 +1096,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           }
         }
 
-       
         // Хуучин загвар: зөвхөн "Цахилгаан кВт" байвал ихэнх нь тариф; тоолуурын утга ихэвчлэн 1000+
         const legacySingleCol =
-          echneeZaaltKvt == null &&
           row["Цахилгаан кВт"] !== undefined &&
           row["Цахилгаан кВт"] !== null &&
           String(row["Цахилгаан кВт"]).trim() !== "" &&
@@ -1107,11 +1105,9 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             ? parseFloat(row["Цахилгаан кВт"])
             : NaN;
         const initialMeterReading =
-          echneeZaaltKvt != null && !Number.isNaN(echneeZaaltKvt)
-            ? echneeZaaltKvt
-            : Number.isFinite(legacySingleCol) && legacySingleCol >= 1000
-              ? legacySingleCol
-              : 0;
+          Number.isFinite(legacySingleCol) && legacySingleCol >= 1000
+            ? legacySingleCol
+            : 0;
 
         const userData = {
           ovog: ovog,
