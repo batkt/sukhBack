@@ -944,7 +944,6 @@ exports.generateExcelTemplate = asyncHandler(async (req, res, next) => {
       "Давхар",
       "Тоот",
       "Эхний үлдэгдэл",
-      "Эхний заалт (кВт·ц)",
       "Цахилгаан кВт (тариф ₮/кВт)",
       "Тайлбар",
     ];
@@ -1097,19 +1096,7 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
           }
         }
 
-        const meterKeys = ["Эхний заалт (кВт·ц)", "Эхний заалт"];
-        let echneeZaaltKvt = null;
-        for (const k of meterKeys) {
-          if (
-            row[k] !== undefined &&
-            row[k] !== null &&
-            String(row[k]).trim() !== ""
-          ) {
-            echneeZaaltKvt = parseFloat(row[k]);
-            if (!Number.isNaN(echneeZaaltKvt)) break;
-            echneeZaaltKvt = null;
-          }
-        }
+       
         // Хуучин загвар: зөвхөн "Цахилгаан кВт" байвал ихэнх нь тариф; тоолуурын утга ихэвчлэн 1000+
         const legacySingleCol =
           echneeZaaltKvt == null &&
@@ -1856,7 +1843,6 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
                 actOgnoo: new Date(),
                 baritsaaniiUldegdel: 0,
                 ekhniiUldegdel: userData.ekhniiUldegdel || 0,
-                // Тоолуурын эхний нийт заалт — тарифаас тусдаа (Эхний заалт багана)
                 umnukhZaalt: userData.initialMeterReading || 0,
                 suuliinZaalt: userData.initialMeterReading || 0,
                 zaaltTog: 0, // Day reading (will be updated later)
