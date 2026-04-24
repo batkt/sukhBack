@@ -270,13 +270,13 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             if (orshinSuugch) {
               userPhoneNumber = orshinSuugch.utas;
 
-              const hasWalletData = orshinSuugch.walletUserId || (orshinSuugch.toots && orshinSuugch.toots.some(t => t.source === "WALLET_API"));
+              const hasWalletData =
+                orshinSuugch.walletUserId ||
+                (orshinSuugch.toots &&
+                  orshinSuugch.toots.some((t) => t.source === "WALLET_API"));
 
               // 1) If frontend explicitly asks for Wallet QPay and wallet data exists, prefer WALLET_API
-              if (
-                addressSourceOverride === "WALLET_API" &&
-                hasWalletData
-              ) {
+              if (addressSourceOverride === "WALLET_API" && hasWalletData) {
                 detectedSource = "WALLET_API";
                 useWalletQPay = true;
               }
@@ -291,7 +291,10 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 useWalletQPay = true;
               }
               // 4) Fallback: no wallet data -> custom QPay (OWN_ORG)
-              else if (orshinSuugch.baiguullagiinId || req.body.baiguullagiinId) {
+              else if (
+                orshinSuugch.baiguullagiinId ||
+                req.body.baiguullagiinId
+              ) {
                 detectedSource = "CUSTOM";
                 useWalletQPay = false;
               }
@@ -675,49 +678,54 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
           result.receiverBankCode && result.receiverAccountNo;
 
         // Check if Wallet-Service provided a QR code
-        const walletQrText = result.qrText || result.qr_text || result.url || null;
+        const walletQrText =
+          result.qrText || result.qr_text || result.url || null;
         const walletQrUrl = result.url || result.invoice_url || null;
 
         const walletBankAmount =
-          result.totalAmount ||
-          result.paymentAmount ||
-          result.amount ||
-          null;
+          result.totalAmount || result.paymentAmount || result.amount || null;
 
         // Function to generate EMV QR code format for bank transfer
         // Mongolian banks use EMV QR Code standard (ISO 18004) for bank transfers
-        const generateEMVQR = (bankCode, accountNo, accountName, amount, description) => {
+        const generateEMVQR = (
+          bankCode,
+          accountNo,
+          accountName,
+          amount,
+          description,
+        ) => {
           if (!bankCode || !accountNo || !amount) return null;
 
           // EMV QR Code format for Merchant-Presented Mode (MPM)
           // Structure: [Payload Format Indicator][Point of Initiation][Merchant Account Info][Merchant Category Code][Transaction Currency][Transaction Amount][Country Code][Merchant Name][Additional Data Field Template][CRC]
-          
+
           // For bank transfers in Mongolia, we use a simplified format
           // Format: 000201010212[Merchant Account Info][Amount][Description]6304[CRC]
-          
+
           const amountStr = Math.round(amount * 100).toString(); // Amount in smallest currency unit (tiyng)
-          const merchantAccountInfo = `26${String(bankCode.length + accountNo.length + 2).padStart(2, '0')}${bankCode}${accountNo}`;
-          const amountField = `54${String(amountStr.length).padStart(2, '0')}${amountStr}`;
+          const merchantAccountInfo = `26${String(bankCode.length + accountNo.length + 2).padStart(2, "0")}${bankCode}${accountNo}`;
+          const amountField = `54${String(amountStr.length).padStart(2, "0")}${amountStr}`;
           const currencyField = `5303${"496"}`; // 496 = MNT (Mongolian Tugrik)
           const countryCode = `5802${"MN"}`;
-          const merchantName = `59${String((accountName || "").length).padStart(2, '0')}${accountName || ""}`;
-          const additionalData = `62${String((description || "").length + 2).padStart(2, '0')}05${String((description || "").length).padStart(2, '0')}${description || ""}`;
-          
+          const merchantName = `59${String((accountName || "").length).padStart(2, "0")}${accountName || ""}`;
+          const additionalData = `62${String((description || "").length + 2).padStart(2, "0")}05${String((description || "").length).padStart(2, "0")}${description || ""}`;
+
           // Build QR payload
-          const payload = `000201` + // Payload Format Indicator
-                         `0102` + // Point of Initiation (02 = dynamic)
-                         merchantAccountInfo +
-                         `5204${"0000"}` + // Merchant Category Code (0000 = default)
-                         currencyField +
-                         amountField +
-                         countryCode +
-                         merchantName +
-                         additionalData +
-                         `6304`; // CRC placeholder
-          
+          const payload =
+            `000201` + // Payload Format Indicator
+            `0102` + // Point of Initiation (02 = dynamic)
+            merchantAccountInfo +
+            `5204${"0000"}` + // Merchant Category Code (0000 = default)
+            currencyField +
+            amountField +
+            countryCode +
+            merchantName +
+            additionalData +
+            `6304`; // CRC placeholder
+
           // Calculate CRC16-CCITT
           const calculateCRC = (data) => {
-            let crc = 0xFFFF;
+            let crc = 0xffff;
             for (let i = 0; i < data.length; i++) {
               crc ^= data.charCodeAt(i) << 8;
               for (let j = 0; j < 8; j++) {
@@ -728,12 +736,12 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 }
               }
             }
-            return (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+            return (crc & 0xffff).toString(16).toUpperCase().padStart(4, "0");
           };
-          
+
           const crc = calculateCRC(payload);
           const qrString = payload + crc;
-          
+
           return qrString;
         };
 
@@ -754,7 +762,7 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
             result.receiverAccountNo,
             result.receiverAccountName || "",
             walletBankAmount,
-            result.transactionDescription || result.transactionDescrion || ""
+            result.transactionDescription || result.transactionDescrion || "",
           );
 
           if (generatedQR) {
@@ -940,10 +948,27 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
         if (!req.body.dun) {
           const invoiceAmounts = await Promise.all(
             invoices.map(async (inv) => {
-              const invDate = inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
+              const invDate =
+                inv.ognoo || inv.nekhemjlekhiinOgnoo || inv.createdAt;
               const d = invDate ? new Date(invDate) : new Date();
-              const monthStart = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
-              const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+              const monthStart = new Date(
+                d.getFullYear(),
+                d.getMonth(),
+                1,
+                0,
+                0,
+                0,
+                0,
+              );
+              const monthEnd = new Date(
+                d.getFullYear(),
+                d.getMonth() + 1,
+                0,
+                23,
+                59,
+                59,
+                999,
+              );
               const avlagaRows = await GereeniiTulukhAvlaga(
                 req.body.tukhainBaaziinKholbolt,
               )
@@ -955,15 +980,22 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 })
                 .select("uldegdel undsenDun tulukhDun")
                 .lean();
-              const avlagaSum = Math.round(
-                avlagaRows.reduce(
-                  (s, r) =>
-                    s +
-                    (Number(r.uldegdel) || Number(r.undsenDun) || Number(r.tulukhDun) || 0),
-                  0,
-                ) * 100,
-              ) / 100;
-              return Math.round(((Number(inv.niitTulbur) || 0) + avlagaSum) * 100) / 100;
+              const avlagaSum =
+                Math.round(
+                  avlagaRows.reduce(
+                    (s, r) =>
+                      s +
+                      (Number(r.uldegdel) ||
+                        Number(r.undsenDun) ||
+                        Number(r.tulukhDun) ||
+                        0),
+                    0,
+                  ) * 100,
+                ) / 100;
+              return (
+                Math.round(((Number(inv.niitTulbur) || 0) + avlagaSum) * 100) /
+                100
+              );
             }),
           );
           const totalAmount = invoiceAmounts.reduce((sum, amt) => sum + amt, 0);
@@ -1014,8 +1046,24 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 nekhemjlekh.nekhemjlekhiinOgnoo ||
                 nekhemjlekh.createdAt;
               const d = invDate ? new Date(invDate) : new Date();
-              const monthStart = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
-              const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+              const monthStart = new Date(
+                d.getFullYear(),
+                d.getMonth(),
+                1,
+                0,
+                0,
+                0,
+                0,
+              );
+              const monthEnd = new Date(
+                d.getFullYear(),
+                d.getMonth() + 1,
+                0,
+                23,
+                59,
+                59,
+                999,
+              );
               const avlagaRows = await GereeniiTulukhAvlaga(
                 req.body.tukhainBaaziinKholbolt,
               )
@@ -1027,16 +1075,22 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
                 })
                 .select("uldegdel undsenDun tulukhDun")
                 .lean();
-              const avlagaSum = Math.round(
-                avlagaRows.reduce(
-                  (s, r) =>
-                    s +
-                    (Number(r.uldegdel) || Number(r.undsenDun) || Number(r.tulukhDun) || 0),
-                  0,
-                ) * 100,
-              ) / 100;
+              const avlagaSum =
+                Math.round(
+                  avlagaRows.reduce(
+                    (s, r) =>
+                      s +
+                      (Number(r.uldegdel) ||
+                        Number(r.undsenDun) ||
+                        Number(r.tulukhDun) ||
+                        0),
+                    0,
+                  ) * 100,
+                ) / 100;
               const payableAmount =
-                Math.round(((Number(nekhemjlekh.niitTulbur) || 0) + avlagaSum) * 100) / 100;
+                Math.round(
+                  ((Number(nekhemjlekh.niitTulbur) || 0) + avlagaSum) * 100,
+                ) / 100;
               if (payableAmount > 0) {
                 req.body.dun = payableAmount.toString();
               }
@@ -1375,7 +1429,9 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
     let baiguullagiinId = req.body.baiguullagiinId;
     let tukhainBaaziinKholbolt = req.body.tukhainBaaziinKholbolt;
 
-    console.log(`🔍 [QPAY] Status Check: invoice_id=${req.body.invoice_id}, baiguullagiinId=${baiguullagiinId}`);
+    console.log(
+      `🔍 [QPAY] Status Check: invoice_id=${req.body.invoice_id}, baiguullagiinId=${baiguullagiinId}`,
+    );
 
     // Resolve connection object correctly
     if (baiguullagiinId) {
@@ -1383,17 +1439,25 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
         (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
       );
       if (kholbolt) {
-        console.log(`✅ [QPAY] Resolved connection for org: ${baiguullagiinId}`);
+        console.log(
+          `✅ [QPAY] Resolved connection for org: ${baiguullagiinId}`,
+        );
         tukhainBaaziinKholbolt = kholbolt;
         req.body.tukhainBaaziinKholbolt = kholbolt;
       } else {
-        console.warn(`⚠️ [QPAY] No connection found for org: ${baiguullagiinId} in registry of ${db.kholboltuud.length} connections`);
+        console.warn(
+          `⚠️ [QPAY] No connection found for org: ${baiguullagiinId} in registry of ${db.kholboltuud.length} connections`,
+        );
       }
     } else {
-      console.warn(`⚠️ [QPAY] No baiguullagiinId provided in body: ${JSON.stringify(req.body)}`);
+      console.warn(
+        `⚠️ [QPAY] No baiguullagiinId provided in body: ${JSON.stringify(req.body)}`,
+      );
       // Fallback: If there's ONLY ONE connection in the pool, use it as a best-effort fallback
       if (db.kholboltuud.length === 1) {
-        console.log(`ℹ️ [QPAY] Best-effort fallback using the only connection: ${db.kholboltuud[0].baiguullagiinId}`);
+        console.log(
+          `ℹ️ [QPAY] Best-effort fallback using the only connection: ${db.kholboltuud[0].baiguullagiinId}`,
+        );
         tukhainBaaziinKholbolt = db.kholboltuud[0];
         req.body.baiguullagiinId = db.kholboltuud[0].baiguullagiinId;
         req.body.tukhainBaaziinKholbolt = db.kholboltuud[0];
@@ -1415,18 +1479,21 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
         let kholbolt = req.body.tukhainBaaziinKholbolt;
         if ((!kholbolt || typeof kholbolt !== "object") && baiguullagiinId) {
           kholbolt = db.kholboltuud.find(
-            (k) => String(k.baiguullagiinId) === String(baiguullagiinId)
+            (k) => String(k.baiguullagiinId) === String(baiguullagiinId),
           );
         }
 
         if (kholbolt) {
-          const qpayObj = await QuickQpayObject(kholbolt).findOne({
-            invoice_id: invoiceId,
-          }).lean();
+          const qpayObj = await QuickQpayObject(kholbolt)
+            .findOne({
+              invoice_id: invoiceId,
+            })
+            .lean();
 
           if (qpayObj) {
             // Return a synthetic response that the app can parse
-            const isPaid = qpayObj.tulsunEsekh === true ||
+            const isPaid =
+              qpayObj.tulsunEsekh === true ||
               qpayObj.invoice_status === "PAID" ||
               qpayObj.invoice_status === "CLOSED";
 
@@ -1434,19 +1501,26 @@ router.post("/qpayShalgay", tokenShalgakh, async (req, res, next) => {
               invoice_id: invoiceId,
               invoice_status: isPaid ? "PAID" : "OPEN",
               tuluv: isPaid ? "Төлсөн" : "Төлөөгүй",
-              paid_amount: isPaid ? (qpayObj.qpay?.amount || 0) : 0,
-              payments: isPaid ? [{
-                payment_status: "PAID",
-                status: "PAID",
-                amount: qpayObj.qpay?.amount || 0,
-                transactions: [],
-              }] : [],
+              paid_amount: isPaid ? qpayObj.qpay?.amount || 0 : 0,
+              payments: isPaid
+                ? [
+                    {
+                      payment_status: "PAID",
+                      status: "PAID",
+                      amount: qpayObj.qpay?.amount || 0,
+                      transactions: [],
+                    },
+                  ]
+                : [],
             });
           }
         }
       }
     } catch (fallbackErr) {
-      console.error("❌ [QPAY SHALGAY] Fallback DB lookup also failed:", fallbackErr.message);
+      console.error(
+        "❌ [QPAY SHALGAY] Fallback DB lookup also failed:",
+        fallbackErr.message,
+      );
     }
 
     // If fallback also fails, return not-paid response (don't crash)
@@ -1695,26 +1769,6 @@ router.get(
       const baiguullagiinId = req.params.baiguullagiinId;
       const nekhemjlekhiinId = req.params.nekhemjlekhiinId;
 
-      // Two+ nekhemjlekhiin IDs were comma-joined in this segment (legacy / mis-built URL).
-      // findById("id1,id2") fails → 404 and QuickQpayObject.tulsunEsekh never flips — delegate to multi handler.
-      const splitNekhemjlekhiinIds = String(nekhemjlekhiinId || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (splitNekhemjlekhiinIds.length > 1) {
-        const joined = splitNekhemjlekhiinIds.join(",");
-        const qIdx = req.originalUrl.indexOf("?");
-        const queryString = qIdx >= 0 ? req.originalUrl.slice(qIdx) : "";
-        const fallbackBase = `${req.protocol}://${req.get("host")}${req.baseUrl || ""}`.replace(
-          /\/$/,
-          "",
-        );
-        const publicBase =
-          (process.env.UNDSEN_SERVER || "").replace(/\/$/, "") || fallbackBase;
-        const path = `/qpayNekhemjlekhMultipleCallback/${baiguullagiinId}/${joined}${queryString}`;
-        return res.redirect(307, `${publicBase}${path}`);
-      }
-
       const kholbolt = db.kholboltuud.find(
         (a) => String(a.baiguullagiinId) === String(baiguullagiinId),
       );
@@ -1746,7 +1800,7 @@ router.get(
           if (khariu?.payments?.[0]?.transactions?.[0]?.id) {
             paymentTransactionId = khariu.payments[0].transactions[0].id;
             nekhemjlekh.qpayPaymentId = paymentTransactionId;
-            
+
             // Get actual paid amount from QPay if available
             if (khariu.payments[0].amount) {
               actualPaidAmountFromQPay = parseFloat(khariu.payments[0].amount);
@@ -1762,14 +1816,15 @@ router.get(
 
       // Calculate uldegdel properly based on actual paid amount
       // Prefer amount from QPay if local niitTulbur is zero or doesn't match
-      const paidAmount = actualPaidAmountFromQPay || nekhemjlekh.niitTulbur || 0;
+      const paidAmount =
+        actualPaidAmountFromQPay || nekhemjlekh.niitTulbur || 0;
       const currentUldegdel =
         typeof nekhemjlekh.uldegdel === "number" &&
         !isNaN(nekhemjlekh.uldegdel) &&
         nekhemjlekh.uldegdel > 0
           ? nekhemjlekh.uldegdel
-          : (nekhemjlekh.niitTulbur || paidAmount);
-      
+          : nekhemjlekh.niitTulbur || paidAmount;
+
       const newUldegdel = Math.max(0, currentUldegdel - paidAmount);
       const isFullyPaid = newUldegdel <= 0.01;
 
@@ -1840,10 +1895,13 @@ router.get(
           if (qpayObject) {
             const updateData = { tulsunEsekh: true };
             // Also ensure metadata is synced if it's missing
-            if (!qpayObject.sukhNekhemjlekh || !qpayObject.sukhNekhemjlekh.nekhemjlekhiinId) {
+            if (
+              !qpayObject.sukhNekhemjlekh ||
+              !qpayObject.sukhNekhemjlekh.nekhemjlekhiinId
+            ) {
               updateData.sukhNekhemjlekh = sukhemjlekhData;
             }
-            
+
             await QuickQpayObject(kholbolt).findByIdAndUpdate(
               qpayObject._id,
               updateData,
@@ -1958,7 +2016,9 @@ router.get(
       }
 
       // Recalculate globalUldegdel using shared utility
-      const { recalcGlobalUldegdel: recalcSingle } = require("../utils/recalcGlobalUldegdel");
+      const {
+        recalcGlobalUldegdel: recalcSingle,
+      } = require("../utils/recalcGlobalUldegdel");
       const GereeniiTulukhAvlaga = require("../models/gereeniiTulukhAvlaga");
       const GereeniiTulsunAvlagaRecalcSingle = require("../models/gereeniiTulsunAvlaga");
       try {
@@ -2030,7 +2090,9 @@ router.get(
               cityName,
               districtCodeString,
               horooNameFromConfig:
-                tuxainSalbar.EbarimtDHoroo?.ner || tuxainSalbar.horoo?.ner || null,
+                tuxainSalbar.EbarimtDHoroo?.ner ||
+                tuxainSalbar.horoo?.ner ||
+                null,
             });
 
             // Extract horoo/district name from the district code string
@@ -2166,7 +2228,11 @@ router.get(
               if (d?.status != "SUCCESS" && !d.success) {
                 console.error(
                   "❌ [QPAY CALLBACK] Ebarimt provider returned non-success",
-                  { status: d?.status, success: d?.success, message: d?.message || null },
+                  {
+                    status: d?.status,
+                    success: d?.success,
+                    message: d?.message || null,
+                  },
                 );
                 return;
               }
@@ -2194,11 +2260,15 @@ router.get(
                   // Update BankniiGuilgee record to reflect e-barimt status
                   try {
                     const BankniiGuilgee = require("../models/bankniiGuilgee");
-                    const recordId = khariuObject.qpayPaymentId || khariuObject.qpayInvoiceId;
+                    const recordId =
+                      khariuObject.qpayPaymentId || khariuObject.qpayInvoiceId;
                     if (recordId) {
                       await BankniiGuilgee(kholbolt).updateMany(
-                        { record: recordId, baiguullagiinId: khariuObject.baiguullagiinId },
-                        { $set: { ebarimtAvsanEsekh: true } }
+                        {
+                          record: recordId,
+                          baiguullagiinId: khariuObject.baiguullagiinId,
+                        },
+                        { $set: { ebarimtAvsanEsekh: true } },
                       );
                       console.log(
                         "✅ [QPAY CALLBACK] BankniiGuilgee ebarimtAvsanEsekh updated",
@@ -2210,7 +2280,10 @@ router.get(
                       );
                     }
                   } catch (bankUpdateErr) {
-                    console.error("❌ [QPAY CALLBACK] Error updating BankniiGuilgee ebarimtAvsanEsekh:", bankUpdateErr.message);
+                    console.error(
+                      "❌ [QPAY CALLBACK] Error updating BankniiGuilgee ebarimtAvsanEsekh:",
+                      bankUpdateErr.message,
+                    );
                   }
 
                   // Auto-approve QR for Easy Register if customerNo and qrData are available
@@ -2230,10 +2303,16 @@ router.get(
                   }
                 })
                 .catch((saveErr) => {
-                  console.error("❌ [QPAY CALLBACK] Error saving EbarimtShine:", saveErr.message);
+                  console.error(
+                    "❌ [QPAY CALLBACK] Error saving EbarimtShine:",
+                    saveErr.message,
+                  );
                 });
             } catch (err) {
-              console.error("❌ [QPAY CALLBACK] Error in butsaakhMethod:", err.message);
+              console.error(
+                "❌ [QPAY CALLBACK] Error in butsaakhMethod:",
+                err.message,
+              );
             }
           };
 
@@ -2247,14 +2326,19 @@ router.get(
             qpayInvoiceId: ebarimt.qpayInvoiceId || null,
           });
           ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
-          console.log("ℹ️ [QPAY CALLBACK] ebarimtDuudya() call finished (non-blocking)");
+          console.log(
+            "ℹ️ [QPAY CALLBACK] ebarimtDuudya() call finished (non-blocking)",
+          );
         } else {
           console.log(
             "ℹ️ [QPAY CALLBACK] Ebarimt skipped because feature flags are disabled",
           );
         }
       } catch (ebarimtError) {
-        console.error("❌ [QPAY CALLBACK] Error in E-barimt block:", ebarimtError.message);
+        console.error(
+          "❌ [QPAY CALLBACK] Error in E-barimt block:",
+          ebarimtError.message,
+        );
       }
 
       const io = req.app.get("socketio");
@@ -2321,16 +2405,14 @@ router.get(
         return res.status(404).send("Invoices not found");
       }
 
-      // Prefer the invoice that actually holds the QPay invoice id (order from $in is not guaranteed).
+      // Get QPay invoice ID from first invoice
       const firstInvoice = invoices[0];
-      const invoiceWithQpay =
-        invoices.find((inv) => inv.qpayInvoiceId) || firstInvoice;
       let paymentTransactionId = null;
 
-      if (invoiceWithQpay.qpayInvoiceId) {
+      if (firstInvoice.qpayInvoiceId) {
         try {
           const khariu = await qpayShalgay(
-            { invoice_id: invoiceWithQpay.qpayInvoiceId },
+            { invoice_id: firstInvoice.qpayInvoiceId },
             kholbolt,
           );
 
@@ -2550,7 +2632,9 @@ router.get(
           }
 
           // Recalculate globalUldegdel using shared utility
-          const { recalcGlobalUldegdel: recalcMulti } = require("../utils/recalcGlobalUldegdel");
+          const {
+            recalcGlobalUldegdel: recalcMulti,
+          } = require("../utils/recalcGlobalUldegdel");
           const GereeniiTulukhAvlagaRecalc = require("../models/gereeniiTulukhAvlaga");
           const GereeniiTulsunAvlagaRecalcMulti = require("../models/gereeniiTulsunAvlaga");
           try {
@@ -2560,7 +2644,8 @@ router.get(
               GereeModel: Geree(kholbolt),
               NekhemjlekhiinTuukhModel: nekhemjlekhiinTuukh(kholbolt),
               GereeniiTulukhAvlagaModel: GereeniiTulukhAvlagaRecalc(kholbolt),
-              GereeniiTulsunAvlagaModel: GereeniiTulsunAvlagaRecalcMulti(kholbolt),
+              GereeniiTulsunAvlagaModel:
+                GereeniiTulsunAvlagaRecalcMulti(kholbolt),
             });
 
             // NOTE: Do not overwrite the latest invoice's uldegdel with contract-wide globalUldegdel.
@@ -2731,11 +2816,12 @@ router.get(
 
                     const nuatTulukhEsekh = !!tuxainSalbar.nuatTulukhEsekh;
 
-                    const paidAmountForEbarimt = Number(
-                      updatedInvoice?.paymentHistory?.[
-                        (updatedInvoice?.paymentHistory?.length || 1) - 1
-                      ]?.dun,
-                    ) || 0;
+                    const paidAmountForEbarimt =
+                      Number(
+                        updatedInvoice?.paymentHistory?.[
+                          (updatedInvoice?.paymentHistory?.length || 1) - 1
+                        ]?.dun,
+                      ) || 0;
                     const ebarimtInvoice = {
                       ...(typeof updatedInvoice.toObject === "function"
                         ? updatedInvoice.toObject()
@@ -2765,13 +2851,16 @@ router.get(
                     // ebarimtDuudya calls onFinish(body, ugugdul) where ugugdul is the ebarimt object
                     var butsaakhMethod = async function (d, ebarimtObject) {
                       try {
-                        console.log("ℹ️ [QPAY MULTI CALLBACK] ebarimtDuudya response:", {
-                          status: d?.status || null,
-                          success: d?.success,
-                          message: d?.message || d?.error || null,
-                          receiptId: d?.id || null,
-                          invoiceId: ebarimtObject?.nekhemjlekhiinId || null,
-                        });
+                        console.log(
+                          "ℹ️ [QPAY MULTI CALLBACK] ebarimtDuudya response:",
+                          {
+                            status: d?.status || null,
+                            success: d?.success,
+                            message: d?.message || d?.error || null,
+                            receiptId: d?.id || null,
+                            invoiceId: ebarimtObject?.nekhemjlekhiinId || null,
+                          },
+                        );
                         if (d?.status != "SUCCESS" && !d.success) {
                           console.error(
                             "❌ [QPAY MULTI CALLBACK] Ebarimt provider returned non-success",
@@ -2802,19 +2891,28 @@ router.get(
                         shineBarimt
                           .save()
                           .then(async () => {
-                            console.log("✅ [QPAY MULTI CALLBACK] EbarimtShine saved", {
-                              _id: shineBarimt._id?.toString(),
-                              receiptId: shineBarimt.receiptId || null,
-                              invoiceId: shineBarimt.nekhemjlekhiinId || null,
-                            });
+                            console.log(
+                              "✅ [QPAY MULTI CALLBACK] EbarimtShine saved",
+                              {
+                                _id: shineBarimt._id?.toString(),
+                                receiptId: shineBarimt.receiptId || null,
+                                invoiceId: shineBarimt.nekhemjlekhiinId || null,
+                              },
+                            );
                             // Update BankniiGuilgee record to reflect e-barimt status
                             try {
                               const BankniiGuilgee = require("../models/bankniiGuilgee");
-                              const recordId = ebarimtObject.qpayPaymentId || ebarimtObject.qpayInvoiceId;
+                              const recordId =
+                                ebarimtObject.qpayPaymentId ||
+                                ebarimtObject.qpayInvoiceId;
                               if (recordId) {
                                 await BankniiGuilgee(kholbolt).updateMany(
-                                  { record: recordId, baiguullagiinId: ebarimtObject.baiguullagiinId },
-                                  { $set: { ebarimtAvsanEsekh: true } }
+                                  {
+                                    record: recordId,
+                                    baiguullagiinId:
+                                      ebarimtObject.baiguullagiinId,
+                                  },
+                                  { $set: { ebarimtAvsanEsekh: true } },
                                 );
                                 console.log(
                                   "✅ [QPAY MULTI CALLBACK] BankniiGuilgee ebarimtAvsanEsekh updated",
@@ -2823,11 +2921,17 @@ router.get(
                               } else {
                                 console.log(
                                   "ℹ️ [QPAY MULTI CALLBACK] No qpay recordId found for BankniiGuilgee update",
-                                  { invoiceId: ebarimtObject?.nekhemjlekhiinId || null },
+                                  {
+                                    invoiceId:
+                                      ebarimtObject?.nekhemjlekhiinId || null,
+                                  },
                                 );
                               }
                             } catch (bankUpdateErr) {
-                              console.error("❌ [QPAY MULTI CALLBACK] Error updating BankniiGuilgee ebarimtAvsanEsekh:", bankUpdateErr.message);
+                              console.error(
+                                "❌ [QPAY MULTI CALLBACK] Error updating BankniiGuilgee ebarimtAvsanEsekh:",
+                                bankUpdateErr.message,
+                              );
                             }
 
                             // Auto-approve QR for Easy Register if customerNo and qrData are available
@@ -2847,10 +2951,16 @@ router.get(
                             }
                           })
                           .catch((saveErr) => {
-                            console.error("❌ [QPAY MULTI CALLBACK] Error saving EbarimtShine:", saveErr.message);
+                            console.error(
+                              "❌ [QPAY MULTI CALLBACK] Error saving EbarimtShine:",
+                              saveErr.message,
+                            );
                           });
                       } catch (err) {
-                         console.error("❌ [QPAY MULTI CALLBACK] Error in butsaakhMethod:", err.message);
+                        console.error(
+                          "❌ [QPAY MULTI CALLBACK] Error in butsaakhMethod:",
+                          err.message,
+                        );
                       }
                     };
 
@@ -2860,11 +2970,14 @@ router.get(
 
                     // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
                     // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
-                    console.log("ℹ️ [QPAY MULTI CALLBACK] Calling ebarimtDuudya()", {
-                      invoiceId: updatedInvoice._id?.toString(),
-                      qpayPaymentId: ebarimt.qpayPaymentId || null,
-                      qpayInvoiceId: ebarimt.qpayInvoiceId || null,
-                    });
+                    console.log(
+                      "ℹ️ [QPAY MULTI CALLBACK] Calling ebarimtDuudya()",
+                      {
+                        invoiceId: updatedInvoice._id?.toString(),
+                        qpayPaymentId: ebarimt.qpayPaymentId || null,
+                        qpayInvoiceId: ebarimt.qpayInvoiceId || null,
+                      },
+                    );
                     ebarimtDuudya(ebarimt, butsaakhMethod, null, true);
                     console.log(
                       "ℹ️ [QPAY MULTI CALLBACK] ebarimtDuudya() call finished (non-blocking)",
@@ -2910,17 +3023,20 @@ router.get(
       });
 
       await Promise.all(updatePromises);
-      
+
       // Update qpayObject to mark it as paid for consistency
-      if (invoiceWithQpay && invoiceWithQpay.qpayInvoiceId) {
+      if (firstInvoice && firstInvoice.qpayInvoiceId) {
         try {
           await QuickQpayObject(kholbolt).findOneAndUpdate(
-            { invoice_id: invoiceWithQpay.qpayInvoiceId },
+            { invoice_id: firstInvoice.qpayInvoiceId },
             { tulsunEsekh: true },
-            { new: true }
+            { new: true },
           );
         } catch (qpayUpdateErr) {
-          console.error("❌ [QPAY MULTI CALLBACK] Error updating qpayObject:", qpayUpdateErr.message);
+          console.error(
+            "❌ [QPAY MULTI CALLBACK] Error updating qpayObject:",
+            qpayUpdateErr.message,
+          );
         }
       }
 
