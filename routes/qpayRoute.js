@@ -1695,6 +1695,26 @@ router.get(
       const baiguullagiinId = req.params.baiguullagiinId;
       const nekhemjlekhiinId = req.params.nekhemjlekhiinId;
 
+      // Two+ nekhemjlekhiin IDs were comma-joined in this segment (legacy / mis-built URL).
+      // findById("id1,id2") fails → 404 and QuickQpayObject.tulsunEsekh never flips — delegate to multi handler.
+      const splitNekhemjlekhiinIds = String(nekhemjlekhiinId || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (splitNekhemjlekhiinIds.length > 1) {
+        const joined = splitNekhemjlekhiinIds.join(",");
+        const qIdx = req.originalUrl.indexOf("?");
+        const queryString = qIdx >= 0 ? req.originalUrl.slice(qIdx) : "";
+        const fallbackBase = `${req.protocol}://${req.get("host")}${req.baseUrl || ""}`.replace(
+          /\/$/,
+          "",
+        );
+        const publicBase =
+          (process.env.UNDSEN_SERVER || "").replace(/\/$/, "") || fallbackBase;
+        const path = `/qpayNekhemjlekhMultipleCallback/${baiguullagiinId}/${joined}${queryString}`;
+        return res.redirect(307, `${publicBase}${path}`);
+      }
+
       const kholbolt = db.kholboltuud.find(
         (a) => String(a.baiguullagiinId) === String(baiguullagiinId),
       );
@@ -2301,14 +2321,16 @@ router.get(
         return res.status(404).send("Invoices not found");
       }
 
-      // Get QPay invoice ID from first invoice
+      // Prefer the invoice that actually holds the QPay invoice id (order from $in is not guaranteed).
       const firstInvoice = invoices[0];
+      const invoiceWithQpay =
+        invoices.find((inv) => inv.qpayInvoiceId) || firstInvoice;
       let paymentTransactionId = null;
 
-      if (firstInvoice.qpayInvoiceId) {
+      if (invoiceWithQpay.qpayInvoiceId) {
         try {
           const khariu = await qpayShalgay(
-            { invoice_id: firstInvoice.qpayInvoiceId },
+            { invoice_id: invoiceWithQpay.qpayInvoiceId },
             kholbolt,
           );
 
@@ -2890,10 +2912,10 @@ router.get(
       await Promise.all(updatePromises);
       
       // Update qpayObject to mark it as paid for consistency
-      if (firstInvoice && firstInvoice.qpayInvoiceId) {
+      if (invoiceWithQpay && invoiceWithQpay.qpayInvoiceId) {
         try {
           await QuickQpayObject(kholbolt).findOneAndUpdate(
-            { invoice_id: firstInvoice.qpayInvoiceId },
+            { invoice_id: invoiceWithQpay.qpayInvoiceId },
             { tulsunEsekh: true },
             { new: true }
           );
