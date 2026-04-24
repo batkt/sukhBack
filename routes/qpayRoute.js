@@ -108,11 +108,32 @@ router.get(
     try {
       const { db } = require("zevbackv2");
       const b = req.params.baiguullagiinId;
+      const zd = req.params.zakhialgiinDugaar;
+      if (
+        !zd ||
+        zd === "undefined" ||
+        (typeof zd === "string" && zd.trim() === "")
+      ) {
+        return res
+          .status(400)
+          .send("zakhialgiinDugaar is required (callback URL is malformed)");
+      }
       var kholbolt = db.kholboltuud.find((a) => a.baiguullagiinId == b);
+      if (!kholbolt) {
+        return res.status(404).send("Organization not found");
+      }
       const qpayObject = await QuickQpayObject(kholbolt).findOne({
-        zakhialgiinDugaar: req.params.zakhialgiinDugaar,
+        zakhialgiinDugaar: zd,
         tulsunEsekh: false,
       });
+
+      if (!qpayObject) {
+        return res
+          .status(404)
+          .send(
+            "QuickQpayObject not found for this order id or already marked paid",
+          );
+      }
 
       qpayObject.tulsunEsekh = true;
       qpayObject.isNew = false;
@@ -142,11 +163,32 @@ router.get(
     try {
       const { db } = require("zevbackv2");
       const b = req.params.baiguullagiinId;
+      const zd = req.params.zakhialgiinDugaar;
+      if (
+        !zd ||
+        zd === "undefined" ||
+        (typeof zd === "string" && zd.trim() === "")
+      ) {
+        return res
+          .status(400)
+          .send("zakhialgiinDugaar is required (callback URL is malformed)");
+      }
       var kholbolt = db.kholboltuud.find((a) => a.baiguullagiinId == b);
+      if (!kholbolt) {
+        return res.status(404).send("Organization not found");
+      }
       const qpayObject = await QuickQpayObject(kholbolt).findOne({
-        zakhialgiinDugaar: req.params.zakhialgiinDugaar,
+        zakhialgiinDugaar: zd,
         tulsunEsekh: false,
       });
+
+      if (!qpayObject) {
+        return res
+          .status(404)
+          .send(
+            "QuickQpayObject not found for this order id or already marked paid",
+          );
+      }
 
       qpayObject.tulsunEsekh = true;
       qpayObject.isNew = false;
