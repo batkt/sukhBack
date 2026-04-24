@@ -109,36 +109,69 @@ router.get(
       const { db } = require("zevbackv2");
       const b = req.params.baiguullagiinId;
       const zd = req.params.zakhialgiinDugaar;
+      console.log("ℹ️ [QPAY CALLBACK] hit", {
+        method: req.method,
+        path: req.originalUrl || req.url,
+        baiguullagiinId: b,
+        zakhialgiinDugaar: zd,
+      });
       if (
         !zd ||
         zd === "undefined" ||
         (typeof zd === "string" && zd.trim() === "")
       ) {
+        console.error(
+          "❌ [QPAY CALLBACK] reject: missing or invalid zakhialgiinDugaar (fix client: req.body.zakhialgiinDugaar when creating QPay invoice)",
+          { baiguullagiinId: b, zakhialgiinDugaar: zd },
+        );
         return res
           .status(400)
           .send("zakhialgiinDugaar is required (callback URL is malformed)");
       }
-      var kholbolt = db.kholboltuud.find((a) => a.baiguullagiinId == b);
+      var kholbolt = db.kholboltuud.find(
+        (a) => String(a.baiguullagiinId) === String(b),
+      );
       if (!kholbolt) {
+        console.error("❌ [QPAY CALLBACK] reject: organization not in kholboltuud", {
+          baiguullagiinId: b,
+        });
         return res.status(404).send("Organization not found");
       }
-      const qpayObject = await QuickQpayObject(kholbolt).findOne({
+      const unpaid = await QuickQpayObject(kholbolt).findOne({
         zakhialgiinDugaar: zd,
         tulsunEsekh: false,
       });
-
-      if (!qpayObject) {
+      if (unpaid) {
+        var qpayObject = unpaid;
+      } else {
+        const already = await QuickQpayObject(kholbolt).findOne({
+          zakhialgiinDugaar: zd,
+        });
+        if (already && already.tulsunEsekh) {
+          console.log(
+            "ℹ️ [QPAY CALLBACK] idempotent OK (already paid)",
+            zd,
+          );
+          return res.sendStatus(200);
+        }
+        console.error(
+          "❌ [QPAY CALLBACK] no QuickQpayObject for zakhialgiinDugaar",
+          { baiguullagiinId: b, zakhialgiinDugaar: zd },
+        );
         return res
           .status(404)
-          .send(
-            "QuickQpayObject not found for this order id or already marked paid",
-          );
+          .send("QuickQpayObject not found for this order id");
       }
 
       qpayObject.tulsunEsekh = true;
       qpayObject.isNew = false;
       await qpayObject.save();
-      req.app.get("socketio").emit(`qpay/${b}/${qpayObject.zakhialgiinDugaar}`);
+      const io = req.app.get("socketio");
+      if (io) {
+        io.emit(`qpay/${b}/${qpayObject.zakhialgiinDugaar}`);
+      } else {
+        console.warn("⚠️ [QPAY CALLBACK] socketio not set; skip emit");
+      }
       if (qpayObject.zogsooliinId) {
         const body = {
           tukhainBaaziinKholbolt: kholbolt,
@@ -151,6 +184,10 @@ router.get(
           zogsooliinId: qpayObject.zogsooliinId,
         };
       }
+      console.log("✅ [QPAY CALLBACK] marked paid", {
+        baiguullagiinId: b,
+        zakhialgiinDugaar: qpayObject.zakhialgiinDugaar,
+      });
       res.sendStatus(200);
     } catch (err) {
       next(err);
@@ -164,36 +201,71 @@ router.get(
       const { db } = require("zevbackv2");
       const b = req.params.baiguullagiinId;
       const zd = req.params.zakhialgiinDugaar;
+      console.log("ℹ️ [QPAY CALLBACK GADAA] hit", {
+        method: req.method,
+        path: req.originalUrl || req.url,
+        baiguullagiinId: b,
+        zakhialgiinDugaar: zd,
+      });
       if (
         !zd ||
         zd === "undefined" ||
         (typeof zd === "string" && zd.trim() === "")
       ) {
+        console.error(
+          "❌ [QPAY CALLBACK GADAA] reject: missing or invalid zakhialgiinDugaar",
+          { baiguullagiinId: b, zakhialgiinDugaar: zd },
+        );
         return res
           .status(400)
           .send("zakhialgiinDugaar is required (callback URL is malformed)");
       }
-      var kholbolt = db.kholboltuud.find((a) => a.baiguullagiinId == b);
+      var kholbolt = db.kholboltuud.find(
+        (a) => String(a.baiguullagiinId) === String(b),
+      );
       if (!kholbolt) {
+        console.error(
+          "❌ [QPAY CALLBACK GADAA] reject: organization not in kholboltuud",
+          { baiguullagiinId: b },
+        );
         return res.status(404).send("Organization not found");
       }
-      const qpayObject = await QuickQpayObject(kholbolt).findOne({
+      const unpaidSticker = await QuickQpayObject(kholbolt).findOne({
         zakhialgiinDugaar: zd,
         tulsunEsekh: false,
       });
-
-      if (!qpayObject) {
+      let qpayObject;
+      if (unpaidSticker) {
+        qpayObject = unpaidSticker;
+      } else {
+        const alreadySticker = await QuickQpayObject(kholbolt).findOne({
+          zakhialgiinDugaar: zd,
+        });
+        if (alreadySticker && alreadySticker.tulsunEsekh) {
+          console.log(
+            "ℹ️ [QPAY CALLBACK GADAA] idempotent OK (already paid)",
+            zd,
+          );
+          return res.sendStatus(200);
+        }
+        console.error(
+          "❌ [QPAY CALLBACK GADAA] no QuickQpayObject for zakhialgiinDugaar",
+          { baiguullagiinId: b, zakhialgiinDugaar: zd },
+        );
         return res
           .status(404)
-          .send(
-            "QuickQpayObject not found for this order id or already marked paid",
-          );
+          .send("QuickQpayObject not found for this order id");
       }
 
       qpayObject.tulsunEsekh = true;
       qpayObject.isNew = false;
       await qpayObject.save();
-      req.app.get("socketio").emit(`qpay/${b}/${qpayObject.zakhialgiinDugaar}`);
+      const ioSticker = req.app.get("socketio");
+      if (ioSticker) {
+        ioSticker.emit(`qpay/${b}/${qpayObject.zakhialgiinDugaar}`);
+      } else {
+        console.warn("⚠️ [QPAY CALLBACK GADAA] socketio not set; skip emit");
+      }
       if (qpayObject.zogsooliinId) {
         const body = {
           tukhainBaaziinKholbolt: kholbolt,
