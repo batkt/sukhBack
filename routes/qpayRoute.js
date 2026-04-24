@@ -2539,21 +2539,48 @@ router.get(
         return res.status(404).send("Invoices not found");
       }
 
-      // Get QPay invoice ID from first invoice
-      const firstInvoice = invoices[0];
+      // Mongo $in does not preserve URL order; QPay id may live on any row.
+      const invoiceWithQpay =
+        invoices.find((inv) => inv.qpayInvoiceId) || invoices[0];
+      const qpayInvoiceIdForApi = invoiceWithQpay?.qpayInvoiceId || null;
+
+      console.log("ℹ️ [QPAY MULTI CALLBACK] invoices + QPay id", {
+        baiguullagiinId,
+        nekhemjlekhiinIds: invoiceIds,
+        chosenForQpayShalgay: invoiceWithQpay?._id?.toString(),
+        qpayInvoiceIdForApi,
+      });
+
       let paymentTransactionId = null;
 
-      if (firstInvoice.qpayInvoiceId) {
+      if (qpayInvoiceIdForApi) {
         try {
           const khariu = await qpayShalgay(
-            { invoice_id: firstInvoice.qpayInvoiceId },
+            {
+              invoice_id: qpayInvoiceIdForApi,
+              baiguullagiinId: String(baiguullagiinId),
+            },
             kholbolt,
           );
 
           if (khariu?.payments?.[0]?.transactions?.[0]?.id) {
             paymentTransactionId = khariu.payments[0].transactions[0].id;
           }
-        } catch (err) {}
+          console.log("ℹ️ [QPAY MULTI CALLBACK] qpayShalgay", {
+            invoice_status: khariu?.invoice_status,
+            hasPayments: !!(khariu?.payments && khariu.payments.length),
+            paymentTransactionId,
+          });
+        } catch (err) {
+          console.error(
+            "❌ [QPAY MULTI CALLBACK] qpayShalgay failed:",
+            err.message,
+          );
+        }
+      } else {
+        console.warn(
+          "⚠️ [QPAY MULTI CALLBACK] no qpayInvoiceId on any invoice — cannot sync QPay payment id",
+        );
       }
 
       if (!paymentTransactionId && req.query.qpay_payment_id) {
@@ -3099,8 +3126,10 @@ router.get(
                     };
 
                     // Attach QPay IDs to ebarimt metadata so they are available in butsaakhMethod
+                    // One nekhemjlekhiin row holds qpayInvoiceId; others still need the same UUID for provider/tax.
                     ebarimt.qpayPaymentId = paymentTransactionId;
-                    ebarimt.qpayInvoiceId = updatedInvoice.qpayInvoiceId;
+                    ebarimt.qpayInvoiceId =
+                      updatedInvoice.qpayInvoiceId || qpayInvoiceIdForApi;
 
                     // ebarimtDuudya signature: (ugugdul, onFinish, next, shine)
                     // The ebarimt object already contains invoice data, and it's passed as second param to onFinish
@@ -3138,16 +3167,18 @@ router.get(
           }
 
           // Emit socket event for each invoice
-          const io = req.app.get("socketio");
-          io.emit(
-            `nekhemjlekhPayment/${baiguullagiinId}/${updatedInvoice._id}`,
-            {
-              status: "success",
-              tuluv: "Төлсөн",
-              tulsunOgnoo: updatedInvoice.tulsunOgnoo,
-              paymentId: updatedInvoice.qpayPaymentId,
-            },
-          );
+          const ioNekh = req.app.get("socketio");
+          if (ioNekh) {
+            ioNekh.emit(
+              `nekhemjlekhPayment/${baiguullagiinId}/${updatedInvoice._id}`,
+              {
+                status: "success",
+                tuluv: "Төлсөн",
+                tulsunOgnoo: updatedInvoice.tulsunOgnoo,
+                paymentId: updatedInvoice.qpayPaymentId,
+              },
+            );
+          }
         } catch (invoiceErr) {
           console.error(
             "❌ [QPAY MULTI CALLBACK] Invoice processing error:",
@@ -3158,23 +3189,55 @@ router.get(
 
       await Promise.all(updatePromises);
 
-      // Update qpayObject to mark it as paid for consistency
-      if (firstInvoice && firstInvoice.qpayInvoiceId) {
+      // QuickQpayObject: must use the real QPay invoice UUID (same as invoiceWithQpay), not invoices[0].
+      if (qpayInvoiceIdForApi) {
         try {
-          await QuickQpayObject(kholbolt).findOneAndUpdate(
-            { invoice_id: firstInvoice.qpayInvoiceId },
-            { tulsunEsekh: true },
+          const qpayPaidSet = {
+            tulsunEsekh: true,
+            invoice_status: "PAID",
+            invoice_status_date: new Date(),
+          };
+          let qpayObjUpdated = await QuickQpayObject(kholbolt).findOneAndUpdate(
+            { invoice_id: qpayInvoiceIdForApi },
+            { $set: qpayPaidSet },
             { new: true },
           );
+          if (!qpayObjUpdated) {
+            const idRegex = invoiceIds
+              .map((id) => id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+              .join("|");
+            qpayObjUpdated = await QuickQpayObject(kholbolt).findOneAndUpdate(
+              {
+                baiguullagiinId: String(baiguullagiinId),
+                "qpay.callback_url": { $regex: idRegex },
+              },
+              { $set: qpayPaidSet },
+              { new: true, sort: { ognoo: -1 } },
+            );
+          }
+          if (qpayObjUpdated) {
+            console.log("✅ [QPAY MULTI CALLBACK] QuickQpayObject marked PAID", {
+              invoice_id: qpayInvoiceIdForApi,
+              _id: qpayObjUpdated._id?.toString(),
+            });
+          } else {
+            console.error(
+              "❌ [QPAY MULTI CALLBACK] QuickQpayObject not found for invoice_id",
+              qpayInvoiceIdForApi,
+            );
+          }
         } catch (qpayUpdateErr) {
           console.error(
-            "❌ [QPAY MULTI CALLBACK] Error updating qpayObject:",
+            "❌ [QPAY MULTI CALLBACK] Error updating QuickQpayObject:",
             qpayUpdateErr.message,
           );
         }
       }
 
-      req.app.get("socketio").emit(`tulburUpdated:${baiguullagiinId}`, {});
+      const ioMulti = req.app.get("socketio");
+      if (ioMulti) {
+        ioMulti.emit(`tulburUpdated:${baiguullagiinId}`, {});
+      }
 
       res.sendStatus(200);
     } catch (err) {
