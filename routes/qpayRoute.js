@@ -297,6 +297,10 @@ router.get(
           );
         }
       }
+      console.log("✅ [QPAY CALLBACK GADAA] marked paid", {
+        baiguullagiinId: b,
+        zakhialgiinDugaar: qpayObject.zakhialgiinDugaar,
+      });
       res.sendStatus(200);
     } catch (err) {
       next(err);
@@ -960,6 +964,22 @@ router.post("/qpayGargaya", tokenShalgakh, async (req, res, next) => {
       .then((result) => {
         if (result != 0) maxDugaar = result[0].dugaar + 1;
       });
+
+    // Parking / generic QPay: clients often omit zakhialgiinDugaar → callback URL ends with
+    // "/undefined". Use the same Dugaarlalt counter as the persisted row below.
+    const zakhialgiinDugaarInvalid = (v) =>
+      v == null ||
+      v === "" ||
+      (typeof v === "string" &&
+        (v.trim() === "" || v === "undefined" || v === "null"));
+    if (zakhialgiinDugaarInvalid(req.body.zakhialgiinDugaar)) {
+      req.body.zakhialgiinDugaar = String(maxDugaar);
+      console.log(
+        "ℹ️ [QPAY GARGAYA] zakhialgiinDugaar missing or invalid — assigned from Dugaarlalt:",
+        req.body.zakhialgiinDugaar,
+      );
+    }
+
     if (req.body.baiguullagiinId == "664ac9b28bfeed5bdce01388") {
       req.body.dansniiDugaar = "5069538136";
       req.body.burtgeliinDugaar = "6078893";
