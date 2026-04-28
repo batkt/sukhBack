@@ -222,7 +222,13 @@ nekhemjlekhiinTuukhSchema.pre("save", function (next) {
       if (remaining <= 0.01) {
         invoice.niitTulbur = 0;
         invoice.uldegdel = 0;
-        invoice.tuluv = "Төлсөн";
+        // Only set to "Төлсөн" if there was actual payment or original amount > 0
+        // Prevent new zero-amount invoices from being marked as paid
+        if (totalPaid > 0.01 || invoice.niitTulburOriginal > 0.01) {
+          invoice.tuluv = "Төлсөн";
+        } else {
+          invoice.tuluv = "Төлөөгүй"; // Keep as unpaid for zero-amount invoices
+        }
       } else {
         invoice.niitTulbur = remaining;
         if (invoice.tuluv === "Хугацаа хэтэрсэн") {

@@ -86,7 +86,7 @@ const baiguullagaSchema = new Schema(
             zochinTailbar: String,
             davtamjiinTurul: String,
             davtamjUtga: Number,
-            orshinSuugchMashiniiLimit: Number
+            orshinSuugchMashiniiLimit: Number,
           },
           /** Ашиглалтын зардлууд - барилга тус бүрт тусдаа */
           ashiglaltiinZardluud: [
@@ -223,7 +223,7 @@ const baiguullagaSchema = new Schema(
         zochinTailbar: String,
         davtamjiinTurul: String,
         davtamjUtga: Number,
-        orshinSuugchMashiniiLimit: Number
+        orshinSuugchMashiniiLimit: Number,
       },
     },
     erkhuud: [
@@ -243,7 +243,7 @@ const baiguullagaSchema = new Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 baiguullagaSchema.index({ register: 1 });
@@ -260,7 +260,7 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
     const Geree = require("./geree");
 
     const kholbolt = db.kholboltuud.find(
-      (a) => String(a.baiguullagiinId) === String(doc._id)
+      (a) => String(a.baiguullagiinId) === String(doc._id),
     );
 
     if (!kholbolt) {
@@ -287,7 +287,7 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
         barilgiinId: barilgiinId,
         tuluv: "Идэвхтэй", // Only update active contracts
       });
-      
+
       for (const geree of gereenuud) {
         if (!geree.zardluud) {
           geree.zardluud = [];
@@ -320,7 +320,7 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
         // Update or add zardluud from building config
         for (const buildingZardal of ashiglaltiinZardluud) {
           const key = `${buildingZardal.ner || ""}_${buildingZardal.turul || ""}_${buildingZardal.zardliinTurul || ""}`;
-          
+
           // Find existing zardal in geree
           // Match by ner, turul, zardliinTurul
           // For barilgiinId: if geree zardal doesn't have barilgiinId, it's from this building (backward compatibility)
@@ -328,13 +328,20 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
           const existingIndex = geree.zardluud.findIndex((z) => {
             const matchesNer = z.ner === buildingZardal.ner;
             const matchesTurul = z.turul === buildingZardal.turul;
-            const matchesZardliinTurul = z.zardliinTurul === buildingZardal.zardliinTurul;
-            
+            const matchesZardliinTurul =
+              z.zardliinTurul === buildingZardal.zardliinTurul;
+
             // For backward compatibility: if zardal doesn't have barilgiinId, assume it's from this building
             // If zardal has barilgiinId, it must match this building's barilgiinId
-            const matchesBarilgiinId = !z.barilgiinId || String(z.barilgiinId) === barilgiinId;
-            
-            return matchesNer && matchesTurul && matchesZardliinTurul && matchesBarilgiinId;
+            const matchesBarilgiinId =
+              !z.barilgiinId || String(z.barilgiinId) === barilgiinId;
+
+            return (
+              matchesNer &&
+              matchesTurul &&
+              matchesZardliinTurul &&
+              matchesBarilgiinId
+            );
           });
 
           const newZardal = {
@@ -392,17 +399,20 @@ async function updateGereeFromBaiguullagaZardluud(doc) {
   } catch (error) {
     console.error(
       "Error updating geree.zardluud after baiguullaga.ashiglaltiinZardluud update:",
-      error
+      error,
     );
   }
 }
 
 // Pre-save hook to validate that toots are unique across all davkhars
- baiguullagaSchema.pre("save", function (next) {
+baiguullagaSchema.pre("save", function (next) {
   try {
     const error = validateDavkhariinToonuud(this.barilguud);
     if (error) {
-      console.error(`❌ [VALIDATION PRE-SAVE] Validation failed:`, error.message);
+      console.error(
+        `❌ [VALIDATION PRE-SAVE] Validation failed:`,
+        error.message,
+      );
       error.name = "ValidationError";
       return next(error);
     }
@@ -426,7 +436,7 @@ baiguullagaSchema.post("save", async function (doc) {
     console.error(`❌ [VALIDATION POST-SAVE] Error during validation:`, err);
     console.error(`❌ [VALIDATION POST-SAVE] Error stack:`, err.stack);
   }
-  
+
   await updateGereeFromBaiguullagaZardluud(doc);
 });
 
@@ -436,7 +446,7 @@ function validateDavkhariinToonuud(barilguud) {
     return null; // No error
   }
 
-  // Check each building's davkhariinToonuud for duplicate toots across davkhars
+  // Check each building's davkhariinToonuud for duplicate toots within the same orts
   for (let barilgaIndex = 0; barilgaIndex < barilguud.length; barilgaIndex++) {
     const barilga = barilguud[barilgaIndex];
     if (!barilga.tokhirgoo || !barilga.tokhirgoo.davkhariinToonuud) {
@@ -444,40 +454,57 @@ function validateDavkhariinToonuud(barilguud) {
     }
 
     const davkhariinToonuud = barilga.tokhirgoo.davkhariinToonuud;
-    const tootMap = new Map(); // Map<toot, davkhar>
+    const tootMap = new Map(); // Map<toot, orts> - Changed from davkhar to orts
     for (const [floorKey, tootArray] of Object.entries(davkhariinToonuud)) {
       if (!tootArray || !Array.isArray(tootArray)) {
         continue;
       }
 
-      // Extract davkhar from floorKey
+      // Extract orts and davkhar from floorKey
+      let orts = "";
       let davkhar = "";
       if (floorKey.includes("::")) {
         const parts = floorKey.split("::");
-        davkhar = parts[1] || parts[0]; // davkhar is the second part (e.g., "1::4" -> "4")
+        // Format: "orts::davkhar" (e.g., "1::4")
+        orts = parts[0] || "1";
+        davkhar = parts[1] || parts[0];
       } else {
-        davkhar = floorKey; // If no ::, the key itself is davkhar (e.g., "1" -> "1")
+        // If no ::, the key itself is davkhar and orts defaults to "1"
+        davkhar = floorKey;
+        orts = "1";
       }
 
       // Parse toot list from array (can be comma-separated string or array)
       let tootList = [];
       if (typeof tootArray[0] === "string" && tootArray[0].includes(",")) {
-        tootList = tootArray[0].split(",").map((t) => t.trim()).filter((t) => t);
+        tootList = tootArray[0]
+          .split(",")
+          .map((t) => t.trim())
+          .filter((t) => t);
       } else {
         tootList = tootArray.map((t) => String(t).trim()).filter((t) => t);
       }
-      // Check each toot for duplicates across davkhars
+
+      // Check each toot for duplicates within the same orts
       for (const toot of tootList) {
         if (tootMap.has(toot)) {
-          const existingDavkhar = tootMap.get(toot);
-          console.error(`❌ [VALIDATION FUNCTION] Duplicate toot found: "${toot}" in davkhar ${existingDavkhar} and ${davkhar}`);
-          console.error(`❌ [VALIDATION FUNCTION] Floor keys processed so far:`, Array.from(tootMap.entries()));
-          console.error(`❌ [VALIDATION FUNCTION] Current floorKey: ${floorKey}, davkhar: ${davkhar}, tootList:`, tootList);
+          const existingOrts = tootMap.get(toot);
+          console.error(
+            `❌ [VALIDATION FUNCTION] Duplicate toot found: "${toot}" in orts ${existingOrts} and ${orts}`,
+          );
+          console.error(
+            `❌ [VALIDATION FUNCTION] Floor keys processed so far:`,
+            Array.from(tootMap.entries()),
+          );
+          console.error(
+            `❌ [VALIDATION FUNCTION] Current floorKey: ${floorKey}, orts: ${orts}, davkhar: ${davkhar}, tootList:`,
+            tootList,
+          );
           return new Error(
-            `Тоот "${toot}" аль хэдийн ${existingDavkhar}-р давхарт байна. ${davkhar}-р давхарт давхардсан тоот байж болохгүй!`
+            `Тоот "${toot}" аль хэдийн ${existingOrts}-р байршилд байна. ${orts}-р байршилд давхардсан тоот байж болохгүй!`,
           );
         }
-        tootMap.set(toot, davkhar);
+        tootMap.set(toot, orts); // Store orts instead of davkhar
       }
     }
   }
@@ -508,7 +535,7 @@ baiguullagaSchema.pre("updateOne", function (next) {
 baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
   try {
     let barilguudToValidate = null;
-    
+
     // Case 1: Direct barilguud update (PUT with full object, Mongoose sets it directly)
     if (this._update && this._update.barilguud && !this._update.$set) {
       barilguudToValidate = this._update.barilguud;
@@ -520,38 +547,45 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
     // Case 3: Nested davkhariinToonuud update via $set (partial update)
     else if (this._update && this._update.$set) {
       const setKeys = Object.keys(this._update.$set);
-      const isDavkhariinToonuudUpdate = setKeys.some(key => 
-        key.includes('tokhirgoo.davkhariinToonuud') || key.includes('barilguud')
+      const isDavkhariinToonuudUpdate = setKeys.some(
+        (key) =>
+          key.includes("tokhirgoo.davkhariinToonuud") ||
+          key.includes("barilguud"),
       );
       if (isDavkhariinToonuudUpdate) {
         const doc = await this.model.findOne(this.getQuery()).lean();
         if (doc && doc.barilguud) {
           const mergedBarilguud = JSON.parse(JSON.stringify(doc.barilguud));
-          
+
           for (const [path, value] of Object.entries(this._update.$set)) {
-            if (path === 'barilguud') {
+            if (path === "barilguud") {
               barilguudToValidate = value;
               break;
-            } else if (path.startsWith('barilguud.')) {
-              const pathParts = path.split('.');
+            } else if (path.startsWith("barilguud.")) {
+              const pathParts = path.split(".");
               const barilgaIndex = parseInt(pathParts[1]);
-              
+
               if (!isNaN(barilgaIndex) && mergedBarilguud[barilgaIndex]) {
-                if (pathParts[2] === 'tokhirgoo' && pathParts[3] === 'davkhariinToonuud') {
-                  mergedBarilguud[barilgaIndex].tokhirgoo = mergedBarilguud[barilgaIndex].tokhirgoo || {};
-                  mergedBarilguud[barilgaIndex].tokhirgoo.davkhariinToonuud = value;
+                if (
+                  pathParts[2] === "tokhirgoo" &&
+                  pathParts[3] === "davkhariinToonuud"
+                ) {
+                  mergedBarilguud[barilgaIndex].tokhirgoo =
+                    mergedBarilguud[barilgaIndex].tokhirgoo || {};
+                  mergedBarilguud[barilgaIndex].tokhirgoo.davkhariinToonuud =
+                    value;
                 }
               }
             }
           }
-          
+
           if (!barilguudToValidate) {
             barilguudToValidate = mergedBarilguud;
           }
         }
       }
     }
-    
+
     if (barilguudToValidate) {
       const error = validateDavkhariinToonuud(barilguudToValidate);
       if (error) {
@@ -559,7 +593,7 @@ baiguullagaSchema.pre("findOneAndUpdate", async function (next) {
         return next(error);
       }
     }
-    
+
     next();
   } catch (error) {
     console.error(`❌ [VALIDATION PRE-FINDONEANDUPDATE] Error:`, error);
