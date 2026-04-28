@@ -469,9 +469,10 @@ function validateDavkhariinToonuud(barilguud) {
         orts = parts[0] || "1";
         davkhar = parts[1] || parts[0];
       } else {
-        // If no ::, the key itself is davkhar and orts defaults to "1"
-        davkhar = floorKey;
-        orts = "1";
+        // If no ::, the key itself is orts (not davkhar)
+        // This handles cases like "1" (1-р байршил), "2" (2-р байршил)
+        orts = floorKey;
+        davkhar = ""; // No davkhar specified for this format
       }
 
       // Parse toot list from array (can be comma-separated string or array)
