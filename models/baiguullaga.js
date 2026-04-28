@@ -469,8 +469,6 @@ function validateDavkhariinToonuud(barilguud) {
         orts = parts[0] || "1";
         davkhar = parts[1] || parts[0];
       } else {
-        // If no ::, the key itself is orts (not davkhar)
-        // This handles cases like "1" (1-р байршил), "2" (2-р байршил)
         orts = floorKey;
         davkhar = ""; // No davkhar specified for this format
       }
@@ -490,22 +488,28 @@ function validateDavkhariinToonuud(barilguud) {
       for (const toot of tootList) {
         if (tootMap.has(toot)) {
           const existingOrts = tootMap.get(toot);
-          console.error(
-            `❌ [VALIDATION FUNCTION] Duplicate toot found: "${toot}" in orts ${existingOrts} and ${orts}`,
-          );
-          console.error(
-            `❌ [VALIDATION FUNCTION] Floor keys processed so far:`,
-            Array.from(tootMap.entries()),
-          );
-          console.error(
-            `❌ [VALIDATION FUNCTION] Current floorKey: ${floorKey}, orts: ${orts}, davkhar: ${davkhar}, tootList:`,
-            tootList,
-          );
-          return new Error(
-            `Тоот "${toot}" аль хэдийн ${existingOrts}-р байршилд байна. ${orts}-р байршилд давхардсан тоот байж болохгүй!`,
-          );
+          // Only throw error if the toot exists in the SAME orts
+          // Different orts can have the same toot
+          if (existingOrts === orts) {
+            console.error(
+              `❌ [VALIDATION FUNCTION] Duplicate toot found: "${toot}" in orts ${existingOrts} and ${orts}`,
+            );
+            console.error(
+              `❌ [VALIDATION FUNCTION] Floor keys processed so far:`,
+              Array.from(tootMap.entries()),
+            );
+            console.error(
+              `❌ [VALIDATION FUNCTION] Current floorKey: ${floorKey}, orts: ${orts}, davkhar: ${davkhar}, tootList:`,
+              tootList,
+            );
+            return new Error(
+              `Тоот "${toot}" аль хэдийн ${existingOrts}-р байршилд байна. ${orts}-р байршилд давхардсан тоот байж болохгүй!`,
+            );
+          }
+          // If orts is different, allow the same toot (don't add to map again)
+        } else {
+          tootMap.set(toot, orts); // Store orts only for new toots
         }
-        tootMap.set(toot, orts); // Store orts instead of davkhar
       }
     }
   }
