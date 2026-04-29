@@ -806,9 +806,9 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
       orshinSuugch.toots = [];
     }
 
-    // Check req.body.toot instead of orshinSuugch.toot (which might be empty for new users)
-    // Also need baiguullaga and barilgiinId to create toot entry
-    if (req.body.toot && barilgiinId && baiguullaga) {
+    // Support multiple toots in a single registration request (comma-separated or array)
+    const tootInput = req.body.toot || req.body.toots;
+    if (tootInput && barilgiinId && baiguullaga) {
       const targetBarilga = baiguullaga.barilguud?.find(
         (b) => String(b._id) === String(barilgiinId),
       );
@@ -825,51 +825,58 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
         }
         const sohNer = targetBarilga.tokhirgoo?.sohNer || req.body.soh || "";
 
-        // Use toot from request body, not from orshinSuugch (which might be old toot for existing users)
-        const newToot = req.body.toot || "";
-        const newDavkhar = determinedDavkhar || req.body.davkhar || "";
-        const newOrts = req.body.orts || "1";
+        // Parse multiple toots if provided (e.g. "101, 102" or ["101", "102"])
+        const tootList = Array.isArray(tootInput)
+          ? tootInput.map((t) => String(t).trim()).filter(Boolean)
+          : String(tootInput)
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean);
 
-        const tootEntry = {
-          toot: newToot,
-          source: "OWN_ORG",
-          baiguullagiinId: baiguullaga._id.toString(),
-          barilgiinId: barilgiinId,
-          davkhar: newDavkhar,
-          orts: newOrts,
-          duureg: duuregNer,
-          horoo: horooData,
-          soh: sohNer,
-          bairniiNer: targetBarilga.ner || "",
-          walletUserId: walletUserId || orshinSuugch.walletUserId || "",
-          createdAt: new Date(),
-        };
+        for (let i = 0; i < tootList.length; i++) {
+          const currentToot = tootList[i];
+          const newDavkhar = determinedDavkhar || req.body.davkhar || "";
+          const newOrts = req.body.orts || "1";
 
-        const existingTootIndex = orshinSuugch.toots.findIndex(
-          (t) =>
-            t.toot === tootEntry.toot &&
-            t.barilgiinId === tootEntry.barilgiinId,
-        );
+          const tootEntry = {
+            toot: currentToot,
+            source: "OWN_ORG",
+            baiguullagiinId: baiguullaga._id.toString(),
+            barilgiinId: barilgiinId,
+            davkhar: newDavkhar,
+            orts: newOrts,
+            duureg: duuregNer,
+            horoo: horooData,
+            soh: sohNer,
+            bairniiNer: targetBarilga.ner || "",
+            walletUserId: walletUserId || orshinSuugch.walletUserId || "",
+            createdAt: new Date(),
+          };
 
-        if (existingTootIndex >= 0) {
-          // Update existing toot entry if same toot and barilgiinId
-          orshinSuugch.toots[existingTootIndex] = tootEntry;
-        } else {
-          // Add new toot to array - don't update primary toot fields for existing users
-          orshinSuugch.toots.push(tootEntry);
-        }
+          const existingTootIndex = orshinSuugch.toots.findIndex(
+            (t) =>
+              t.toot === tootEntry.toot &&
+              t.barilgiinId === tootEntry.barilgiinId,
+          );
 
-        // Only update primary toot fields (toot, davkhar, barilgiinId, bairniiNer) if this is a NEW user
-        // For existing users, keep their primary toot and just add new toot to toots array
-        if (!existingUser && newToot) {
-          orshinSuugch.toot = newToot;
-          orshinSuugch.davkhar = newDavkhar;
-          orshinSuugch.orts = newOrts;
-          orshinSuugch.barilgiinId = barilgiinId;
-          orshinSuugch.baiguullagiinId = baiguullaga._id;
-          orshinSuugch.baiguullagiinNer = baiguullaga.ner;
-          // Set bairniiNer on main document (like Excel import does)
-          orshinSuugch.bairniiNer = targetBarilga.ner || "";
+          if (existingTootIndex >= 0) {
+            // Update existing toot entry if same toot and barilgiinId
+            orshinSuugch.toots[existingTootIndex] = tootEntry;
+          } else {
+            // Add new toot to array
+            orshinSuugch.toots.push(tootEntry);
+          }
+
+          // Only update primary toot fields for the FIRST toot if this is a NEW user
+          if (!existingUser && i === 0) {
+            orshinSuugch.toot = currentToot;
+            orshinSuugch.davkhar = newDavkhar;
+            orshinSuugch.orts = newOrts;
+            orshinSuugch.barilgiinId = barilgiinId;
+            orshinSuugch.baiguullagiinId = baiguullaga._id;
+            orshinSuugch.baiguullagiinNer = baiguullaga.ner;
+            orshinSuugch.bairniiNer = targetBarilga.ner || "";
+          }
         }
       }
     } else if (

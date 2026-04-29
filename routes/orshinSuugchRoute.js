@@ -214,23 +214,26 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
         mur.key = mur._id;
 
         // If query has baiguullagiinId, ensure the returned object reflects that organization's data
-        if (targetBaiguullagiinId && Array.isArray(mur.toots)) {
-          // Find the specific toot entry for this organization
-          let matchingToot = null;
-
-          if (mur.toots && mur.toots.length > 0) {
-            matchingToot = mur.toots.find(
+          if (targetBaiguullagiinId && Array.isArray(mur.toots)) {
+            // Find all matching toot entries for this organization
+            const matches = mur.toots.filter(
               (t) => String(t.baiguullagiinId) === targetBaiguullagiinId,
             );
-          }
 
-          // If found and it's different from the main record (or if main record is just different org)
-          if (matchingToot) {
-            // We found a specific entry for this org.
-            // Check if we need to project it to top level (if top level is different org)
-            if (String(mur.baiguullagiinId) !== targetBaiguullagiinId) {
-              // Overwrite top-level fields with specific tenant data for display consistency
-              if (matchingToot.toot) mur.toot = matchingToot.toot;
+            if (matches.length > 0) {
+              const matchingToot = matches[0];
+
+              // Overwrite top-level fields for display consistency
+              if (matches.length > 1) {
+                // Join multiple unit numbers for display
+                mur.toot = matches
+                  .map((m) => m.toot)
+                  .filter(Boolean)
+                  .join(", ");
+              } else if (matchingToot.toot) {
+                mur.toot = matchingToot.toot;
+              }
+
               if (matchingToot.davkhar) mur.davkhar = matchingToot.davkhar;
               if (matchingToot.orts) mur.orts = matchingToot.orts;
               if (matchingToot.duureg) mur.duureg = matchingToot.duureg;
@@ -238,15 +241,16 @@ router.get("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
               if (matchingToot.soh) mur.soh = matchingToot.soh;
               if (matchingToot.bairniiNer)
                 mur.bairniiNer = matchingToot.bairniiNer;
-              // Also map IDs so deletions/updates work on the right context if relying on these
+
+              // Also map IDs so deletions/updates work on the right context
               mur.baiguullagiinId = matchingToot.baiguullagiinId;
               mur.barilgiinId = matchingToot.barilgiinId;
 
-              // Add a flag to indicate this is a projected view from secondary record
+              // Add flags for UI logic
               mur._isSecondaryView = true;
+              mur._hasMultipleToots = matches.length > 1;
             }
           }
-        }
       });
     }
     res.send({
@@ -340,117 +344,168 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
           if (baiguullaga && targetBarilga) {
             const GereeModel = Geree(tukhainBaaziinKholbolt);
 
-            // Check if active contract already exists for this unit/resident
-            let geree = await GereeModel.findOne({
-              orshinSuugchId: result._id.toString(),
-              barilgiinId: String(barilgiinId),
-              toot: result.toot || req.body.toot,
-              tuluv: { $ne: "Цуцалсан" },
-            });
+            // Support multiple toots (comma-separated or array)
+            const tootInput = req.body.toot || req.body.toots;
+            const tootList = Array.isArray(tootInput)
+              ? tootInput.map((t) => String(t).trim()).filter(Boolean)
+              : String(tootInput || "")
+                  .split(",")
+                  .map((t) => t.trim())
+                  .filter(Boolean);
 
-            if (!geree) {
-              console.log(
-                `📋 [AUTO-GEREE] Creating contract for ${result.ner} (Toot: ${result.toot || req.body.toot})`,
-              );
-
-              const ashiglaltiinZardluudData =
-                targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
-              const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
-              const choloolugdokhDavkhar =
-                liftShalgayaData?.choloolugdokhDavkhar || [];
-
-              const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
-                ner: zardal.ner,
-                turul: zardal.turul,
-                zardliinTurul: zardal.zardliinTurul,
-                tariff: zardal.tariff,
-                tariffUsgeer: zardal.tariffUsgeer || "",
-                tulukhDun: 0,
-                dun: zardal.dun || 0,
-                bodokhArga: zardal.bodokhArga || "",
-                tseverUsDun: zardal.tseverUsDun || 0,
-                bokhirUsDun: zardal.bokhirUsDun || 0,
-                usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
-                tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
-                tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
-                tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
-                suuriKhuraamj: zardal.suuriKhuraamj || 0,
-                nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
-                ognoonuud: zardal.ognoonuud || [],
-                barilgiinId: zardal.barilgiinId || String(barilgiinId) || "",
-              }));
-
-              const niitTulbur = ashiglaltiinZardluudData.reduce(
-                (total, zardal) => {
-                  const tariff = zardal.tariff || 0;
-                  const isLiftItem =
-                    zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
-                  if (
-                    isLiftItem &&
-                    result.davkhar &&
-                    choloolugdokhDavkhar.includes(result.davkhar)
-                  ) {
-                    return total;
-                  }
-                  return total + tariff;
-                },
-                0,
-              );
-
-              const contractData = {
-                gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
-                gereeniiOgnoo: new Date(),
-                turul: "Үндсэн",
-                tuluv: "Идэвхтэй",
-                ovog: result.ovog || "",
-                ner: result.ner,
-                utas: Array.isArray(result.utas) ? result.utas : [result.utas],
-                mail: result.mail || "",
-                baiguullagiinId: baiguullaga._id,
-                baiguullagiinNer: baiguullaga.ner,
-                barilgiinId: String(barilgiinId),
-                tulukhOgnoo: new Date(),
-                ashiglaltiinZardal: niitTulbur,
-                niitTulbur: niitTulbur,
-                toot: result.toot || req.body.toot || "",
-                davkhar: result.davkhar || "",
-                bairNer: targetBarilga.ner || "",
-                sukhBairshil: `${targetBarilga.tokhirgoo?.duuregNer || ""}, ${targetBarilga.tokhirgoo?.horoo?.ner || ""}, ${targetBarilga.tokhirgoo?.sohNer || ""}`,
-                duureg: targetBarilga.tokhirgoo?.duuregNer || "",
-                horoo: targetBarilga.tokhirgoo?.horoo || {},
-                sohNer: targetBarilga.tokhirgoo?.sohNer || "",
-                orts: result.orts || "",
-                burtgesenAjiltan: req.body.nevtersenAjiltniiToken?.id,
+            for (const currentToot of tootList) {
+              // Check if active contract already exists for this unit/resident
+              let geree = await GereeModel.findOne({
                 orshinSuugchId: result._id.toString(),
-                temdeglel: "Вэбээс гар аргаар үүссэн гэрээ",
-                actOgnoo: new Date(),
-                baritsaaniiUldegdel: 0,
-                ekhniiUldegdel: result.ekhniiUldegdel || 0,
-                umnukhZaalt: result.tsahilgaaniiZaalt || 0,
-                suuliinZaalt: result.tsahilgaaniiZaalt || 0,
-                zardluud: zardluudArray,
-                segmentuud: [],
-                khungulultuud: [],
-              };
+                barilgiinId: String(barilgiinId),
+                toot: currentToot,
+                tuluv: { $ne: "Цуцалсан" },
+              });
 
-              geree = new GereeModel(contractData);
-              await geree.save();
-              console.log(
-                `✅ [AUTO-GEREE] Contract created: ${geree.gereeniiDugaar}`,
-              );
-
-              // Update davkhar with toot if provided (sync building config)
-              if (result.toot && result.davkhar) {
-                const {
-                  updateDavkharWithToot,
-                } = require("../controller/orshinSuugch");
-                await updateDavkharWithToot(
-                  baiguullaga,
-                  barilgiinId,
-                  result.davkhar,
-                  result.toot,
-                  tukhainBaaziinKholbolt,
+              if (!geree) {
+                console.log(
+                  `📋 [AUTO-GEREE] Creating contract for ${result.ner} (Toot: ${currentToot})`,
                 );
+
+                const ashiglaltiinZardluudData =
+                  targetBarilga.tokhirgoo?.ashiglaltiinZardluud || [];
+                const liftShalgayaData = targetBarilga.tokhirgoo?.liftShalgaya;
+                const choloolugdokhDavkhar =
+                  liftShalgayaData?.choloolugdokhDavkhar || [];
+
+                const zardluudArray = ashiglaltiinZardluudData.map((zardal) => ({
+                  ner: zardal.ner,
+                  turul: zardal.turul,
+                  zardliinTurul: zardal.zardliinTurul,
+                  tariff: zardal.tariff,
+                  tariffUsgeer: zardal.tariffUsgeer || "",
+                  tulukhDun: 0,
+                  dun: zardal.dun || 0,
+                  bodokhArga: zardal.bodokhArga || "",
+                  tseverUsDun: zardal.tseverUsDun || 0,
+                  bokhirUsDun: zardal.bokhirUsDun || 0,
+                  usKhalaasniiDun: zardal.usKhalaasniiDun || 0,
+                  tsakhilgaanUrjver: zardal.tsakhilgaanUrjver || 1,
+                  tsakhilgaanChadal: zardal.tsakhilgaanChadal || 0,
+                  tsakhilgaanDemjikh: zardal.tsakhilgaanDemjikh || 0,
+                  suuriKhuraamj: zardal.suuriKhuraamj || 0,
+                  nuatNemekhEsekh: zardal.nuatNemekhEsekh || false,
+                  ognoonuud: zardal.ognoonuud || [],
+                  barilgiinId: zardal.barilgiinId || String(barilgiinId) || "",
+                }));
+
+                const niitTulbur = ashiglaltiinZardluudData.reduce(
+                  (total, zardal) => {
+                    const tariff = zardal.tariff || 0;
+                    const isLiftItem =
+                      zardal.zardliinTurul && zardal.zardliinTurul === "Лифт";
+                    if (
+                      isLiftItem &&
+                      result.davkhar &&
+                      choloolugdokhDavkhar.includes(result.davkhar)
+                    ) {
+                      return total;
+                    }
+                    return total + tariff;
+                  },
+                  0,
+                );
+
+                const contractData = {
+                  gereeniiDugaar: `ГД-${Date.now().toString().slice(-8)}`,
+                  gereeniiOgnoo: new Date(),
+                  turul: "Үндсэн",
+                  tuluv: "Идэвхтэй",
+                  ovog: result.ovog || "",
+                  ner: result.ner,
+                  utas: Array.isArray(result.utas) ? result.utas : [result.utas],
+                  mail: result.mail || "",
+                  baiguullagiinId: baiguullagiinId,
+                  baiguullagiinNer: baiguullaga.ner,
+                  barilgiinId: String(barilgiinId),
+                  tulukhOgnoo: new Date(),
+                  ashiglaltiinZardal: niitTulbur,
+                  niitTulbur: niitTulbur,
+                  toot: currentToot,
+                  davkhar: result.davkhar || "",
+                  orts: result.orts || "1",
+                  bairNer: targetBarilga.ner || "",
+                  sukhBairshil: `${targetBarilga.tokhirgoo?.duuregNer || ""}, ${targetBarilga.tokhirgoo?.horoo?.ner || ""}, ${targetBarilga.tokhirgoo?.sohNer || ""}`,
+                  duureg: targetBarilga.tokhirgoo?.duuregNer || "",
+                  horoo: targetBarilga.tokhirgoo?.horoo || {},
+                  sohNer: targetBarilga.tokhirgoo?.sohNer || "",
+                  burtgesenAjiltan: req.body.nevtersenAjiltniiToken?.id,
+                  orshinSuugchId: result._id.toString(),
+                  temdeglel: `Системээс автоматаар үүссэн гэрээ (Тоот: ${currentToot})`,
+                  actOgnoo: new Date(),
+                  baritsaaniiUldegdel: 0,
+                  ekhniiUldegdel: result.ekhniiUldegdel || 0,
+                  umnukhZaalt: result.tsahilgaaniiZaalt || 0,
+                  suuliinZaalt: result.tsahilgaaniiZaalt || 0,
+                  zardluud: zardluudArray,
+                  segmentuud: [],
+                  khungulultuud: [],
+                };
+
+                geree = new GereeModel(contractData);
+                await geree.save();
+                console.log(
+                  `✅ [AUTO-GEREE] Contract created: ${geree.gereeniiDugaar}`,
+                );
+
+                // Create initial invoice
+                try {
+                  const {
+                    gereeNeesNekhemjlekhUusgekh,
+                  } = require("../controller/nekhemjlekhController");
+                  await gereeNeesNekhemjlekhUusgekh(
+                    geree,
+                    baiguullaga,
+                    tukhainBaaziinKholbolt,
+                    "automataar",
+                    true,
+                  );
+                } catch (invErr) {
+                  console.error(
+                    "❌ [AUTO-INVOICE] Failed to create invoice:",
+                    invErr.message,
+                  );
+                }
+
+                // Update davkhar with toot if provided (sync building config)
+                if (currentToot && result.davkhar) {
+                  const {
+                    updateDavkharWithToot,
+                  } = require("../controller/orshinSuugch");
+                  await updateDavkharWithToot(
+                    baiguullaga,
+                    barilgiinId,
+                    result.davkhar,
+                    currentToot,
+                    tukhainBaaziinKholbolt,
+                  );
+                }
+
+                // Update toots array if this toot is not already there
+                if (!result.toots) result.toots = [];
+                const hasToot = result.toots.some(
+                  (t) =>
+                    t.toot === currentToot &&
+                    String(t.barilgiinId) === String(barilgiinId),
+                );
+
+                if (!hasToot) {
+                  result.toots.push({
+                    toot: currentToot,
+                    baiguullagiinId: String(baiguullagiinId),
+                    barilgiinId: String(barilgiinId),
+                    davkhar: result.davkhar,
+                    orts: result.orts,
+                    source: "OWN_ORG",
+                    createdAt: new Date(),
+                  });
+                  await result.save();
+                }
               }
             }
 
