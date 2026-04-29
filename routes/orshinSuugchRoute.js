@@ -354,12 +354,26 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
             });
           }
 
-          const registeredToots = allUnits
-            .map(
-              (u) =>
-                `${u.orts ? u.orts + " орц, " : ""}${u.davkhar ? u.davkhar + " давхар, " : ""}${u.toot} тоот`,
-            )
-            .join(", ");
+          // Group units by entrance and floor for concise display
+          const grouped = {};
+          allUnits.forEach((u) => {
+            const key = `${u.orts || "1"}_${u.davkhar || "1"}`;
+            if (!grouped[key]) {
+              grouped[key] = {
+                orts: u.orts,
+                davkhar: u.davkhar,
+                toots: [],
+              };
+            }
+            grouped[key].toots.push(u.toot);
+          });
+
+          const registeredToots = Object.values(grouped)
+            .map((g) => {
+              const prefix = `${g.orts ? g.orts + " орц, " : ""}${g.davkhar ? g.davkhar + " давхар, " : ""}`;
+              return `${prefix}${g.toots.join(", ")} тоот`;
+            })
+            .join("; ");
 
           return res.status(400).json({
             success: false,
