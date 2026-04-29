@@ -856,7 +856,8 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
           const existingTootIndex = orshinSuugch.toots.findIndex(
             (t) =>
               t.toot === tootEntry.toot &&
-              t.barilgiinId === tootEntry.barilgiinId,
+              t.barilgiinId === tootEntry.barilgiinId &&
+              t.orts === tootEntry.orts,
           );
 
           if (existingTootIndex >= 0) {
@@ -1293,6 +1294,7 @@ exports.orshinSuugchBurtgey = asyncHandler(async (req, res, next) => {
             const existingGereeForToot = await GereeModel.findOne({
               toot: tootEntry.toot,
               barilgiinId: tootEntry.barilgiinId || barilgiinId,
+              orts: tootEntry.orts || req.body.orts || "",
               tuluv: "Идэвхтэй",
               orshinSuugchId: orshinSuugch._id.toString(),
             });

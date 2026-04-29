@@ -1647,7 +1647,8 @@ exports.importUsersFromExcel = asyncHandler(async (req, res, next) => {
             const existingTootIndex = orshinSuugch.toots?.findIndex(
               (t) =>
                 t.toot === tootEntry.toot &&
-                t.barilgiinId === tootEntry.barilgiinId,
+                t.barilgiinId === tootEntry.barilgiinId &&
+                t.orts === tootEntry.orts,
             );
 
             if (existingTootIndex >= 0) {

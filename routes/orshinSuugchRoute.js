@@ -283,6 +283,7 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
     const OrshinSuugchModel = OrshinSuugch(db.erunkhiiKholbolt);
     const toot = req.body.toot ? String(req.body.toot).trim() : "";
     const davkhar = req.body.davkhar ? String(req.body.davkhar).trim() : "";
+    const orts = req.body.orts ? String(req.body.orts).trim() : "";
     const barilgiinId = req.body.barilgiinId
       ? String(req.body.barilgiinId)
       : "";
@@ -290,7 +291,7 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       ? String(req.body.baiguullagiinId)
       : "";
 
-    // Prevent duplicate: one toot (optionally + davkhar) can have only one resident per building
+    // Prevent duplicate: one toot (optionally + davkhar + orts) can have only one resident per building
     if (toot && (barilgiinId || baiguullagiinId)) {
       const orConditions = [];
       const baseMatch = { toot };
@@ -298,6 +299,10 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       if (davkhar) {
         baseMatch.davkhar = davkhar;
         baseTootMatch.davkhar = davkhar;
+      }
+      if (orts) {
+        baseMatch.orts = orts;
+        baseTootMatch.orts = orts;
       }
       if (barilgiinId) {
         orConditions.push({ ...baseMatch, barilgiinId });
@@ -359,6 +364,7 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                 orshinSuugchId: result._id.toString(),
                 barilgiinId: String(barilgiinId),
                 toot: currentToot,
+                orts: result.orts || "",
                 tuluv: { $ne: "Цуцалсан" },
               });
 
@@ -491,7 +497,8 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
                 const hasToot = result.toots.some(
                   (t) =>
                     t.toot === currentToot &&
-                    String(t.barilgiinId) === String(barilgiinId),
+                    String(t.barilgiinId) === String(barilgiinId) &&
+                    t.orts === result.orts,
                 );
 
                 if (!hasToot) {
