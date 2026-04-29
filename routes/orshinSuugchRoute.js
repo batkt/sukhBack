@@ -291,6 +291,11 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       ? String(req.body.baiguullagiinId)
       : "";
 
+    // Check if resident already exists by phone
+    const existingResidentByPhone = req.body.utas
+      ? await OrshinSuugchModel.findOne({ utas: req.body.utas })
+      : null;
+
     // Prevent duplicate: one toot (optionally + davkhar + orts) can have only one resident per building
     if (toot && (barilgiinId || baiguullagiinId)) {
       const orConditions = [];
@@ -315,29 +320,85 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
           toots: { $elemMatch: { ...baseTootMatch, baiguullagiinId } },
         });
       }
+
       if (orConditions.length > 0) {
-        const existing = await OrshinSuugchModel.findOne({ $or: orConditions });
-        if (existing) {
-          const registeredToots =
-            existing.toots && existing.toots.length > 0
-              ? existing.toots
-                  .map(
-                    (t) =>
-                      `${t.orts ? t.orts + " орц, " : ""}${t.davkhar ? t.davkhar + " давхар, " : ""}${t.toot} тоот`,
-                  )
-                  .join(", ")
-              : `${existing.orts ? existing.orts + " орц, " : ""}${existing.davkhar ? existing.davkhar + " давхар, " : ""}${existing.toot} тоот`;
+        const existingByUnit = await OrshinSuugchModel.findOne({
+          $or: orConditions,
+        });
+        if (existingByUnit) {
+          // Collect all unique units for the existing resident
+          const allUnits = [];
+          if (existingByUnit.toot) {
+            allUnits.push({
+              toot: existingByUnit.toot,
+              davkhar: existingByUnit.davkhar,
+              orts: existingByUnit.orts,
+            });
+          }
+          if (Array.isArray(existingByUnit.toots)) {
+            existingByUnit.toots.forEach((t) => {
+              if (
+                !allUnits.some(
+                  (u) =>
+                    u.toot === t.toot &&
+                    u.davkhar === t.davkhar &&
+                    u.orts === t.orts,
+                )
+              ) {
+                allUnits.push({
+                  toot: t.toot,
+                  davkhar: t.davkhar,
+                  orts: t.orts,
+                });
+              }
+            });
+          }
+
+          const registeredToots = allUnits
+            .map(
+              (u) =>
+                `${u.orts ? u.orts + " орц, " : ""}${u.davkhar ? u.davkhar + " давхар, " : ""}${u.toot} тоот`,
+            )
+            .join(", ");
 
           return res.status(400).json({
             success: false,
-            aldaa: `${existing.ovog || ""} ${existing.ner} (${Array.isArray(existing.utas) ? existing.utas.join(", ") : existing.utas}) оршин суугч дараах тоот дээр бүртгэлтэй байна: ${registeredToots}. Давхардсан бүртгэл үүсгэх боломжгүй`,
+            aldaa: `Энэ овог, нэр, утасны оршин суугч дараах тоот дээр бүртгэлтэй байна: ${registeredToots}. Давхардсан бүртгэл үүсгэх боломжгүй.`,
           });
         }
       }
     }
 
-    const result = new OrshinSuugchModel(req.body);
-    await result.save();
+    let result;
+    if (existingResidentByPhone) {
+      console.log(
+        `👤 [RESIDENT] Updating existing resident ${existingResidentByPhone.ner} (ID: ${existingResidentByPhone._id}) with new unit`,
+      );
+      // Update existing resident by adding the new unit to toots array
+      if (!existingResidentByPhone.toots) existingResidentByPhone.toots = [];
+      existingResidentByPhone.toots.push({
+        toot,
+        barilgiinId: String(barilgiinId),
+        baiguullagiinId: String(baiguullagiinId),
+        davkhar,
+        orts,
+        source: "OWN_ORG",
+        createdAt: new Date(),
+      });
+
+      // Update other fields if provided
+      if (req.body.ner) existingResidentByPhone.ner = req.body.ner;
+      if (req.body.ovog) existingResidentByPhone.ovog = req.body.ovog;
+      if (req.body.mail) existingResidentByPhone.mail = req.body.mail;
+
+      await existingResidentByPhone.save();
+      result = existingResidentByPhone;
+    } else {
+      // Create new resident
+      result = new OrshinSuugchModel(req.body);
+      await result.save();
+    }
+
     if (result != null) result.key = result._id;
 
     // --- AUTO CREATE CONTRACT & INVOICE (Like Excel Import) ---

@@ -236,19 +236,44 @@ orshinSuugchSchema.pre("save", async function (next) {
       if (this._id) query._id = { $ne: this._id };
       const existing = await OrshinSuugchModel.findOne(query);
       if (existing) {
-        const registeredToots =
-          existing.toots && existing.toots.length > 0
-            ? existing.toots
-                .map(
-                  (t) =>
-                    `${t.orts ? t.orts + " орц, " : ""}${t.davkhar ? t.davkhar + " давхар, " : ""}${t.toot} тоот`,
-                )
-                .join(", ")
-            : `${existing.orts ? existing.orts + " орц, " : ""}${existing.davkhar ? existing.davkhar + " давхар, " : ""}${existing.toot} тоот`;
+        // Collect all unique units (top-level + toots array)
+        const allUnits = [];
+        if (existing.toot) {
+          allUnits.push({
+            toot: existing.toot,
+            davkhar: existing.davkhar,
+            orts: existing.orts,
+          });
+        }
+        if (Array.isArray(existing.toots)) {
+          existing.toots.forEach((t) => {
+            if (
+              !allUnits.some(
+                (u) =>
+                  u.toot === t.toot &&
+                  u.davkhar === t.davkhar &&
+                  u.orts === t.orts,
+              )
+            ) {
+              allUnits.push({
+                toot: t.toot,
+                davkhar: t.davkhar,
+                orts: t.orts,
+              });
+            }
+          });
+        }
+
+        const registeredToots = allUnits
+          .map(
+            (u) =>
+              `${u.orts ? u.orts + " орц, " : ""}${u.davkhar ? u.davkhar + " давхар, " : ""}${u.toot} тоот`,
+          )
+          .join(", ");
 
         return next(
           new Error(
-            `${existing.ovog || ""} ${existing.ner} (${Array.isArray(existing.utas) ? existing.utas.join(", ") : existing.utas}) оршин суугч дараах тоот дээр бүртгэлтэй байна: ${registeredToots}. Давхардсан бүртгэл үүсгэх боломжгүй`,
+            `Энэ овог, нэр, утасны оршин суугч дараах тоот дээр бүртгэлтэй байна: ${registeredToots}. Давхардсан бүртгэл үүсгэх боломжгүй.`,
           ),
         );
       }
