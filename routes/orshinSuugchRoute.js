@@ -318,9 +318,19 @@ router.post("/orshinSuugch", tokenShalgakh, async (req, res, next) => {
       if (orConditions.length > 0) {
         const existing = await OrshinSuugchModel.findOne({ $or: orConditions });
         if (existing) {
+          const registeredToots =
+            existing.toots && existing.toots.length > 0
+              ? existing.toots
+                  .map(
+                    (t) =>
+                      `${t.orts ? t.orts + " орц, " : ""}${t.davkhar ? t.davkhar + " давхар, " : ""}${t.toot} тоот`,
+                  )
+                  .join(", ")
+              : `${existing.orts ? existing.orts + " орц, " : ""}${existing.davkhar ? existing.davkhar + " давхар, " : ""}${existing.toot} тоот`;
+
           return res.status(400).json({
             success: false,
-            aldaa: "Энэ тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна.",
+            aldaa: `${existing.ovog || ""} ${existing.ner} (${Array.isArray(existing.utas) ? existing.utas.join(", ") : existing.utas}) оршин суугч дараах тоот дээр бүртгэлтэй байна: ${registeredToots}. Давхардсан бүртгэл үүсгэх боломжгүй`,
           });
         }
       }

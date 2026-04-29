@@ -236,8 +236,20 @@ orshinSuugchSchema.pre("save", async function (next) {
       if (this._id) query._id = { $ne: this._id };
       const existing = await OrshinSuugchModel.findOne(query);
       if (existing) {
+        const registeredToots =
+          existing.toots && existing.toots.length > 0
+            ? existing.toots
+                .map(
+                  (t) =>
+                    `${t.orts ? t.orts + " орц, " : ""}${t.davkhar ? t.davkhar + " давхар, " : ""}${t.toot} тоот`,
+                )
+                .join(", ")
+            : `${existing.orts ? existing.orts + " орц, " : ""}${existing.davkhar ? existing.davkhar + " давхар, " : ""}${existing.toot} тоот`;
+
         return next(
-          new Error("Энэ тоот дээр оршин суугч аль хэдийн бүртгэгдсэн байна."),
+          new Error(
+            `${existing.ovog || ""} ${existing.ner} (${Array.isArray(existing.utas) ? existing.utas.join(", ") : existing.utas}) оршин суугч дараах тоот дээр бүртгэлтэй байна: ${registeredToots}. Давхардсан бүртгэл үүсгэх боломжгүй`,
+          ),
         );
       }
     }
