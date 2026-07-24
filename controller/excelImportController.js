@@ -309,7 +309,16 @@ exports.downloadEbarimtExcel = asyncHandler(async (req, res, next) => {
 
     // Apply additional filters if provided
     if (filters) {
-      Object.assign(query, filters);
+      if (filters.ekhlekhOgnoo || filters.duusakhOgnoo) {
+        query.dateOgnoo = {};
+        if (filters.ekhlekhOgnoo)
+          query.dateOgnoo.$gte = new Date(`${filters.ekhlekhOgnoo}T00:00:00`);
+        if (filters.duusakhOgnoo)
+          query.dateOgnoo.$lte = new Date(
+            `${filters.duusakhOgnoo}T23:59:59.999`,
+          );
+      }
+      if (filters.uilchilgee) query["receipts.items.name"] = filters.uilchilgee;
     }
 
     // Fetch ebarimt data

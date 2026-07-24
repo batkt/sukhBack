@@ -474,31 +474,49 @@ async function easyRegisterDuudya(method, path, body, next, onFinish, baiguullag
   }
 }
 
-router.get("/ebarimtJagsaaltAvya", tokenShalgakh, async (req, res, next) => {
-  try {
-    const body = req.query;
-    if (!!body?.query) body.query = JSON.parse(body.query);
-    if (!!body?.order) body.order = JSON.parse(body.order);
-    if (!!body?.khuudasniiDugaar)
-      body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
-    if (!!body?.khuudasniiKhemjee)
-      body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
-    if (!!body?.search) body.search = String(body.search);
-    body.query && (body.query["baiguullagiinId"] = req.body.baiguullagiinId);
+router.get(
+  "/ebarimtJagsaaltAvya",
+  copyQueryToBody,
+  tokenShalgakh,
+  async (req, res, next) => {
+    try {
+      const body = req.query;
+      if (!!body?.order) body.order = JSON.parse(body.order);
+      if (!!body?.khuudasniiDugaar)
+        body.khuudasniiDugaar = Number(body.khuudasniiDugaar);
+      if (!!body?.khuudasniiKhemjee)
+        body.khuudasniiKhemjee = Number(body.khuudasniiKhemjee);
+      if (!!body?.search) body.search = String(body.search);
 
-    const shine = true;
+      const query = {};
+      if (body.baiguullagiinId) query.baiguullagiinId = body.baiguullagiinId;
+      if (body.barilgiinId) query.barilgiinId = body.barilgiinId;
+      if (body.merchantTin) query.merchantTin = body.merchantTin;
+      if (body.districtCode) query.districtCode = body.districtCode;
+      if (body.ekhlekhOgnoo || body.duusakhOgnoo) {
+        query.dateOgnoo = {};
+        if (body.ekhlekhOgnoo)
+          query.dateOgnoo.$gte = new Date(`${body.ekhlekhOgnoo}T00:00:00`);
+        if (body.duusakhOgnoo)
+          query.dateOgnoo.$lte = new Date(`${body.duusakhOgnoo}T23:59:59.999`);
+      }
+      if (body.uilchilgee) query["receipts.items.name"] = body.uilchilgee;
+      body.query = query;
+      if (!body.khuudasniiKhemjee) body.khuudasniiKhemjee = 10000;
+      if (!body.order) body.order = { createdAt: -1 };
 
-    khuudaslalt(EbarimtShine(req.body.tukhainBaaziinKholbolt), body)
-      .then((result) => {
-        res.send(result);
-      })
-      .catch((err) => {
-        next(err);
-      });
-  } catch (error) {
-    next(error);
-  }
-});
+      khuudaslalt(EbarimtShine(req.body.tukhainBaaziinKholbolt), body)
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((err) => {
+          next(err);
+        });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 router.post("/ebarimtToololtAvya", tokenShalgakh, async (req, res, next) => {
   try {
